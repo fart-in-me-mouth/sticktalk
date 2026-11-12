@@ -1,0 +1,44 @@
+    Finished `test` profile [unoptimized] target(s) in 0.76s
+     Running unittests src\lib.rs (C:/mhq\debug\deps\sticktalk_media-634c8c6346c54712.exe)
+
+running 32 tests
+test platform::gpu::tests::odd_nv12_source_crops_last_row_column_through_real_encoder ... ignored, explicit headless GPU diagnostic; requires a hardware H.264 encoder
+test annexb::tests::normalize_and_reject_malformed ... ok
+test platform::camera::tests::default_camera_and_fake_frame_validation_do_not_open_devices ... ok
+test platform::audio::recovery_tests::follows_defaults_pins_falls_back_and_retains_output_without_mic ... ok
+test platform::encoder::tests::preserve_parameter_sets_for_later_idrs ... ok
+test platform::session::tests::invalid_config_is_rejected_before_creating_any_device ... ok
+test voice::hq_tests::deepfilternet3_model_loads_and_processes_generated_pcm ... ignored, explicit embedded DFN3 inference diagnostic; no devices, but model loading is heavy in debug
+test quality::tests::native_and_portrait_and_invalid ... ok
+test selection::tests::amf_qsv_nvenc_unknown_and_codec_filter ... ok
+test quality::tests::all_fifteen_quality_combinations ... ok
+test voice::effects::tests::inference_fp_guard_restores_callers_thread_state ... ok
+test selection::tests::fake_enumerations_try_other_hardware_after_a_vendor_rejects_format ... ok
+test selection::tests::fallback_is_explicit_and_only_after_hardware_failure ... ok
+test platform::camera::tests::fake_source_reader_callback_delivers_errors_without_a_camera ... ok
+test voice::playout::tests::telemetry_reports_per_channel_milliseconds_for_mono_and_stereo ... ok
+test voice::tests::opus_rejects_invalid_pcm_and_stereo_roundtrips ... ok
+test voice::tests::settings_validate_nonfinite_and_bounds ... ok
+test voice::tests::malformed_packets_cannot_allocate_unbounded_or_create_streams ... ok
+test voice::playout::repair_tests::opus_fec_restores_gaps_without_replaying_already_concealed_time ... ok
+test voice::hq_tests::studio_is_stereo_ungated_and_dsp_bypassed ... ok
+test voice::tests::fec_plc_loss_recovery_and_deafen ... ok
+test voice::tests::mixer_volume_zero_double_and_limit ... ok
+test voice::tests::jitter_reorders_rejects_duplicates_late_and_bounds_queue ... ok
+test voice::tests::malformed_opus_payloads_are_concealed_not_call_fatal ... ok
+test voice::hq_tests::native_apm_abi_and_standard_pipeline_work_without_devices ... ok
+test voice::tests::vad_sensitivity_and_48k_sample_clock ... ok
+test voice::tests::opus_fec_dtx_and_bitrate_are_real_controls ... ok
+test voice::tests::stereo_share_tracks_preserve_left_and_right_in_mixer ... ok
+test voice::tests::ptt_mute_and_event_crossings_no_per_frame_events ... ok
+test voice::tests::aec3_reduces_a_synthetic_delayed_echo ... ok
+test voice::playout::tests::adaptive_bounds_stereo_deafen_and_loss_do_not_create_devices ... ok
+test voice::tests::full_aec_agc_rnnoise_pipeline_handles_silence_and_toggle ... ok
+
+test result: ok. 30 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 10.35s
+
+   Doc-tests sticktalk_media
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

@@ -1,0 +1,1 @@
+WASAPI muted call (no remotes; silent playback): seconds=10.001, CPU machine=0.1855% / one-core=2.9683%, RSS=15.61 MiB, delivered=500, rate=49.99/s

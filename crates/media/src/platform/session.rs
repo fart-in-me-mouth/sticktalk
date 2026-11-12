@@ -122,10 +122,10 @@ impl ShareSession {
                 .unwrap_or(Error::Stopped)),
         }
     }
-    /// Coalesces rapid changes. Applied at the next scheduled frame as a new
-    /// encoder generation starting with IDR/SPS/PPS; WGC is NOT torn down.
-    /// Hardware MFT re-creation is intentional: not all vendors support dynamic
-    /// SetInputType. Capture and its D3D device remain running throughout.
+    /// Coalesces rapid changes. Prepares a replacement on an MTA worker while
+    /// the old encoder continues. Commits only on the replacement IDR/SPS/PPS;
+    /// capture is never restarted. Briefly owns two encoder surface pools.
+    /// Failure keeps the old stream and reports an error through recv_timeout.
     pub fn set_quality(&self, quality: Quality, bitrate: u32) -> Result<()> {
         if self.shared.stop.load(Ordering::Acquire) {
             return Err(Error::Stopped);
@@ -160,6 +160,76 @@ impl Drop for ShareSession {
     }
 }
 
+struct Prepared {
+    encoder: Encoder,
+    converter: Converter,
+    options: ShareOptions,
+    native: Size,
+    revision: u64,
+}
+// SAFETY: both preparation and capture threads enter the SAME process MTA.
+// MF transforms are used exclusively after join, never concurrently. D3D11's
+// immediate context is explicitly multithread-protected by Gpu::new.
+unsafe impl Send for Prepared {}
+/// Always join preparation on cancellation/stop; never leave a detached codec
+/// creation task or its GPU/MF references running after ShareSession::stop.
+struct Preparation(Option<JoinHandle<Result<Prepared>>>);
+impl Drop for Preparation {
+    fn drop(&mut self) {
+        if let Some(worker) = self.0.take() {
+            let _ = worker.join();
+        }
+    }
+}
+struct Retirement(Option<JoinHandle<()>>);
+impl Drop for Retirement {
+    fn drop(&mut self) {
+        if let Some(worker) = self.0.take() {
+            let _ = worker.join();
+        }
+    }
+}
+fn retire(old: Prepared) -> Result<Retirement> {
+    thread::Builder::new()
+        .name("sticktalk-encoder-retire".into())
+        .spawn(move || {
+            let _runtime = Runtime::new();
+            drop(old);
+        })
+        .map(|w| Retirement(Some(w)))
+        .map_err(|e| Error::Platform(e.to_string()))
+}
+fn prepare(
+    gpu: Gpu,
+    native: Size,
+    options: ShareOptions,
+    software: bool,
+    revision: u64,
+) -> Result<Preparation> {
+    let worker = thread::Builder::new()
+        .name("sticktalk-encoder-prepare".into())
+        .spawn(move || {
+            let _runtime = Runtime::new()?;
+            let size = if software {
+                options.quality.software_output_size(native)?
+            } else {
+                options.quality.output_size(native)?
+            };
+            let mut encoder = Encoder::new(&gpu, size, &options, software)?;
+            encoder.keyframe()?;
+            let converter = Converter::new(&gpu, native, size, options.quality.fps.get())?;
+            Ok(Prepared {
+                encoder,
+                converter,
+                options,
+                native,
+                revision,
+            })
+        })
+        .map_err(|e| Error::Platform(e.to_string()))?;
+    Ok(Preparation(Some(worker)))
+}
+
 fn run(
     source: Source,
     mut options: ShareOptions,
@@ -173,26 +243,27 @@ fn run(
     let mut size = options.quality.output_size(capture.size)?;
     let mut notice = None;
     let mut software = options.encoder_selection == EncoderSelection::SoftwareOnly;
-    let mut encoder = if software {
+    let mut encoder = crate::selection::select_with_fallback(
+        options.encoder_selection,
+        || Encoder::new(&gpu, size, &options, false),
+        |error| {
+            let mut fallback = options.clone();
+            fallback.quality = fallback.quality.software_cap();
+            let fallback_size = fallback.quality.software_output_size(capture.size)?;
+            notice = Some(match error {
+                Some(error) => {
+                    format!("Hardware unavailable ({error}); OpenH264 fallback capped to 720p30")
+                }
+                None => "Explicit OpenH264 software encoder; capped to 720p30".into(),
+            });
+            Encoder::new(&gpu, fallback_size, &fallback, true)
+        },
+    )?;
+    if encoder.kind == EncoderKind::Software {
+        software = true;
         options.quality = options.quality.software_cap();
         size = options.quality.software_output_size(capture.size)?;
-        notice = Some("Explicit OpenH264 software encoder; capped to 720p30".into());
-        Encoder::new(&gpu, size, &options, true)?
-    } else {
-        match Encoder::new(&gpu, size, &options, false) {
-            Ok(encoder) => encoder,
-            Err(error) if options.encoder_selection == EncoderSelection::AllowSoftwareFallback => {
-                notice = Some(format!(
-                    "Hardware unavailable ({error}); OpenH264 fallback capped to 720p30"
-                ));
-                options.quality = options.quality.software_cap();
-                size = options.quality.software_output_size(capture.size)?;
-                software = true;
-                Encoder::new(&gpu, size, &options, true)?
-            }
-            Err(error) => return Err(error),
-        }
-    };
+    }
     let mut converter = Converter::new(&gpu, capture.size, size, options.quality.fps.get())?;
     ready
         .send(Ok(Started {
@@ -203,21 +274,28 @@ fn run(
             notice,
         }))
         .map_err(|_| Error::Stopped)?;
+    let pacer = super::pacer::Pacer::new()?;
     let epoch = Instant::now();
     let mut tick = epoch;
     let mut generation = 0;
     let mut last_frame = None;
     let mut last_capture = Instant::now();
     let mut force_keyframe = true;
+    let mut desired = options.clone();
+    let mut revision = 0;
+    let mut pending: Option<Preparation> = None;
+    let mut candidate: Option<Prepared> = None;
+    let mut native = capture.size;
+    let mut failed_revision = None;
+    let mut retired: Option<Retirement> = None;
     while !shared.stop.load(Ordering::Acquire) {
-        let now = Instant::now();
-        if now < tick {
-            let _ = capture
-                .signals
-                .recv_timeout((tick - now).min(Duration::from_millis(50)));
-            continue;
+        pacer.until(tick)?;
+        // WGC notifications coalesce; frame acquisition is paced, not a second
+        // high-refresh wake loop. The free-threaded frame pool owns arrivals.
+        let _ = capture.signals.try_recv();
+        if shared.stop.load(Ordering::Acquire) {
+            break;
         }
-        let mut changed = false;
         {
             let mut controls = shared.controls.lock().unwrap();
             if let Some((quality, bitrate)) = controls.quality.take() {
@@ -226,9 +304,11 @@ fn run(
                 } else {
                     quality
                 };
-                changed = quality != options.quality || bitrate != options.bitrate;
-                options.quality = quality;
-                options.bitrate = bitrate;
+                if quality != desired.quality || bitrate != desired.bitrate {
+                    desired.quality = quality;
+                    desired.bitrate = bitrate;
+                    revision += 1;
+                }
             }
             if let Some(cursor) = controls.cursor.take() {
                 capture.set_cursor(cursor)?;
@@ -241,27 +321,74 @@ fn run(
         } else {
             shared.stats.lock().unwrap().repeated += 1;
         }
-        let native_changed = converter.input_size != capture.size;
-        if changed || native_changed {
-            size = if software {
-                options.quality.software_output_size(capture.size)?
-            } else {
-                options.quality.output_size(capture.size)?
-            };
-            // Destroy old codec before allocating a replacement, bounding driver
-            // surface pools. Every prior sample has already been emitted.
-            drop(encoder);
-            encoder = Encoder::new(&gpu, size, &options, software)?;
-            converter = Converter::new(&gpu, capture.size, size, options.quality.fps.get())?;
-            generation += 1;
-            shared.stats.lock().unwrap().reconfigurations += 1;
-            force_keyframe = true;
-            if native_changed {
-                last_frame = None;
+        if converter.input_size != capture.size {
+            native = capture.size;
+            revision += 1;
+            // Keep the old output format streaming while the new encoder is
+            // built. Only the converter's source rectangle must follow resize.
+            converter = Converter::new(
+                &gpu,
+                native,
+                converter.output_size,
+                options.quality.fps.get(),
+            )?;
+        }
+        if pending
+            .as_ref()
+            .is_some_and(|p| p.0.as_ref().is_some_and(|w| w.is_finished()))
+        {
+            let mut preparation = pending.take().unwrap();
+            let result = preparation
+                .0
+                .take()
+                .unwrap()
+                .join()
+                .map_err(|_| Error::Platform("encoder preparation panicked".into()))?;
+            match result {
+                Ok(prepared) if prepared.revision == revision => candidate = Some(prepared),
+                Ok(stale) => {
+                    retired = Some(retire(stale)?);
+                } // Superseded request.
+                Err(error) => {
+                    // Keep the working encoder on a failed reconfiguration.
+                    // Report once; this is NOT a terminal session failure.
+                    let _ = sender.try_send(Err(error));
+                    desired = options.clone();
+                    failed_revision = Some(revision);
+                }
             }
         }
+        if candidate.as_ref().is_some_and(|p| p.revision != revision) {
+            retired = Some(retire(candidate.take().unwrap())?);
+        }
+        if retired
+            .as_ref()
+            .is_some_and(|r| r.0.as_ref().is_some_and(|w| w.is_finished()))
+        {
+            retired = None;
+        }
+        let desired_size = if software {
+            desired.quality.software_output_size(native)?
+        } else {
+            desired.quality.output_size(native)?
+        };
+        if pending.is_none()
+            && candidate.is_none()
+            && retired.is_none()
+            && failed_revision != Some(revision)
+            && (desired.quality != options.quality
+                || desired.bitrate != options.bitrate
+                || desired_size != converter.output_size)
+        {
+            pending = Some(prepare(
+                gpu.clone(),
+                native,
+                desired.clone(),
+                software,
+                revision,
+            )?);
+        }
         let fps = options.quality.fps.get();
-        let interval = Duration::from_secs_f64(1.0 / f64::from(fps));
         if let Some((_, texture)) = &last_frame {
             if force_keyframe || shared.keyframe.swap(false, Ordering::AcqRel) {
                 encoder.keyframe()?;
@@ -271,7 +398,45 @@ fn run(
             let started = Instant::now();
             converter.convert(texture)?;
             let duration = 10_000_000 / i64::from(fps);
-            let bytes = encoder.encode(&converter.texture, timestamp, duration)?;
+            let mut bytes = None;
+            if let Some(next) = &mut candidate {
+                next.converter.convert(texture)?;
+                let encoded = next.encoder.encode(
+                    &next.converter.texture,
+                    timestamp,
+                    10_000_000 / i64::from(next.options.quality.fps.get()),
+                )?;
+                if annexb::contains(&encoded, 5)
+                    && annexb::contains(&encoded, 7)
+                    && annexb::contains(&encoded, 8)
+                {
+                    // Commit only after an actual IDR + parameter sets, never
+                    // emit a generation whose reference chain is unavailable.
+                    bytes = Some(encoded);
+                }
+            }
+            if bytes.is_some() {
+                let next = candidate.take().unwrap();
+                debug_assert_eq!(next.native, native);
+                let old = Prepared {
+                    encoder: std::mem::replace(&mut encoder, next.encoder),
+                    converter: std::mem::replace(&mut converter, next.converter),
+                    options: std::mem::replace(&mut options, next.options),
+                    native,
+                    revision,
+                };
+                // Driver shutdown can block: retire off the paced output path.
+                // Do not start another preparation until retirement is joined,
+                // bounding simultaneous encoder surface pools to two.
+                retired = Some(retire(old)?);
+                generation += 1;
+                shared.stats.lock().unwrap().reconfigurations += 1;
+            }
+            let bytes = match bytes {
+                Some(bytes) => bytes,
+                None => encoder.encode(&converter.texture, timestamp, duration)?,
+            };
+            let duration = 10_000_000 / i64::from(options.quality.fps.get());
             let latency = started.elapsed();
             if bytes.len() > 8 * 1024 * 1024 {
                 return Err(Error::Platform(
@@ -309,6 +474,7 @@ fn run(
                 "Windows Graphics Capture produced no frames",
             ));
         }
+        let interval = Duration::from_secs_f64(1.0 / f64::from(options.quality.fps.get()));
         tick += interval;
         let now = Instant::now();
         if now > tick + interval {

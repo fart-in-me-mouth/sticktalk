@@ -63,15 +63,14 @@ pub struct Quality {
 
 impl Quality {
     /// Preserves source aspect ratio, rounding to chroma-compatible even sizes.
-    /// Source is never resized: odd native sizes are rejected rather than
-    /// silently scaled/cropped, because NV12 requires even dimensions.
+    /// Source crops at most the final column/row for NV12 (no rescaling).
     pub fn output_size(self, source: Size) -> Result<Size> {
         source.validate()?;
         if self.resolution == Resolution::Source {
-            if !source.width.is_multiple_of(2) || !source.height.is_multiple_of(2) {
-                return Err(Error::Invalid("Source NV12 requires even native dimensions; choose a scaled quality for odd-sized windows".into()));
-            }
-            return Ok(source);
+            return Ok(Size {
+                width: source.width & !1,
+                height: source.height & !1,
+            });
         }
         let height = match self.resolution {
             Resolution::P480 => 480,
@@ -172,15 +171,21 @@ mod tests {
             native
         );
         assert_eq!(Quality::default().output_size(native).unwrap().width, 606);
-        assert!(Quality {
-            fps: FrameRate::Fps60,
-            resolution: Resolution::Source
-        }
-        .output_size(Size {
-            width: 801,
-            height: 601
-        })
-        .is_err());
+        assert_eq!(
+            Quality {
+                fps: FrameRate::Fps60,
+                resolution: Resolution::Source
+            }
+            .output_size(Size {
+                width: 801,
+                height: 601
+            })
+            .unwrap(),
+            Size {
+                width: 800,
+                height: 600
+            }
+        );
         assert_eq!(
             Quality::default()
                 .software_output_size(Size {

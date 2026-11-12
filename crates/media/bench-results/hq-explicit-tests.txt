@@ -1,0 +1,14 @@
+    Finished `test` profile [unoptimized] target(s) in 0.62s
+     Running unittests src\lib.rs (C:/mhq\debug\deps\sticktalk_media-634c8c6346c54712.exe)
+
+running 2 tests
+test platform::gpu::tests::odd_nv12_source_crops_last_row_column_through_real_encoder ... ok
+test voice::hq_tests::deepfilternet3_model_loads_and_processes_generated_pcm ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 4.19s
+
+   Doc-tests sticktalk_media
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

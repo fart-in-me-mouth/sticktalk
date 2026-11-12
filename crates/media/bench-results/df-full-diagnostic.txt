@@ -1,0 +1,18 @@
+Full DFN3 (non-LL) initialization diagnostic; only failure tail retained.
+  104 | 103/0>            -> >105/0            | Sigmoid                   /conv0_out/2/Sigmoid                               [1,1,1,32,F32] => [1,1,1,32,F32]
+                                               |   * output #0: m >105/0
+  105 | 104/0>            ->                   | Reduce<Sum>               reduce_mask_sum                                    [1,1,1,32,F32] => [1,1,1,32,F32]
+outputs: 105/0>
+
+
+thread 'voice::hq_tests::deepfilternet3_model_loads_and_processes_generated_pcm' (31308) panicked at crates\media\src\voice.rs:1147:10:
+called `Result::unwrap()` on an `Err` value: Platform("voice effects: running pass codegen: after pass codegen: after graph compaction: duplicate name /convt3/Conv.bias")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    voice::hq_tests::deepfilternet3_model_loads_and_processes_generated_pcm
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 29 filtered out; finished in 2.24s
+
+error: test failed, to rerun pass `-p sticktalk-media --lib`

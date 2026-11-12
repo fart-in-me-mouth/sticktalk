@@ -1,0 +1,23 @@
+Source: \\.\DISPLAY2 (2560x1440), cursor=true
+Detected hardware encoders: [
+    EncoderAvailability {
+        codec: H264,
+        name: "NVIDIA H.264 Encoder MFT",
+    },
+    EncoderAvailability {
+        codec: Hevc,
+        name: "NVIDIA HEVC Encoder MFT",
+    },
+]
+Starting P1080@60, target 8087040 bps, decode=true
+GPU: NVIDIA GeForce RTX 3060 Ti; encoder: Software; actual size: Size { width: 1280, height: 720 }; quality: Quality { fps: Fps30, resolution: P720 }
+WARNING: Explicit OpenH264 software encoder; capped to 720p30
+[OpenH264] this = 0x00000284058D0450, Warning:ParamValidation(), AdaptiveQuant(1) is not supported yet for screen content, auto turned off
+[OpenH264] this = 0x00000284058D0450, Warning:ParamValidation(), BackgroundDetection(1) is not supported yet for screen content, auto turned off
+Completed P1080@60: 3.033s, unique capture 0.00 fps, encode 30.01 fps, decode 30.01 fps, latency mean=6.384 p99=8.523ms, drops=0, repeats=91, 0.094 Mbps
+CPU 1.352% machine / 21.639% one-core (16 logical CPUs); RSS 104.95MiB, sampled peak 104.95MiB, lifetime peak 104.95MiB; generation changes 0
+Max media PTS gap=33.756 ms; switch-only PTS gap=0.000 ms; max receive gap=35.682 ms
+
+| Quality | Size | Seconds | Capture fps (unique WGC) | Encode fps | Decode fps | Mean/p99 encode ms | Drops | Repeats | Actual Mbps | CPU total % / one-core % | RSS / peak MiB | Encoder |
+|---|---|---:|---:|---:|---:|---|---:|---:|---:|---|---|---|
+| P1080@60 | 1280x720 | 3.033 | 0.00 | 30.01 | 30.01 | 6.384/8.523 | 0 | 91 | 0.094 | 1.352/21.639 | 104.95/104.95 | Software |

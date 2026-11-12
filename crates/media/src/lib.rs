@@ -7,7 +7,10 @@
 
 mod annexb;
 mod quality;
+mod selection;
+pub mod voice;
 pub use quality::{FrameRate, Quality, Resolution, Size};
+pub use selection::{encoder_order, EncoderVendor};
 
 use std::time::Duration;
 
@@ -136,6 +139,9 @@ pub struct SessionStats {
 mod platform;
 #[cfg(windows)]
 pub use platform::{
-    hardware_encoders, list_sources, process_usage, DecodedFrame, Decoder, ProcessUsage,
-    ShareSession,
+    audio_devices, camera_devices, hardware_encoders, list_sources, process_usage, AudioDevice,
+    AudioDeviceEvent, AudioDeviceWatcher, AudioDirection, AudioSessionEvent, CameraDevice,
+    CameraFrameEncoder, CameraOptions, CameraSession, DecodedFrame, Decoder, LoopbackSession,
+    LoopbackSource, MicLevel, MicTestSession, ProcessUsage, ShareSession, VoiceDevices,
+    VoiceSession,
 };
