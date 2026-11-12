@@ -19,6 +19,7 @@ impl TestServer {
         let dir = tempfile::tempdir().unwrap();
         let app = App::open(Config {
             operations: Default::default(),
+            browser: Default::default(),
             bind: "127.0.0.1:0".parse().unwrap(),
             data_dir: dir.path().into(),
             public_url: "http://localhost".into(),
@@ -31,6 +32,7 @@ impl TestServer {
             mock_google_issuer: None,
             gifs: Default::default(),
             voice: sticktalk_server::voice::VoiceOptions {
+                voice_bind_ip: "127.0.0.1".parse().unwrap(),
                 voice_advertised_ip: Some("127.0.0.1".parse().unwrap()),
                 ..Default::default()
             },

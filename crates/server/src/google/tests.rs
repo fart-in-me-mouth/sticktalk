@@ -98,6 +98,7 @@ impl Fixture {
         let app = App::open_with_verifier(
             crate::Config {
                 operations: Default::default(),
+                browser: Default::default(),
                 bind: "127.0.0.1:0".parse().unwrap(),
                 data_dir: dir.path().into(),
                 public_url: "http://localhost".into(),
@@ -109,7 +110,11 @@ impl Fixture {
                 mock_google_jwks: None,
                 mock_google_issuer: None,
                 gifs: Default::default(),
-                voice: Default::default(),
+                voice: crate::voice::VoiceOptions {
+                    voice_bind_ip: "127.0.0.1".parse().unwrap(),
+                    voice_advertised_ip: Some("127.0.0.1".parse().unwrap()),
+                    ..Default::default()
+                },
             },
             Verifier::with_url(jwks_url).unwrap(),
         )
@@ -904,4 +909,254 @@ async fn disabled_google_still_allows_session_password_setup_and_methods_are_str
         )
         .await;
     }
+}
+
+#[tokio::test]
+async fn web_redirect_pkce_state_cookie_signup_and_existing_session() {
+    use axum::{
+        body::{to_bytes, Body},
+        http::Request,
+        routing::post,
+    };
+    use std::collections::HashMap;
+    use tower::ServiceExt;
+    let f = Fixture::new(true).await;
+    let current = Arc::new(RwLock::new(id_token("web-subject")));
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<HashMap<String, String>>(8);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let token_url = format!("http://{}/token", listener.local_addr().unwrap());
+    let mock_current = current.clone();
+    let upstream = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            axum::Router::new().route(
+                "/token",
+                post(
+                    move |axum::Form(form): axum::Form<HashMap<String, String>>| {
+                        let current = mock_current.clone();
+                        let tx = tx.clone();
+                        async move {
+                            tx.send(form).await.unwrap();
+                            axum::Json(json!({"id_token":current.read().await.clone()}))
+                        }
+                    },
+                ),
+            ),
+        )
+        .await
+        .unwrap();
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = f.app.0.config.clone();
+    config.data_dir = dir.path().into();
+    config.public_url = "https://sticktalk.test".into();
+    config.google_client_id = None;
+    config.browser = crate::browser::BrowserOptions {
+        google_web_client_id: Some(CLIENT_ID.into()),
+        google_web_client_secret: Some("test-only-secret".into()),
+        mock_google_token_url: Some(token_url),
+        ..Default::default()
+    };
+    let app = App::open_with_verifier(
+        config,
+        Verifier::with_url(f.app.0.google.url.clone()).unwrap(),
+    )
+    .await
+    .unwrap();
+    let router = crate::http::router(app.clone());
+    let start = || {
+        Request::builder()
+            .uri("/api/v1/browser/google/start")
+            .body(Body::empty())
+            .unwrap()
+    };
+    let cookie_pairs = |r: &axum::response::Response| {
+        r.headers()
+            .get_all("set-cookie")
+            .iter()
+            .map(|v| v.to_str().unwrap().split(';').next().unwrap().to_owned())
+            .collect::<Vec<_>>()
+            .join("; ")
+    };
+    let r = router.clone().oneshot(start()).await.unwrap();
+    assert_eq!(r.status(), StatusCode::SEE_OTHER);
+    let state_cookie = cookie_pairs(&r);
+    assert!(r.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .contains("SameSite=Lax"));
+    assert!(r.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .contains("HttpOnly"));
+    let authorization = reqwest::Url::parse(r.headers()["location"].to_str().unwrap()).unwrap();
+    let params: HashMap<_, _> = authorization.query_pairs().into_owned().collect();
+    assert_eq!(params["code_challenge_method"], "S256");
+    assert_eq!(
+        params["redirect_uri"],
+        "https://sticktalk.test/api/v1/browser/google/callback"
+    );
+    let callback_path = format!(
+        "/api/v1/browser/google/callback?state={}&code=mock-code",
+        params["state"]
+    );
+    let callback = |cookie: &str| {
+        Request::builder()
+            .uri(&callback_path)
+            .header("cookie", cookie)
+            .body(Body::empty())
+            .unwrap()
+    };
+    assert_eq!(
+        router
+            .clone()
+            .oneshot(callback("__Host-sticktalk_oauth=wrong"))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    let r = router
+        .clone()
+        .oneshot(callback(&state_cookie))
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::SEE_OTHER);
+    assert_eq!(r.headers()["location"], "/?google=signup");
+    let signup_cookies = cookie_pairs(&r)
+        .split("; ")
+        .filter(|s| !s.ends_with('='))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(signup_cookies.contains("__Host-sticktalk_signup="));
+    assert!(!signup_cookies.contains("__Host-sticktalk_session="));
+    let form = rx.recv().await.unwrap();
+    assert_eq!(form["code"], "mock-code");
+    assert_eq!(form["client_secret"], "test-only-secret");
+    assert_eq!(
+        params["code_challenge"],
+        URL_SAFE_NO_PAD.encode(state::hash(form["code_verifier"].as_bytes()))
+    );
+    assert_eq!(
+        router
+            .clone()
+            .oneshot(callback(&state_cookie))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    let csrf = signup_cookies
+        .split("; ")
+        .find_map(|s| s.strip_prefix("__Host-sticktalk_csrf="))
+        .unwrap();
+    let complete = || {
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/browser/session/google/complete")
+            .header("origin", "https://sticktalk.test")
+            .header("cookie", &signup_cookies)
+            .header("x-sticktalk-csrf", csrf)
+            .header("content-type", "application/json")
+            .body(Body::from(
+                json!({"ticket":"","username":"web_user"}).to_string(),
+            ))
+            .unwrap()
+    };
+    let r = router.clone().oneshot(complete()).await.unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    let session_cookie = cookie_pairs(&r);
+    let body: Value =
+        serde_json::from_slice(&to_bytes(r.into_body(), 16384).await.unwrap()).unwrap();
+    assert!(body.get("token").is_none());
+    assert_eq!(body["user"]["user"]["username"], "web_user");
+    assert!(session_cookie.contains("__Host-sticktalk_session="));
+    assert_eq!(
+        router.clone().oneshot(complete()).await.unwrap().status(),
+        StatusCode::UNAUTHORIZED
+    );
+    app.0.core.lock().await.limits.clear();
+    let r = router.clone().oneshot(start()).await.unwrap();
+    let cookie = cookie_pairs(&r);
+    let url = reqwest::Url::parse(r.headers()["location"].to_str().unwrap()).unwrap();
+    let state = url
+        .query_pairs()
+        .find(|(k, _)| k == "state")
+        .unwrap()
+        .1
+        .into_owned();
+    let r = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/browser/google/callback?state={state}&code=another-code"
+                ))
+                .header("cookie", cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::SEE_OTHER);
+    assert_eq!(r.headers()["location"], "/");
+    assert!(cookie_pairs(&r).contains("__Host-sticktalk_session="));
+    let _ = rx.recv().await;
+    app.0.core.lock().await.limits.clear();
+    let r = router.clone().oneshot(start()).await.unwrap();
+    let cookie = cookie_pairs(&r);
+    let url = reqwest::Url::parse(r.headers()["location"].to_str().unwrap()).unwrap();
+    let state = url
+        .query_pairs()
+        .find(|(k, _)| k == "state")
+        .unwrap()
+        .1
+        .into_owned();
+    let mut wrong = claims("wrong-aud");
+    wrong["aud"] = json!("other-client");
+    *current.write().await = signed(json!({"alg":"RS256","kid":"one"}), wrong);
+    let r = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/browser/google/callback?state={state}&code=wrong-audience"
+                ))
+                .header("cookie", cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+    app.0.core.lock().await.limits.clear();
+    let r = router.clone().oneshot(start()).await.unwrap();
+    let cookie = cookie_pairs(&r);
+    let url = reqwest::Url::parse(r.headers()["location"].to_str().unwrap()).unwrap();
+    let state = url
+        .query_pairs()
+        .find(|(k, _)| k == "state")
+        .unwrap()
+        .1
+        .into_owned();
+    sqlx::query("UPDATE web_oauth_states SET expires_at=0")
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    let r = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/browser/google/callback?state={state}&code=expired"
+                ))
+                .header("cookie", cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+    app.shutdown();
+    upstream.abort();
 }

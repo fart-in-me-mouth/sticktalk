@@ -96,6 +96,7 @@ impl Fixture {
         let dir = tempfile::tempdir().unwrap();
         let mut app = App::open(crate::Config {
             operations: Default::default(),
+            browser: Default::default(),
             bind: "127.0.0.1:0".parse().unwrap(),
             data_dir: dir.path().into(),
             public_url: "http://localhost".into(),
@@ -107,7 +108,11 @@ impl Fixture {
             mock_google_jwks: None,
             mock_google_issuer: None,
             gifs: options,
-            voice: Default::default(),
+            voice: crate::voice::VoiceOptions {
+                voice_bind_ip: "127.0.0.1".parse().unwrap(),
+                voice_advertised_ip: Some("127.0.0.1".parse().unwrap()),
+                ..Default::default()
+            },
         })
         .await
         .unwrap();

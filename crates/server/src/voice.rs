@@ -548,6 +548,7 @@ mod tests {
         use clap::Parser;
         let mut config = crate::Config::parse_from(["server"]);
         config.data_dir = dir.path().into();
+        config.voice.voice_bind_ip = "127.0.0.1".parse().unwrap();
         config.voice.voice_advertised_ip = Some("127.0.0.1".parse().unwrap());
         crate::admin::run(&config, &crate::admin::AdminCommand::ListUsers)
             .await
@@ -558,6 +559,15 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(message, "retained");
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT message_count FROM history_extents WHERE channel_id=4"
+            )
+            .fetch_one(&app.0.pool)
+            .await
+            .unwrap(),
+            1
+        );
         let parent: i64 = sqlx::query_scalar("SELECT parent_id FROM channels WHERE id=4")
             .fetch_one(&app.0.pool)
             .await

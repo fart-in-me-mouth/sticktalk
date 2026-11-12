@@ -1230,3 +1230,190 @@ buttons on **either** message, local hotkey/physical mouse, stream stop or any
 transport disconnect. It must also ignore already queued input for a revoked
 or mismatched grant. Implementing SendInput, UAC restrictions, local bounds,
 Ctrl+Alt+Shift+S and the always-on-top banner is client work, not SFU work.
+
+## 11. Browser/phone server support (additive v1)
+
+### Static PWA hosting and browser boundary
+
+`--web-root` / `STICKTALK_WEB_ROOT` selects a trusted, read-only web build
+containing `index.html`, the service worker, manifest, scripts, wasm and fonts.
+GET `/` serves this build on the API origin; `/api` never falls back to HTML.
+No web root leaves hosting disabled. Files stream from disk. Existing `.br`
+and `.gz` siblings are negotiated using `Accept-Encoding`, preserving the
+original MIME type and `Vary: Accept-Encoding`. Versioned filenames containing
+an 8+ hexadecimal hash segment get `public, max-age=31536000, immutable`;
+HTML, manifest files, `sw.*`/`sw-*` and `service-worker*` always get `no-cache`.
+Requests with `Service-Worker: script` also always get `no-cache`, regardless
+of filename. Other unversioned files get `no-cache`. API responses use `no-store`.
+
+All responses carry CSP (`default-src 'none'`, script self +
+`'wasm-unsafe-eval'`, same-origin connections including WS, styles/fonts/
+workers/manifests self, no objects/frames/base URL), `Referrer-Policy:
+no-referrer`, `X-Content-Type-Options: nosniff`, and `Permissions-Policy` allowing
+microphone, camera and display-capture **for self only**. CSP img/media sources
+add only operator-configured HTTPS origins from `--gif-media-origins` /
+`STICKTALK_GIF_MEDIA_ORIGINS` (comma separated, no wildcards/paths). GIF
+metadata must use the same-origin proxy under this policy; direct browser
+provider API access is not implicitly permitted. No COOP/COEP is sent: this
+single-threaded wasm app does not need SharedArrayBuffer isolation, and COEP
+would block third-party GIF media without CORP. Serve only trusted builds,
+never user uploads, under the root. Native media download routes are unchanged.
+
+### Cookie sessions and CSRF
+
+Existing bearer REST routes and native WS Identify remain unchanged. Browser
+routes below are only under `/api/v1` and return the shared proto DTOs:
+
+| Method/path | Request / response |
+|---|---|
+| GET `/browser/capabilities` | Public `BrowserCapabilities {cookie_sessions,google_redirect,web_push}` |
+| POST `/browser/session/register` | Existing `RegisterRequest`; `BrowserSession` |
+| POST `/browser/session/login` | Existing `LoginRequest`; `BrowserSession` |
+| GET `/browser/session` | Current session's `BrowserSession`, also refreshes the CSRF cookie |
+| POST `/auth/logout` | Existing logout; revokes the session and deletes browser cookies |
+
+`BrowserSession {user:SelfUser,expires_at:UnixMillis,csrf_token:String}` never
+exposes a bearer credential to script. Login/register require an exact `Origin`
+matching configured `public_url`, and use the existing password verification,
+session limits and expiry. Cookies are host-only, Path=/, Secure,
+SameSite=Strict: `__Host-sticktalk_session` is HttpOnly; the separate
+`__Host-sticktalk_csrf` cookie is script-readable. Cookie lifetime is bounded by
+the existing 30-day session expiry. HTTPS is required for deployed browser use.
+No cookie Domain or insecure-cookie downgrade is supported.
+
+For **every unsafe cookie-authenticated REST call**, including file streaming,
+upload lifecycle, legacy `/api/auth/*` aliases and logout, send both:
+`Origin: <public origin>` and `X-StickTalk-CSRF: <csrf_token>`. The server checks
+an HMAC-bound double submit token against the CSRF cookie and session credential
+using constant-time comparison. Duplicate session/CSRF cookie names are invalid.
+Explicit Authorization takes precedence over cookies, preserving native clients.
+No CORS allowance is granted to foreign origins. Do not cache private API data
+in the service worker or put credentials in URLs/localStorage.
+
+Browser WS upgrades use the HttpOnly cookie and **require** the same exact
+Origin (including port); missing, null or foreign Origin is forbidden. The cookie
+is authenticated before upgrade and again at Identify. Browser sends the usual
+`Identify {version:1,token:"",resume}` after Hello. A nonempty Identify token on a
+cookie-authenticated connection is rejected. Native Identify still supplies its
+bearer token. Subprotocol, frame limits, replay and session revocation are
+unchanged. No auth query parameters are accepted.
+
+`ClientMsg::Focus {focused:bool}` is an additive, ephemeral named-map hint:
+`{"type":"focus","data":{"focused":true}}`. Both browser and native clients
+may send it after Ready/Resumed and on focus/visibility changes. Default false,
+never replayed, cleared by disconnect/replacement; keep existing heartbeats so
+dead sockets expire. A focused live client suppresses that user's pushes across
+sessions. This is a notification hint, not permission/presence/read-state proof.
+
+### Server-side Google redirect + PKCE
+
+Configure **separate Web application OAuth credentials** with
+`--google-web-client-id` / `STICKTALK_GOOGLE_WEB_CLIENT_ID` and
+`--google-web-client-secret` / `STICKTALK_GOOGLE_WEB_CLIENT_SECRET`. Keep the
+secret server-only. Existing desktop client ID/ID-token login remains unchanged.
+Redirect capability is disabled unless both web credentials and HTTPS public
+origin are configured. Register the exact redirect URI:
+`<public_url>/api/v1/browser/google/callback` in Google Cloud.
+
+1. Navigate to GET `/api/v1/browser/google/start`. The server generates random
+   state and a PKCE verifier, stores only the state hash with the verifier for
+   10 minutes, and redirects to Google's authorization endpoint with S256.
+2. A Secure, HttpOnly, host-only `__Host-sticktalk_oauth` state cookie has
+   **SameSite=Lax** just for the cross-site top-level Google callback GET.
+   Session and signup cookies remain Strict. Never make the session cookie Lax.
+3. Callback GET accepts `state` and `code` (or provider `error`). State must
+   match the cookie and a live DB row; consumption is atomic and single-use,
+   before network I/O. Token exchange uses server-side code + verifier + client
+   secret, the fixed redirect URI, bounded responses and no redirects.
+4. Existing RS256 Google ID-token verification is reused, with the **web client
+   ID audience**, followed by the existing subject-only identity lookup and
+   signup-ticket issuance. No email linking or automatic account merging.
+5. Existing user: set browser session cookies, delete the state cookie and
+   redirect to `/`. New user: put the existing 10-minute signup ticket in a
+   Secure/HttpOnly/Strict `__Host-sticktalk_signup` cookie, create a CSRF cookie,
+   and redirect to `/?google=signup` (no ticket or credential in the URL).
+6. Submit POST `/api/v1/browser/session/google/complete` with
+   `GoogleCompleteRequest {ticket:"",username}`, exact Origin, CSRF header and
+   signup/CSRF cookies. The server supplies the cookie ticket to the existing
+   atomic signup flow. Response is `BrowserSession`; the signup cookie clears.
+   Username collision leaves the ticket usable until expiry; reuse is rejected.
+
+Loopback integration tests may explicitly set `--mock-google-token-url` in
+addition to the existing mock issuer/JWKS configuration; this is rejected on a
+non-loopback HTTP bind. Real browsers/Google are not launched by tests.
+
+### Web Push
+
+| Method/path | Request / response |
+|---|---|
+| GET `/push/key` | Public `PushKey {public_key}`; base64url uncompressed P-256 VAPID key |
+| POST `/push/subscriptions` | `PushSubscribeRequest {endpoint,p256dh,auth}`; 201 `PushSubscription` |
+| GET `/push/subscriptions` | This login session's `[PushSubscription]` only |
+| DELETE `/push/subscriptions/{id}` | This session only; 204, otherwise not_found |
+
+The JS PushSubscription `getKey("p256dh")` and `getKey("auth")` values are
+unpadded base64url (65-byte uncompressed valid P-256 point and 16-byte secret).
+Normalize browser PushSubscription JSON to the flat request above.
+`PushSubscription {id:String,endpoint:String,created_at:UnixMillis}` never
+returns private key material. At most five subscriptions/session; an endpoint
+owned by another session conflicts. Logout/account deletion cascades removal;
+expired sessions cannot receive pushes even before housekeeping removes rows.
+
+VAPID ES256 PKCS#8 keys are generated once into `<data_dir>/vapid.pk8`; Unix
+creation mode is 0600. Back up that file with the database and protect the data
+dir with owner-only permissions/Windows ACLs. Corrupt keys fail closed (no
+silent rotation). Configure `--vapid-subject` / `STICKTALK_VAPID_SUBJECT` as a
+contact `mailto:` or HTTPS URI; default is public_url. JWT audience is the push
+endpoint origin, expiry 12 hours. Payload encryption uses RFC 8291 ephemeral
+P-256 ECDH, authenticated HKDF-SHA256 and a single AES-128-GCM final record;
+VAPID signing keys are never reused as ECDH keys. Each delivery gets fresh
+salt/key material. The payload is `PushPayload {url,channel_id,message_id,count,
+title,body}` with generic text only, never message contents/author profiles.
+IDs have the same u64 precision requirements as all v1 JSON. The server-generated
+relative `url` (`/?channel=<decimal>&message=<decimal>`) preserves IDs for a plain
+JavaScript service worker: use that URL for notification-click navigation instead
+of reconstructing IDs after JSON.parse. Validate that navigation remains same-origin.
+
+Committed DMs/group DMs and explicit mentions enqueue notifications; edits and
+command-receipt replay do not. Queue 1024, batch at most 1024 user/channel pairs,
+2-second event-driven coalescing, at most one delivery round/user/30 seconds
+(up to 25 session subscriptions), push TTL 300 seconds and stable channel Topic.
+The worker sleeps on its queue when idle; overload is best-effort/drop, not an
+unbounded queue. Focus, current ACL, deleted messages, block, DND, read state,
+revoked/expired sessions and a pluggable policy are checked before delivery.
+`App::set_push_policy(Arc<dyn push::NotificationPolicy>)` integrates the parallel
+notification-settings work; `allows` receives a SQL connection and `PushNotice`
+(user/author/channel/message IDs and direct/mentioned flags), and fails closed
+on errors. Register this policy at startup; default allows DMs/mentions after
+the base checks. It must not acquire the chat mutation gate. No network work
+occurs under the chat gate. Provider 404/410 deletes subscriptions.
+
+SSRF protection: only exact configured push-service origins are allowed, no
+credentials/fragments, no HTTP or redirects. Defaults: `https://fcm.googleapis.com`,
+`https://updates.push.services.mozilla.com`, `https://web.push.apple.com`.
+`--push-origins` / `STICKTALK_PUSH_ORIGINS` replaces this allowlist with trusted
+HTTPS services; do not allow untrusted DNS or internal services. A separate
+`--mock-push-origin` is permitted only with a loopback bind for local tests.
+Transient provider failures are best-effort (no durable retry queue); browsers
+refresh subscriptions after session expiry/key rotation. Real APNs/FCM/Firefox
+and installed-iOS/Android delivery require deployment acceptance testing.
+
+### History extent / scrollbar anchors
+
+GET `/api/v1/channels/{channel_id}/history-extent` returns
+`Snapshot<HistoryExtent>` with the usual session cursor:
+`HistoryExtent {channel_id,message_count:u64,anchors:[HistoryAnchor]}` and
+`HistoryAnchor {rank:u64,message_id}`. Requires View Channel + Read History on
+an actual text/DM/group-DM channel; normal not-found/access rules apply.
+
+Count is exact for nondeleted messages. Up to 65 deduplicated anchors are ordered
+oldest-first. Rank is approximate, zero-based and interpolated over channel-local
+insertion ordinals (deletions leave gaps); first/last anchors are exact endpoints.
+Use the nearest rank anchor and existing `messages?around=<message_id>` to fetch
+that region directly. Empty channels return zero and no anchors. No OFFSET,
+COUNT or full-history scan happens per request: a trigger-maintained count plus
+bounded covering primary-key seeks in `history_entries`. Migration performs the
+one-time backfill; insert/soft-delete/physical-delete/channel cascades maintain
+it transactionally. This index does not cache message bodies. Concurrent
+mutations are serialized with the normal snapshot gate. Clients should refresh
+the extent after substantial live changes, not poll on an idle timer.

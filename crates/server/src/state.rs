@@ -24,6 +24,8 @@ use tokio::sync::{mpsc, watch, Mutex, Semaphore};
 #[command(version, about = "StickTalk Phase 1 chat server")]
 pub struct Config {
     #[command(flatten)]
+    pub browser: crate::browser::BrowserOptions,
+    #[command(flatten)]
     pub operations: crate::admin::OperationsConfig,
     #[arg(long, env = "STICKTALK_BIND", default_value = "127.0.0.1:8080")]
     pub bind: SocketAddr,
@@ -89,6 +91,8 @@ pub struct App(pub(crate) Arc<Inner>);
 pub(crate) struct Inner {
     pub config: Config,
     pub voice: crate::voice::Voice,
+    pub browser: crate::browser::Browser,
+    pub push: crate::push::Push,
     pub pool: SqlitePool,
     pub core: Mutex<Core>,
     pub passwords: Arc<Semaphore>,
@@ -120,6 +124,7 @@ pub(crate) struct Packet {
 }
 pub(crate) struct Connection {
     pub id: String,
+    pub focused: bool,
     pub alive: Arc<std::sync::atomic::AtomicBool>,
     pub tx: mpsc::Sender<Packet>,
     pub budget: Arc<Semaphore>,
@@ -403,7 +408,11 @@ impl App {
         let worker = config.worker_id;
         let gifs = crate::gifs::GifService::new(&config.gifs)?;
         let voice = crate::voice::Voice::new(&config.voice, config.bind)?;
+        let browser = crate::browser::Browser::new(&config)?;
+        let push = crate::push::Push::new(&config).await?;
         let app = Self(Arc::new(Inner {
+            browser,
+            push,
             voice,
             config,
             pool,
@@ -450,6 +459,10 @@ impl App {
     }
     pub async fn housekeeping(&self) -> Result<()> {
         crate::resumable::gc(self).await?;
+        sqlx::query("DELETE FROM web_oauth_states WHERE expires_at<=?")
+            .bind(now() as i64)
+            .execute(&self.0.pool)
+            .await?;
         let mut core = self.0.core.lock().await;
         let mut conn = self.0.pool.acquire().await?;
         crate::voice::reconcile(self, &mut core, &mut conn).await?;
@@ -631,6 +644,7 @@ mod tests {
         let (close, rx) = watch::channel(None);
         let s = c.streams.get_mut(&vec![1]).unwrap();
         s.connection = Some(Connection {
+            focused: false,
             alive: Arc::new(std::sync::atomic::AtomicBool::new(true)),
             id: "test".into(),
             tx,

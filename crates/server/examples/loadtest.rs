@@ -52,6 +52,7 @@ async fn main() -> Result<(), AnyError> {
     // server is a separate release binary, so client memory/CPU is excluded.
     let app = App::open(Config {
         operations: Default::default(),
+        browser: Default::default(),
         bind: "127.0.0.1:0".parse()?,
         data_dir: dir.path().into(),
         public_url: "http://localhost".into(),
@@ -63,7 +64,11 @@ async fn main() -> Result<(), AnyError> {
         mock_google_jwks: None,
         mock_google_issuer: None,
         gifs: Default::default(),
-        voice: Default::default(),
+        voice: sticktalk_server::voice::VoiceOptions {
+            voice_bind_ip: "127.0.0.1".parse()?,
+            voice_advertised_ip: Some("127.0.0.1".parse()?),
+            ..Default::default()
+        },
     })
     .await
     .map_err(|_| "fixture initialization failed")?;
@@ -121,7 +126,15 @@ async fn main() -> Result<(), AnyError> {
     drop(probe);
     let mut server = Server(
         ProcessCommand::new(&options.server)
-            .args(["--bind", &bind.to_string(), "--data-dir"])
+            .args([
+                "--voice-bind-ip",
+                "127.0.0.1",
+                "--voice-advertised-ip",
+                "127.0.0.1",
+                "--bind",
+                &bind.to_string(),
+                "--data-dir",
+            ])
             .arg(dir.path())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

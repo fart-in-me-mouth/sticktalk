@@ -449,6 +449,7 @@ pub(crate) async fn execute(
         // Access revocation invalidates old body-bearing replay before admitting removal events.
         for (users,e) in &out {if matches!(e,Event::GuildRemoved{..}|Event::ChannelRemoved{..}|Event::RelationshipRemoved{..}|Event::MessageDeleted{..}) {core.invalidate(users);}}
         for (users,e) in out {
+            if let Event::MessageCreated { ref message, .. } = e { crate::push::message(app, &mut c, &users, message).await; }
             if let Event::UserUpdated(ref profile) = e {
                 let mut streams = Vec::new();
                 for s in core.streams.values().filter(|s| users.contains(&s.user)) {

@@ -460,3 +460,7 @@ Oracle fallback is used outside Tailscale, pin its reachable advertised IP and
 allow matching UDP rules in BOTH Oracle NSGs/security lists and Ubuntu's
 firewall; private-client reachability/NAT/TURN is a separate deployment concern.
 No automatic TURN service is bundled. Never open all UDP ports.
+
+
+Browser/PWA hosting, cookie auth, Google web credentials and VAPID deployment:
+see [BROWSER.md](BROWSER.md).
