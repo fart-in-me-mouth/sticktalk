@@ -63,32 +63,60 @@
 ## B7. GIF picker (client)
 Per `docs/GIFS.md`, once the server side lands.
 
-## B8. Web app (Rust → WebAssembly): owner requirement
-Goal: friends can use StickTalk in a browser at `https://<server>/` with no install. This also covers Mac, Linux and Chromebook users.
-- **Approach: share the client code. Do not write a second UI.**
-  - Split `crates/client` into three parts:
-    - `client-core`: state, reducers, protocol, the network trait, markdown. It must not depend on the OS.
-    - `client-ui`: the iced views and theme.
-    - Thin platform layers: `client-desktop`, which is the native binary, and `client-web`, which targets `wasm32-unknown-unknown`, with iced's web backend on WebGL/WebGPU and canvas.
-  - Platform features (keyring, file dialogs, tray, notifications, screen capture) sit behind traits with a web implementation each:
-    - browser storage, with an HttpOnly session cookie
-    - `<input type=file>` and drag-and-drop
-    - the Web Notifications API
-    - `getDisplayMedia` and browser WebRTC for voice and screen share, which works directly with the str0m SFU
-- **Spike first.** Build the web client with the mock backend and measure:
-  - wasm bundle size, gzip/brotli
-  - first load time
-  - scroll smoothness on the 5,000-message channel
-  - text input, IME, clipboard and text selection
-  
-  If iced's web backend fails badly on smoothness or text input, stop and report, and the lead decides whether to switch the web UI to Leptos.
-- **Budget:** brotli-compressed bundle 5 MB or less including fonts. Cache it with a content hash so repeat visits load instantly.
+## B8. Web app + phones (Rust → WebAssembly, installable PWA): owner priority
+Goal: StickTalk runs in any browser at `https://<server>/`, and can be **installed to the phone home screen** (iOS Safari and Android Chrome) as a PWA. It must be convenient enough to replace the Discord mobile app for this group.
+
+### Decision: why the web/phone UI uses Leptos, not iced compiled to wasm
+iced in the browser renders to a canvas. On phones that breaks:
+- the virtual keyboard, autocorrect, IME and text selection
+- native scrolling momentum
+- accessibility and pinch-zoom
+
+So:
+- **Desktop app** stays native **iced**. It is the lightest option on Windows.
+- **Web + phones** use **Leptos**, a Rust → wasm framework that renders real DOM elements: real inputs, native scrolling, PWA support. Both clients share one Rust crate, **`client-core`**, which contains:
+  - state and reducers
+  - protocol and network logic over a transport trait
+  - the markdown parser
+  - the unread, permissions and formatting logic
+
+  Each UI layer is only views.
+- Design tokens come from `docs/UI_SPEC.md`. Generate CSS custom properties from the same token table, so desktop and web stay visually identical.
+
+### Requirements
+- **Layout**
+  - **Responsive.** Desktop-width browsers get the same layout as the desktop app.
+  - **Phones (< 768 px)** get a Discord-mobile-style layout:
+    - Left panel: the server rail plus channel list. Swipe right to reveal it.
+    - Center: the chat.
+    - Right panel: the member list. Swipe left to reveal it.
+    - Bottom tab bar: Home / Notifications / You.
+  - Safe-area insets for notches.
+  - The composer sticks above the keyboard, using the `visualViewport` API.
+- **PWA**
+  - manifest, icons, splash screen
+  - a service worker that caches the app shell, so it opens instantly and offline shows a "Reconnecting…" state
+  - **Web Push** notifications for DMs and mentions, using VAPID keys generated on the server. These work on iOS 16.4+ when the app is installed to the home screen, and on Android.
+- **Media on phones**
+  - Voice and video use the browser's WebRTC to the SFU.
+  - Screen share works where the browser supports `getDisplayMedia`, which means desktop browsers. Phones can **watch** streams but not share.
+- **Performance**
+  - Brotli-compressed wasm under 1.5 MB. Total first load under 2.5 MB including fonts.
+  - Interactive in under 2 s on a mid-range phone over 4G.
+  - Virtualized message list.
+  - Images get `loading=lazy` plus server thumbnails, with `srcset` for DPR.
+  - 60 fps scrolling on a mid-range phone.
 - **Server**
-  - Serve the web build as static files, through Caddy or the server itself. Same origin as the API, so no CORS is needed.
-  - Browser sessions use `Secure` + `HttpOnly` + `SameSite=Strict` cookies, plus a CSRF token for REST calls.
-  - A web-redirect OAuth variant for Google sign-in.
-- **Hosting:** same Oracle VM by default. Optionally the static files can go on Vercel's free tier with the API still on Oracle.
-- **Desktop-only for now:** remote control, the system tray, and hardware-encoder screen share. The web version uses the browser's own `getDisplayMedia` encoder; quality options are limited to what the browser allows.
+  - Serves the web build, same origin as the API.
+  - Browser sessions use `Secure`, `HttpOnly`, `SameSite=Strict` cookies plus a CSRF token.
+  - Web-redirect variant of Google OAuth.
+  - Web Push subscription endpoints.
+- **Desktop-only:** remote control, tray, and hardware-encoded 1080p60+ screen share. The web uses the browser's encoder.
+
+### Order
+1. Extract `client-core` from `crates/client`. The desktop must still pass all its tests.
+2. Leptos web client: desktop-width layout.
+3. Phone layout plus PWA plus Web Push.
 
 ## B9. Hosting decision: Raspberry Pi 4 (2 GB+) over Tailscale (primary). Oracle is the fallback/backup.
 - **Network**
