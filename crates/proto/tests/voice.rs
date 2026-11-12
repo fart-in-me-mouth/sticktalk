@@ -65,6 +65,26 @@ fn voice_contract_shapes_and_legacy_envelope() {
             allow: true,
         },
         VoiceSignal::RevokeControl,
+        VoiceSignal::Activity {
+            voice_activity: true,
+            priority: true,
+        },
+        VoiceSignal::Moderate {
+            session: session(),
+            action: VoiceModeration::Mute { muted: true },
+        },
+        VoiceSignal::Moderate {
+            session: session(),
+            action: VoiceModeration::Deafen { deafened: true },
+        },
+        VoiceSignal::Moderate {
+            session: session(),
+            action: VoiceModeration::Move { channel_id: Id(5) },
+        },
+        VoiceSignal::Moderate {
+            session: session(),
+            action: VoiceModeration::Disconnect,
+        },
         VoiceSignal::Stats,
     ] {
         roundtrip(signal);

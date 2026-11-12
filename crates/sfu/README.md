@@ -19,8 +19,8 @@ let acl = Arc::new(|session: VoiceSession, channel: ChannelId| {
     false
 });
 let sfu = Sfu::new(Config {
-    bind_ip: "100.64.0.2".parse().unwrap(),
-    advertised_ip: "100.64.0.2".parse().unwrap(),
+    bind_ip: "127.0.0.1".parse().unwrap(),
+    advertised_ip: "127.0.0.1".parse().unwrap(),
     ports: 50000..=50100,
     video_egress_bps: 32_000_000,
     ..Config::default()
@@ -35,7 +35,8 @@ let (signals, received_signals) = tokio::sync::mpsc::channel::<SignalOut>(128);
 
 - `Sfu::new(config, Arc<dyn Authorizer>)` validates configuration and binds **one
   nonblocking UDP socket** to the first free port in the inclusive range. Nothing
-  starts in the background. Use a literal advertised Tailscale IP, not 0.0.0.0.
+  starts in the background. Development defaults are loopback-only; configure a
+  literal advertised deployment IP explicitly, never a wildcard address.
 - `handle_signal(session, nonce, VoiceSignal, Instant)` or
   `handle_envelope(session, VoicePayload, Instant)` mutate the sans-IO engine;
   `drain()` yields `Out::Signal` and `Out::Datagram`. Drain after **each operation**.
@@ -45,7 +46,7 @@ let (signals, received_signals) = tokio::sync::mpsc::channel::<SignalOut>(128);
   built-in driver; for a custom I/O harness, the engine still reserves that port.
 - `run(self, Receiver<Command>, Sender<SignalOut>)` consumes the engine and
   integrates UDP + signaling + exact str0m deadlines with `tokio::select!`.
-  Commands: Signal, Disconnect, trusted Path telemetry, Shutdown. The UDP socket has fixed 256 KiB send/receive buffers. No empty-call
+  Commands: Signal, Disconnect, Refresh, Move, trusted Path telemetry, Shutdown. The UDP socket has fixed 256 KiB send/receive buffers. No empty-call
   ticker or media work. Output backpressure fails the actor closed so the host can revoke its ACL and
   restart, rather than losing cleanup notifications or accumulating unbounded signaling/media. Internal queues cap at 4096 items;
   callers must treat Backpressure as overload and fail closed/restart the actor.
@@ -157,3 +158,13 @@ Not yet validated: physical Pi 4/ARM performance, real native/browser endpoints,
 real H.264 hardware stream playback, Tailscale direct/DERP network conditions,
 and the 10-minute capture/display acceptance. Server migrations, channel ACL projection, WS routing and guild-wide state are
 implemented in `crates/server`; client OS-control features remain separate.
+
+The integrated host implements `Authorizer::permissions`, `send_audio`,
+`receive_audio`, `relocated_channel` and `generation` over its synchronous
+session-bound role projection. The closure adapter preserves the standalone
+join-only API and grants all publication rights to joined sessions; hosts that
+need roles must implement the full policy interface. Increment generation before
+acknowledging ACL/mute/move changes, enqueue Refresh (Move for a room change),
+and fail closed if the command queue is full. Generation invalidates queued UDP
+output, including a driver batch. Offers, forwarding and encrypted RTP/RTX egress
+recheck track-specific permissions. Unmapped/withdrawn SSRCs are never sent.

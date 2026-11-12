@@ -36,13 +36,16 @@ bitflags::bitflags! {
 }
 
 impl Permissions {
+    /// Legacy pre-role voice wire preset, never an assignable role mask.
+    /// Bit 14 here is the old wire Connect position; canonical Connect is bit 19.
     pub const MEMBER: Self = Self::from_bits_retain(
         Self::VIEW_CHANNEL.bits()
             | Self::SEND_MESSAGES.bits()
             | Self::READ_HISTORY.bits()
             | Self::ATTACH_FILES.bits()
             | Self::ADD_REACTIONS.bits()
-            | Self::CREATE_INVITES.bits(),
+            | Self::CREATE_INVITES.bits()
+            | (1 << 14),
     );
 
     pub const ADMIN: Self = Self::from_bits_retain(

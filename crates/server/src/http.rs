@@ -451,12 +451,22 @@ async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiResponse> {
                     .fetch_all(&mut *c)
                     .await?
             {
-                gs.push(guild(&mut c, u, Id(g as u64)).await?);
+                let mut guild = guild(&mut c, u, Id(g as u64)).await?;
+                if !core.streams.get(&key).is_some_and(|s| s.launch_features) {
+                    crate::legacy::guild(&mut guild);
+                }
+                gs.push(guild);
             }
             Ok(json(page(gs, q, cursor, |v| v.guild.id, false)))
         }
         ["guilds", g] => Ok(json(Snapshot {
-            data: detail(&mut c, u, url_id(g)?).await?,
+            data: {
+                let mut detail = detail(&mut c, u, url_id(g)?).await?;
+                if !core.streams.get(&key).is_some_and(|s| s.launch_features) {
+                    crate::legacy::guild(&mut detail.summary);
+                }
+                detail
+            },
             cursor,
         })),
         ["guilds", g, kind] => {
@@ -476,7 +486,11 @@ async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiResponse> {
                     let ids=sqlx::query_scalar::<_,i64>("SELECT user_id FROM guild_members WHERE guild_id=? AND (? IS NULL OR user_id<?) AND (? IS NULL OR user_id>?) ORDER BY CASE WHEN ? THEN user_id END DESC,CASE WHEN NOT ? THEN user_id END ASC LIMIT ?")
                         .bind(id(g)?).bind(opt(q.before)?).bind(opt(q.before)?).bind(opt(q.after)?).bind(opt(q.after)?).bind(q.before.is_some()).bind(q.before.is_some()).bind(i64::from(q.limit.unwrap_or(50))+1).fetch_all(&mut *c).await?;
                     for v in ids {
-                        members.push(member(&mut c, g, Id(v as u64)).await?);
+                        let mut member = member(&mut c, g, Id(v as u64)).await?;
+                        if !core.streams.get(&key).is_some_and(|s| s.launch_features) {
+                            crate::legacy::member(&mut member);
+                        }
+                        members.push(member);
                     }
                     Ok(json(page(members, q, cursor, |v| v.user.id, false)))
                 }

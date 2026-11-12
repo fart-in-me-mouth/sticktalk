@@ -20,7 +20,7 @@ use tokio::sync::mpsc;
 pub struct VoiceOptions {
     #[arg(long, env = "STICKTALK_VOICE_BIND_IP", default_value = "127.0.0.1")]
     pub voice_bind_ip: IpAddr,
-    /// Default: an assigned Tailscale 100.64/10 address, else the HTTP bind IP.
+    /// Loopback dev binds advertise HTTP loopback; deployment binds may auto-detect Tailscale.
     #[arg(long, env = "STICKTALK_VOICE_ADVERTISED_IP")]
     pub voice_advertised_ip: Option<IpAddr>,
     #[arg(long, env = "STICKTALK_VOICE_UDP_PORT_START", default_value_t = 50000)]
@@ -50,10 +50,71 @@ fn tailscale(ip: IpAddr) -> bool {
 }
 struct Lease {
     channel: Id,
+    permissions: Permissions,
+    server_muted: bool,
+    server_deafened: bool,
+    self_muted: bool,
+    self_deafened: bool,
     expires: u64,
     alive: Arc<std::sync::atomic::AtomicBool>,
 }
-type Projection = Arc<RwLock<HashMap<VoiceSession, Lease>>>;
+#[derive(Default)]
+struct Policy {
+    leases: HashMap<VoiceSession, Lease>,
+    generation: u64,
+}
+type Projection = Arc<RwLock<Policy>>;
+struct ProjectedAcl(Projection);
+impl sticktalk_sfu::Authorizer for ProjectedAcl {
+    fn can_join(&self, session: VoiceSession, channel: Id) -> bool {
+        self.permissions(session, channel)
+            .contains(Permissions::CONNECT | Permissions::VIEW_CHANNEL)
+    }
+    fn permissions(&self, session: VoiceSession, channel: Id) -> Permissions {
+        self.0
+            .read()
+            .ok()
+            .and_then(|p| {
+                p.leases
+                    .get(&session)
+                    .filter(|l| {
+                        l.channel == channel
+                            && now() < l.expires
+                            && l.alive.load(std::sync::atomic::Ordering::Acquire)
+                    })
+                    .map(|l| l.permissions)
+            })
+            .unwrap_or_default()
+    }
+    fn relocated_channel(&self, session: VoiceSession) -> Option<Id> {
+        self.0
+            .read()
+            .ok()
+            .and_then(|p| p.leases.get(&session).map(|l| l.channel))
+    }
+    fn receive_audio(&self, session: VoiceSession) -> bool {
+        self.0.read().ok().is_some_and(|p| {
+            p.leases
+                .get(&session)
+                .is_some_and(|l| !l.server_deafened && !l.self_deafened)
+        })
+    }
+    fn send_audio(&self, session: VoiceSession) -> bool {
+        self.0.read().ok().is_some_and(|p| {
+            p.leases.get(&session).is_some_and(|l| {
+                !l.server_muted && !l.server_deafened && !l.self_muted && !l.self_deafened
+            })
+        })
+    }
+    fn generation(&self) -> u64 {
+        self.0.read().unwrap_or_else(|e| e.into_inner()).generation
+    }
+}
+fn advertised_ip(explicit: Option<IpAddr>, http: IpAddr, interfaces: Vec<IpAddr>) -> IpAddr {
+    explicit
+        .or_else(|| interfaces.into_iter().find(|ip| tailscale(*ip)))
+        .unwrap_or(http)
+}
 pub(crate) struct Voice {
     commands: mpsc::Sender<MediaCommand>,
     acl: Projection,
@@ -65,21 +126,27 @@ pub(crate) struct Entry {
     connection: String,
     pub state: GuildVoiceState,
     pub joined: bool,
+    server_muted: bool,
+    server_deafened: bool,
+    self_muted: bool,
+    self_deafened: bool,
 }
 impl Voice {
     pub fn new(options: &VoiceOptions, http: SocketAddr) -> Result<Self> {
-        let advertised = options
-            .voice_advertised_ip
-            .or_else(|| {
+        let advertised = advertised_ip(
+            options.voice_advertised_ip,
+            http.ip(),
+            if options.voice_bind_ip.is_loopback() {
+                vec![]
+            } else {
                 if_addrs::get_if_addrs()
-                    .ok()?
+                    .unwrap_or_default()
                     .into_iter()
                     .map(|a| a.ip())
-                    .find(|ip| tailscale(*ip))
-            })
-            .unwrap_or(http.ip());
+                    .collect()
+            },
+        );
         let acl: Projection = Default::default();
-        let projection = acl.clone();
         let sfu = Sfu::new(
             sticktalk_sfu::Config {
                 bind_ip: options.voice_bind_ip,
@@ -89,15 +156,7 @@ impl Voice {
                 max_datagram_bytes: options.voice_max_datagram_bytes,
                 ..Default::default()
             },
-            Arc::new(move |session: VoiceSession, channel: Id| {
-                projection.read().ok().is_some_and(|p| {
-                    p.get(&session).is_some_and(|lease| {
-                        lease.channel == channel
-                            && now() < lease.expires
-                            && lease.alive.load(std::sync::atomic::Ordering::Acquire)
-                    })
-                })
-            }),
+            Arc::new(ProjectedAcl(acl.clone())),
         )
         .map_err(|_| Error::new(ErrorCode::Unavailable))?;
         let address = sfu.local_addr();
@@ -115,7 +174,9 @@ impl Voice {
             .map_err(|_| Error::new(ErrorCode::Unavailable))
     }
     pub fn clear(&self) {
-        self.acl.write().unwrap_or_else(|e| e.into_inner()).clear();
+        let mut p = self.acl.write().unwrap_or_else(|e| e.into_inner());
+        p.leases.clear();
+        p.generation += 1;
     }
 }
 pub(crate) fn spawn(app: &App) {
@@ -183,6 +244,19 @@ async fn broadcast(
         .map(|(k, _)| k.clone())
         .collect();
     for key in keys {
+        if let VoiceEvent::GuildState(state) = event {
+            if db::access(
+                c,
+                core.streams[&key].user,
+                state.channel_id,
+                Permissions::VIEW_CHANNEL,
+            )
+            .await
+            .is_err()
+            {
+                continue;
+            }
+        }
         send(core, &key, 0, event)?;
     }
     Ok(())
@@ -199,21 +273,10 @@ pub(crate) async fn allowed(c: &mut SqliteConnection, user: Id, channel: Id) -> 
         ch.summary.kind == ChannelKind::Voice,
         ErrorCode::InvalidRequest,
     )?;
-    let denied: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM voice_connect_denials WHERE channel_id=? AND user_id=?)",
-    )
-    .bind(db::id(channel)?)
-    .bind(db::id(user)?)
-    .fetch_one(&mut *c)
-    .await?;
     let guild_id = ch
         .summary
         .guild_id
         .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
-    require(
-        !denied || db::role(c, user, guild_id).await? == MemberRole::Owner,
-        ErrorCode::Forbidden,
-    )?;
     Ok(guild_id)
 }
 /// Called with the normal mutation gate held. Denial happens synchronously before
@@ -224,12 +287,11 @@ pub(crate) async fn remove(
     c: &mut SqliteConnection,
     session: VoiceSession,
 ) -> Result<()> {
-    app.0
-        .voice
-        .acl
-        .write()
-        .unwrap_or_else(|e| e.into_inner())
-        .remove(&session);
+    {
+        let mut p = app.0.voice.acl.write().unwrap_or_else(|e| e.into_inner());
+        p.leases.remove(&session);
+        p.generation += 1;
+    }
     if let Some(entry) = core.voice.remove(&session) {
         // A full command queue cannot keep media access alive: ACL is already gone.
         if app
@@ -292,9 +354,187 @@ pub(crate) async fn reconcile(app: &App, core: &mut Core, c: &mut SqliteConnecti
                 .is_err()
         {
             remove(app, core, c, session).await?;
+        } else {
+            let entry = &core.voice[&session];
+            let rights = crate::permissions::evaluate(
+                c,
+                session.user_id,
+                entry.state.guild_id,
+                Some(entry.state.channel_id),
+            )
+            .await?;
+            let changed = {
+                let mut p = app.0.voice.acl.write().unwrap_or_else(|e| e.into_inner());
+                let lease = p
+                    .leases
+                    .get_mut(&session)
+                    .ok_or_else(|| Error::new(ErrorCode::Internal))?;
+                let changed = lease.permissions != rights;
+                lease.permissions = rights;
+                if changed {
+                    p.generation += 1;
+                }
+                changed
+            };
+            if changed {
+                refresh(app, core, c, session).await?;
+            }
         }
     }
     Ok(())
+}
+async fn refresh(
+    app: &App,
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    session: VoiceSession,
+) -> Result<()> {
+    app.0
+        .voice
+        .command(MediaCommand::Refresh(session))
+        .inspect_err(|_| app.shutdown())?;
+    let permissions = app
+        .0
+        .voice
+        .acl
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .leases[&session]
+        .permissions;
+    let entry = core
+        .voice
+        .get_mut(&session)
+        .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+    entry
+        .state
+        .participant
+        .tracks
+        .retain(|t| permissions.contains(track_permission(t.kind)));
+    let state = entry.state.clone();
+    broadcast(core, c, state.guild_id, &VoiceEvent::GuildState(state)).await
+}
+fn track_permission(kind: TrackKind) -> Permissions {
+    match kind {
+        TrackKind::Audio => Permissions::SPEAK,
+        TrackKind::Camera => Permissions::VIDEO,
+        TrackKind::Screen | TrackKind::SystemAudio => Permissions::STREAM,
+    }
+}
+async fn moderate(
+    app: &App,
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    actor: Id,
+    session: VoiceSession,
+    action: VoiceModeration,
+) -> Result<()> {
+    let target = core
+        .voice
+        .get(&session)
+        .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+    let guild = target.state.guild_id;
+    let channel = target.state.channel_id;
+    let required = match action {
+        VoiceModeration::Mute { .. } => Permissions::MUTE_MEMBERS,
+        VoiceModeration::Deafen { .. } => Permissions::DEAFEN_MEMBERS,
+        _ => Permissions::MOVE_MEMBERS,
+    };
+    db::access(c, actor, channel, required).await?;
+    crate::permissions::above_member(c, guild, actor, session.user_id).await?;
+    if let VoiceModeration::Disconnect = action {
+        return remove(app, core, c, session).await;
+    }
+    if let VoiceModeration::Move { channel_id } = action {
+        require(
+            allowed(c, session.user_id, channel_id).await? == guild,
+            ErrorCode::InvalidRequest,
+        )?;
+        db::access(
+            c,
+            actor,
+            channel_id,
+            Permissions::MOVE_MEMBERS | Permissions::CONNECT,
+        )
+        .await?;
+        require(
+            core.voice
+                .values()
+                .filter(|v| v.state.channel_id == channel_id)
+                .count()
+                < 16,
+            ErrorCode::LimitExceeded,
+        )?;
+        let rights =
+            crate::permissions::evaluate(c, session.user_id, guild, Some(channel_id)).await?;
+        {
+            let mut p = app.0.voice.acl.write().unwrap_or_else(|e| e.into_inner());
+            let lease = p
+                .leases
+                .get_mut(&session)
+                .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+            lease.channel = channel_id;
+            lease.permissions = rights;
+            p.generation += 1;
+        }
+        core.voice.get_mut(&session).unwrap().state.channel_id = channel_id;
+        app.0
+            .voice
+            .command(MediaCommand::Move {
+                session,
+                channel: channel_id,
+            })
+            .inspect_err(|_| app.shutdown())?;
+        broadcast(
+            core,
+            c,
+            guild,
+            &VoiceEvent::GuildLeft {
+                guild_id: guild,
+                session,
+            },
+        )
+        .await?;
+    } else {
+        let (mut muted, mut deafened) = (target.server_muted, target.server_deafened);
+        match action {
+            VoiceModeration::Mute { muted: value } => muted = value,
+            VoiceModeration::Deafen { deafened: value } => deafened = value,
+            _ => unreachable!(),
+        }
+        let sessions: Vec<_> = core
+            .voice
+            .iter()
+            .filter(|(_, e)| {
+                e.state.guild_id == guild && e.state.participant.session.user_id == session.user_id
+            })
+            .map(|(s, e)| (*s, e.state.channel_id))
+            .collect();
+        // A second device in a private channel is not an ACL bypass for the moderator.
+        for (_, channel) in &sessions {
+            db::access(c, actor, *channel, required).await?;
+        }
+        sqlx::query("INSERT INTO guild_voice_moderation VALUES(?,?,?,?) ON CONFLICT(guild_id,user_id) DO UPDATE SET muted=excluded.muted,deafened=excluded.deafened").bind(db::id(guild)?).bind(db::id(session.user_id)?).bind(muted).bind(deafened).execute(&mut *c).await?;
+        {
+            let mut p = app.0.voice.acl.write().unwrap_or_else(|e| e.into_inner());
+            for (session, _) in &sessions {
+                let entry = core.voice.get_mut(session).unwrap();
+                entry.server_muted = muted;
+                entry.server_deafened = deafened;
+                entry.state.participant.muted = muted || entry.self_muted;
+                entry.state.participant.deafened = deafened || entry.self_deafened;
+                if let Some(lease) = p.leases.get_mut(session) {
+                    lease.server_muted = muted;
+                    lease.server_deafened = deafened;
+                }
+            }
+            p.generation += 1;
+        }
+        for (session, _) in sessions {
+            refresh(app, core, c, session).await?;
+        }
+        return Ok(());
+    }
+    refresh(app, core, c, session).await
 }
 pub(crate) async fn signal(
     app: &App,
@@ -357,6 +597,11 @@ async fn signal_inner(
         expiry.is_some_and(|t| t > now() as i64),
         ErrorCode::Unauthenticated,
     )?;
+    if let VoiceSignal::Moderate { session, action } = signal {
+        core.rate(format!("voice-moderate:{}", user.0), 120., 20.)?;
+        moderate(app, core, &mut c, user, session, action).await?;
+        return send(core, key, nonce, &VoiceEvent::Ack);
+    }
     let existing = core
         .voice
         .iter()
@@ -382,15 +627,30 @@ async fn signal_inner(
             user_id: user,
             connection_id: core.id().await?,
         };
+        let rights = crate::permissions::evaluate(&mut c, user, guild_id, Some(channel_id)).await?;
+        let (server_muted, server_deafened) = sqlx::query_as::<_, (bool, bool)>(
+            "SELECT muted,deafened FROM guild_voice_moderation WHERE guild_id=? AND user_id=?",
+        )
+        .bind(db::id(guild_id)?)
+        .bind(db::id(user)?)
+        .fetch_optional(&mut *c)
+        .await?
+        .unwrap_or_default();
         app.0
             .voice
             .acl
             .write()
             .unwrap_or_else(|e| e.into_inner())
+            .leases
             .insert(
                 session,
                 Lease {
                     channel: channel_id,
+                    permissions: rights,
+                    server_muted,
+                    server_deafened,
+                    self_muted: false,
+                    self_deafened: false,
                     expires: expiry.unwrap() as u64,
                     alive: core.streams[key]
                         .connection
@@ -406,13 +666,17 @@ async fn signal_inner(
                 key: key.to_vec(),
                 connection: connection.into(),
                 joined: false,
+                server_muted,
+                server_deafened,
+                self_muted: false,
+                self_deafened: false,
                 state: GuildVoiceState {
                     guild_id,
                     channel_id,
                     participant: VoiceParticipant {
                         session,
-                        muted: false,
-                        deafened: false,
+                        muted: server_muted,
+                        deafened: server_deafened,
                         tracks: vec![],
                     },
                 },
@@ -434,6 +698,17 @@ async fn signal_inner(
             if let Err(error) = allowed(&mut c, user, core.voice[&session].state.channel_id).await {
                 remove(app, core, &mut c, session).await?;
                 return Err(error);
+            }
+            if let VoiceSignal::State { muted, deafened } = signal {
+                let entry = core.voice.get_mut(&session).unwrap();
+                entry.self_muted = muted;
+                entry.self_deafened = deafened;
+                let mut p = app.0.voice.acl.write().unwrap_or_else(|e| e.into_inner());
+                if let Some(lease) = p.leases.get_mut(&session) {
+                    lease.self_muted = muted;
+                    lease.self_deafened = deafened;
+                    p.generation += 1;
+                }
             }
             app.0
                 .voice
@@ -465,6 +740,23 @@ async fn output(
             let entry = core.voice.get_mut(&signal.session).unwrap();
             if entry.state.participant != *p {
                 entry.state.participant = p.clone();
+                entry.state.participant.muted = entry.server_muted || entry.self_muted;
+                entry.state.participant.deafened = entry.server_deafened || entry.self_deafened;
+                let rights = app
+                    .0
+                    .voice
+                    .acl
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .leases
+                    .get(&signal.session)
+                    .map(|l| l.permissions)
+                    .unwrap_or_default();
+                entry
+                    .state
+                    .participant
+                    .tracks
+                    .retain(|t| rights.contains(track_permission(t.kind)));
                 let state = entry.state.clone();
                 broadcast(core, c, state.guild_id, &VoiceEvent::GuildState(state)).await?;
             }
@@ -477,7 +769,40 @@ async fn output(
         }
         _ => {}
     }
-    core.send(&key, &ServerMsg::Voice(signal.envelope))?;
+    let mut event = event;
+    if matches!(&event,VoiceEvent::Participant(p) if !core.voice.contains_key(&p.session)) {
+        return Ok(());
+    }
+    if let VoiceEvent::Joined { participants, .. } = &mut event {
+        participants.retain(|p| core.voice.contains_key(&p.session));
+    }
+    let participants: Vec<&mut VoiceParticipant> = match &mut event {
+        VoiceEvent::Participant(p) => vec![p],
+        VoiceEvent::Joined { participants, .. } => participants.iter_mut().collect(),
+        _ => vec![],
+    };
+    for p in participants {
+        if let Some(entry) = core.voice.get(&p.session) {
+            p.muted = entry.server_muted || entry.self_muted;
+            p.deafened = entry.server_deafened || entry.self_deafened;
+            let rights = crate::permissions::evaluate(
+                c,
+                p.session.user_id,
+                entry.state.guild_id,
+                Some(entry.state.channel_id),
+            )
+            .await?;
+            p.tracks
+                .retain(|t| rights.contains(track_permission(t.kind)));
+        }
+    }
+    core.send(
+        &key,
+        &ServerMsg::Voice(
+            sticktalk_sfu::encode_event(signal.envelope.nonce, &event)
+                .map_err(|_| Error::new(ErrorCode::Internal))?,
+        ),
+    )?;
     // queue() can detach a slow consumer; revoke its synchronous media ACL now.
     let detached: Vec<_> = core
         .voice
@@ -502,16 +827,15 @@ pub(crate) async fn snapshot(
     key: &[u8],
     user: Id,
 ) -> Result<()> {
-    let guilds: Vec<i64> = sqlx::query_scalar("SELECT guild_id FROM guild_members WHERE user_id=?")
-        .bind(db::id(user)?)
-        .fetch_all(c)
-        .await?;
-    let states = core
-        .voice
-        .values()
-        .filter(|v| v.joined && guilds.contains(&(v.state.guild_id.0 as i64)))
-        .map(|v| v.state.clone())
-        .collect();
+    let mut states = vec![];
+    for entry in core.voice.values().filter(|v| v.joined) {
+        if db::access(c, user, entry.state.channel_id, Permissions::VIEW_CHANNEL)
+            .await
+            .is_ok()
+        {
+            states.push(entry.state.clone());
+        }
+    }
     send(core, key, 0, &VoiceEvent::GuildSnapshot { states })
 }
 
@@ -597,5 +921,472 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(count, 0);
+    }
+}
+
+#[cfg(test)]
+mod role_tests {
+    use super::*;
+    use crate::{
+        audit_tests::fixture,
+        commands,
+        state::{Connection, Packet},
+    };
+    use sqlx::Connection as _;
+    use sticktalk_sfu::Authorizer;
+    fn attach(core: &mut Core, user: Id) -> mpsc::Receiver<Packet> {
+        let key = vec![user.0 as u8; 32];
+        core.cursor(&key, user);
+        let (tx, rx) = mpsc::channel(128);
+        let (close, _) = tokio::sync::watch::channel(None);
+        core.streams.get_mut(&key).unwrap().connection = Some(Connection {
+            id: format!("ws{}", user.0),
+            alive: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            tx,
+            budget: Arc::new(tokio::sync::Semaphore::new(2 * 1024 * 1024)),
+            close,
+        });
+        rx
+    }
+    async fn cmd(app: &App, core: &mut Core, nonce: u64, command: Command) {
+        let response = commands::execute(
+            app,
+            core,
+            &[1; 32],
+            Id(1),
+            CommandRequest { nonce, command },
+        )
+        .await
+        .unwrap();
+        assert!(
+            matches!(response.outcome, CommandOutcome::Ok(_)),
+            "{:?}",
+            response.outcome
+        );
+    }
+    async fn call(app: &App, core: &mut Core) -> VoiceSession {
+        signal_inner(
+            app,
+            core,
+            &[2; 32],
+            Id(2),
+            "ws2",
+            sticktalk_sfu::encode_signal(
+                1,
+                &VoiceSignal::Join {
+                    channel_id: Id(12),
+                    capabilities: VoiceCapabilities {
+                        video: vec![VideoCodec::H264],
+                        hardware_decode: vec![VideoCodec::H264],
+                    },
+                },
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+        let session = *core.voice.keys().next().unwrap();
+        core.voice.get_mut(&session).unwrap().joined = true;
+        session
+    }
+    #[test]
+    fn injected_advertised_address_selection_and_loopback_defaults() {
+        let http = "127.0.0.1".parse().unwrap();
+        let tail = "100.72.1.2".parse().unwrap();
+        let lan = "192.168.1.2".parse().unwrap();
+        assert_eq!(advertised_ip(None, http, vec![lan, tail]), tail);
+        assert_eq!(advertised_ip(Some(lan), http, vec![tail]), lan);
+        assert_eq!(advertised_ip(None, http, vec![lan]), http);
+        assert!(VoiceOptions::default().voice_bind_ip.is_loopback());
+        assert!(sticktalk_sfu::Config::default().bind_ip.is_loopback());
+    }
+    #[tokio::test]
+    async fn both_branch_database_histories_upgrade_without_checksum_changes_or_data_loss() {
+        for voice_history in [true, false] {
+            let mut c = sqlx::SqliteConnection::connect("sqlite::memory:")
+                .await
+                .unwrap();
+            sqlx::query("PRAGMA foreign_keys=OFF")
+                .execute(&mut c)
+                .await
+                .unwrap();
+            let mut old = sqlx::migrate!();
+            old.migrations = std::borrow::Cow::Owned(
+                old.iter()
+                    .filter(|m| {
+                        if voice_history {
+                            m.version <= 9
+                        } else {
+                            m.version != 9 && m.version <= 202611120001
+                        }
+                    })
+                    .cloned()
+                    .collect(),
+            );
+            old.run(&mut c).await.unwrap();
+            sqlx::raw_sql("INSERT INTO users(id,username,password_hash,desired_presence,created_at) VALUES(1,'owner','','online',0),(2,'guest','','online',0);INSERT INTO guilds VALUES(10,1,'old',NULL,0);INSERT INTO guild_members VALUES(10,1,'owner',0),(10,2,'member',0);INSERT INTO channels VALUES(11,'category',10,NULL,'category',NULL,0,NULL,0),(12,'text',10,11,'retained',NULL,0,NULL,0);INSERT INTO messages VALUES(13,12,2,'retained',0,NULL,NULL,NULL);INSERT INTO sessions VALUES(zeroblob(32),2,0,9999999999999,0);").execute(&mut c).await.unwrap();
+            if voice_history {
+                sqlx::raw_sql("UPDATE channels SET kind='voice' WHERE id=12;INSERT INTO voice_connect_denials VALUES(12,2);").execute(&mut c).await.unwrap();
+            } else {
+                sqlx::raw_sql("INSERT INTO roles(guild_id,id,name,position,permissions) VALUES(10,20,'manager',2,16384);INSERT INTO member_roles VALUES(10,2,20);INSERT INTO permission_overwrites VALUES(12,'member',2,0,524288);INSERT INTO nicknames VALUES(10,2,'retained');").execute(&mut c).await.unwrap();
+            }
+            db::migrate(&mut c).await.unwrap();
+            db::migrate(&mut c).await.unwrap();
+            let p = crate::permissions::evaluate(&mut c, Id(2), Id(10), Some(Id(12)))
+                .await
+                .unwrap();
+            assert!(!p.contains(Permissions::CONNECT));
+            assert_eq!(p.contains(Permissions::MANAGE_ROLES), !voice_history);
+            assert_eq!(
+                sqlx::query_scalar::<_, String>("SELECT content FROM messages WHERE id=13")
+                    .fetch_one(&mut c)
+                    .await
+                    .unwrap(),
+                "retained"
+            );
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT parent_id FROM channels WHERE id=12")
+                    .fetch_one(&mut c)
+                    .await
+                    .unwrap(),
+                11
+            );
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM session_devices")
+                    .fetch_one(&mut c)
+                    .await
+                    .unwrap(),
+                1
+            );
+            assert!(sqlx::query("PRAGMA foreign_key_check")
+                .fetch_all(&mut c)
+                .await
+                .unwrap()
+                .is_empty());
+            assert_eq!(
+                sqlx::query_scalar::<_, i64>("PRAGMA foreign_keys")
+                    .fetch_one(&mut c)
+                    .await
+                    .unwrap(),
+                1
+            );
+        }
+    }
+    #[tokio::test]
+    async fn overwrite_revokes_live_speak_stream_video_then_connect_synchronously() {
+        let (_dir, app) = fixture().await;
+        sqlx::query("INSERT INTO channels VALUES(12,'voice',10,NULL,'voice',NULL,1,NULL,0)")
+            .execute(&app.0.pool)
+            .await
+            .unwrap();
+        let mut core = app.0.core.lock().await;
+        let _a = attach(&mut core, Id(1));
+        let _b = attach(&mut core, Id(2));
+        let session = call(&app, &mut core).await;
+        core.voice
+            .get_mut(&session)
+            .unwrap()
+            .state
+            .participant
+            .tracks = [
+            TrackKind::Audio,
+            TrackKind::Screen,
+            TrackKind::SystemAudio,
+            TrackKind::Camera,
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(i, kind)| PublishedTrack {
+            mid: i.to_string(),
+            kind,
+            codec: None,
+            layers: vec![],
+            surface: None,
+        })
+        .collect();
+        let acl = ProjectedAcl(app.0.voice.acl.clone());
+        for (nonce, deny, left) in [
+            (10, Permissions::SPEAK, 3),
+            (11, Permissions::SPEAK | Permissions::STREAM, 1),
+            (
+                12,
+                Permissions::SPEAK | Permissions::STREAM | Permissions::VIDEO,
+                0,
+            ),
+        ] {
+            cmd(
+                &app,
+                &mut core,
+                nonce,
+                Command::Launch(LaunchCommand::SetOverwrites {
+                    channel_id: Id(12),
+                    overwrites: vec![PermissionOverwrite {
+                        kind: OverwriteKind::Member,
+                        target_id: Id(2),
+                        allow: Permissions::empty(),
+                        deny,
+                    }],
+                }),
+            )
+            .await;
+            assert!(!acl.permissions(session, Id(12)).intersects(deny));
+            assert_eq!(core.voice[&session].state.participant.tracks.len(), left);
+        }
+        cmd(
+            &app,
+            &mut core,
+            13,
+            Command::SetVoicePermission {
+                channel_id: Id(12),
+                user_id: Id(2),
+                connect: false,
+            },
+        )
+        .await;
+        assert!(!core.voice.contains_key(&session));
+        assert!(!acl.can_join(session, Id(12)));
+    }
+    #[tokio::test]
+    async fn all_role_and_membership_mutations_revoke_live_connect() {
+        for case in 0..6 {
+            let (_dir, app) = fixture().await;
+            sqlx::raw_sql("INSERT INTO channels VALUES(12,'voice',10,NULL,'voice',NULL,1,NULL,0);UPDATE roles SET permissions=1 WHERE id=10;INSERT INTO roles(guild_id,id,name,position,permissions) VALUES(10,20,'voice',2,524288);INSERT INTO member_roles VALUES(10,2,20);").execute(&app.0.pool).await.unwrap();
+            let mut core = app.0.core.lock().await;
+            let _a = attach(&mut core, Id(1));
+            let _b = attach(&mut core, Id(2));
+            let session = call(&app, &mut core).await;
+            let command = match case {
+                0 => {
+                    let mut c = app.0.pool.acquire().await.unwrap();
+                    let mut role = crate::permissions::roles(&mut c, Id(10))
+                        .await
+                        .unwrap()
+                        .into_iter()
+                        .find(|r| r.id == Id(20))
+                        .unwrap();
+                    role.permissions = Permissions::empty();
+                    Command::Launch(LaunchCommand::UpdateRole { role })
+                }
+                1 => Command::Launch(LaunchCommand::DeleteRole {
+                    guild_id: Id(10),
+                    role_id: Id(20),
+                }),
+                2 => Command::Launch(LaunchCommand::SetMemberRoles {
+                    guild_id: Id(10),
+                    user_id: Id(2),
+                    role_ids: vec![],
+                }),
+                3 => Command::KickMember {
+                    guild_id: Id(10),
+                    user_id: Id(2),
+                },
+                4 => Command::BanMember {
+                    guild_id: Id(10),
+                    user_id: Id(2),
+                    reason: None,
+                },
+                _ => Command::Launch(LaunchCommand::SetOverwrites {
+                    channel_id: Id(12),
+                    overwrites: vec![PermissionOverwrite {
+                        kind: OverwriteKind::Role,
+                        target_id: Id(10),
+                        allow: Permissions::empty(),
+                        deny: Permissions::CONNECT,
+                    }],
+                }),
+            };
+            cmd(&app, &mut core, 10, command).await;
+            assert!(!core.voice.contains_key(&session), "case {case}");
+            assert!(!ProjectedAcl(app.0.voice.acl.clone()).can_join(session, Id(12)));
+        }
+    }
+    #[tokio::test]
+    async fn private_voice_visibility_and_individual_moderator_rights_use_overwrites() {
+        let (_dir, app) = fixture().await;
+        sqlx::raw_sql("INSERT INTO guild_members VALUES(10,3,'member',0);INSERT INTO channels VALUES(12,'voice',10,NULL,'private',NULL,1,NULL,0),(13,'voice',10,NULL,'other',NULL,2,NULL,0);INSERT INTO roles(guild_id,id,name,position,permissions) VALUES(10,20,'moderator',2,8388608);INSERT INTO member_roles VALUES(10,3,20);").execute(&app.0.pool).await.unwrap();
+        let mut core = app.0.core.lock().await;
+        let _a = attach(&mut core, Id(1));
+        let mut b = attach(&mut core, Id(2));
+        let _moderator = attach(&mut core, Id(3));
+        let session = call(&app, &mut core).await;
+        let mut c = app.0.pool.acquire().await.unwrap();
+        moderate(
+            &app,
+            &mut core,
+            &mut c,
+            Id(3),
+            session,
+            VoiceModeration::Mute { muted: true },
+        )
+        .await
+        .unwrap();
+        for action in [
+            VoiceModeration::Deafen { deafened: true },
+            VoiceModeration::Move { channel_id: Id(13) },
+            VoiceModeration::Disconnect,
+        ] {
+            assert!(moderate(&app, &mut core, &mut c, Id(3), session, action)
+                .await
+                .is_err());
+        }
+        sqlx::query("INSERT INTO permission_overwrites VALUES(12,'member',3,0,8388608)")
+            .execute(&mut *c)
+            .await
+            .unwrap();
+        assert!(moderate(
+            &app,
+            &mut core,
+            &mut c,
+            Id(3),
+            session,
+            VoiceModeration::Mute { muted: false }
+        )
+        .await
+        .is_err());
+        sqlx::query("INSERT INTO permission_overwrites VALUES(12,'member',2,0,1)")
+            .execute(&mut *c)
+            .await
+            .unwrap();
+        assert!(allowed(&mut c, Id(2), Id(12)).await.is_err());
+        let ready = db::ready(&mut c, &mut core, &[2; 32], Id(2)).await.unwrap();
+        assert!(!ready.channels.iter().any(|ch| ch.id == Id(12)));
+        assert!(ready.voice_states.is_empty());
+        while b.try_recv().is_ok() {}
+        broadcast(
+            &mut core,
+            &mut c,
+            Id(10),
+            &VoiceEvent::GuildState(core_state(session)),
+        )
+        .await
+        .unwrap();
+        assert!(b.try_recv().is_err());
+        reconcile(&app, &mut core, &mut c).await.unwrap();
+        assert!(!core.voice.contains_key(&session));
+    }
+    fn core_state(session: VoiceSession) -> GuildVoiceState {
+        GuildVoiceState {
+            guild_id: Id(10),
+            channel_id: Id(12),
+            participant: VoiceParticipant {
+                session,
+                muted: false,
+                deafened: false,
+                tracks: vec![],
+            },
+        }
+    }
+    #[tokio::test]
+    async fn moderation_checks_channel_roles_hierarchy_and_cannot_be_self_unmuted() {
+        let (_dir, app) = fixture().await;
+        sqlx::raw_sql("INSERT INTO channels VALUES(12,'voice',10,NULL,'one',NULL,1,NULL,0),(13,'voice',10,NULL,'two',NULL,2,NULL,0);").execute(&app.0.pool).await.unwrap();
+        let mut core = app.0.core.lock().await;
+        let _a = attach(&mut core, Id(1));
+        let _b = attach(&mut core, Id(2));
+        let session = call(&app, &mut core).await;
+        let mut c = app.0.pool.acquire().await.unwrap();
+        let acl = ProjectedAcl(app.0.voice.acl.clone());
+        assert!(moderate(
+            &app,
+            &mut core,
+            &mut c,
+            Id(2),
+            session,
+            VoiceModeration::Mute { muted: true }
+        )
+        .await
+        .is_err());
+        moderate(
+            &app,
+            &mut core,
+            &mut c,
+            Id(1),
+            session,
+            VoiceModeration::Mute { muted: true },
+        )
+        .await
+        .unwrap();
+        assert!(!acl.send_audio(session));
+        signal_inner(
+            &app,
+            &mut core,
+            &[2; 32],
+            Id(2),
+            "ws2",
+            sticktalk_sfu::encode_signal(
+                2,
+                &VoiceSignal::State {
+                    muted: false,
+                    deafened: false,
+                },
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+        assert!(!acl.send_audio(session));
+        moderate(
+            &app,
+            &mut core,
+            &mut c,
+            Id(1),
+            session,
+            VoiceModeration::Mute { muted: false },
+        )
+        .await
+        .unwrap();
+        assert!(acl.send_audio(session));
+        moderate(
+            &app,
+            &mut core,
+            &mut c,
+            Id(1),
+            session,
+            VoiceModeration::Deafen { deafened: true },
+        )
+        .await
+        .unwrap();
+        assert!(!acl.receive_audio(session));
+        moderate(
+            &app,
+            &mut core,
+            &mut c,
+            Id(1),
+            session,
+            VoiceModeration::Move { channel_id: Id(13) },
+        )
+        .await
+        .unwrap();
+        assert_eq!(core.voice[&session].state.channel_id, Id(13));
+        assert!(acl.can_join(session, Id(13)));
+        assert!(!acl.can_join(session, Id(12)));
+        moderate(
+            &app,
+            &mut core,
+            &mut c,
+            Id(1),
+            session,
+            VoiceModeration::Disconnect,
+        )
+        .await
+        .unwrap();
+        assert!(!core.voice.contains_key(&session));
+        // Persistent membership flags survive a fresh call lifetime and cannot
+        // be bypassed by reconnecting a second device.
+        let session = call(&app, &mut core).await;
+        moderate(
+            &app,
+            &mut core,
+            &mut c,
+            Id(1),
+            session,
+            VoiceModeration::Mute { muted: true },
+        )
+        .await
+        .unwrap();
+        remove(&app, &mut core, &mut c, session).await.unwrap();
+        let rejoined = call(&app, &mut core).await;
+        assert!(core.voice[&rejoined].server_muted);
+        assert!(!acl.send_audio(rejoined));
     }
 }

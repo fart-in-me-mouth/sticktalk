@@ -21,6 +21,17 @@ pub struct Identify {
     pub launch_features: bool,
 }
 
+impl Default for Identify {
+    fn default() -> Self {
+        Self {
+            version: PROTOCOL_VERSION,
+            token: String::new(),
+            resume: None,
+            launch_features: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Heartbeat {
@@ -38,7 +49,7 @@ pub struct Hello {
     pub server_time: UnixMillis,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct Ready {
     pub cursor: ResumeCursor,
@@ -505,7 +516,26 @@ pub enum VoiceSignal {
         allow: bool,
     },
     RevokeControl,
+    /// Explicit sending mode. Legacy callers default to push-to-talk, not VAD/priority.
+    Activity {
+        voice_activity: bool,
+        priority: bool,
+    },
+    /// Host-authorized moderation; never forwarded as untrusted SFU input.
+    Moderate {
+        session: VoiceSession,
+        action: VoiceModeration,
+    },
     Stats,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum VoiceModeration {
+    Mute { muted: bool },
+    Deafen { deafened: bool },
+    Move { channel_id: ChannelId },
+    Disconnect,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

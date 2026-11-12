@@ -458,6 +458,7 @@ async fn private_channel_fanout_replay_receipts_and_visibility_restoration() {
     let (close, closed) = tokio::sync::watch::channel(None);
     let (tx, _rx) = tokio::sync::mpsc::channel(128);
     core.streams.get_mut(&vec![2; 32]).unwrap().connection = Some(crate::state::Connection {
+        alive: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
         id: "test".into(),
         tx,
         budget: std::sync::Arc::new(tokio::sync::Semaphore::new(2 * 1024 * 1024)),
@@ -998,7 +999,7 @@ async fn migration_preserves_legacy_member_admin_owner_and_wire_bits() {
         .unwrap()
         .contains(Permissions::ADMINISTRATOR | Permissions::MANAGE_ROLES));
     let p = acl::evaluate(&mut c, Id(3), Id(10), None).await.unwrap();
-    assert!(p.contains(Permissions::MEMBER));
+    assert!(p.contains(Permissions::from_bits_retain(287)));
     assert!(!p.contains(Permissions::ADMINISTRATOR));
     assert_eq!(Permissions::OWNER.bits(), 1 << 13);
 }

@@ -425,6 +425,9 @@ pub(crate) async fn execute(
     // Sending a launch command also proves support for its event catalog.
     if matches!(req.command, Command::Launch(_)) {
         if let Some(s) = core.streams.get_mut(key) {
+            if !s.launch_features {
+                s.clear_replay();
+            }
             s.launch_features = true;
         }
     }
@@ -437,7 +440,12 @@ pub(crate) async fn execute(
                 require(r.get::<Vec<u8>,_>("request_hash")==request_hash,ErrorCode::Conflict)?;replayed=true;
                 let mut result:CommandResult=rmp_serde::from_slice(&r.get::<Vec<u8>,_>("result_msgpack")).map_err(|_|Error::new(ErrorCode::Internal))?;
                 result_access(&mut c,u,&result).await?;
-                if let CommandResult::Channel(ch)=&mut result {*ch=access(&mut c,u,ch.summary.id,Permissions::VIEW_CHANNEL).await?;}
+                match &mut result {
+                    CommandResult::Channel(ch)=>*ch=access(&mut c,u,ch.summary.id,Permissions::VIEW_CHANNEL).await?,
+                    CommandResult::Guild(g)=>*g=detail(&mut c,u,g.summary.guild.id).await?,
+                    CommandResult::Member(m)=>*m=member(&mut c,m.guild_id,m.user.id).await?,
+                    _=>{}
+                }
                 return Ok(result);
             }
             core.rate(format!("cmd:{}",u.0),120.,20.)?;
@@ -457,7 +465,7 @@ pub(crate) async fn execute(
         let presence_changed=matches!(req.command,Command::SetPresence{..});
         let needs_file_gc=matches!(req.command,Command::DeleteGuild{..}|Command::DeleteChannel{..}|Command::LeaveGroupDm{..});
         let block_pair=if let Command::BlockUser{user_id}=req.command {Some(user_id)}else{None};
-        let voice_acl_changed=matches!(req.command,Command::SetVoicePermission{..}|Command::SetMemberRole{..}|Command::TransferGuildOwnership{..}|Command::KickMember{..}|Command::BanMember{..}|Command::LeaveGuild{..}|Command::DeleteGuild{..}|Command::DeleteChannel{..});
+        let voice_acl_changed=acl_guild.is_some() || revoke_sessions || matches!(req.command,Command::SetVoicePermission{..}|Command::SetMemberRole{..}|Command::TransferGuildOwnership{..}|Command::KickMember{..}|Command::BanMember{..}|Command::LeaveGuild{..}|Command::DeleteGuild{..}|Command::DeleteChannel{..});
         let voice_snapshot=matches!(req.command,Command::JoinGuild{..});
         let role_target=if let Command::SetMemberRole{user_id,..}=req.command {Some(user_id)}else{None};
         let deleted_channel=if let Command::DeleteChannel {channel_id}=req.command {Some(channel_id)} else {None};
@@ -473,7 +481,7 @@ pub(crate) async fn execute(
                     let newly_visible=!old.iter().any(|o|o.id==ch.id);
                     let mut full=channel(&mut tx,ch.id).await?;full.summary=ch.clone();
                     out.push((vec![*v],Event::ChannelUpsert(full)));
-                    if newly_visible && ch.kind!=ChannelKind::Category {init_read(&mut tx,*v,ch.id,true).await?;out.push((vec![*v],Event::ReadStateUpdated(read(&mut tx,*v,ch.id).await?)));}
+                    if newly_visible && ch.kind==ChannelKind::Text {init_read(&mut tx,*v,ch.id,true).await?;out.push((vec![*v],Event::ReadStateUpdated(read(&mut tx,*v,ch.id).await?)));}
                 }
             }
         }
@@ -482,7 +490,6 @@ pub(crate) async fn execute(
         let orphaned=gc_uploads(&mut tx).await?;
         core.persist_id(&mut tx).await?;
         tx.commit().await?;
-        if voice_acl_changed { crate::voice::reconcile(app, core, &mut c).await?; }
         // Discard queued pre-revocation packets as well as replay. The writer's
         // biased close branch drops its pending queue; reconnect obtains removals/Ready.
         for s in core.streams.values_mut().filter(|s|revoked_visibility.contains(&s.user)) {
@@ -497,12 +504,14 @@ pub(crate) async fn execute(
         for k in revoked {if let Some(s)=core.streams.remove(&k) {if let Some(c)=s.connection {let _=c.close.send(Some(4001));}}}
 
         }
+        if voice_acl_changed { crate::voice::reconcile(app, core, &mut c).await?; }
         if let Some(v)=block_pair {core.invalidate(&[u,v]);}
         if let Some(v)=role_target {core.invalidate(&[v]);}
         if needs_file_gc || !orphaned.is_empty() {let app=app.clone();tokio::spawn(async move{let _=app.collect_orphan_files().await;});}
         // Access revocation invalidates old body-bearing replay before admitting removal events.
         for (users,e) in &out {if matches!(e,Event::GuildRemoved{..}|Event::ChannelRemoved{..}|Event::RelationshipRemoved{..}|Event::MessageDeleted{..}) {core.invalidate(users);}}
         for (users,e) in out {
+            if let Event::MessageCreated{message,..}=&e {crate::mentions::notify(app,core,&mut c,message).await?;}
             let deliveries=crate::launch::filter_event(&mut c,users,e).await?;
             for (users,e) in deliveries {
             if let Event::UserUpdated(ref profile) = e {
@@ -1566,7 +1575,7 @@ async fn mutate(
             user_id,
             connect,
         } => {
-            let ch = access(c, u, channel_id, Permissions::MANAGE_CHANNELS).await?;
+            let ch = access(c, u, channel_id, Permissions::MANAGE_ROLES).await?;
             require(
                 ch.summary.kind == ChannelKind::Voice,
                 ErrorCode::InvalidRequest,
@@ -1576,21 +1585,12 @@ async fn mutate(
                 .guild_id
                 .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
             crate::permissions::above_member(c, g, u, user_id).await?;
-            if connect {
-                sqlx::query("DELETE FROM voice_connect_denials WHERE channel_id=? AND user_id=?")
-                    .bind(id(channel_id)?)
-                    .bind(id(user_id)?)
-                    .execute(&mut *c)
-                    .await?;
-            } else {
-                sqlx::query(
-                    "INSERT OR IGNORE INTO voice_connect_denials(channel_id,user_id) VALUES(?,?)",
-                )
-                .bind(id(channel_id)?)
-                .bind(id(user_id)?)
-                .execute(&mut *c)
-                .await?;
-            }
+            role(c, user_id, g).await?;
+            let p = crate::permissions::evaluate(c, u, g, Some(channel_id)).await?;
+            require(p.contains(Permissions::CONNECT), ErrorCode::Forbidden)?;
+            // Legacy boolean command edits only Connect in the canonical member overwrite.
+            sqlx::query("INSERT INTO permission_overwrites VALUES(?,'member',?,0,?) ON CONFLICT(channel_id,kind,target_id) DO UPDATE SET allow=allow & ~?,deny=(deny & ~?) | excluded.deny")
+                .bind(id(channel_id)?).bind(id(user_id)?).bind(if connect {0} else {Permissions::CONNECT.bits() as i64}).bind(Permissions::CONNECT.bits() as i64).bind(Permissions::CONNECT.bits() as i64).execute(&mut *c).await?;
             Ok(CommandResult::Ack)
         }
         UpdateChannel {
@@ -1786,13 +1786,16 @@ async fn mutate(
                     .execute(&mut *c)
                     .await?;
             }
-            for v in d.mention_ids {
+            let mentions =
+                crate::mentions::resolve(c, core, u, &channel, &d.content, &d.mention_ids).await?;
+            for v in &mentions.users {
                 sqlx::query("INSERT INTO message_mentions VALUES(?,?)")
                     .bind(id(m)?)
-                    .bind(id(v)?)
+                    .bind(id(*v)?)
                     .execute(&mut *c)
                     .await?;
             }
+            crate::mentions::persist(c, m, &mentions).await?;
             let m = message(c, u, ch, m, false).await?;
             event(
                 out,
@@ -1817,8 +1820,10 @@ async fn mutate(
             )
             .await?;
             require(old.author_id == u, ErrorCode::Forbidden)?;
-            let mut mentions = e.mention_ids.clone();
-            mentions.sort();
+            let channel = channel(c, e.channel_id).await?;
+            let expanded =
+                crate::mentions::resolve(c, core, u, &channel, &e.content, &e.mention_ids).await?;
+            let mentions = expanded.users.clone();
             if old.content != e.content || old.mention_ids != mentions {
                 sqlx::query("UPDATE messages SET content=?,edited_at=? WHERE id=?")
                     .bind(&e.content)
@@ -1837,6 +1842,7 @@ async fn mutate(
                         .execute(&mut *c)
                         .await?;
                 }
+                crate::mentions::persist(c, e.message_id, &expanded).await?;
                 for v in audience(c, e.channel_id).await? {
                     event(
                         out,
@@ -1885,6 +1891,7 @@ async fn mutate(
                 for query in [
                     "DELETE FROM pins WHERE message_id=?",
                     "DELETE FROM message_mentions WHERE message_id=?",
+                    "DELETE FROM message_broadcast_mentions WHERE message_id=?",
                     "DELETE FROM reactions WHERE message_id=?",
                     "DELETE FROM message_attachments WHERE message_id=?",
                 ] {

@@ -10,6 +10,9 @@ pub mod gifs;
 mod google;
 mod http;
 mod launch;
+mod legacy;
+mod mentions;
+pub use mentions::Notification;
 #[cfg(test)]
 mod operations_tests;
 pub mod permissions;

@@ -769,3 +769,174 @@ fn browser_sized_rtp_passes_and_custom_path_mtu_is_enforced() {
         .iter()
         .any(|(_, e)| matches!(e,VoiceEvent::Stats(s) if s.mtu_dropped_packets>0)));
 }
+
+#[derive(Default)]
+struct LivePolicy(std::sync::RwLock<(Permissions, u64, bool, bool)>);
+impl sticktalk_sfu::Authorizer for LivePolicy {
+    fn can_join(&self, _s: VoiceSession, ch: Id) -> bool {
+        ch == Id(1) || ch == Id(2)
+    }
+    fn permissions(&self, s: VoiceSession, _ch: Id) -> Permissions {
+        if s.user_id == Id(1) {
+            self.0.read().unwrap().0
+        } else {
+            Permissions::all()
+        }
+    }
+    fn send_audio(&self, s: VoiceSession) -> bool {
+        s.user_id != Id(1) || !self.0.read().unwrap().2
+    }
+    fn receive_audio(&self, s: VoiceSession) -> bool {
+        s.user_id != Id(2) || !self.0.read().unwrap().3
+    }
+    fn generation(&self) -> u64 {
+        self.0.read().unwrap().1
+    }
+}
+#[test]
+fn live_role_policy_stops_audio_screen_camera_and_server_mute_deafen_media() {
+    let policy = std::sync::Arc::new(LivePolicy(std::sync::RwLock::new((
+        Permissions::all(),
+        0,
+        false,
+        false,
+    ))));
+    let mut n = Network::with_acl(40_000_000, policy.clone());
+    let a = n.add(true);
+    let b = n.add(false);
+    for kind in [TrackKind::Audio, TrackKind::Camera, TrackKind::Screen] {
+        n.subscribe(b, a, kind);
+    }
+    n.clear();
+    n.send(a, TrackKind::Audio, 1, 960, &[0xf8, 0xff, 0xfe], false);
+    n.advance(Duration::from_millis(30));
+    assert!(n.peers[b]
+        .events
+        .iter()
+        .any(|e| matches!(e, Event::RtpPacket(_))));
+    for (muted, deafened) in [(true, false), (false, true)] {
+        {
+            let mut p = policy.0.write().unwrap();
+            p.1 += 1;
+            p.2 = muted;
+            p.3 = deafened;
+        }
+        n.clear();
+        n.send(
+            a,
+            TrackKind::Audio,
+            10 + u64::from(deafened),
+            9600,
+            &[0xf8, 1, 1],
+            false,
+        );
+        n.advance(Duration::from_millis(30));
+        assert!(!n.peers[b]
+            .events
+            .iter()
+            .any(|e| matches!(e,Event::RtpPacket(p) if p.payload.as_ref()==[0xf8,1,1])));
+    }
+    {
+        let mut p = policy.0.write().unwrap();
+        p.0.remove(Permissions::SPEAK | Permissions::STREAM);
+        p.1 += 1;
+        p.2 = false;
+        p.3 = false;
+    }
+    n.clear();
+    n.send(a, TrackKind::Audio, 20, 19200, &[0xf8, 2, 2], false);
+    n.send(a, TrackKind::Screen, 20, 30000, &[0x65, 2, 2], true);
+    n.send(a, TrackKind::Camera, 20, 60000, &[0x65, 3, 3], true);
+    n.advance(Duration::from_millis(50));
+    assert!(!n.peers[b].events.iter().any(|e|matches!(e,Event::RtpPacket(p) if p.payload.as_ref()==[0xf8,2,2]||p.payload.as_ref()==[0x65,2,2])));
+    assert!(n.peers[b]
+        .events
+        .iter()
+        .any(|e| matches!(e,Event::RtpPacket(p) if p.payload.as_ref()==[0x65,3,3])));
+    n.sfu.refresh_policy(n.peers[a].key).unwrap();
+    assert_eq!(n.sfu.route_count(), 1);
+    {
+        let mut p = policy.0.write().unwrap();
+        p.0.remove(Permissions::VIDEO);
+        p.1 += 1;
+    }
+    n.sfu.refresh_policy(n.peers[a].key).unwrap();
+    assert_eq!(n.sfu.route_count(), 0);
+}
+#[test]
+fn voice_flags_offer_rights_and_moves_are_enforced_by_sfu() {
+    let policy = std::sync::Arc::new(LivePolicy(std::sync::RwLock::new((
+        Permissions::CONNECT | Permissions::VIEW_CHANNEL,
+        0,
+        false,
+        false,
+    ))));
+    let mut n = Network::with_acl(40_000_000, policy.clone());
+    let a = n.add(false);
+    let b = n.add(false);
+    let key = n.peers[a].key;
+    for signal in [
+        VoiceSignal::Activity {
+            voice_activity: true,
+            priority: false,
+        },
+        VoiceSignal::Activity {
+            voice_activity: false,
+            priority: true,
+        },
+        VoiceSignal::Moderate {
+            session: n.peers[b].key,
+            action: VoiceModeration::Disconnect,
+        },
+    ] {
+        assert!(matches!(
+            n.sfu.handle_signal(key, 10, signal, n.now),
+            Err(sticktalk_sfu::Error::Forbidden)
+        ));
+        let _ = n.sfu.drain().count();
+    }
+    for kind in [
+        TrackKind::Audio,
+        TrackKind::Screen,
+        TrackKind::SystemAudio,
+        TrackKind::Camera,
+    ] {
+        let signal = VoiceSignal::Offer {
+            sdp: String::new(),
+            tracks: vec![PublishedTrack {
+                mid: "track".into(),
+                kind,
+                codec: None,
+                layers: vec![],
+                surface: None,
+            }],
+        };
+        assert!(matches!(
+            n.sfu.handle_signal(key, 11, signal, n.now),
+            Err(sticktalk_sfu::Error::Forbidden)
+        ));
+        let _ = n.sfu.drain().count();
+    }
+    {
+        let mut p = policy.0.write().unwrap();
+        p.0 = Permissions::all();
+        p.1 += 1;
+    }
+    n.sfu
+        .handle_signal(
+            key,
+            12,
+            VoiceSignal::Activity {
+                voice_activity: true,
+                priority: true,
+            },
+            n.now,
+        )
+        .unwrap();
+    let _ = n.sfu.drain().count();
+    n.sfu.move_session(key, Id(2)).unwrap();
+    let events: Vec<_> = n.sfu.drain().collect();
+    assert!(events.iter().any(|e|matches!(e,sticktalk_sfu::Out::Signal{to,event:VoiceEvent::Joined{channel_id,..},..} if *to==key && *channel_id==Id(2))));
+    assert!(events.iter().any(|e|matches!(e,sticktalk_sfu::Out::Signal{to,event:VoiceEvent::Left{session},..} if *to==n.peers[b].key && *session==key)));
+    assert_eq!(n.sfu.session_count(), 2);
+}

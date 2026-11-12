@@ -89,6 +89,7 @@ pub struct App(pub(crate) Arc<Inner>);
 pub(crate) struct Inner {
     pub config: Config,
     pub voice: crate::voice::Voice,
+    pub notifications: tokio::sync::broadcast::Sender<crate::mentions::Notification>,
     pub pool: SqlitePool,
     pub core: Mutex<Core>,
     pub passwords: Arc<Semaphore>,
@@ -263,6 +264,14 @@ impl Core {
             .cursor()
     }
     pub fn send(&mut self, key: &[u8], msg: &ServerMsg) -> Result<()> {
+        let mut projected;
+        let msg = if self.streams.get(key).is_some_and(|s| !s.launch_features) {
+            projected = msg.clone();
+            crate::legacy::message(&mut projected);
+            &projected
+        } else {
+            msg
+        };
         let b = encode(msg)?;
         if let Some(s) = self.streams.get_mut(key) {
             s.queue(b);
@@ -278,7 +287,7 @@ impl Core {
         event: Event,
         filter: impl Fn(&Stream) -> bool,
     ) -> Result<()> {
-        let mut cache: HashMap<u64, Bytes> = HashMap::new();
+        let mut cache: HashMap<(u64, bool), Bytes> = HashMap::new();
         let t = now();
         for s in self
             .streams
@@ -311,14 +320,18 @@ impl Core {
                 s.interests.clear();
             }
             s.seq += 1;
-            let b = if let Some(b) = cache.get(&s.seq) {
+            let b = if let Some(b) = cache.get(&(s.seq, s.launch_features)) {
                 b.clone()
             } else {
+                let mut projected = event.clone();
+                if !s.launch_features {
+                    crate::legacy::event(&mut projected);
+                }
                 let b = encode(&ServerMsg::Event(Box::new(EventEnvelope {
                     seq: s.seq,
-                    event: event.clone(),
+                    event: projected,
                 })))?;
-                cache.insert(s.seq, b.clone());
+                cache.insert((s.seq, s.launch_features), b.clone());
                 b
             };
             s.bytes += b.len();
@@ -420,6 +433,7 @@ impl App {
         let voice = crate::voice::Voice::new(&config.voice, config.bind)?;
         let app = Self(Arc::new(Inner {
             voice,
+            notifications: tokio::sync::broadcast::channel(128).0,
             config,
             pool,
             core: Mutex::new(Core {

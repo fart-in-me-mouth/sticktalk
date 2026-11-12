@@ -19,6 +19,26 @@ use str0m::{Candidate, Event, Input, Output, Rtc};
 /// action. The host must also disconnect on logout/WS loss and ACL revocation.
 pub trait Authorizer: Send + Sync {
     fn can_join(&self, session: VoiceSession, channel: ChannelId) -> bool;
+    fn permissions(&self, session: VoiceSession, channel: ChannelId) -> Permissions {
+        if self.can_join(session, channel) {
+            Permissions::all()
+        } else {
+            Permissions::empty()
+        }
+    }
+    fn relocated_channel(&self, _session: VoiceSession) -> Option<ChannelId> {
+        None
+    }
+    fn receive_audio(&self, _session: VoiceSession) -> bool {
+        true
+    }
+    fn send_audio(&self, _session: VoiceSession) -> bool {
+        true
+    }
+    /// Increment synchronously whenever a live policy changes. Old queued media is dropped.
+    fn generation(&self) -> u64 {
+        0
+    }
 }
 impl<F: Fn(VoiceSession, ChannelId) -> bool + Send + Sync> Authorizer for F {
     fn can_join(&self, session: VoiceSession, channel: ChannelId) -> bool {
@@ -106,6 +126,7 @@ struct Route {
     rid: Option<Rid>,
     ssrc: Ssrc,
     video: bool,
+    kind: TrackKind,
     first_source_seq: Option<u64>,
     // A new subscription starts only on a video keyframe.
     waiting_keyframe: bool,
@@ -157,7 +178,7 @@ pub struct Sfu {
     acl: Arc<dyn Authorizer>,
     local: SocketAddr,
     peers: BTreeMap<VoiceSession, Peer>,
-    out: VecDeque<Out>,
+    out: VecDeque<(u64, Out)>,
     events: VecDeque<(VoiceSession, Event)>,
     budget: Budget,
     now: Instant,
@@ -256,7 +277,17 @@ impl Sfu {
         self.peers.values().map(|p| p.routes.len()).sum()
     }
     pub fn drain(&mut self) -> impl Iterator<Item = Out> + '_ {
-        self.out.drain(..)
+        let acl = self.acl.clone();
+        self.out.drain(..).filter_map(move |(generation, out)| {
+            if matches!(&out, Out::Datagram { .. }) && generation != acl.generation() {
+                None
+            } else {
+                Some(out)
+            }
+        })
+    }
+    pub fn policy_generation(&self) -> u64 {
+        self.acl.generation()
     }
     pub fn next_timeout(&self) -> Option<Instant> {
         self.peers
@@ -276,7 +307,7 @@ impl Sfu {
         if self.out.len() >= 4096 {
             return Err(Error::Backpressure);
         }
-        self.out.push_back(out);
+        self.out.push_back((self.acl.generation(), out));
         Ok(())
     }
     fn send(&mut self, to: VoiceSession, nonce: Nonce, event: VoiceEvent) -> Result<(), Error> {
@@ -334,6 +365,22 @@ impl Sfu {
     }
     /// The host passes the authenticated login/WS connection identity, NEVER a
     /// user ID copied from client input. Errors are also emitted to that session.
+    fn synchronize(&mut self) -> Result<(), Error> {
+        let moves: Vec<_> = self
+            .peers
+            .iter()
+            .filter_map(|(s, p)| {
+                self.acl
+                    .relocated_channel(*s)
+                    .filter(|ch| *ch != p.channel)
+                    .map(|ch| (*s, ch))
+            })
+            .collect();
+        for (s, ch) in moves {
+            self.move_session(s, ch)?;
+        }
+        Ok(())
+    }
     pub fn handle_signal(
         &mut self,
         key: VoiceSession,
@@ -342,6 +389,7 @@ impl Sfu {
         now: Instant,
     ) -> Result<(), Error> {
         self.now = self.now.max(now);
+        self.synchronize()?;
         let result = self.signal(key, nonce, signal);
         if let Err(error) = &result {
             self.send(
@@ -451,6 +499,18 @@ impl Sfu {
                     self.revoke(sharer)?;
                 }
             }
+            VoiceSignal::Activity {
+                voice_activity,
+                priority,
+            } => {
+                let p = self.acl.permissions(key, self.peers[&key].channel);
+                if (voice_activity && !p.contains(Permissions::USE_VOICE_ACTIVITY))
+                    || (priority && !p.contains(Permissions::PRIORITY_SPEAKER))
+                {
+                    return Err(Error::Forbidden);
+                }
+            }
+            VoiceSignal::Moderate { .. } => return Err(Error::Forbidden),
             VoiceSignal::Stats => {
                 return self.send(
                     key,
@@ -620,6 +680,13 @@ impl Sfu {
         let mut mids = BTreeSet::new();
         let mut kinds = BTreeSet::new();
         for t in &tracks {
+            if !self
+                .acl
+                .permissions(key, self.peers[&key].channel)
+                .contains(track_permission(t.kind))
+            {
+                return Err(Error::Forbidden);
+            }
             if !valid_id(&t.mid)
                 || !mids.insert(&t.mid)
                 || !kinds.insert(t.kind as u8)
@@ -861,6 +928,7 @@ impl Sfu {
                 rid,
                 ssrc,
                 video,
+                kind: track.kind,
                 first_source_seq: None,
                 waiting_keyframe: video,
                 rtx,
@@ -1013,6 +1081,7 @@ impl Sfu {
         now: Instant,
     ) -> Result<(), Error> {
         self.now = self.now.max(now);
+        self.synchronize()?;
         let Ok(receive) = Receive::new(Protocol::Udp, from, self.local, bytes) else {
             return Ok(());
         };
@@ -1044,6 +1113,7 @@ impl Sfu {
     }
     pub fn handle_timeout(&mut self, now: Instant) -> Result<(), Error> {
         self.now = self.now.max(now);
+        self.synchronize()?;
         let keys: Vec<_> = self.peers.keys().copied().collect();
         for key in keys {
             if self.authorized(key).is_err()
@@ -1080,6 +1150,7 @@ impl Sfu {
     }
     fn collect(&mut self, key: VoiceSession) -> Result<(), Error> {
         loop {
+            let generation = self.acl.generation();
             let Some(peer) = self.peers.get_mut(&key) else {
                 return Ok(());
             };
@@ -1097,18 +1168,34 @@ impl Sfu {
                 Output::Transmit(tx) => {
                     let bytes: &[u8] = tx.contents.as_ref();
                     if is_rtp(bytes) {
+                        if !self.acl.can_join(key, peer.channel) {
+                            continue;
+                        }
                         if bytes.len() > usize::from(self.config.max_datagram_bytes) {
                             peer.stats.mtu_dropped_packets += 1;
                             continue;
                         }
                         let ssrc = u32::from_be_bytes(bytes[8..12].try_into().unwrap());
-                        // Map both the main and RTX SSRC. In RTP mode all
-                        // outgoing media belongs to an explicit subscription.
-                        // Unmapped RTP (including str0m's SSRC-zero BWE
-                        // probe) is video, never a way around the budget.
-                        let video = !peer.routes.values().any(|r| {
-                            !r.video && (*r.ssrc == ssrc || r.rtx.is_some_and(|s| *s == ssrc))
-                        });
+                        // Recheck sender and receiver policy at encrypted egress (including RTX/pacer queues).
+                        let route = peer
+                            .routes
+                            .values()
+                            .find(|r| *r.ssrc == ssrc || r.rtx.is_some_and(|s| *s == ssrc));
+                        let Some(route) = route else {
+                            continue;
+                        };
+                        if !self
+                            .acl
+                            .permissions(route.publisher, peer.channel)
+                            .contains(track_permission(route.kind))
+                            || (!route.video && !self.acl.send_audio(route.publisher))
+                            || (!route.video && (peer.deafened || !self.acl.receive_audio(key)))
+                        {
+                            continue;
+                        }
+                        // Unmapped/withdrawn SSRCs (including probes) cannot escape
+                        // publication authorization via a paced or retransmit queue.
+                        let video = route.video;
                         // Final wire budget includes RTX and probes.
                         if video && !self.budget.take(bytes.len(), self.now) {
                             peer.stats.cap_dropped_packets += 1;
@@ -1123,6 +1210,9 @@ impl Sfu {
                         to: tx.destination,
                         bytes: bytes.to_vec(),
                     })?;
+                    if let Some((stamp, _)) = self.out.back_mut() {
+                        *stamp = generation;
+                    }
                 }
             }
         }
@@ -1206,7 +1296,12 @@ impl Sfu {
         };
         let video = is_video(track.kind);
         let p = &self.peers[&key];
-        if (!video && (p.muted || p.deafened))
+        if !self
+            .acl
+            .permissions(key, p.channel)
+            .contains(track_permission(track.kind))
+            || (!video && !self.acl.send_audio(key))
+            || (!video && (p.muted || p.deafened))
             || track
                 .codec
                 .is_some_and(|c| !self.codec_allowed(p.channel, c))
@@ -1256,7 +1351,10 @@ impl Sfu {
         let destinations: Vec<_> = self
             .peers
             .iter()
-            .filter(|(s, p)| self.acl.can_join(**s, p.channel) && !(p.deafened && !video))
+            .filter(|(s, p)| {
+                self.acl.can_join(**s, p.channel)
+                    && (!(!video && (p.deafened || !self.acl.receive_audio(**s))))
+            })
             .flat_map(|(s, p)| {
                 p.routes
                     .iter()
@@ -1439,9 +1537,12 @@ impl Sfu {
     }
     fn screen_active(&self, key: VoiceSession) -> bool {
         self.peers.get(&key).is_some_and(|p| {
-            p.tracks
-                .iter()
-                .any(|t| t.kind == TrackKind::Screen && t.surface.is_some())
+            self.acl
+                .permissions(key, p.channel)
+                .contains(Permissions::STREAM)
+                && p.tracks
+                    .iter()
+                    .any(|t| t.kind == TrackKind::Screen && t.surface.is_some())
         })
     }
     fn viewing_screen(&self, viewer: VoiceSession, sharer: VoiceSession) -> bool {
@@ -1613,6 +1714,118 @@ impl Sfu {
         }
         Ok(())
     }
+    /// Apply host policy immediately; withdrawing a screen also revokes remote control.
+    pub fn refresh_policy(&mut self, key: VoiceSession) -> Result<(), Error> {
+        let Some(peer) = self.peers.get(&key) else {
+            return Ok(());
+        };
+        let permissions = self.acl.permissions(key, peer.channel);
+        if !self.acl.can_join(key, peer.channel) {
+            return self.disconnect(key);
+        }
+        let removed: Vec<_> = peer
+            .tracks
+            .iter()
+            .filter(|t| !permissions.contains(track_permission(t.kind)))
+            .map(|t| t.mid.clone())
+            .collect();
+        if !permissions.contains(Permissions::STREAM) {
+            self.revoke(key)?;
+            self.cancel_request(key)?;
+        }
+        self.peers
+            .get_mut(&key)
+            .unwrap()
+            .tracks
+            .retain(|t| !removed.contains(&t.mid));
+        let stale: Vec<_> = self
+            .peers
+            .iter()
+            .flat_map(|(s, p)| {
+                p.routes
+                    .iter()
+                    .filter(|(_, r)| r.publisher == key && removed.contains(&r.source.to_string()))
+                    .map(|(mid, _)| (*s, mid.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for (s, mid) in stale {
+            self.remove_route(s, &mid)?;
+        }
+        self.stop_speaking(key)?;
+        self.broadcast(
+            self.peers[&key].channel,
+            VoiceEvent::Participant(self.peers[&key].participant(key)),
+        )?;
+        self.allocate()
+    }
+    /// Move the established transport; discard all old-room subscriptions and grants.
+    pub fn move_session(&mut self, key: VoiceSession, channel: ChannelId) -> Result<(), Error> {
+        let old = self.peers.get(&key).ok_or(Error::Forbidden)?.channel;
+        if old == channel {
+            return Ok(());
+        }
+        if !self.acl.can_join(key, channel) {
+            return Err(Error::Forbidden);
+        }
+        if self.peers.values().filter(|p| p.channel == channel).count()
+            >= self.config.max_channel_sessions
+        {
+            return Err(Error::Limit);
+        }
+        self.revoke(key)?;
+        self.cancel_request(key)?;
+        let stale: Vec<_> = self
+            .peers
+            .iter()
+            .flat_map(|(s, p)| {
+                p.routes
+                    .iter()
+                    .filter(|(_, r)| *s == key || r.publisher == key)
+                    .map(|(mid, _)| (*s, mid.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for (s, mid) in stale {
+            self.remove_route(s, &mid)?;
+        }
+        let grants: Vec<_> = self
+            .peers
+            .iter()
+            .filter(|(_, p)| p.grant.as_ref().is_some_and(|g| g.controller == key))
+            .map(|(s, _)| *s)
+            .collect();
+        for sharer in grants {
+            self.revoke(sharer)?;
+        }
+        let requests: Vec<_> = self
+            .peers
+            .iter()
+            .filter(|(_, p)| p.request.is_some_and(|r| r.0 == key))
+            .map(|(s, _)| *s)
+            .collect();
+        for sharer in requests {
+            self.cancel_request(sharer)?;
+        }
+        self.peers.get_mut(&key).unwrap().channel = channel;
+        self.broadcast(old, VoiceEvent::Left { session: key })?;
+        self.refresh_policy(key)?;
+        let participants = self
+            .peers
+            .iter()
+            .filter(|(s, p)| **s != key && p.channel == channel)
+            .map(|(s, p)| p.participant(*s))
+            .collect();
+        self.send(
+            key,
+            0,
+            VoiceEvent::Joined {
+                channel_id: channel,
+                participants,
+                max_rtp_bytes: self.config.max_datagram_bytes,
+            },
+        )
+    }
     /// Call on WS disconnect, logout, kick or ACL change; idempotent.
     pub fn disconnect(&mut self, key: VoiceSession) -> Result<(), Error> {
         if !self.peers.contains_key(&key) {
@@ -1670,6 +1883,13 @@ fn valid_id(id: &str) -> bool {
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
 }
+fn track_permission(kind: TrackKind) -> Permissions {
+    match kind {
+        TrackKind::Audio => Permissions::SPEAK,
+        TrackKind::Camera => Permissions::VIDEO,
+        TrackKind::Screen | TrackKind::SystemAudio => Permissions::STREAM,
+    }
+}
 fn is_video(kind: TrackKind) -> bool {
     matches!(kind, TrackKind::Camera | TrackKind::Screen)
 }
@@ -1722,5 +1942,38 @@ fn starts_keyframe(codec: Codec, p: &[u8]) -> bool {
         }
         Codec::Av1 => p.first().is_some_and(|b| b & 0x08 != 0),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod policy_queue_tests {
+    use super::*;
+    struct Acl(std::sync::atomic::AtomicU64);
+    impl Authorizer for Acl {
+        fn can_join(&self, _s: VoiceSession, _ch: Id) -> bool {
+            true
+        }
+        fn generation(&self) -> u64 {
+            self.0.load(std::sync::atomic::Ordering::Acquire)
+        }
+    }
+    #[test]
+    fn policy_generation_discards_pre_revocation_encrypted_datagrams() {
+        let acl = Arc::new(Acl(std::sync::atomic::AtomicU64::new(0)));
+        let mut sfu = Sfu::new(
+            Config {
+                ports: 52000..=52999,
+                ..Default::default()
+            },
+            acl.clone(),
+        )
+        .unwrap();
+        sfu.emit(Out::Datagram {
+            to: "127.0.0.1:1234".parse().unwrap(),
+            bytes: vec![0x80; 32],
+        })
+        .unwrap();
+        acl.0.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        assert_eq!(sfu.drain().count(), 0);
     }
 }

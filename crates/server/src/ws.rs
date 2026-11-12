@@ -188,6 +188,7 @@ async fn run(app: App, mut socket: WebSocket) {
         if resume_ok { crate::voice::snapshot(&mut core,&mut c,&key,u).await?; }
         if !was_online {commands::broadcast_presence(&mut c,&mut core,u).await?;}Ok::<_,Error>((key,u,expires,initial,ready))
     }.await;
+    let launch_features = identify.launch_features;
     drop(identify);
     let (key, u, expires, mut initial, ready) = match setup {
         Ok(v) => v,
@@ -214,7 +215,11 @@ async fn run(app: App, mut socket: WebSocket) {
         }
     };
     if let Some(ready) = ready {
-        match encode(&ServerMsg::Ready(ready)) {
+        let mut message = ServerMsg::Ready(ready);
+        if !launch_features {
+            crate::legacy::message(&mut message);
+        }
+        match encode(&message) {
             Ok(bytes) => initial.push(bytes),
             Err(error) => {
                 fail(&mut socket, error, 1011).await;

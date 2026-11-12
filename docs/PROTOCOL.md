@@ -57,7 +57,7 @@ See `ARCHITECTURE.md` for implementation, storage, limits and resource budgets.
 | Guild channel/category name | 1..64 bytes after trim; no path/control characters |
 | Topic | null or 1..512 bytes; category topic must be null |
 | Message | <=4,000 Unicode scalar values; non-whitespace text or >=1 attachment; edits cannot make an attachment-free message empty |
-| Mention IDs | <=100 unique existing users with current access to that channel; no roles/everyone/here mentions |
+| Mention IDs | <=100 explicit unique users with channel access; server-expanded role/everyone/here recipients are bounded by the 1000-member audience (section 12) |
 | Attachments | <=4 unique IDs/message; each <=26,214,400 bytes |
 | Emoji | One Unicode emoji grapheme cluster, 1..32 UTF-8 bytes; support variation selectors, modifiers and ZWJ; no custom emoji; exact sequence is key, no normalization |
 | Reactions | <=20 distinct emoji/message; one reaction/user/emoji; count excludes no one with access |
@@ -104,7 +104,7 @@ are the Rust widths. Every struct has snake_case keys.
 | `ReadState` | `channel_id:ChannelId`, `last_read_id:?MessageId`, `latest_message_id:?MessageId`, `unread_count:u32`, `mention_count:u32` |
 | `ReactionUpdate` | `channel_id:ChannelId`, `message_id:MessageId`, `user_id:UserId` (actor), `added:bool`, `reaction:ReactionSummary` (absolute post-operation count/me, including count=0) |
 | `GuildDetail` | `summary:GuildSummary`, `channels:[ChannelSummary]` (authorized guild channels, no member/history bodies) |
-| `VoicePayload` | `nonce:Nonce`, `version:u16`, `kind:String`, `payload:[u8]`; legacy reserved body <=16 KiB, Phase 1 refuses all kinds/versions; opt-in Phase 2 typed body <=72 KiB, see section 10 |
+| `VoicePayload` | `nonce:Nonce`, `version:u16`, `kind:String`, `payload:[u8]`; legacy reserved bodies still decode; enabled typed body <=72 KiB, see section 10 |
 
 Enums: `PresenceStatus` = online, idle, dnd, invisible, offline;
 `RelationshipKind` = friend, incoming_request, outgoing_request, blocked;
@@ -161,8 +161,8 @@ The client may reorder DM display by latest_message_id without mutating position
 | 27 | priority_speaker | Priority speaker |
 | 28..63 | reserved | Never grant unknown permissions; bit 63 not stored in SQLite |
 
-The legacy `Permissions::MEMBER` (287), `ADMIN` (8191), and `GUILD_OWNER`
-(16383) constants retain their numeric values for wire compatibility, but are
+The legacy `Permissions::MEMBER` (16671), `ADMIN` (24575), and `GUILD_OWNER`
+(32767) constants retain their numeric values for wire compatibility, but are
 **not** authorization presets. Authorization uses the role evaluator in section
 11. Owner-only actions and hierarchy take precedence over Administrator.
 Clients preserve unknown bits without granting them. DMs authorize by
@@ -715,10 +715,9 @@ messages the caller currently can read. No account deletion is exposed in v1.
 Mention composition is client-side: selecting `@username` inserts the canonical
 text token `<@DECIMAL_USER_ID>` into content and adds that ID to mention_ids.
 The renderer resolves that token to the current display name only when its ID
-is in mention_ids; arbitrary `@username` text is plain text. The server does not
-parse tokens/URLs: validated mention_ids are authoritative for notifications and
-are stored separately, so a malicious client's unrendered explicit mention still
-counts as a mention and is subject to limits. Returned mention_ids are sorted;
+is in mention_ids; arbitrary `@username` text is plain text. The server preserves validated explicit mention_ids and expands authorized
+broadcast/role tokens as specified in section 12. Explicit unrendered user
+mentions still count as mentions and remain subject to the explicit limit. Returned mention_ids are sorted;
 attachment order is draft order; reaction summaries sort by emoji UTF-8 bytes.
 
 Selecting a guild does not preload all members: REST pages populate the member
@@ -1019,22 +1018,21 @@ existing CreateChannel/UpdateChannel/DeleteChannel commands, including category
 placement and Manage Channels authorization. Voice channels cannot contain chat
 messages/history/attachments/read states. Text and DM behavior is unchanged.
 
-`CONNECT = 1 << 14` is an additive permission bit, included in Member/Admin/Owner
-presets. Join requires a live authenticated WS/login session, current guild
-membership, View Channel, Connect, and a real voice channel. There are no separate
-Speak/Stream bits in this implementation. A bounded per-member channel denial is
-managed with the additive durable command
-`set_voice_permission {channel_id,user_id,connect:bool}` (Ack result). False denies
-Connect; true clears the denial. Requires Manage Channels and strict role
-hierarchy over the target (cannot target self/equal role/owner). The guild owner
-always retains Connect, including after an ownership transfer. Denials persist
-across reconnect, are cleared on guild leave/kick, and cascade on channel deletion.
-These are Connect-only denials, not a general role/channel override system.
+Voice authorization uses the role evaluator in section 11, including category
+and channel overwrites, for View Channel/Connect and every publish/moderation
+operation. Canonical Connect is bit **19**, Manage Roles bit **14**; see the
+negotiated compatibility projection below. The old boolean command
+`set_voice_permission {channel_id,user_id,connect:bool}` remains accepted (Ack):
+it edits only Connect in the member overwrite, requires Manage Roles and a
+strictly lower target, and never grants other rights. False sets deny; true
+clears Connect allow/deny, preserving unrelated overwrite bits. Legacy persisted
+Connect denials are migrated into canonical member overwrites; no independent
+voice permission store is consulted.
 
 Ready additively includes `voice_states:[GuildVoiceState]` (default [] when absent).
 `GuildVoiceState {guild_id,channel_id,participant:VoiceParticipant}` is keyed by
-participant.session. All current guild members, not just selected-guild subscribers
-or call participants, receive `VoiceEvent::GuildState` full replacements and
+participant.session. Channel-authorized guild members, not just selected-guild
+subscribers or call participants, receive `VoiceEvent::GuildState` full replacements and
 `GuildLeft {guild_id,session}` removals. Streaming/video are derived from the
 participant's Screen/Camera tracks; muted/deafened are explicit. These carry no
 SDP, input or control grant. Late guild joins and WS Resumed receive a complete
@@ -1174,8 +1172,11 @@ The server flags/env are `--voice-bind-ip` / `STICKTALK_VOICE_BIND_IP`,
 `--voice-udp-port-end` / `STICKTALK_VOICE_UDP_PORT_END` (50100),
 `--voice-egress-bps` / `STICKTALK_VOICE_EGRESS_BPS` (32000000), and
 `--voice-max-datagram-bytes` / `STICKTALK_VOICE_MAX_DATAGRAM_BYTES` (1232).
-The advertised IP defaults to an assigned Tailscale IPv4 address in 100.64/10,
-else the HTTP bind IP. Wildcard/multicast advertised addresses are rejected;
+Development defaults bind UDP to 127.0.0.1 and advertise the HTTP loopback IP,
+without enumerating network interfaces. For an explicitly non-loopback deployment
+bind, the advertised IP defaults to an assigned Tailscale IPv4 address in 100.64/10,
+else the HTTP bind IP. An explicit advertised IP overrides detection. Tests use
+injected fake addresses for detection and never bind to wildcard/LAN/Tailscale IPs. Wildcard/multicast advertised addresses are rejected;
 IPv6 requires matching explicit bind/advertised addresses. One address is
 advertised per server instance. No interface/Tailscale subprocess is polled.
 
@@ -1392,9 +1393,8 @@ command also opts that session in. Old sessions never receive unknown launch
 event variants. Changing the flag across reconnect invalidates replay and
 requires a fresh compatible snapshot (including missed events when upgrading). Ready's extra named fields remain
 safe for old decoders to ignore. Unknown variants are still rejected, never
-guessed by legacy clients. Existing login and old command request shapes remain unchanged. Link embed generation
-and role/@everyone mention expansion are not introduced by this server patch;
-their permission bits are defined for consumers, as are voice capabilities.
+guessed by legacy clients. Existing login and old command request shapes remain unchanged. Link embed generation remains consumer work; voice authorization
+and broadcast/role mention expansion are implemented as described in section 12.
 
 ### REST snapshots and profiles
 
@@ -1454,3 +1454,98 @@ fan-out/reorder/delete/parent filtering, replay/receipt revocation and queued
 connection closure, Unicode profile limits/mutuals/nicknames, pin lifecycle,
 notification cross-device privacy/expiry and session revocation. Proto launch
 round trips and maximum Ready tests cover additive defaults and frame budgets.
+
+
+## 12. Integrated voice roles, migration compatibility and mentions
+
+### One canonical permission set; negotiated legacy projection
+
+The two parallel branches assigned bit 14 differently. Storage, `Role` and
+`PermissionOverwrite` masks and all server authorization now exclusively use
+section 2's role numbering: **Manage Roles=14, Connect=19**, Speak=20,
+Stream=21, Video=22, Mute Members=23, Deafen Members=24, Move Members=25,
+Use Voice Activity=26, Priority Speaker=27. Never treat a legacy output mask as
+an assignable role. Existing launch databases already use this numbering and
+need no mask rewrite. Existing voice databases have no assignable role masks;
+the migration bridge translates their per-member denials to bit 19 overwrites.
+Migration 9 and 202611120001 retain their original checksums. The merged
+migrator also applies missing migration 9 to a launch-only database before the
+202611120002 bridge, preserving all channel references with foreign keys off
+only on the dedicated startup connection, then checking/restoring enforcement.
+
+`Identify.launch_features` remains false when absent. Such peers receive legacy
+GuildSummary/Member masks in Ready, REST, responses and events: bits 0..13
+unchanged, bit **14 means Connect**, higher bits omitted. Canonical Manage Roles
+is never exposed as legacy Connect. Launch peers (`launch_features:true`, or
+issuing a Launch command) receive canonical masks. Encoding/replay caches are
+partitioned by capability; changing it invalidates replay. The master voice preset
+constants (16671/24575/32767) retain their numeric values and remain legacy
+compatibility constants, not evaluator grants. Phase-1 masks (287/8191/16383)
+also continue to decode unchanged.
+The old voice wire Member/Admin/Owner projections remain 16671/24575/32767.
+All existing command/envelope shapes remain accepted; added variants are opt-in.
+
+### Voice publishing, moderation and immediate revocation
+
+Audio publications require Speak; screen and system audio require Stream;
+camera requires Video. Offers and each authenticated media-forwarding action,
+including paced/RTX encrypted egress, check the synchronous host projection.
+`activity {voice_activity:bool,priority:bool}` explicitly enables VAD and priority
+mode only with Use Voice Activity/Priority Speaker respectively. Omission uses
+ordinary push-to-talk/nonpriority signaling; these permissions cannot attest to
+a client's physical capture implementation. The SFU never trusts a client-sent
+moderation command directly.
+
+`moderate {session:VoiceSession,action:VoiceModeration}` is authorized by the
+host, even when the moderator is not in a call. Action tagged variants are
+`mute {muted:bool}`, `deafen {deafened:bool}`, `move {channel_id}`, and
+`disconnect` (no data). They require Mute Members, Deafen Members, or Move
+Members (move/disconnect), evaluated on the source channel, plus strict member
+hierarchy. Moves stay within one guild; both moderator and target must Connect
+to the destination, and the moderator also needs destination Move Members.
+Moving retains the transport/session, drops all old-room subscriptions/control
+grants, emits old-room Left and destination Joined, and requires resubscription.
+Server mute/deafen persist per guild membership across call/WS replacement,
+apply to its live devices, and cannot be cleared by a self State command. A
+moderator must have the matching right in every affected live channel. Removing
+the membership cascades these flags. Deafen suppresses
+receiving audio as well as sending it; video remains independently permitted.
+
+Every role definition/assignment/deletion, overwrite, category placement,
+ownership, membership and login-session change reconciles live voice under the
+normal mutation gate, before success is returned. Removing Connect disconnects;
+removing Speak/Stream/Video withdraws the relevant tracks/routes (screen stop
+also revokes control). The synchronous ACL changes first; queued media is
+invalidated by policy generation, including a driver batch waiting to send.
+Private voice state is excluded from unauthorized Ready/live/snapshot views.
+
+### Server-expanded mentions and notification/push hooks
+
+Existing `mention_ids` remain explicit user IDs (maximum 100, unique and
+channel-authorized). The server additionally recognizes token-boundary
+`@everyone`, `@here` and role references `<@&ROLE_ID>` (or unambiguous `@role`
+names without whitespace). @everyone/@here require Mention Everyone after
+channel overwrites. A role requires its `mentionable` flag or Mention Everyone;
+unknown/ambiguous role IDs/names are rejected where recognized. `<@&GUILD_ID>`
+is an everyone mention, not a permission bypass. In DMs these broadcast/role
+strings are ordinary text. Content limits bound parsing and work.
+
+Expansion intersects current View Channel audience with all members, currently
+connected non-invisible members (@here), or assigned role members. Results are
+deduplicated with explicit IDs, persisted transactionally and returned in the
+existing Message.mention_ids metadata (up to the bounded 1000-member audience).
+Edits fully replace/re-expand metadata; unread mention counts and history use
+the stored expansion, not a future role/presence lookup. Notification suppression
+never removes durable mention counts. Ordinary Unicode @username text is not
+implicitly a user mention; clients still supply explicit user IDs.
+
+After a committed create, bounded `App::subscribe_notifications()` hooks receive
+IDs, a mentioned flag and an offline push hint; no message bodies, OS popup,
+sound or network push provider is invoked. Hooks honor channel-over-guild
+All/Mentions/Nothing settings, mute expiry, suppress_everyone (not explicit or
+role mentions), blocks, Invisible/DND and current channel access. Default is
+Mentions for guilds, All for DMs. Nonconnected eligible recipients have
+`push:true`. Consumers must recheck access before fetching bodies/delivering
+external pushes; lagged consumers receive a bounded broadcast lag error.
+Receipt replay never redelivers a notification. Edits update unread state but
+do not send a second push for an existing message.

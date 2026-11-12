@@ -582,7 +582,7 @@ pub async fn ready(c: &mut SqliteConnection, core: &mut Core, key: &[u8], u: Id)
     for v in ids {
         presences.push(presence(c, core, u, v).await?);
     }
-    let guilds_ids: Vec<_> = guilds.iter().map(|g| g.guild.id).collect();
+    let visible_channels: Vec<_> = channels.iter().map(|ch| ch.id).collect();
     let mut roles = vec![];
     let mut memberships = vec![];
     for g in &guilds {
@@ -604,7 +604,7 @@ pub async fn ready(c: &mut SqliteConnection, core: &mut Core, key: &[u8], u: Id)
         voice_states: core
             .voice
             .values()
-            .filter(|v| guilds_ids.contains(&v.state.guild_id))
+            .filter(|v| visible_channels.contains(&v.state.channel_id))
             .filter(|v| v.joined)
             .map(|v| v.state.clone())
             .collect(),

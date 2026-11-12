@@ -105,6 +105,7 @@ impl Peer {
         ws.send(Frame::Binary(
             rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
                 version: 1,
+                launch_features: false,
                 token: auth.token.clone(),
                 resume,
             }))
@@ -230,12 +231,16 @@ impl Peer {
         self.nonce
     }
     async fn voice(&mut self, predicate: impl Fn(&VoiceEvent) -> bool) -> VoiceEvent {
-        loop {
-            if let Some(i) = self.voice.iter().position(&predicate) {
-                return self.voice.remove(i);
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                if let Some(i) = self.voice.iter().position(&predicate) {
+                    return self.voice.remove(i);
+                }
+                self.recv().await;
             }
-            self.recv().await;
-        }
+        })
+        .await
+        .expect("voice event deadline")
     }
     async fn ack(&mut self, signal: VoiceSignal) {
         self.signal(signal).await;
@@ -892,5 +897,110 @@ async fn voice_channel_permissions_delete_logout_and_session_expiry() {
     drop(media);
     drop(pa);
     pool.close().await;
+    s.stop().await;
+}
+
+#[tokio::test]
+async fn role_overwrites_and_moderation_stop_real_media_and_move_without_reconnect() {
+    let s = TestServer::start().await;
+    let a = s.register("role_voice_owner").await;
+    let b = s.register("role_voice_member").await;
+    let (mut pa, _) = Peer::connect(&s, &a, None).await;
+    let (mut pb, _) = Peer::connect(&s, &b, None).await;
+    let (g, ch) = guild(&mut pa, &mut [&mut pb]).await;
+    let mut ma = pa.join(a.user.user.id, ch).await;
+    let mut mb = pb.join(b.user.user.id, ch).await;
+    pa.subscribe(&ma, &mb, 0).await;
+    pa.subscribe(&ma, &mb, 2).await;
+    pb.subscribe(&mb, &ma, 0).await;
+    mb.send(0, 1, &[0xf8, 9, 1]).await;
+    ma.wait(|e| matches!(e,MediaEvent::Rtp(p) if p==&[0xf8,9,1]))
+        .await;
+    pa.ack(VoiceSignal::Moderate {
+        session: mb.session,
+        action: VoiceModeration::Mute { muted: true },
+    })
+    .await;
+    pb.ack(VoiceSignal::State {
+        muted: false,
+        deafened: false,
+    })
+    .await;
+    ma.clear();
+    mb.send(0, 2, &[0xf8, 9, 2]).await;
+    ma.no_rtp(&[0xf8, 9, 2]).await;
+    pa.ack(VoiceSignal::Moderate {
+        session: mb.session,
+        action: VoiceModeration::Mute { muted: false },
+    })
+    .await;
+    pa.ack(VoiceSignal::Moderate {
+        session: mb.session,
+        action: VoiceModeration::Deafen { deafened: true },
+    })
+    .await;
+    mb.clear();
+    ma.send(0, 3, &[0xf8, 9, 3]).await;
+    mb.no_rtp(&[0xf8, 9, 3]).await;
+    pa.ack(VoiceSignal::Moderate {
+        session: mb.session,
+        action: VoiceModeration::Deafen { deafened: false },
+    })
+    .await;
+    pa.command(Command::Launch(LaunchCommand::SetOverwrites {
+        channel_id: ch,
+        overwrites: vec![PermissionOverwrite {
+            kind: OverwriteKind::Member,
+            target_id: b.user.user.id,
+            allow: Permissions::empty(),
+            deny: Permissions::SPEAK | Permissions::STREAM,
+        }],
+    }))
+    .await;
+    ma.clear();
+    mb.send(0, 4, &[0xf8, 9, 4]).await;
+    mb.send(2, 4, &[0x65, 9, 4]).await;
+    ma.no_rtp(&[0xf8, 9, 4]).await;
+    ma.no_rtp(&[0x65, 9, 4]).await;
+    // Restore rights, then move the existing transport into a second room.
+    pa.command(Command::Launch(LaunchCommand::SetOverwrites {
+        channel_id: ch,
+        overwrites: vec![],
+    }))
+    .await;
+    let CommandResult::Channel(next) = pa
+        .command(Command::CreateChannel {
+            guild_id: g,
+            kind: ChannelKind::Voice,
+            name: "Destination".into(),
+            parent_id: None,
+            topic: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    pa.ack(VoiceSignal::Moderate {
+        session: mb.session,
+        action: VoiceModeration::Move {
+            channel_id: next.summary.id,
+        },
+    })
+    .await;
+    pb.voice(|e| matches!(e,VoiceEvent::Joined{channel_id,..} if *channel_id==next.summary.id))
+        .await;
+    pb.signal(VoiceSignal::Stats).await;
+    pb.voice(|e| matches!(e, VoiceEvent::Stats(_))).await;
+    pa.ack(VoiceSignal::Moderate {
+        session: mb.session,
+        action: VoiceModeration::Disconnect,
+    })
+    .await;
+    pb.voice(|e| matches!(e,VoiceEvent::Left{session} if *session==mb.session))
+        .await;
+    drop(ma);
+    drop(mb);
+    drop(pa);
+    drop(pb);
     s.stop().await;
 }

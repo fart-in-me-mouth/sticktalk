@@ -16,6 +16,11 @@ pub enum Command {
         session: VoiceSession,
         path: MediaPath,
     },
+    Refresh(VoiceSession),
+    Move {
+        session: VoiceSession,
+        channel: ChannelId,
+    },
     Shutdown,
 }
 #[derive(Debug)]
@@ -36,10 +41,14 @@ impl Sfu {
         let socket = tokio::net::UdpSocket::from_std(self.socket.take().ok_or(Error::Config)?)?;
         let mut buf = vec![0u8; 65536];
         loop {
+            let generation = self.policy_generation();
             let output: Vec<_> = self.drain().collect();
             for out in output {
                 match out {
                     Out::Datagram { to, bytes } => {
+                        if generation != self.policy_generation() {
+                            continue;
+                        }
                         // A single unreachable peer must not stop everyone.
                         if let Err(error) = socket.send_to(&bytes, to).await {
                             tracing::debug!(%error, "SFU UDP send failed");
@@ -77,6 +86,8 @@ impl Sfu {
                                 tracing::debug!(?session, nonce, %error, "SFU signal rejected");
                             }
                         }
+                        Some(Command::Refresh(session)) => self.refresh_policy(session)?,
+                        Some(Command::Move {session,channel}) => { if self.move_session(session,channel).is_err() { self.disconnect(session)?; } },
                         Some(Command::Disconnect(session)) => self.disconnect(session)?,
                         Some(Command::Path { session, path }) => { let _ = self.set_path(session, path); }
                         Some(Command::Shutdown) | None => break,

@@ -100,8 +100,8 @@ fn legacy_members_decode_with_additive_defaults_and_old_bits_unchanged() {
     let member: Member = serde_json::from_value(old).unwrap();
     assert!(member.role_ids.is_empty());
     assert!(member.nickname.is_none());
-    assert_eq!(member.permissions, Permissions::MEMBER);
-    assert_eq!(Permissions::GUILD_OWNER.bits(), 16383);
+    assert_eq!(member.permissions.bits(), 287);
+    assert_eq!(Permissions::GUILD_OWNER.bits(), 32767);
     assert_eq!(Permissions::MANAGE_ROLES.bits(), 1 << 14);
 }
 #[test]
@@ -141,4 +141,24 @@ fn legacy_identify_has_no_new_required_wire_fields() {
     let identify: Identify = serde_json::from_value(value.clone()).unwrap();
     assert!(!identify.launch_features);
     assert_eq!(serde_json::to_value(identify).unwrap(), value);
+}
+
+#[test]
+fn default_scaffolding_preserves_legacy_identify_and_safe_empty_extensions() {
+    let identify = Identify {
+        token: "legacy".into(),
+        ..Default::default()
+    };
+    assert_eq!(identify.version, PROTOCOL_VERSION);
+    assert!(!identify.launch_features);
+    let json = serde_json::to_value(&identify).unwrap();
+    assert!(json.get("launch_features").is_none());
+    let ready = Ready::default();
+    assert!(
+        ready.roles.is_empty() && ready.memberships.is_empty() && ready.voice_states.is_empty()
+    );
+    assert_eq!(ready.me.desired_presence, PresenceStatus::Offline);
+    let member = Member::default();
+    assert_eq!(member.role, MemberRole::Member);
+    assert!(member.permissions.is_empty() && member.role_ids.is_empty());
 }
