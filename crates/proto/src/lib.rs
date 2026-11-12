@@ -1,6 +1,7 @@
 //! Runtime-free protocol contracts. See `docs/PROTOCOL.md` for normative semantics.
 //! Encode WebSocket messages using `rmp_serde::to_vec_named`, never `to_vec`.
 
+mod browser;
 mod gifs;
 mod ids;
 mod launch;
@@ -10,6 +11,7 @@ mod permissions;
 mod rest;
 mod ws;
 
+pub use browser::*;
 pub use gifs::*;
 pub use ids::*;
 pub use models::*;

@@ -11,6 +11,7 @@ pub(crate) async fn fixture() -> (tempfile::TempDir, App) {
             min_free_disk_gb: 0,
             ..Default::default()
         },
+        browser: Default::default(),
         bind: "127.0.0.1:0".parse().unwrap(),
         data_dir: dir.path().into(),
         public_url: "http://localhost".into(),
@@ -22,7 +23,11 @@ pub(crate) async fn fixture() -> (tempfile::TempDir, App) {
         mock_google_jwks: None,
         mock_google_issuer: None,
         gifs: Default::default(),
-        voice: Default::default(),
+        voice: crate::voice::VoiceOptions {
+            voice_bind_ip: "127.0.0.1".parse().unwrap(),
+            voice_advertised_ip: Some("127.0.0.1".parse().unwrap()),
+            ..Default::default()
+        },
     })
     .await
     .unwrap();

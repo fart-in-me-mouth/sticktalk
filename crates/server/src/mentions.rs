@@ -172,43 +172,9 @@ pub(crate) async fn notify(
         if user == message.author_id || db::blocked(c, user, message.author_id).await? {
             continue;
         }
-        let mut mentioned = message.mention_ids.contains(&user);
-        let mut level = if channel.summary.guild_id.is_some() {
-            NotificationLevel::Mentions
-        } else {
-            NotificationLevel::All
+        let Some(mentioned) = notification_preference(c, user, &channel, message).await? else {
+            continue;
         };
-        let mut muted = false;
-        let mut suppress = false;
-        // Guild preference first, channel preference takes precedence.
-        let settings = crate::launch::notifications(c, user).await?;
-        for setting in settings
-            .iter()
-            .filter(|s| s.channel_id.is_none() && s.guild_id == channel.summary.guild_id)
-            .chain(
-                settings
-                    .iter()
-                    .filter(|s| s.channel_id == Some(message.channel_id)),
-            )
-        {
-            level = setting.level;
-            muted = setting.muted && setting.mute_until.is_none_or(|t| t > now());
-            suppress = setting.suppress_everyone;
-        }
-        if suppress && mentioned {
-            let broadcast:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM message_broadcast_mentions WHERE message_id=? AND user_id=? AND kind IN('everyone','here')) AND NOT EXISTS(SELECT 1 FROM message_broadcast_mentions WHERE message_id=? AND user_id=? AND kind='role')").bind(db::id(message.id)?).bind(db::id(user)?).bind(db::id(message.id)?).bind(db::id(user)?).fetch_one(&mut *c).await?;
-            mentioned &= !broadcast;
-        }
-        if muted
-            || level == NotificationLevel::Nothing
-            || (level == NotificationLevel::Mentions && !mentioned)
-        {
-            continue;
-        }
-        let presence = db::me(c, user).await?.desired_presence;
-        if matches!(presence, PresenceStatus::Dnd | PresenceStatus::Invisible) {
-            continue;
-        }
         let push = !core
             .streams
             .values()
@@ -222,6 +188,54 @@ pub(crate) async fn notify(
         });
     }
     Ok(())
+}
+
+/// Current launch preferences shared by in-process notifications and Web Push.
+/// Some(mentioned) preserves the effective mention after broadcast suppression.
+pub(crate) async fn notification_preference(
+    c: &mut SqliteConnection,
+    user: Id,
+    channel: &Channel,
+    message: &Message,
+) -> Result<Option<bool>> {
+    let mut mentioned = message.mention_ids.contains(&user);
+    let mut level = if channel.summary.guild_id.is_some() {
+        NotificationLevel::Mentions
+    } else {
+        NotificationLevel::All
+    };
+    let mut muted = false;
+    let mut suppress = false;
+    // Guild preference first, channel preference takes precedence.
+    let settings = crate::launch::notifications(c, user).await?;
+    for setting in settings
+        .iter()
+        .filter(|s| s.channel_id.is_none() && s.guild_id == channel.summary.guild_id)
+        .chain(
+            settings
+                .iter()
+                .filter(|s| s.channel_id == Some(message.channel_id)),
+        )
+    {
+        level = setting.level;
+        muted = setting.muted && setting.mute_until.is_none_or(|t| t > now());
+        suppress = setting.suppress_everyone;
+    }
+    if suppress && mentioned {
+        let broadcast:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM message_broadcast_mentions WHERE message_id=? AND user_id=? AND kind IN('everyone','here')) AND NOT EXISTS(SELECT 1 FROM message_broadcast_mentions WHERE message_id=? AND user_id=? AND kind='role')").bind(db::id(message.id)?).bind(db::id(user)?).bind(db::id(message.id)?).bind(db::id(user)?).fetch_one(&mut *c).await?;
+        mentioned &= !broadcast;
+    }
+    if muted
+        || level == NotificationLevel::Nothing
+        || (level == NotificationLevel::Mentions && !mentioned)
+    {
+        return Ok(None);
+    }
+    let presence = db::me(c, user).await?.desired_presence;
+    if matches!(presence, PresenceStatus::Dnd | PresenceStatus::Invisible) {
+        return Ok(None);
+    }
+    Ok(Some(mentioned))
 }
 
 #[cfg(test)]
@@ -336,6 +350,7 @@ mod tests {
         let (close, _) = tokio::sync::watch::channel(None);
         core.cursor(&[2; 32], Id(2));
         core.streams.get_mut(&vec![2; 32]).unwrap().connection = Some(crate::state::Connection {
+            focused: false,
             id: "here".into(),
             alive: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
             tx,

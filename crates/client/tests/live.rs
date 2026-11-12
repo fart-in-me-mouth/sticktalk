@@ -151,6 +151,7 @@ impl Fixture {
                 ..Default::default()
             },
             voice: Default::default(),
+            browser: Default::default(),
             bind: "127.0.0.1:0".parse().unwrap(),
             data_dir: dir.path().into(),
             public_url: "http://localhost".into(),

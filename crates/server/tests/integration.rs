@@ -22,6 +22,7 @@ impl TestServer {
                 min_free_disk_gb: 0,
                 ..Default::default()
             },
+            browser: Default::default(),
             bind: "127.0.0.1:0".parse().unwrap(),
             data_dir: dir.path().into(),
             public_url: "http://localhost".into(),
@@ -33,7 +34,11 @@ impl TestServer {
             mock_google_jwks: None,
             mock_google_issuer: None,
             gifs: Default::default(),
-            voice: Default::default(),
+            voice: sticktalk_server::voice::VoiceOptions {
+                voice_bind_ip: "127.0.0.1".parse().unwrap(),
+                voice_advertised_ip: Some("127.0.0.1".parse().unwrap()),
+                ..Default::default()
+            },
         })
         .await
         .unwrap();
@@ -922,7 +927,11 @@ async fn receipts_survive_restart_and_streams_do_not() {
     task.await.unwrap().unwrap();
     drop(app);
     let app = App::open(Config {
-        operations: Default::default(),
+        operations: sticktalk_server::OperationsConfig {
+            min_free_disk_gb: 0,
+            ..Default::default()
+        },
+        browser: Default::default(),
         bind: "127.0.0.1:0".parse().unwrap(),
         data_dir: dir.path().into(),
         public_url: "http://localhost".into(),
@@ -934,7 +943,11 @@ async fn receipts_survive_restart_and_streams_do_not() {
         mock_google_jwks: None,
         mock_google_issuer: None,
         gifs: Default::default(),
-        voice: Default::default(),
+        voice: sticktalk_server::voice::VoiceOptions {
+            voice_bind_ip: "127.0.0.1".parse().unwrap(),
+            voice_advertised_ip: Some("127.0.0.1".parse().unwrap()),
+            ..Default::default()
+        },
     })
     .await
     .unwrap();

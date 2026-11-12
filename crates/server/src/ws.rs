@@ -45,7 +45,21 @@ pub async fn upgrade(
             .is_some_and(|v| v.split(',').any(|s| s.trim() == "sticktalk.v1")),
         ErrorCode::VersionMismatch,
     )?;
-    // WebSocket authentication is exclusively Identify, never a URL parameter.
+    let cookie_token = if !headers.contains_key("authorization") {
+        crate::browser::session_cookie(&headers)?.map(str::to_owned)
+    } else {
+        None
+    };
+    if let Some(token) = &cookie_token {
+        require(
+            headers.get("origin").and_then(|v| v.to_str().ok())
+                == Some(app.0.config.public_url.trim_end_matches('/')),
+            ErrorCode::Forbidden,
+        )?;
+        db::auth(&mut *app.0.pool.acquire().await?, token).await?;
+    }
+    // Native Identify stays unchanged. Browser Identify uses an empty token;
+    // its credential is captured from the HttpOnly cookie at upgrade.
     let ws = ws.map_err(|_| Error::new(ErrorCode::InvalidRequest))?;
     Ok(ws
         .protocols(["sticktalk.v1"])
@@ -56,7 +70,7 @@ pub async fn upgrade(
         .max_message_size(MAX_WS_FRAME_BYTES as usize)
         .on_upgrade(move |socket| async move {
             let _permit = permit;
-            run(app, socket).await
+            run(app, socket, cookie_token).await
         })
         .into_response())
 }
@@ -79,7 +93,7 @@ async fn fail(socket: &mut WebSocket, error: Error, code: u16) {
         })))
         .await;
 }
-async fn run(app: App, mut socket: WebSocket) {
+async fn run(app: App, mut socket: WebSocket, cookie_token: Option<String>) {
     if send(
         &mut socket,
         &ServerMsg::Hello(Hello {
@@ -102,7 +116,7 @@ async fn run(app: App, mut socket: WebSocket) {
         },
         frame = tokio::time::timeout(Duration::from_secs(10), socket.recv()) => frame,
     };
-    let identify = match first {
+    let mut identify = match first {
         Ok(Some(Ok(Message::Binary(bytes)))) => match decode(&bytes) {
             Ok(ClientMsg::Identify(i)) => i,
             Ok(_) => {
@@ -150,6 +164,13 @@ async fn run(app: App, mut socket: WebSocket) {
             return;
         }
     };
+    if let Some(token) = cookie_token {
+        if !identify.token.is_empty() {
+            fail(&mut socket, Error::new(ErrorCode::InvalidRequest), 1008).await;
+            return;
+        }
+        identify.token = token;
+    }
     if identify.version != 1 {
         fail(&mut socket, Error::new(ErrorCode::VersionMismatch), 4002).await;
         return;
@@ -183,7 +204,7 @@ async fn run(app: App, mut socket: WebSocket) {
         let mut initial=vec![];
         let resume_ok=identify.resume.is_some()&&reason.is_none();
         if resume_ok {let cursor=identify.resume.as_ref().expect("checked");let mut count=0;for (seq,_,b) in &s.ring{if *seq>cursor.seq{let decoded:ServerMsg=rmp_serde::from_slice(b).map_err(|_|Error::new(ErrorCode::Internal))?;if matches!(decoded,ServerMsg::Event(ref e) if matches!(e.event,Event::Typing{expires_at,..} if expires_at<state::now())){continue;}initial.push(b.clone());count+=1;}}initial.push(encode(&ServerMsg::Resumed(Resumed{cursor:s.cursor(),replayed:count}))?);}else{if let Some(reason)=reason{initial.push(encode(&ServerMsg::ResyncRequired(ResyncRequired{reason}))?);}s.guild=None;s.interests.clear();}
-        s.connection=Some(Connection{id:connection_id.clone(),alive:Arc::new(std::sync::atomic::AtomicBool::new(true)),tx,budget:Arc::new(Semaphore::new(2*1024*1024)),close:close.clone()});s.touched=state::now();s.ever_connected=true;
+        s.connection=Some(Connection{id:connection_id.clone(),focused:false,alive:Arc::new(std::sync::atomic::AtomicBool::new(true)),tx,budget:Arc::new(Semaphore::new(2*1024*1024)),close:close.clone()});s.touched=state::now();s.ever_connected=true;
         let ready=if !resume_ok{Some(Box::new(db::ready(&mut c,&mut core,&key,u).await?))}else{None};
         if resume_ok { crate::voice::snapshot(&mut core,&mut c,&key,u).await?; }
         if !was_online {commands::broadcast_presence(&mut c,&mut core,u).await?;}Ok::<_,Error>((key,u,expires,initial,ready))
@@ -389,6 +410,15 @@ async fn run(app: App, mut socket: WebSocket) {
             }
             ClientMsg::Voice(v) => {
                 let _ = crate::voice::signal(&app, &mut core, &key, u, &connection_id, v).await;
+            }
+            ClientMsg::Focus { focused } => {
+                if let Some(c) = core
+                    .streams
+                    .get_mut(&key)
+                    .and_then(|s| s.connection.as_mut())
+                {
+                    c.focused = focused;
+                }
             }
             ClientMsg::Identify(_) => {
                 let _ = close.send(Some(1002));

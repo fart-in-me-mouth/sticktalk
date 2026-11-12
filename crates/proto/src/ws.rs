@@ -8,6 +8,10 @@ pub enum ClientMsg {
     Heartbeat(Heartbeat),
     Command(CommandRequest),
     Voice(VoicePayload),
+    /// Ephemeral notification suppression hint, scoped to this live connection.
+    Focus {
+        focused: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

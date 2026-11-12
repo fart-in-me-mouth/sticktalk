@@ -315,6 +315,7 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
                 .config
                 .google_client_id
                 .as_deref()
+                .or(app.0.config.browser.google_web_client_id.as_deref())
                 .ok_or_else(|| Error::new(ErrorCode::FeatureDisabled))?,
         )
     } else {
@@ -334,39 +335,7 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
             .google
             .verify(&request.id_token, client_id.unwrap_or_default())
             .await?;
-        let mut core = app.0.core.lock().await;
-        core.rate(format!("google-sub:{subject}"), 10., 5.)?;
-        let mut c = app.0.pool.acquire().await?;
-        let mut tx = c.begin().await?;
-        let u: Option<i64> = sqlx::query_scalar(
-            "SELECT user_id FROM oauth_identities WHERE provider='google' AND subject=?",
-        )
-        .bind(&subject)
-        .fetch_optional(&mut *tx)
-        .await?;
-        let response = if let Some(u) = u {
-            GoogleAuthResponse::Session(session(&mut tx, Id(u as u64)).await?)
-        } else {
-            sqlx::query("DELETE FROM oauth_signup_tickets WHERE expires_at<=?")
-                .bind(state::now() as i64)
-                .execute(&mut *tx)
-                .await?;
-            let count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM oauth_signup_tickets WHERE subject<>?")
-                    .bind(&subject)
-                    .fetch_one(&mut *tx)
-                    .await?;
-            require(count < 4096, ErrorCode::LimitExceeded)?;
-            let ticket = state::token();
-            let expires_at = state::now() + 600_000;
-            // Only one outstanding ticket/subject, bounded globally. A fresh
-            // verified sign-in invalidates that subject's previous ticket.
-            sqlx::query("INSERT INTO oauth_signup_tickets VALUES(?,?,?) ON CONFLICT(subject) DO UPDATE SET token_hash=excluded.token_hash,expires_at=excluded.expires_at")
-                .bind(state::hash(ticket.as_bytes())).bind(&subject).bind(expires_at as i64).execute(&mut *tx).await?;
-            GoogleAuthResponse::SignupRequired(GoogleSignupRequired { ticket, expires_at })
-        };
-        tx.commit().await?;
-        return Ok(http::json(response));
+        return Ok(http::json(sign_in(app, subject).await?));
     }
     if path == "auth/google/complete" {
         let request: GoogleCompleteRequest = http::parse(r).await?;
@@ -525,6 +494,41 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
     let result = methods(&mut tx, user).await?;
     tx.commit().await?;
     Ok(http::json(result))
+}
+pub(crate) async fn sign_in(app: &App, subject: String) -> Result<GoogleAuthResponse> {
+    let mut core = app.0.core.lock().await;
+    core.rate(format!("google-sub:{subject}"), 10., 5.)?;
+    let mut c = app.0.pool.acquire().await?;
+    let mut tx = c.begin().await?;
+    let u: Option<i64> = sqlx::query_scalar(
+        "SELECT user_id FROM oauth_identities WHERE provider='google' AND subject=?",
+    )
+    .bind(&subject)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let response = if let Some(u) = u {
+        GoogleAuthResponse::Session(session(&mut tx, Id(u as u64)).await?)
+    } else {
+        sqlx::query("DELETE FROM oauth_signup_tickets WHERE expires_at<=?")
+            .bind(state::now() as i64)
+            .execute(&mut *tx)
+            .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM oauth_signup_tickets WHERE subject<>?")
+                .bind(&subject)
+                .fetch_one(&mut *tx)
+                .await?;
+        require(count < 4096, ErrorCode::LimitExceeded)?;
+        let ticket = state::token();
+        let expires_at = state::now() + 600_000;
+        // Only one outstanding ticket/subject, bounded globally. A fresh
+        // verified sign-in invalidates that subject's previous ticket.
+        sqlx::query("INSERT INTO oauth_signup_tickets VALUES(?,?,?) ON CONFLICT(subject) DO UPDATE SET token_hash=excluded.token_hash,expires_at=excluded.expires_at")
+                .bind(state::hash(ticket.as_bytes())).bind(&subject).bind(expires_at as i64).execute(&mut *tx).await?;
+        GoogleAuthResponse::SignupRequired(GoogleSignupRequired { ticket, expires_at })
+    };
+    tx.commit().await?;
+    Ok(response)
 }
 async fn methods(c: &mut SqliteConnection, user: Id) -> Result<AuthMethodsResponse> {
     let r = sqlx::query("SELECT password_hash<>'' AS has_password,EXISTS(SELECT 1 FROM oauth_identities WHERE provider='google' AND user_id=users.id) AS google_linked FROM users WHERE id=?")

@@ -458,6 +458,7 @@ async fn private_channel_fanout_replay_receipts_and_visibility_restoration() {
     let (close, closed) = tokio::sync::watch::channel(None);
     let (tx, _rx) = tokio::sync::mpsc::channel(128);
     core.streams.get_mut(&vec![2; 32]).unwrap().connection = Some(crate::state::Connection {
+        focused: false,
         alive: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
         id: "test".into(),
         tx,

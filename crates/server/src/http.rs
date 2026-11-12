@@ -20,6 +20,12 @@ use std::net::SocketAddr;
 use sticktalk_proto::*;
 pub fn router(app: App) -> axum::Router {
     axum::Router::new()
+        .merge(crate::browser::routes())
+        .merge(crate::push::routes())
+        .route(
+            "/api/v1/channels/{id}/history-extent",
+            get(crate::history::extent),
+        )
         .route("/api/v1/ws", get(crate::ws::upgrade))
         .route("/api/v1/uploads/resumable", post(crate::resumable::create))
         .route(
@@ -43,12 +49,16 @@ pub fn router(app: App) -> axum::Router {
         .route("/api/v1/files/{id}/thumbnail", get(crate::files::thumbnail))
         .route("/api/v1/{*path}", any(api))
         .route("/api/{*path}", any(api))
-        .fallback(|| async { Error::new(ErrorCode::NotFound) })
+        .fallback(crate::browser::static_file)
         .layer(axum::middleware::from_fn(json_framework_errors))
         .layer(DefaultBodyLimit::max((25 * 1024 * 1024 + 65536) as usize))
         .layer(axum::middleware::from_fn_with_state(
             app.clone(),
             bounded_requests,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            app.clone(),
+            crate::browser::boundary,
         ))
         .with_state(app)
 }
@@ -181,7 +191,7 @@ pub(crate) async fn parse<T: DeserializeOwned>(r: Request<Body>) -> Result<T> {
         .map_err(|_| Error::new(ErrorCode::PayloadTooLarge))?;
     serde_json::from_slice(&bytes).map_err(|_| Error::new(ErrorCode::InvalidRequest))
 }
-async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiResponse> {
+pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiResponse> {
     let method = r.method().clone();
     let path = r
         .uri()
