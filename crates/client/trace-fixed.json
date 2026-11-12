@@ -1,0 +1,23 @@
+{
+  "counts": {
+    "Event": 14,
+    "History": 138,
+    "Hover": 1,
+    "Image": 6,
+    "Measured": 687,
+    "NetOther": 6,
+    "Other": 2,
+    "ReadDue": 67,
+    "Scroll": 102,
+    "TypingExpire": 1
+  },
+  "cursor": 14,
+  "height": 127357.75,
+  "heights": 680,
+  "retained": 1000,
+  "scroll_y": 0.0,
+  "total": 1024,
+  "total_h": 127394.25,
+  "viewport_h": 642.375,
+  "viewport_w": 728.0
+}

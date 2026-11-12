@@ -1,0 +1,15 @@
+{
+  "renderer": "wgpu/vulkan",
+  "window_mode": "secondary-noactivate",
+  "arguments": "--mock --size 2560x1440 --agent-window-report crates/client/perf-vulkan-prototype-placement.json",
+  "timestamp": "2026-11-12T14:14:59.5093120-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.7871109,
+  "cpu_seconds": 0.109375,
+  "one_core_cpu_percent": 0.17993123604760758,
+  "working_set_mean": 191927500.8,
+  "working_set_max": 192032768.0,
+  "private_bytes_mean": 236982067.2,
+  "binary_bytes": 16233984,
+  "sha256": "3FE8FFD5679CB292F85A29FDF93FD4F76D47E9A38C1BF766984C031E64C336D0"
+}

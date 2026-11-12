@@ -1,0 +1,15 @@
+{
+  "renderer": "wgpu/dx12",
+  "window_mode": "secondary-noactivate",
+  "arguments": "--mock --size 2560x1440 --agent-window-report \"C:\\Users\\dwhee\\OneDrive\\Desktop\\discord clone\\crates\\client/perf-final-placement-gpu.json\"",
+  "timestamp": "2026-11-12T14:30:15.7366539-05:00",
+  "warmup_seconds": 10,
+  "seconds": 62.4317273,
+  "cpu_seconds": 0.0,
+  "one_core_cpu_percent": 0.0,
+  "working_set_mean": 142946713.6,
+  "working_set_max": 176607232.0,
+  "private_bytes_mean": 164915814.4,
+  "binary_bytes": 16250880,
+  "sha256": "369F6A492A22811932E8B0A6DB31B03EDE4FCA5ECE7719D06BA116A2BF0FC217"
+}

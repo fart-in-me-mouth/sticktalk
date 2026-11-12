@@ -1,0 +1,39 @@
+[package]
+name = "sticktalk-server"
+default-run = "sticktalk-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sticktalk-proto.workspace = true
+axum.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util"] }
+sqlx.workspace = true
+argon2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rmp-serde.workspace = true
+bytes = "1"
+fs2 = "0.4"
+base64 = "0.22"
+rand = "0.8"
+sha2 = "0.10"
+subtle = "2"
+clap = { version = "4", features = ["derive", "env"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures-util = "0.3"
+tokio-util = { version = "0.7", features = ["io", "rt"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+unicode-segmentation = "1"
+emojis = "0.7"
+tungstenite = { version = "0.29", default-features = false }
+ring = "0.17"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[dev-dependencies]
+tempfile = "3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+rsa = "0.9"
+tokio-tungstenite = "0.29"

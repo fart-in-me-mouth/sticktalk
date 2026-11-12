@@ -1,0 +1,24 @@
+[package]
+name = "sticktalk-sfu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Embeddable sans-IO WebRTC SFU and bounded UDP driver for StickTalk"
+
+[dependencies]
+sticktalk-proto.workspace = true
+serde.workspace = true
+rmp-serde.workspace = true
+tokio.workspace = true
+str0m = { version = "=0.25.0", default-features = false, features = ["rust-crypto"] }
+thiserror = "2"
+tracing = "0.1"
+rand = "0.9"
+socket2 = "0.6"
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[[example]]
+name = "loopback"
+path = "examples/loopback.rs"

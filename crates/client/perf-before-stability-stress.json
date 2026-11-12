@@ -1,0 +1,15 @@
+{
+  "renderer": "tiny-skia",
+  "window_mode": "secondary-noactivate",
+  "arguments": "--mock --screen stress-scroll --stats \"C:\\Users\\dwhee\\OneDrive\\Desktop\\discord clone/crates/client/perf-review-scroll.json\" --agent-window-report \"C:\\Users\\dwhee\\OneDrive\\Desktop\\discord clone/crates/client/perf-review-placement-stress.json\"",
+  "timestamp": "2026-11-11T23:17:24.3689102-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.643183,
+  "cpu_seconds": 8.453125,
+  "one_core_cpu_percent": 13.939118268247892,
+  "working_set_mean": 84526626.13333334,
+  "working_set_max": 87531520.0,
+  "private_bytes_mean": 33091174.4,
+  "binary_bytes": 11668480,
+  "sha256": "727F149599B0DA20CB7B61905B1343174C235CD7413AF390F096BE0FA87965F6"
+}

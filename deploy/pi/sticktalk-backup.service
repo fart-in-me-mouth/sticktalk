@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up StickTalk database and files over Tailscale
+RequiresMountsFor=/srv/sticktalk
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sticktalk-backup
+Nice=10
+IOSchedulingClass=idle
+UMask=0077

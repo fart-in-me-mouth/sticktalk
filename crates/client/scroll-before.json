@@ -1,0 +1,71 @@
+{
+  "messages": 5000,
+  "method": "actual iced view; synthetic wheel-sized offsets and random scrollbar seek offsets; persistent pixmap; damaged chat region only; no PNG encoding",
+  "renderer": "tiny-skia",
+  "results": [
+    {
+      "draw_primitives": {
+        "max_ms": 0.1307,
+        "p50_ms": 0.0811,
+        "p99_ms": 0.1132,
+        "samples": 600
+      },
+      "input": "wheel-deltas",
+      "layout": {
+        "max_ms": 5.1795,
+        "p50_ms": 0.9753999999999999,
+        "p99_ms": 4.3621,
+        "samples": 600
+      },
+      "max_visible_rows": 48,
+      "render": {
+        "max_ms": 21.7269,
+        "p50_ms": 19.0741,
+        "p99_ms": 20.678700000000003,
+        "samples": 600
+      },
+      "total": {
+        "max_ms": 26.4047,
+        "p50_ms": 20.4454,
+        "p99_ms": 24.065099999999997,
+        "samples": 600
+      }
+    },
+    {
+      "draw_primitives": {
+        "max_ms": 0.2364,
+        "p50_ms": 0.0892,
+        "p99_ms": 0.1725,
+        "samples": 600
+      },
+      "input": "scrollbar-seek",
+      "layout": {
+        "max_ms": 9.0473,
+        "p50_ms": 4.430199999999999,
+        "p99_ms": 7.0405,
+        "samples": 600
+      },
+      "max_visible_rows": 48,
+      "render": {
+        "max_ms": 34.6729,
+        "p50_ms": 19.6828,
+        "p99_ms": 27.4556,
+        "samples": 600
+      },
+      "total": {
+        "max_ms": 48.771,
+        "p50_ms": 27.27,
+        "p99_ms": 37.888400000000004,
+        "samples": 600
+      }
+    }
+  ],
+  "size": [
+    2560,
+    1440
+  ],
+  "warmup_frames": 60,
+  "window_backend": "none",
+  "binary_sha256": "E76C3E2055371E28D3C19B591BE2F69C89A1C8FB10A613CE1FC7F470C5709D29",
+  "baseline_notes": "Client before scrolling-priority fixes, tiny-skia-only release; instrumented actual iced view and persistent damaged-region rasterization. Synthetic offsets, not physical display cadence."
+}

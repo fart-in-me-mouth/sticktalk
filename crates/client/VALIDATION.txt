@@ -1,0 +1,67 @@
+Final client verification 2026-11-12T14:42:42.0371721-05:00
+
+> cargo test -p sticktalk
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\client)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.85s
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-client\debug\deps\sticktalk-7ca2aaf16c67c7ca.exe)
+
+running 35 tests
+test app::tests::high_refresh_drag_uses_velocity_not_only_single_event_distance ... ok
+test app::tests::composer_keyboard_contract ... ok
+test backend::tests::rejects_trailing_and_large_frames ... ok
+test markdown::tests::cache_reuses_and_invalidates_edits ... ok
+test markdown::tests::discord_subset_and_escapes ... ok
+test backend::tests::inbound_budget_counts_large_non_frame_payloads_and_releases_on_drop ... ok
+test mock::google_tests::google_signup_collision_replay_and_last_method ... ok
+test backend::tests::requires_secure_server ... ok
+test backend::tests::outgoing_queue_obeys_byte_budget_and_accepts_maximum_message ... ok
+test mock::tests::relationships_and_group_lifecycle ... ok
+test mock::tests::messages_reactions_and_receipt_replay ... ok
+test mock::tests::profile_presence_pagination_and_read ... ok
+test model::tests::ordered_upserts_and_duplicate_sequences ... ok
+test mock::tests::guild_channel_invite_and_moderation_flows ... ok
+test model::tests::pagination_replays_deletion_and_edit ... ok
+test model::tests::reconnect_resume_backoff_and_terminal_close ... ok
+test model::tests::read_counts_are_authoritative_and_idempotent ... ok
+test oauth::tests::loopback_parser_rejects_spoofing_duplicates_and_denial ... ok
+test oauth::tests::pkce_rfc7636_vector_and_random_state ... ok
+test media::tests::decoded_lru_is_bounded_and_touches_preserve_recent_images ... ok
+test oauth::flow_tests::full_oauth_exchange_uses_mock_authorization_and_token_servers_only ... ok
+test markdown::tests::unsafe_links_remain_text_and_nesting_is_bounded ... ok
+test app::tests::virtualized_rows_are_bounded_and_measurements_override_estimates ... ok
+test message_layout::tests::shaped_tree_and_layout_survive_leaving_the_visible_window ... ok
+test app::tests::mention_selection_and_editor_replacement ... ok
+test app::tests::cancelled_server_icon_upload_cannot_apply_to_another_form ... ok
+test app::tests::unrelated_stream_events_do_not_invalidate_message_geometry ... ok
+test app::tests::subpixel_row_measurements_do_not_invalidate_layout_forever ... ok
+test app::tests::settings_escape_modal_return_and_google_cancel_are_local ... ok
+test app::tests::virtual_index_keeps_evicted_slots_and_only_builds_visible_rows ... ok
+test model::tests::replay_budget_includes_reactions_and_mentions ... ok
+test scroll_bench::input_tests::native_iced_fractional_wheel_and_scrollbar_drag_are_headless ... ok
+test model::tests::bounded_cache_and_purge ... ok
+test headless::tests::offscreen_png_has_exact_size_and_neutral_rgba_tokens ... ok
+test oauth::flow_tests::timeout_and_cancellation_drop_the_loopback_listener ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.07s
+
+Exit: 0
+
+> cargo clippy -p sticktalk --all-targets -- -D warnings
+    Checking sticktalk v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\client)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.08s
+Exit: 0
+
+> cargo fmt -p sticktalk -- --check
+Exit: 0
+
+> cargo fmt --all -- --check
+Exit: 0
+
+> cargo build -p sticktalk --release
+    Finished `release` profile [optimized] target(s) in 1.32s
+Exit: 0
+Final release SHA256: 9866F2DA2B20CA65DB969E6BBDEA3E9B6B05EBCE108D362A10C5241EE3FBD949
+Passed: --mock --bench-scroll "C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\client/scroll-after-gpu.json" --gpu
+Passed: --mock --bench-scroll "C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\client/scroll-after-tiny.json"
+Passed: --mock --screenshots "C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\client/screenshots" --sizes 1280x800,1920x1080
+Proof measurements complete: 2026-11-12T14:49:38.5971823-05:00

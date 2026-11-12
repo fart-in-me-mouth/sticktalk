@@ -1,0 +1,14 @@
+{
+  "renderer": "wgpu/dx12",
+  "arguments": "--mock",
+  "timestamp": "2026-11-11T22:13:25.8608836-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.5925011,
+  "cpu_seconds": 0.046875,
+  "one_core_cpu_percent": 0.07736105813265398,
+  "working_set_mean": 139350220.8,
+  "working_set_max": 139366400.0,
+  "private_bytes_mean": 158356684.8,
+  "binary_bytes": 15482880,
+  "sha256": "EE0105C25F54AE0099617370A109BE812141171BE63573ACD1F9C5A431C9CCAA"
+}

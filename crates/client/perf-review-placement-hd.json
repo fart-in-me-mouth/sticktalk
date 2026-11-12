@@ -1,0 +1,20 @@
+{
+  "client_foreground": false,
+  "client_size": [
+    1920,
+    1080
+  ],
+  "foreground_unchanged": true,
+  "mode": "secondary-noactivate",
+  "non_primary_work_area": [
+    2560,
+    0,
+    4480,
+    1032
+  ],
+  "shown": true,
+  "window_position": [
+    2592,
+    32
+  ]
+}

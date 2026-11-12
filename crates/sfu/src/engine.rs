@@ -1,0 +1,1718 @@
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
+use std::ops::RangeInclusive;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use crate::control::{Budget, Grant};
+use sticktalk_proto::*;
+use str0m::bwe::BweKind;
+use str0m::change::SdpOffer;
+use str0m::channel::ChannelId as DataChannelId;
+use str0m::format::{Codec, PayloadParams};
+use str0m::media::{Direction, KeyframeRequestKind, MediaKind, Mid, Rid};
+use str0m::net::{Protocol, Receive};
+use str0m::rtp::{ExtensionValues, RtpPacket, RtpWrite, Ssrc};
+use str0m::{Candidate, Event, Input, Output, Rtc};
+
+/// Synchronous, fast host ACL check. Called for EVERY signaling/media/control
+/// action. The host must also disconnect on logout/WS loss and ACL revocation.
+pub trait Authorizer: Send + Sync {
+    fn can_join(&self, session: VoiceSession, channel: ChannelId) -> bool;
+}
+impl<F: Fn(VoiceSession, ChannelId) -> bool + Send + Sync> Authorizer for F {
+    fn can_join(&self, session: VoiceSession, channel: ChannelId) -> bool {
+        self(session, channel)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub bind_ip: IpAddr,
+    pub advertised_ip: IpAddr,
+    /// One multiplexed UDP socket, bound to the first available port in range.
+    pub ports: RangeInclusive<u16>,
+    /// Global VIDEO egress budget, including RTX and probing, in UDP bytes/sec *8.
+    pub video_egress_bps: u64,
+    pub max_sessions: usize,
+    pub max_channel_sessions: usize,
+}
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            bind_ip: "0.0.0.0".parse().unwrap(),
+            advertised_ip: "127.0.0.1".parse().unwrap(),
+            ports: 50000..=50100,
+            video_egress_bps: 32_000_000,
+            max_sessions: 64,
+            max_channel_sessions: 16,
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("invalid SFU configuration")]
+    Config,
+    #[error("UDP: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("WebRTC negotiation/transport failed")]
+    Rtc(#[from] str0m::RtcError),
+    #[error("invalid media signal")]
+    Invalid,
+    #[error("not authorized")]
+    Forbidden,
+    #[error("session/resource limit")]
+    Limit,
+    #[error("voice schema version/kind is unsupported")]
+    Version,
+    #[error("output queue full: drain after each operation")]
+    Backpressure,
+}
+impl Error {
+    fn code(&self) -> ErrorCode {
+        match self {
+            Self::Forbidden => ErrorCode::Forbidden,
+            Self::Limit => ErrorCode::LimitExceeded,
+            Self::Version => ErrorCode::VersionMismatch,
+            Self::Backpressure => ErrorCode::Unavailable,
+            Self::Io(_) => ErrorCode::Unavailable,
+            _ => ErrorCode::InvalidRequest,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Out {
+    Signal {
+        to: VoiceSession,
+        nonce: Nonce,
+        event: VoiceEvent,
+    },
+    Datagram {
+        to: SocketAddr,
+        bytes: Vec<u8>,
+    },
+}
+
+#[derive(Clone)]
+struct Route {
+    publisher: VoiceSession,
+    source: Mid,
+    target: Mid,
+    rid: Option<Rid>,
+    ssrc: Ssrc,
+    video: bool,
+    first_source_seq: Option<u64>,
+    // A new subscription starts only on a video keyframe.
+    waiting_keyframe: bool,
+    rtx: Option<Ssrc>,
+}
+
+struct Peer {
+    rtc: Rtc,
+    channel: ChannelId,
+    capabilities: VoiceCapabilities,
+    tracks: Vec<PublishedTrack>,
+    routes: BTreeMap<String, Route>,
+    muted: bool,
+    deafened: bool,
+    control: Option<DataChannelId>,
+    grant: Option<Grant>,
+    request: Option<(VoiceSession, Instant)>,
+    deadline: Instant,
+    created: Instant,
+    connected: bool,
+    speaking_until: Option<Instant>,
+    stats: VoiceStats,
+    stats_at: Instant,
+    tx_bytes: u64,
+    wire_tx_bytes: u64,
+    rx_bytes: u64,
+    tx_frames: u64,
+    rx_frames: u64,
+    bwe: u64,
+    bwe_target: u64,
+    limits: BTreeMap<String, u64>,
+}
+impl Peer {
+    fn participant(&self, session: VoiceSession) -> VoiceParticipant {
+        VoiceParticipant {
+            session,
+            muted: self.muted,
+            deafened: self.deafened,
+            tracks: self.tracks.clone(),
+        }
+    }
+}
+
+/// Single-owner sans-IO engine, with an optional Tokio UDP driver. No tasks or
+/// timers are started by new(). Every operation must be followed by drain().
+pub struct Sfu {
+    pub(crate) socket: Option<UdpSocket>,
+    config: Config,
+    acl: Arc<dyn Authorizer>,
+    local: SocketAddr,
+    peers: BTreeMap<VoiceSession, Peer>,
+    out: VecDeque<Out>,
+    events: VecDeque<(VoiceSession, Event)>,
+    budget: Budget,
+    now: Instant,
+    // Used to reject abusive signaling independently of the chat command rate.
+    signals: BTreeMap<VoiceSession, (Instant, u16)>,
+}
+
+pub fn rtc_config() -> str0m::RtcConfig {
+    let mut config = Rtc::builder()
+        .set_crypto_provider(Arc::new(str0m::crypto::from_feature_flags()))
+        .set_rtp_mode(true)
+        .set_mtu(1200..=1200)
+        .set_stats_interval(Some(Duration::from_secs(1)))
+        .set_send_buffer_video(256)
+        .set_send_buffer_audio(32)
+        .set_sctp_max_message_size(512)
+        .set_sctp_max_buffered_amount(16 * 1024)
+        .enable_bwe(Some(str0m::bwe::Bitrate::bps(8_000_000)));
+    let codecs = config.codec_config();
+    codecs.clear();
+    codecs.enable_opus(true, false);
+    codecs.enable_h264(true);
+    // High profile baseline for the native hardware path; browser baseline
+    // profiles above remain available for interoperability.
+    codecs.add_h264(112.into(), Some(113.into()), true, 0x640033);
+    codecs.enable_h265(true);
+    codecs.enable_av1(true);
+    config
+}
+
+impl Sfu {
+    pub fn new(config: Config, acl: Arc<dyn Authorizer>) -> Result<Self, Error> {
+        if config.ports.is_empty()
+            || *config.ports.start() == 0
+            || config.bind_ip.is_ipv4() != config.advertised_ip.is_ipv4()
+            || config.advertised_ip.is_unspecified()
+            || config.advertised_ip.is_multicast()
+            || config.video_egress_bps < 96_000
+            || config.max_sessions == 0
+            || config.max_sessions > 256
+            || config.max_channel_sessions == 0
+            || config.max_channel_sessions > 32
+        {
+            return Err(Error::Config);
+        }
+        let mut socket = None;
+        let mut last_error = None;
+        for port in config.ports.clone() {
+            match UdpSocket::bind(SocketAddr::new(config.bind_ip, port)) {
+                Ok(s) => {
+                    socket = Some(s);
+                    break;
+                }
+                Err(e) => last_error = Some(e),
+            }
+        }
+        let socket = socket.ok_or_else(|| {
+            Error::Io(last_error.unwrap_or_else(|| std::io::Error::other("no UDP ports")))
+        })?;
+        // Windows' small default UDP buffers can lose a fragmented keyframe
+        // burst even on loopback. Fixed 256 KiB buffers bound memory while
+        // allowing the shared socket to absorb a few milliseconds of work.
+        let socket_ref = socket2::SockRef::from(&socket);
+        socket_ref.set_recv_buffer_size(256 * 1024)?;
+        socket_ref.set_send_buffer_size(256 * 1024)?;
+        socket.set_nonblocking(true)?;
+        let local = SocketAddr::new(config.advertised_ip, socket.local_addr()?.port());
+        let now = Instant::now();
+        Ok(Self {
+            socket: Some(socket),
+            budget: Budget::new(config.video_egress_bps, now),
+            config,
+            acl,
+            local,
+            peers: BTreeMap::new(),
+            out: VecDeque::new(),
+            events: VecDeque::new(),
+            now,
+            signals: BTreeMap::new(),
+        })
+    }
+    pub fn local_addr(&self) -> SocketAddr {
+        self.local
+    }
+    pub fn sessions(&self) -> Vec<VoiceSession> {
+        self.peers.keys().copied().collect()
+    }
+    pub(crate) fn has_output(&self) -> bool {
+        !self.out.is_empty()
+    }
+    pub fn session_count(&self) -> usize {
+        self.peers.len()
+    }
+    pub fn route_count(&self) -> usize {
+        self.peers.values().map(|p| p.routes.len()).sum()
+    }
+    pub fn drain(&mut self) -> impl Iterator<Item = Out> + '_ {
+        self.out.drain(..)
+    }
+    pub fn next_timeout(&self) -> Option<Instant> {
+        self.peers
+            .values()
+            .flat_map(|p| {
+                [
+                    Some(p.deadline),
+                    p.request.map(|r| r.1),
+                    p.speaking_until,
+                    (!p.connected).then_some(p.created + Duration::from_secs(30)),
+                ]
+            })
+            .flatten()
+            .min()
+    }
+    fn emit(&mut self, out: Out) -> Result<(), Error> {
+        if self.out.len() >= 4096 {
+            return Err(Error::Backpressure);
+        }
+        self.out.push_back(out);
+        Ok(())
+    }
+    fn send(&mut self, to: VoiceSession, nonce: Nonce, event: VoiceEvent) -> Result<(), Error> {
+        self.emit(Out::Signal { to, nonce, event })
+    }
+    fn broadcast(&mut self, channel: ChannelId, event: VoiceEvent) -> Result<(), Error> {
+        let keys: Vec<_> = self
+            .peers
+            .iter()
+            .filter(|(s, p)| p.channel == channel && self.acl.can_join(**s, channel))
+            .map(|(s, _)| *s)
+            .collect();
+        for key in keys {
+            self.send(key, 0, event.clone())?;
+        }
+        Ok(())
+    }
+    fn authorized(&self, key: VoiceSession) -> Result<(), Error> {
+        let p = self.peers.get(&key).ok_or(Error::Forbidden)?;
+        if self.acl.can_join(key, p.channel) {
+            Ok(())
+        } else {
+            Err(Error::Forbidden)
+        }
+    }
+    /// Compatible voice envelope decoder. Inner payload is capped before decoding.
+    pub fn handle_envelope(
+        &mut self,
+        key: VoiceSession,
+        envelope: VoicePayload,
+        now: Instant,
+    ) -> Result<(), Error> {
+        let decoded = if envelope.version != VOICE_VERSION || envelope.kind != "signal" {
+            Err(Error::Version)
+        } else if envelope.payload.len() > 72 * 1024 {
+            Err(Error::Limit)
+        } else {
+            rmp_serde::from_slice(&envelope.payload).map_err(|_| Error::Invalid)
+        };
+        let signal = match decoded {
+            Ok(signal) => signal,
+            Err(error) => {
+                self.send(
+                    key,
+                    envelope.nonce,
+                    VoiceEvent::Error {
+                        code: error.code(),
+                        message: error.to_string(),
+                    },
+                )?;
+                return Err(error);
+            }
+        };
+        self.handle_signal(key, envelope.nonce, signal, now)
+    }
+    /// The host passes the authenticated login/WS connection identity, NEVER a
+    /// user ID copied from client input. Errors are also emitted to that session.
+    pub fn handle_signal(
+        &mut self,
+        key: VoiceSession,
+        nonce: Nonce,
+        signal: VoiceSignal,
+        now: Instant,
+    ) -> Result<(), Error> {
+        self.now = self.now.max(now);
+        let result = self.signal(key, nonce, signal);
+        if let Err(error) = &result {
+            self.send(
+                key,
+                nonce,
+                VoiceEvent::Error {
+                    code: error.code(),
+                    message: error.to_string(),
+                },
+            )?;
+        }
+        self.pump()?;
+        result
+    }
+    fn signal(
+        &mut self,
+        key: VoiceSession,
+        nonce: Nonce,
+        signal: VoiceSignal,
+    ) -> Result<(), Error> {
+        if let VoiceSignal::Join {
+            channel_id,
+            capabilities,
+        } = signal
+        {
+            return self.join(key, nonce, channel_id, capabilities);
+        }
+        self.authorized(key)?;
+        let rate = self.signals.entry(key).or_insert((self.now, 0));
+        if self.now.saturating_duration_since(rate.0) >= Duration::from_secs(1) {
+            *rate = (self.now, 0);
+        }
+        if rate.1 >= 64 {
+            return Err(Error::Limit);
+        }
+        rate.1 += 1;
+        match signal {
+            VoiceSignal::Leave => return self.disconnect(key),
+            VoiceSignal::Offer { sdp, tracks } => return self.offer(key, nonce, sdp, tracks),
+            VoiceSignal::Ice { candidate } => {
+                if candidate.len() > 1024 {
+                    return Err(Error::Limit);
+                }
+                let candidate =
+                    Candidate::from_sdp_string(&candidate).map_err(|_| Error::Invalid)?;
+                if candidate.proto() != Protocol::Udp {
+                    return Err(Error::Invalid);
+                }
+                self.peers
+                    .get_mut(&key)
+                    .unwrap()
+                    .rtc
+                    .add_remote_candidate(candidate);
+                self.collect(key)?;
+            }
+            VoiceSignal::State { muted, deafened } => {
+                let p = self.peers.get_mut(&key).unwrap();
+                p.muted = muted;
+                p.deafened = deafened;
+                let channel = p.channel;
+                let participant = p.participant(key);
+                if muted || deafened {
+                    self.stop_speaking(key)?;
+                }
+                self.broadcast(channel, VoiceEvent::Participant(participant))?;
+            }
+            VoiceSignal::Subscribe {
+                publisher,
+                source_mid,
+                receiver_mid,
+                rid,
+            } => self.subscribe(key, publisher, source_mid, receiver_mid, rid)?,
+            VoiceSignal::Unsubscribe { receiver_mid } => {
+                self.remove_route(key, &receiver_mid)?;
+                self.allocate()?;
+            }
+            VoiceSignal::RequestKeyframe { receiver_mid, fir } => {
+                let r = self.peers[&key]
+                    .routes
+                    .get(&receiver_mid)
+                    .cloned()
+                    .ok_or(Error::Invalid)?;
+                self.keyframe(
+                    r.publisher,
+                    r.source,
+                    r.rid,
+                    if fir {
+                        KeyframeRequestKind::Fir
+                    } else {
+                        KeyframeRequestKind::Pli
+                    },
+                )?;
+            }
+            VoiceSignal::RequestControl { sharer } => self.request_control(key, sharer)?,
+            VoiceSignal::DecideControl { requester, allow } => {
+                self.decide_control(key, requester, allow)?
+            }
+            VoiceSignal::RevokeControl => {
+                self.revoke(key)?;
+                let sharers: Vec<_> = self
+                    .peers
+                    .iter()
+                    .filter(|(_, p)| p.grant.as_ref().is_some_and(|g| g.controller == key))
+                    .map(|(s, _)| *s)
+                    .collect();
+                for sharer in sharers {
+                    self.revoke(sharer)?;
+                }
+            }
+            VoiceSignal::Stats => {
+                return self.send(
+                    key,
+                    nonce,
+                    VoiceEvent::Stats(self.peers[&key].stats.clone()),
+                )
+            }
+            VoiceSignal::Join { .. } => unreachable!(),
+        }
+        self.send(key, nonce, VoiceEvent::Ack)
+    }
+    fn join(
+        &mut self,
+        key: VoiceSession,
+        nonce: Nonce,
+        channel: ChannelId,
+        capabilities: VoiceCapabilities,
+    ) -> Result<(), Error> {
+        if key.user_id.0 == 0
+            || key.connection_id.0 == 0
+            || channel.0 == 0
+            || !self.acl.can_join(key, channel)
+        {
+            return Err(Error::Forbidden);
+        }
+        if self.peers.contains_key(&key) {
+            return Err(Error::Invalid);
+        }
+        if self.peers.len() >= self.config.max_sessions
+            || self.peers.values().filter(|p| p.channel == channel).count()
+                >= self.config.max_channel_sessions
+        {
+            return Err(Error::Limit);
+        }
+        if !capabilities.video.contains(&VideoCodec::H264)
+            || capabilities.video.len() > 3
+            || capabilities.hardware_decode.len() > 3
+            || capabilities
+                .hardware_decode
+                .iter()
+                .any(|c| !capabilities.video.contains(c))
+        {
+            return Err(Error::Invalid);
+        }
+        let participants = self
+            .peers
+            .iter()
+            .filter(|(_, p)| p.channel == channel)
+            .map(|(s, p)| p.participant(*s))
+            .collect();
+        let rtc = rtc_config().set_ice_lite(true).build(self.now);
+        let p = Peer {
+            rtc,
+            channel,
+            capabilities,
+            tracks: vec![],
+            routes: BTreeMap::new(),
+            muted: false,
+            deafened: false,
+            control: None,
+            grant: None,
+            request: None,
+            deadline: self.now,
+            created: self.now,
+            connected: false,
+            speaking_until: None,
+            stats: VoiceStats {
+                tx_bps: 0,
+                rx_bps: 0,
+                tx_fps_milli: 0,
+                rx_fps_milli: 0,
+                loss_per_million: None,
+                rtt_ms: None,
+                path: MediaPath::Unknown,
+                cap_dropped_packets: 0,
+                queue_dropped_packets: 0,
+                mtu_dropped_packets: 0,
+            },
+            stats_at: self.now,
+            tx_bytes: 0,
+            wire_tx_bytes: 0,
+            rx_bytes: 0,
+            tx_frames: 0,
+            rx_frames: 0,
+            bwe: self.config.video_egress_bps,
+            bwe_target: 0,
+            limits: BTreeMap::new(),
+        };
+        self.peers.insert(key, p);
+        self.peers
+            .get_mut(&key)
+            .unwrap()
+            .rtc
+            .add_local_candidate(Candidate::host(self.local, "udp").map_err(|_| Error::Config)?)
+            .ok_or(Error::Config)?;
+        self.collect(key)?;
+        self.send(
+            key,
+            nonce,
+            VoiceEvent::Joined {
+                channel_id: channel,
+                participants,
+                max_rtp_bytes: 1200,
+            },
+        )?;
+        self.broadcast(
+            channel,
+            VoiceEvent::Participant(self.peers[&key].participant(key)),
+        )?;
+        self.enforce_codecs(channel)
+    }
+    fn codec_allowed(&self, channel: ChannelId, codec: VideoCodec) -> bool {
+        codec == VideoCodec::H264
+            || self
+                .peers
+                .values()
+                .filter(|p| p.channel == channel)
+                .all(|p| {
+                    p.capabilities.video.contains(&codec)
+                        && p.capabilities.hardware_decode.contains(&codec)
+                })
+    }
+    fn enforce_codecs(&mut self, channel: ChannelId) -> Result<(), Error> {
+        let incompatible: Vec<_> = self
+            .peers
+            .iter()
+            .filter(|(_, p)| p.channel == channel)
+            .flat_map(|(key, p)| {
+                p.tracks
+                    .iter()
+                    .filter(|t| t.codec.is_some_and(|c| !self.codec_allowed(channel, c)))
+                    .map(|t| (*key, t.mid.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for (key, mid) in incompatible {
+            self.send(
+                key,
+                0,
+                VoiceEvent::CodecRequired {
+                    mid,
+                    codec: VideoCodec::H264,
+                },
+            )?;
+        }
+        Ok(())
+    }
+    fn offer(
+        &mut self,
+        key: VoiceSession,
+        nonce: Nonce,
+        sdp: String,
+        tracks: Vec<PublishedTrack>,
+    ) -> Result<(), Error> {
+        if sdp.len() > 65536
+            || sdp.lines().filter(|l| l.starts_with("m=")).count() > 33
+            || tracks.len() > 4
+        {
+            return Err(Error::Limit);
+        }
+        let mut mids = BTreeSet::new();
+        let mut kinds = BTreeSet::new();
+        for t in &tracks {
+            if !valid_id(&t.mid)
+                || !mids.insert(&t.mid)
+                || !kinds.insert(t.kind as u8)
+                || t.layers.len() > 3
+                || t.layers.iter().any(|r| !valid_id(r))
+                || t.layers.iter().collect::<BTreeSet<_>>().len() != t.layers.len()
+            {
+                return Err(Error::Invalid);
+            }
+            let video = is_video(t.kind);
+            if video != t.codec.is_some()
+                || (t.kind == TrackKind::Screen) != t.surface.is_some()
+                || (!video && !t.layers.is_empty())
+            {
+                return Err(Error::Invalid);
+            }
+            if t.codec
+                .is_some_and(|c| !self.codec_allowed(self.peers[&key].channel, c))
+            {
+                return Err(Error::Invalid);
+            }
+        }
+        let offer = SdpOffer::from_sdp_string(&sdp).map_err(|_| Error::Invalid)?;
+        // Re-negotiation invalidates grants even when the same MID is reused.
+        self.revoke(key)?;
+        self.cancel_request(key)?;
+        let answer = self
+            .peers
+            .get_mut(&key)
+            .unwrap()
+            .rtc
+            .sdp_api()
+            .accept_offer(offer);
+        self.collect(key)?;
+        let answer = answer?;
+        let valid = tracks.iter().all(|t| {
+            let mid: Mid = t.mid.as_str().into();
+            let p = &self.peers[&key];
+            p.rtc.media(mid).is_some_and(|m| {
+                !m.disabled()
+                    && m.kind() == media_kind(t.kind)
+                    && matches!(m.direction(), Direction::RecvOnly | Direction::SendRecv)
+                    && p.rtc.codec_config().params().iter().any(|param| {
+                        m.remote_pts().contains(&param.pt()) && param.spec().codec == codec_of(t)
+                    })
+            })
+        });
+        if !valid {
+            self.disconnect(key)?;
+            return Err(Error::Invalid);
+        }
+        // Remove subscriptions to withdrawn/reconfigured sources. Other sessions
+        // receive the full publication set and can subscribe after their offer.
+        let old = self.peers[&key].tracks.clone();
+        let changed: Vec<_> = old
+            .iter()
+            .filter(|t| !tracks.contains(t))
+            .map(|t| t.mid.clone())
+            .collect();
+        let stale: Vec<_> = self
+            .peers
+            .iter()
+            .flat_map(|(s, p)| {
+                p.routes
+                    .iter()
+                    .filter(|(_, r)| {
+                        r.publisher == key && changed.iter().any(|mid| mid == &r.source.to_string())
+                    })
+                    .map(|(mid, _)| (*s, mid.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for (s, mid) in stale {
+            self.remove_route(s, &mid)?;
+        }
+        self.peers.get_mut(&key).unwrap().tracks = tracks;
+        // A receiver's renegotiation can remove a local receiving slot.
+        let stale: Vec<_> = self.peers[&key]
+            .routes
+            .iter()
+            .filter(|(_, r)| {
+                self.peers[&key].rtc.media(r.target).is_none_or(|m| {
+                    m.disabled()
+                        || !matches!(m.direction(), Direction::SendOnly | Direction::SendRecv)
+                })
+            })
+            .map(|(mid, _)| mid.clone())
+            .collect();
+        for mid in stale {
+            self.remove_route(key, &mid)?;
+        }
+        self.send(
+            key,
+            nonce,
+            VoiceEvent::Answer {
+                sdp: answer.to_sdp_string(),
+            },
+        )?;
+        self.broadcast(
+            self.peers[&key].channel,
+            VoiceEvent::Participant(self.peers[&key].participant(key)),
+        )?;
+        self.allocate()
+    }
+    fn subscribe(
+        &mut self,
+        key: VoiceSession,
+        publisher: VoiceSession,
+        source_mid: String,
+        receiver_mid: String,
+        rid: Option<String>,
+    ) -> Result<(), Error> {
+        self.authorized(publisher)?;
+        if key == publisher
+            || !valid_id(&source_mid)
+            || !valid_id(&receiver_mid)
+            || rid.as_ref().is_some_and(|r| !valid_id(r))
+        {
+            return Err(Error::Invalid);
+        }
+        let source = &self.peers[&publisher];
+        let target = &self.peers[&key];
+        if source.channel != target.channel {
+            return Err(Error::Forbidden);
+        }
+        let track = source
+            .tracks
+            .iter()
+            .find(|t| t.mid == source_mid)
+            .ok_or(Error::Invalid)?
+            .clone();
+        if track
+            .codec
+            .is_some_and(|c| !self.codec_allowed(source.channel, c))
+        {
+            return Err(Error::Invalid);
+        }
+        if (track.layers.is_empty() && rid.is_some())
+            || (!track.layers.is_empty() && !rid.as_ref().is_some_and(|r| track.layers.contains(r)))
+        {
+            return Err(Error::Invalid);
+        }
+        if target.routes.len() >= 32 && !target.routes.contains_key(&receiver_mid) {
+            return Err(Error::Limit);
+        }
+        let source_mid: Mid = source_mid.as_str().into();
+        let target_mid: Mid = receiver_mid.as_str().into();
+        let video = is_video(track.kind);
+        let m = target.rtc.media(target_mid).ok_or(Error::Invalid)?;
+        if m.kind() != media_kind(track.kind)
+            || m.disabled()
+            || !matches!(m.direction(), Direction::SendOnly | Direction::SendRecv)
+            || target.tracks.iter().any(|t| t.mid == receiver_mid)
+        {
+            return Err(Error::Invalid);
+        }
+        // Exact profile/format matching: never silently send High into a
+        // baseline-only browser decoder, or HEVC into an AV1 slot.
+        let b = source
+            .rtc
+            .codec_config()
+            .params()
+            .iter()
+            .filter(|a| {
+                a.spec().codec == codec_of(&track)
+                    && source
+                        .rtc
+                        .media(source_mid)
+                        .unwrap()
+                        .remote_pts()
+                        .contains(&a.pt())
+            })
+            .find_map(|a| self.params_exact(key, target_mid, *a))
+            .ok_or(Error::Invalid)?;
+        self.remove_route(key, &receiver_mid)?;
+        // SDP creates a default TX SSRC. The pacer addresses streams by
+        // MID/RID, so leaving that empty stream beside our rewritten SSRC
+        // makes it pick an arbitrary stream and can starve actual media.
+        loop {
+            let old = self
+                .peers
+                .get_mut(&key)
+                .unwrap()
+                .rtc
+                .direct_api()
+                .stream_tx_by_mid(target_mid, None)
+                .map(|s| s.ssrc());
+            self.collect(key)?;
+            let Some(old) = old else {
+                break;
+            };
+            self.peers
+                .get_mut(&key)
+                .unwrap()
+                .rtc
+                .direct_api()
+                .remove_stream_tx(old);
+            self.collect(key)?;
+        }
+        let rtc = &mut self.peers.get_mut(&key).unwrap().rtc;
+        let ssrc = rtc.direct_api().new_ssrc();
+        self.collect(key)?;
+        let rtx = if video && b.resend().is_some() {
+            let s = self
+                .peers
+                .get_mut(&key)
+                .unwrap()
+                .rtc
+                .direct_api()
+                .new_ssrc();
+            self.collect(key)?;
+            Some(s)
+        } else {
+            None
+        };
+        self.peers
+            .get_mut(&key)
+            .unwrap()
+            .rtc
+            .direct_api()
+            .declare_stream_tx(ssrc, rtx, target_mid, None);
+        self.collect(key)?;
+        let rtc = &mut self.peers.get_mut(&key).unwrap().rtc;
+        if let Some(stream) = rtc.direct_api().stream_tx(&ssrc) {
+            stream.set_rtx_cache(
+                if video { 256 } else { 32 },
+                Duration::from_secs(1),
+                Some(0.15),
+            );
+        }
+        self.collect(key)?;
+        let rid = rid.as_deref().map(Into::into);
+        self.peers.get_mut(&key).unwrap().routes.insert(
+            receiver_mid,
+            Route {
+                publisher,
+                source: source_mid,
+                target: target_mid,
+                rid,
+                ssrc,
+                video,
+                first_source_seq: None,
+                waiting_keyframe: video,
+                rtx,
+            },
+        );
+        if video {
+            self.keyframe(publisher, source_mid, rid, KeyframeRequestKind::Pli)?;
+        }
+        self.allocate()
+    }
+    fn remove_route(&mut self, key: VoiceSession, mid: &str) -> Result<(), Error> {
+        let sharer = self
+            .peers
+            .get(&key)
+            .and_then(|p| p.routes.get(mid))
+            .map(|r| r.publisher);
+        if let Some(sharer) = sharer {
+            if self
+                .peers
+                .get(&sharer)
+                .is_some_and(|p| p.grant.as_ref().is_some_and(|g| g.controller == key))
+            {
+                self.revoke(sharer)?;
+            }
+        }
+        if let Some(p) = self.peers.get_mut(&key) {
+            if let Some(r) = p.routes.remove(mid) {
+                p.rtc.direct_api().remove_stream_tx(r.ssrc);
+                self.collect(key)?;
+            }
+        }
+        Ok(())
+    }
+    fn keyframe(
+        &mut self,
+        key: VoiceSession,
+        mid: Mid,
+        rid: Option<Rid>,
+        kind: KeyframeRequestKind,
+    ) -> Result<(), Error> {
+        if self.authorized(key).is_err() {
+            return Ok(());
+        }
+        if let Some(p) = self.peers.get_mut(&key) {
+            if let Some(s) = p.rtc.direct_api().stream_rx_by_mid(mid, rid) {
+                s.request_keyframe(kind);
+            }
+            self.collect(key)?;
+        }
+        Ok(())
+    }
+    fn allocate(&mut self) -> Result<(), Error> {
+        let routes = self
+            .peers
+            .values()
+            .flat_map(|p| p.routes.values())
+            .filter(|r| r.video)
+            .count() as u64;
+        let share = self.config.video_egress_bps / routes.max(1);
+        // Desired capacity must be explicit: str0m defaults it to zero,
+        // otherwise an idle -> high-bitrate transition can stay pinned to
+        // a tiny old estimate without probing toward the subscription budget.
+        let targets: Vec<_> = self
+            .peers
+            .iter()
+            .map(|(key, p)| {
+                (
+                    *key,
+                    share * p.routes.values().filter(|r| r.video).count() as u64,
+                )
+            })
+            .collect();
+        for (key, desired) in targets {
+            let p = self.peers.get_mut(&key).unwrap();
+            if p.bwe_target != desired {
+                p.bwe_target = desired;
+                p.rtc.bwe().set_bitrate(
+                    str0m::bwe::Bitrate::bps(0),
+                    str0m::bwe::Bitrate::bps(desired),
+                );
+                self.collect(key)?;
+            }
+        }
+        let mut limits: BTreeMap<(VoiceSession, String), u64> = BTreeMap::new();
+        for p in self.peers.values() {
+            let videos = p.routes.values().filter(|r| r.video).count() as u64;
+            for r in p.routes.values().filter(|r| r.video) {
+                // Encoder payload must leave headroom for SRTP/RTP/RTX.
+                let bps = share.min(p.bwe / videos.max(1)).saturating_mul(9) / 10;
+                limits
+                    .entry((r.publisher, r.source.to_string()))
+                    .and_modify(|b| *b = (*b).min(bps))
+                    .or_insert(bps);
+            }
+        }
+        for ((key, mid), bps) in limits {
+            let old = self
+                .peers
+                .get_mut(&key)
+                .unwrap()
+                .limits
+                .insert(mid.clone(), bps);
+            if old != Some(bps) {
+                self.send(
+                    key,
+                    0,
+                    VoiceEvent::Bitrate {
+                        mid: mid.clone(),
+                        bps,
+                    },
+                )?;
+            }
+            let layers = self
+                .peers
+                .get(&key)
+                .and_then(|p| p.tracks.iter().find(|t| t.mid == mid))
+                .map(|t| t.layers.clone())
+                .unwrap_or_default();
+            let rids: Vec<Option<Rid>> = if layers.is_empty() {
+                vec![None]
+            } else {
+                layers.iter().map(|s| Some(s.as_str().into())).collect()
+            };
+            for rid in rids {
+                if let Some(p) = self.peers.get_mut(&key) {
+                    if let Some(s) = p
+                        .rtc
+                        .direct_api()
+                        .stream_rx_by_mid(mid.as_str().into(), rid)
+                    {
+                        s.request_remb(str0m::bwe::Bitrate::bps(bps));
+                    }
+                    self.collect(key)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    /// Host-supplied Tailscale path telemetry (ICE cannot distinguish DERP).
+    pub fn set_path(&mut self, key: VoiceSession, path: MediaPath) -> Result<(), Error> {
+        self.peers.get_mut(&key).ok_or(Error::Forbidden)?.stats.path = path;
+        Ok(())
+    }
+    /// Feed one UDP packet. Demultiplexing uses str0m's ICE/DTLS acceptance,
+    /// NEVER trusts an unverified source address or user ID in the packet.
+    pub fn handle_datagram(
+        &mut self,
+        from: SocketAddr,
+        bytes: &[u8],
+        now: Instant,
+    ) -> Result<(), Error> {
+        self.now = self.now.max(now);
+        let Ok(receive) = Receive::new(Protocol::Udp, from, self.local, bytes) else {
+            return Ok(());
+        };
+        let input = Input::Receive(self.now, receive);
+        let key = self
+            .peers
+            .iter()
+            .find(|(_, p)| p.rtc.accepts(&input))
+            .map(|(k, _)| *k);
+        if let Some(key) = key {
+            if self.authorized(key).is_err() {
+                self.disconnect(key)?;
+                return Ok(());
+            }
+            // Never accept fragmented/oversized media into forwarding queues.
+            if is_rtp(bytes) && bytes.len() > 1200 {
+                self.peers.get_mut(&key).unwrap().stats.mtu_dropped_packets += 1;
+                return Ok(());
+            }
+            let result = self.peers.get_mut(&key).unwrap().rtc.handle_input(input);
+            self.collect(key)?;
+            // Malformed network packets must not terminate the whole SFU.
+            if result.is_err() {
+                return Ok(());
+            }
+            self.pump()?;
+        }
+        Ok(())
+    }
+    pub fn handle_timeout(&mut self, now: Instant) -> Result<(), Error> {
+        self.now = self.now.max(now);
+        let keys: Vec<_> = self.peers.keys().copied().collect();
+        for key in keys {
+            if self.authorized(key).is_err()
+                || (!self.peers[&key].connected
+                    && self.now.saturating_duration_since(self.peers[&key].created)
+                        >= Duration::from_secs(30))
+            {
+                self.disconnect(key)?;
+                continue;
+            }
+            if self.peers[&key].request.is_some_and(|r| r.1 <= self.now) {
+                self.cancel_request(key)?;
+            }
+            if self.peers[&key]
+                .speaking_until
+                .is_some_and(|t| t <= self.now)
+            {
+                self.stop_speaking(key)?;
+            }
+            if self.peers[&key].deadline <= self.now {
+                let result = self
+                    .peers
+                    .get_mut(&key)
+                    .unwrap()
+                    .rtc
+                    .handle_input(Input::Timeout(self.now));
+                self.collect(key)?;
+                if result.is_err() || !self.peers[&key].rtc.is_alive() {
+                    self.disconnect(key)?;
+                }
+            }
+        }
+        self.pump()
+    }
+    fn collect(&mut self, key: VoiceSession) -> Result<(), Error> {
+        loop {
+            let Some(peer) = self.peers.get_mut(&key) else {
+                return Ok(());
+            };
+            match peer.rtc.poll_output()? {
+                Output::Timeout(deadline) => {
+                    peer.deadline = deadline;
+                    break;
+                }
+                Output::Event(event) => {
+                    if self.events.len() >= 4096 {
+                        return Err(Error::Backpressure);
+                    }
+                    self.events.push_back((key, event));
+                }
+                Output::Transmit(tx) => {
+                    let bytes: &[u8] = tx.contents.as_ref();
+                    if is_rtp(bytes) {
+                        if bytes.len() > 1200 {
+                            peer.stats.mtu_dropped_packets += 1;
+                            continue;
+                        }
+                        let ssrc = u32::from_be_bytes(bytes[8..12].try_into().unwrap());
+                        // Map both the main and RTX SSRC. In RTP mode all
+                        // outgoing media belongs to an explicit subscription.
+                        // Unmapped RTP (including str0m's SSRC-zero BWE
+                        // probe) is video, never a way around the budget.
+                        let video = !peer.routes.values().any(|r| {
+                            !r.video && (*r.ssrc == ssrc || r.rtx.is_some_and(|s| *s == ssrc))
+                        });
+                        // Final wire budget includes RTX and probes.
+                        if video && !self.budget.take(bytes.len(), self.now) {
+                            peer.stats.cap_dropped_packets += 1;
+                            continue;
+                        }
+                        if video && bytes[1] & 0x80 != 0 {
+                            peer.tx_frames += 1;
+                        }
+                    }
+                    peer.wire_tx_bytes += bytes.len() as u64;
+                    self.emit(Out::Datagram {
+                        to: tx.destination,
+                        bytes: bytes.to_vec(),
+                    })?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn pump(&mut self) -> Result<(), Error> {
+        while let Some((key, event)) = self.events.pop_front() {
+            if !self.peers.contains_key(&key) {
+                continue;
+            }
+            match event {
+                Event::Connected => {
+                    self.peers.get_mut(&key).unwrap().connected = true;
+                }
+                Event::Closed => {
+                    self.disconnect(key)?;
+                }
+                Event::RtpPacket(packet) => self.forward(key, packet)?,
+                Event::KeyframeRequest(req) => {
+                    if let Some(route) = self.peers[&key]
+                        .routes
+                        .values()
+                        .find(|r| r.target == req.mid)
+                        .cloned()
+                    {
+                        self.keyframe(route.publisher, route.source, route.rid, req.kind)?;
+                    }
+                }
+                Event::EgressBitrateEstimate(
+                    BweKind::Twcc { estimate, .. } | BweKind::Remb { estimate, .. },
+                ) => {
+                    self.peers.get_mut(&key).unwrap().bwe = estimate.as_u64();
+                    self.allocate()?;
+                }
+                Event::PeerStats(stats) => self.stats(key, stats)?,
+                // Refresh REMB after a newly started stream becomes known.
+                Event::MediaIngressStats(_) => self.allocate()?,
+                Event::ChannelOpen(id, label) => self.channel_open(key, id, &label)?,
+                Event::ChannelClose(id) if self.peers[&key].control == Some(id) => {
+                    self.peers.get_mut(&key).unwrap().control = None;
+                    self.revoke(key)?;
+                    let sharers: Vec<_> = self
+                        .peers
+                        .iter()
+                        .filter(|(_, p)| p.grant.as_ref().is_some_and(|g| g.controller == key))
+                        .map(|(k, _)| *k)
+                        .collect();
+                    for sharer in sharers {
+                        self.revoke(sharer)?;
+                    }
+                }
+                Event::ChannelData(data) => self.control_data(key, data)?,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    fn forward(&mut self, key: VoiceSession, packet: RtpPacket) -> Result<(), Error> {
+        if self.authorized(key).is_err() {
+            return self.disconnect(key);
+        }
+        let stream = self
+            .peers
+            .get_mut(&key)
+            .unwrap()
+            .rtc
+            .direct_api()
+            .stream_rx(&packet.header.ssrc)
+            .map(|s| (s.mid(), s.rid()));
+        self.collect(key)?;
+        let Some((mid, rid)) = stream else {
+            return Ok(());
+        };
+        let Some(track) = self.peers[&key]
+            .tracks
+            .iter()
+            .find(|t| t.mid == mid.to_string())
+            .cloned()
+        else {
+            return Ok(());
+        };
+        let video = is_video(track.kind);
+        let p = &self.peers[&key];
+        if (!video && (p.muted || p.deafened))
+            || track
+                .codec
+                .is_some_and(|c| !self.codec_allowed(p.channel, c))
+        {
+            return Ok(());
+        }
+        let Some(source_param) = p
+            .rtc
+            .codec_config()
+            .params()
+            .iter()
+            .find(|param| param.pt() == packet.header.payload_type)
+            .copied()
+        else {
+            return Ok(());
+        };
+        if source_param.spec().codec != codec_of(&track) {
+            return Ok(());
+        }
+        // Conservative room for rewritten MID, TWCC, SRTP and RTX overhead.
+        if packet.payload.len() > 1060 {
+            self.peers.get_mut(&key).unwrap().stats.mtu_dropped_packets += 1;
+            return Ok(());
+        }
+        if video && packet.header.marker {
+            self.peers.get_mut(&key).unwrap().rx_frames += 1;
+        }
+        if track.kind == TrackKind::Audio {
+            if let Some(level) = packet.header.ext_vals.audio_level {
+                let speaking =
+                    packet.header.ext_vals.voice_activity.unwrap_or(level > -50) && level > -60;
+                let was_speaking = self.peers[&key].speaking_until.is_some();
+                if speaking {
+                    self.peers.get_mut(&key).unwrap().speaking_until =
+                        Some(self.now + Duration::from_millis(300));
+                }
+                if speaking && !was_speaking {
+                    self.broadcast(
+                        self.peers[&key].channel,
+                        VoiceEvent::Speaking {
+                            session: key,
+                            speaking: true,
+                            level_dbov: level,
+                        },
+                    )?;
+                }
+            }
+        }
+        let destinations: Vec<_> = self
+            .peers
+            .iter()
+            .filter(|(s, p)| self.acl.can_join(**s, p.channel) && !(p.deafened && !video))
+            .flat_map(|(s, p)| {
+                p.routes
+                    .iter()
+                    .filter(|(_, r)| r.publisher == key && r.source == mid && r.rid == rid)
+                    .map(|(target, r)| (*s, target.clone(), r.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for (to, target, route) in destinations {
+            let Some(param) = self.params_exact(to, route.target, source_param) else {
+                continue;
+            };
+            // str0m's RTP send queue is NOT bounded by its RTX cache size.
+            // Inspect its refreshed pacer snapshot before every enqueue.
+            let queued = self
+                .peers
+                .get_mut(&to)
+                .unwrap()
+                .rtc
+                .direct_api()
+                .stream_tx(&route.ssrc)
+                .and_then(|stream| stream.queue_info())
+                .map(|q| (q.packet_count(), q.byte_size(), q.first_unsent()));
+            self.collect(to)?;
+            if queued.is_some_and(|(packets, bytes, first)| {
+                packets >= 128
+                    || bytes >= 128 * 1024
+                    || first.is_some_and(|t| {
+                        self.now.saturating_duration_since(t) > Duration::from_millis(250)
+                    })
+            }) {
+                self.peers.get_mut(&to).unwrap().stats.queue_dropped_packets +=
+                    queued.unwrap().0 as u64 + 1;
+                // Discard the stale queue/cache and restart on an IDR with a
+                // fresh SSRC, rather than building latency indefinitely.
+                self.subscribe(
+                    to,
+                    route.publisher,
+                    route.source.to_string(),
+                    target,
+                    route.rid.map(|r| r.to_string()),
+                )?;
+                continue;
+            }
+            let keyframe = starts_keyframe(codec_of(&track), &packet.payload);
+            let config_packet = track.codec == Some(VideoCodec::H264)
+                && matches!(packet.payload.first().map(|b| b & 31), Some(7 | 8));
+            if route.waiting_keyframe && !keyframe && !config_packet {
+                continue;
+            }
+            let peer = self.peers.get_mut(&to).unwrap();
+            let r = peer.routes.get_mut(&target).unwrap();
+            if keyframe {
+                r.waiting_keyframe = false;
+            }
+            let source_seq = *packet.seq_no;
+            let first = *r.first_source_seq.get_or_insert(source_seq);
+            if source_seq < first {
+                continue;
+            }
+            let sequence = source_seq - first + 1;
+            // Per-hop MID/SSRC/TWCC are regenerated, never copied upstream.
+            let ext = ExtensionValues {
+                audio_level: packet.header.ext_vals.audio_level,
+                voice_activity: packet.header.ext_vals.voice_activity,
+                video_orientation: packet.header.ext_vals.video_orientation,
+                ..Default::default()
+            };
+            if let Some(stream) = peer.rtc.direct_api().stream_tx(&route.ssrc) {
+                stream.write_rtp(
+                    RtpWrite::new(
+                        param.pt(),
+                        sequence.into(),
+                        packet.header.timestamp,
+                        self.now,
+                        packet.payload.clone(),
+                    )
+                    .marker(packet.header.marker)
+                    .ext_vals(ext)
+                    .nackable(video),
+                );
+            }
+            self.collect(to)?;
+            self.peers
+                .get_mut(&to)
+                .unwrap()
+                .rtc
+                .handle_input(Input::Timeout(self.now))?;
+            self.collect(to)?;
+        }
+        Ok(())
+    }
+    fn params_exact(
+        &self,
+        key: VoiceSession,
+        mid: Mid,
+        source: PayloadParams,
+    ) -> Option<PayloadParams> {
+        let p = &self.peers[&key];
+        let media = p.rtc.media(mid)?;
+        p.rtc
+            .codec_config()
+            .params()
+            .iter()
+            .find(|param| media.remote_pts().contains(&param.pt()) && param.spec() == source.spec())
+            .copied()
+    }
+    fn stop_speaking(&mut self, key: VoiceSession) -> Result<(), Error> {
+        let Some(p) = self.peers.get_mut(&key) else {
+            return Ok(());
+        };
+        let channel = p.channel;
+        if p.speaking_until.take().is_some() {
+            self.broadcast(
+                channel,
+                VoiceEvent::Speaking {
+                    session: key,
+                    speaking: false,
+                    level_dbov: -127,
+                },
+            )?;
+        }
+        Ok(())
+    }
+    fn stats(&mut self, key: VoiceSession, stats: str0m::stats::PeerStats) -> Result<(), Error> {
+        let p = self.peers.get_mut(&key).unwrap();
+        let elapsed = stats
+            .timestamp
+            .saturating_duration_since(p.stats_at)
+            .as_secs_f64()
+            .max(0.001);
+        p.stats.tx_bps =
+            ((p.wire_tx_bytes.saturating_sub(p.tx_bytes)) as f64 * 8.0 / elapsed) as u64;
+        p.stats.rx_bps =
+            ((stats.peer_bytes_rx.saturating_sub(p.rx_bytes)) as f64 * 8.0 / elapsed) as u64;
+        p.stats.tx_fps_milli = (p.tx_frames as f64 * 1000.0 / elapsed) as u32;
+        p.stats.rx_fps_milli = (p.rx_frames as f64 * 1000.0 / elapsed) as u32;
+        p.stats.loss_per_million = stats
+            .egress_loss_fraction
+            .or(stats.ingress_loss_fraction)
+            .map(|v| (v.clamp(0.0, 1.0) * 1_000_000.0) as u32);
+        p.stats.rtt_ms = stats
+            .rtt
+            .or_else(|| {
+                stats
+                    .selected_candidate_pair
+                    .as_ref()
+                    .and_then(|p| p.current_round_trip_time)
+            })
+            .map(|rtt| rtt.as_millis().min(u32::MAX as u128) as u32);
+        p.tx_bytes = p.wire_tx_bytes;
+        p.rx_bytes = stats.peer_bytes_rx;
+        p.tx_frames = 0;
+        p.rx_frames = 0;
+        p.stats_at = stats.timestamp;
+        let event = VoiceEvent::Stats(p.stats.clone());
+        self.send(key, 0, event)
+    }
+    fn channel_open(
+        &mut self,
+        key: VoiceSession,
+        id: DataChannelId,
+        label: &str,
+    ) -> Result<(), Error> {
+        let p = self.peers.get_mut(&key).unwrap();
+        let valid = label == CONTROL_CHANNEL_LABEL
+            && p.control.is_none()
+            && p.rtc
+                .channel(id)
+                .and_then(|c| c.config().cloned())
+                .is_some_and(|c| {
+                    c.ordered && c.reliability == str0m::channel::Reliability::Reliable
+                });
+        if valid {
+            p.control = Some(id);
+        } else {
+            p.rtc.direct_api().close_data_channel(id);
+        }
+        self.collect(key)
+    }
+    fn screen_active(&self, key: VoiceSession) -> bool {
+        self.peers.get(&key).is_some_and(|p| {
+            p.tracks
+                .iter()
+                .any(|t| t.kind == TrackKind::Screen && t.surface.is_some())
+        })
+    }
+    fn viewing_screen(&self, viewer: VoiceSession, sharer: VoiceSession) -> bool {
+        self.peers.get(&viewer).is_some_and(|p| {
+            p.routes.values().any(|r| {
+                r.publisher == sharer
+                    && self.peers.get(&sharer).is_some_and(|s| {
+                        s.tracks
+                            .iter()
+                            .any(|t| t.mid == r.source.to_string() && t.kind == TrackKind::Screen)
+                    })
+            })
+        })
+    }
+    fn request_control(
+        &mut self,
+        requester: VoiceSession,
+        sharer: VoiceSession,
+    ) -> Result<(), Error> {
+        self.authorized(sharer)?;
+        if requester == sharer
+            || self.peers[&requester].channel != self.peers[&sharer].channel
+            || !self.viewing_screen(requester, sharer)
+            || !self.screen_active(sharer)
+            || self.peers[&sharer].grant.is_some()
+            || self.peers[&sharer].request.is_some()
+            || self.peers[&requester].control.is_none()
+            || self.peers[&sharer].control.is_none()
+        {
+            return Err(Error::Forbidden);
+        }
+        self.peers.get_mut(&sharer).unwrap().request =
+            Some((requester, self.now + Duration::from_secs(30)));
+        self.send(
+            sharer,
+            0,
+            VoiceEvent::ControlRequested {
+                requester,
+                timeout_ms: 30_000,
+            },
+        )
+    }
+    fn decide_control(
+        &mut self,
+        sharer: VoiceSession,
+        requester: VoiceSession,
+        allow: bool,
+    ) -> Result<(), Error> {
+        self.authorized(requester)?;
+        let request = self.peers[&sharer].request.ok_or(Error::Forbidden)?;
+        if request.0 != requester
+            || request.1 <= self.now
+            || !self.viewing_screen(requester, sharer)
+            || !self.screen_active(sharer)
+            || self.peers[&sharer].grant.is_some()
+            || self.peers[&requester].channel != self.peers[&sharer].channel
+            || self.peers[&sharer].control.is_none()
+            || self.peers[&requester].control.is_none()
+        {
+            return Err(Error::Forbidden);
+        }
+        self.peers.get_mut(&sharer).unwrap().request = None;
+        if !allow {
+            return self.send(requester, 0, VoiceEvent::ControlDenied { sharer });
+        }
+        let grant = Grant::new(requester, self.now);
+        let id = grant.id;
+        self.peers.get_mut(&sharer).unwrap().grant = Some(grant);
+        tracing::info!(?sharer, ?requester, grant = id, "remote control granted");
+        self.broadcast(
+            self.peers[&sharer].channel,
+            VoiceEvent::ControlGranted {
+                sharer,
+                controller: requester,
+                grant: id,
+            },
+        )
+    }
+    fn cancel_request(&mut self, sharer: VoiceSession) -> Result<(), Error> {
+        if let Some((requester, _)) = self.peers.get_mut(&sharer).and_then(|p| p.request.take()) {
+            self.send(requester, 0, VoiceEvent::ControlDenied { sharer })?;
+        }
+        Ok(())
+    }
+    fn write_control(&mut self, to: VoiceSession, message: &ControlData) -> Result<bool, Error> {
+        let data = rmp_serde::to_vec_named(message).map_err(|_| Error::Invalid)?;
+        let p = self.peers.get_mut(&to).ok_or(Error::Forbidden)?;
+        let Some(id) = p.control else {
+            return Ok(false);
+        };
+        let accepted = if let Some(mut ch) = p.rtc.channel(id) {
+            if ch.buffered_amount() > 8192 {
+                false
+            } else {
+                ch.write(true, &data).unwrap_or(false)
+            }
+        } else {
+            false
+        };
+        self.collect(to)?;
+        Ok(accepted)
+    }
+    fn revoke(&mut self, sharer: VoiceSession) -> Result<(), Error> {
+        let Some(grant) = self.peers.get_mut(&sharer).and_then(|p| p.grant.take()) else {
+            return Ok(());
+        };
+        tracing::info!(?sharer, grant = grant.id, "remote control revoked");
+        let _ = self.write_control(sharer, &ControlData::ReleaseAll { grant: grant.id })?;
+        // WS revoke is the fallback if SCTP is blocked/closed. Client releases
+        // on either transport, local revoke and WS disconnect, idempotently.
+        self.broadcast(
+            self.peers[&sharer].channel,
+            VoiceEvent::ControlRevoked {
+                sharer,
+                grant: grant.id,
+            },
+        )
+    }
+    fn control_data(
+        &mut self,
+        sender: VoiceSession,
+        data: str0m::channel::ChannelData,
+    ) -> Result<(), Error> {
+        if self.authorized(sender).is_err()
+            || self.peers[&sender].control != Some(data.id)
+            || !data.binary
+            || data.data.len() > 512
+        {
+            return Ok(());
+        }
+        let Ok(message @ ControlData::Input { .. }) =
+            rmp_serde::from_slice::<ControlData>(&data.data)
+        else {
+            return Ok(());
+        };
+        let ControlData::Input {
+            sharer,
+            grant,
+            sequence,
+            ref input,
+        } = message
+        else {
+            unreachable!()
+        };
+        if self.authorized(sharer).is_err()
+            || self.peers[&sharer].channel != self.peers[&sender].channel
+            || !self.screen_active(sharer)
+        {
+            return Ok(());
+        }
+        let matching = self.peers[&sharer]
+            .grant
+            .as_ref()
+            .is_some_and(|g| g.controller == sender && g.id == grant);
+        if !matching {
+            return Ok(());
+        }
+        let accepted = self
+            .peers
+            .get_mut(&sharer)
+            .unwrap()
+            .grant
+            .as_mut()
+            .unwrap()
+            .accept(sender, grant, sequence, input, self.now);
+        // Never silently drop a key-up while leaving control active.
+        if !accepted || !self.write_control(sharer, &message)? {
+            self.revoke(sharer)?;
+        }
+        Ok(())
+    }
+    /// Call on WS disconnect, logout, kick or ACL change; idempotent.
+    pub fn disconnect(&mut self, key: VoiceSession) -> Result<(), Error> {
+        if !self.peers.contains_key(&key) {
+            return Ok(());
+        }
+        self.revoke(key)?;
+        self.cancel_request(key)?;
+        let sharers: Vec<_> = self
+            .peers
+            .iter()
+            .filter(|(_, p)| p.grant.as_ref().is_some_and(|g| g.controller == key))
+            .map(|(s, _)| *s)
+            .collect();
+        for sharer in sharers {
+            self.revoke(sharer)?;
+        }
+        let requests: Vec<_> = self
+            .peers
+            .iter()
+            .filter(|(_, p)| p.request.is_some_and(|r| r.0 == key))
+            .map(|(s, _)| *s)
+            .collect();
+        for sharer in requests {
+            self.cancel_request(sharer)?;
+        }
+        let routes: Vec<_> = self
+            .peers
+            .iter()
+            .flat_map(|(s, p)| {
+                p.routes
+                    .iter()
+                    .filter(|(_, r)| r.publisher == key)
+                    .map(|(mid, _)| (*s, mid.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for (s, mid) in routes {
+            self.remove_route(s, &mid)?;
+        }
+        self.peers.get_mut(&key).unwrap().rtc.disconnect();
+        self.collect(key)?;
+        let p = self.peers.remove(&key).unwrap();
+        self.signals.remove(&key);
+        self.events.retain(|(s, _)| *s != key);
+        self.broadcast(p.channel, VoiceEvent::Left { session: key })?;
+        self.send(key, 0, VoiceEvent::Left { session: key })?;
+        self.allocate()
+    }
+}
+
+fn valid_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 16
+        && id
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
+}
+fn is_video(kind: TrackKind) -> bool {
+    matches!(kind, TrackKind::Camera | TrackKind::Screen)
+}
+fn media_kind(kind: TrackKind) -> MediaKind {
+    if is_video(kind) {
+        MediaKind::Video
+    } else {
+        MediaKind::Audio
+    }
+}
+fn codec_of(track: &PublishedTrack) -> Codec {
+    match track.codec {
+        None => Codec::Opus,
+        Some(VideoCodec::H264) => Codec::H264,
+        Some(VideoCodec::Hevc) => Codec::H265,
+        Some(VideoCodec::Av1) => Codec::Av1,
+    }
+}
+fn is_rtp(bytes: &[u8]) -> bool {
+    bytes.len() >= 12 && bytes[0] >> 6 == 2 && !(64..=95).contains(&(bytes[1] & 127))
+}
+fn starts_keyframe(codec: Codec, p: &[u8]) -> bool {
+    match codec {
+        Codec::H264 => match p.first().map(|b| b & 31) {
+            Some(5) => true,
+            Some(28) => p.get(1).is_some_and(|b| b & 0x80 != 0 && b & 31 == 5),
+            Some(24) => {
+                let mut offset = 1;
+                while offset + 2 < p.len() {
+                    let len = u16::from_be_bytes([p[offset], p[offset + 1]]) as usize;
+                    offset += 2;
+                    if len == 0 || offset + len > p.len() {
+                        return false;
+                    }
+                    if p[offset] & 31 == 5 {
+                        return true;
+                    }
+                    offset += len;
+                }
+                false
+            }
+            _ => false,
+        },
+        Codec::H265 => {
+            p.first().is_some_and(|b| matches!((b >> 1) & 63, 16..=21))
+                || (p.len() >= 3
+                    && (p[0] >> 1) & 63 == 49
+                    && p[2] & 0x80 != 0
+                    && matches!(p[2] & 63, 16..=21))
+        }
+        Codec::Av1 => p.first().is_some_and(|b| b & 0x08 != 0),
+        _ => false,
+    }
+}

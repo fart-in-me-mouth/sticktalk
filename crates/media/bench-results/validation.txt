@@ -1,0 +1,6 @@
+Validated 2026-11-11T21:56:20.8418365-05:00
+CARGO_TARGET_DIR=C:/Users/dwhee/.cargo-target/sticktalk-media
+exit 0 : cargo build -p sticktalk-media --release
+exit 0 : cargo test -p sticktalk-media
+exit 0 : cargo clippy -p sticktalk-media --all-targets -- -D warnings
+exit 0 : cargo fmt --all -- --check

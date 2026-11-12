@@ -1,0 +1,7 @@
+[Unit]
+Description=Renew StickTalk Tailscale HTTPS certificate
+After=tailscaled.service network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sticktalk-renew-cert
+UMask=0077

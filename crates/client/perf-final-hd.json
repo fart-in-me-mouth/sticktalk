@@ -1,0 +1,14 @@
+{
+  "renderer": "tiny-skia",
+  "arguments": "--mock --size 1920x1080",
+  "timestamp": "2026-11-11T22:20:24.5410230-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.750235,
+  "cpu_seconds": 0.0,
+  "one_core_cpu_percent": 0.0,
+  "working_set_mean": 34450568.53333333,
+  "working_set_max": 34463744.0,
+  "private_bytes_mean": 17831185.066666666,
+  "binary_bytes": 11010048,
+  "sha256": "DACBD91AEE25B98F280119B2422E361CCFF5B5281B75518E19CFB5E7C93A9E57"
+}

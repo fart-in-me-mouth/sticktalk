@@ -1,0 +1,49 @@
+<section id="sticktalk-audit-latency" aria-label="Measured fan-out latency">
+  <h3>Fan-out latency · 300 clients, 60 seconds</h3>
+  <svg role="img" aria-label="Median 2.221 milliseconds; 99th percentile 3.519 milliseconds"></svg>
+</section>
+<style>
+#sticktalk-audit-latency {color:var(--foreground);font-family:var(--font-sans)}
+#sticktalk-audit-latency h3 {margin:0 0 8px;font-weight:500}
+#sticktalk-audit-latency svg {display:block;width:100%;height:180px}
+#sticktalk-audit-latency svg text {fill:var(--foreground);font-size:12px}
+#sticktalk-audit-latency .bar {fill:var(--chart-1)}
+#sticktalk-audit-latency .axis {stroke:var(--border);fill:none;stroke-width:1}
+</style>
+<script>
+(() => {
+  const root=document.getElementById('sticktalk-audit-latency');
+  const svg=root.querySelector('svg');
+  const data=[{label:'P50',value:2.221},{label:'P99',value:3.519}];
+  const ns='http://www.w3.org/2000/svg';
+  function draw() {
+    const width=root.getBoundingClientRect().width;
+    svg.setAttribute('viewBox',`0 0 ${width} 180`);
+    svg.replaceChildren();
+    const left=72,right=85,top=14,bottom=124;
+    const plot=Math.max(1,width-left-right);
+    const max=Math.ceil(Math.max(...data.map(d=>d.value))*1.1);
+    function add(tag,attrs,text) {
+      const el=document.createElementNS(ns,tag);
+      Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));
+      if(text!==undefined)el.textContent=text;
+      svg.appendChild(el);return el;
+    }
+    add('rect',{x:left,y:top,width:plot,height:bottom-top,class:'axis','data-chart-frame':''});
+    data.forEach((d,i)=>{
+      const y=31+i*50;
+      add('text',{x:left-12,y:y+16,'text-anchor':'end'},d.label);
+      add('rect',{x:left,y,width:d.value/max*plot,height:24,class:'bar'});
+      add('text',{x:left+d.value/max*plot+8,y:y+16},`${d.value.toFixed(3)} ms`);
+    });
+    for(let i=0;i<=4;i++){
+      const value=max*i/4,x=left+plot*i/4;
+      add('line',{x1:x,y1:bottom,x2:x,y2:bottom+4,class:'axis'});
+      add('text',{x,y:bottom+19,'text-anchor':'middle'},value.toFixed(0));
+    }
+    add('text',{x:left+plot/2,y:170,'text-anchor':'middle',class:'axis-title','data-axis':'x'},'Fan-out latency (ms)');
+    add('text',{x:18,y:70,transform:'rotate(-90 18 70)','text-anchor':'middle',class:'axis-title','data-axis':'y'},'Percentile');
+  }
+  new ResizeObserver(draw).observe(root);draw();
+})();
+</script>

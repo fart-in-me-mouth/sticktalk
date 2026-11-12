@@ -1,0 +1,5 @@
+{
+  "launch_to_screenshot_exit_ms": 2212,
+  "intentional_capture_delay_ms": 2000,
+  "note": "Includes initialization, framebuffer screenshot, PNG encoding and exit, not pure first-paint timing"
+}

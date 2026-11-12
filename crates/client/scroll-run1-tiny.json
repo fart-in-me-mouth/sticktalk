@@ -1,0 +1,104 @@
+{
+  "messages": 5000,
+  "method": "actual iced view; synthetic fractional wheel offsets, random cold seeks and fast-drag skeleton offsets; tiny-skia persistent pixmap + damaged chat region only; GPU full offscreen texture and synchronous submission completion; no PNG encoding/readback/OS window; not physical monitor cadence",
+  "renderer": "tiny-skia",
+  "results": [
+    {
+      "draw_primitives": {
+        "max_ms": 2.5645,
+        "p50_ms": 0.20450000000000002,
+        "p99_ms": 1.0228,
+        "samples": 600
+      },
+      "input": "wheel-deltas",
+      "layout": {
+        "max_ms": 6.5401,
+        "p50_ms": 1.3195,
+        "p99_ms": 4.0893,
+        "samples": 600
+      },
+      "max_visible_rows": 36,
+      "message_layout_hits": 22901,
+      "message_layout_misses": 223,
+      "render": {
+        "max_ms": 72.18520000000001,
+        "p50_ms": 44.352500000000006,
+        "p99_ms": 66.6006,
+        "samples": 600
+      },
+      "total": {
+        "max_ms": 75.5415,
+        "p50_ms": 46.2977,
+        "p99_ms": 70.9498,
+        "samples": 600
+      }
+    },
+    {
+      "draw_primitives": {
+        "max_ms": 1.6056,
+        "p50_ms": 0.24860000000000002,
+        "p99_ms": 1.0336,
+        "samples": 600
+      },
+      "input": "scrollbar-seek",
+      "layout": {
+        "max_ms": 21.2498,
+        "p50_ms": 8.8255,
+        "p99_ms": 17.4036,
+        "samples": 600
+      },
+      "max_visible_rows": 36,
+      "message_layout_hits": 0,
+      "message_layout_misses": 23026,
+      "render": {
+        "max_ms": 92.5398,
+        "p50_ms": 42.1817,
+        "p99_ms": 71.7743,
+        "samples": 600
+      },
+      "total": {
+        "max_ms": 101.23790000000001,
+        "p50_ms": 51.441300000000005,
+        "p99_ms": 88.7711,
+        "samples": 600
+      }
+    },
+    {
+      "draw_primitives": {
+        "max_ms": 2.9298,
+        "p50_ms": 0.1349,
+        "p99_ms": 0.9519,
+        "samples": 600
+      },
+      "input": "scrollbar-drag-skeleton",
+      "layout": {
+        "max_ms": 11.3873,
+        "p50_ms": 0.3305,
+        "p99_ms": 2.4273,
+        "samples": 600
+      },
+      "max_visible_rows": 35,
+      "message_layout_hits": 0,
+      "message_layout_misses": 0,
+      "render": {
+        "max_ms": 191.59029999999998,
+        "p50_ms": 27.895599999999998,
+        "p99_ms": 101.0953,
+        "samples": 600
+      },
+      "total": {
+        "max_ms": 192.0019,
+        "p50_ms": 28.526300000000003,
+        "p99_ms": 101.7993,
+        "samples": 600
+      }
+    }
+  ],
+  "size": [
+    2560,
+    1440
+  ],
+  "warmup_frames": 60,
+  "window_backend": "none",
+  "binary_sha256": "369F6A492A22811932E8B0A6DB31B03EDE4FCA5ECE7719D06BA116A2BF0FC217"
+}

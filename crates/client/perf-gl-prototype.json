@@ -1,0 +1,15 @@
+{
+  "renderer": "wgpu/gl",
+  "window_mode": "secondary-noactivate",
+  "arguments": "--mock --size 2560x1440 --agent-window-report crates/client/perf-gl-prototype-placement.json",
+  "timestamp": "2026-11-12T14:16:37.5373063-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.6895782,
+  "cpu_seconds": 0.015625,
+  "one_core_cpu_percent": 0.025745771289608338,
+  "working_set_mean": 178914781.86666667,
+  "working_set_max": 178925568.0,
+  "private_bytes_mean": 293941725.8666667,
+  "binary_bytes": 16233984,
+  "sha256": "3FE8FFD5679CB292F85A29FDF93FD4F76D47E9A38C1BF766984C031E64C336D0"
+}

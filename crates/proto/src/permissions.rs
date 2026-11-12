@@ -1,0 +1,80 @@
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+bitflags::bitflags! {
+    /// Stable numeric u64 wire mask (including JSON); unused bits are reserved.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    pub struct Permissions: u64 {
+        const VIEW_CHANNEL = 1 << 0;
+        const SEND_MESSAGES = 1 << 1;
+        const READ_HISTORY = 1 << 2;
+        const ATTACH_FILES = 1 << 3;
+        const ADD_REACTIONS = 1 << 4;
+        const MANAGE_MESSAGES = 1 << 5;
+        const MANAGE_CHANNELS = 1 << 6;
+        const MANAGE_GUILD = 1 << 7;
+        const CREATE_INVITES = 1 << 8;
+        const KICK_MEMBERS = 1 << 9;
+        const BAN_MEMBERS = 1 << 10;
+        const MANAGE_MEMBERS = 1 << 11;
+        const ADMINISTRATOR = 1 << 12;
+        const OWNER = 1 << 13;
+    }
+}
+
+impl Permissions {
+    pub const MEMBER: Self = Self::from_bits_retain(
+        Self::VIEW_CHANNEL.bits()
+            | Self::SEND_MESSAGES.bits()
+            | Self::READ_HISTORY.bits()
+            | Self::ATTACH_FILES.bits()
+            | Self::ADD_REACTIONS.bits()
+            | Self::CREATE_INVITES.bits(),
+    );
+
+    pub const ADMIN: Self = Self::from_bits_retain(
+        Self::MEMBER.bits()
+            | Self::MANAGE_MESSAGES.bits()
+            | Self::MANAGE_CHANNELS.bits()
+            | Self::MANAGE_GUILD.bits()
+            | Self::KICK_MEMBERS.bits()
+            | Self::BAN_MEMBERS.bits()
+            | Self::MANAGE_MEMBERS.bits()
+            | Self::ADMINISTRATOR.bits(),
+    );
+
+    pub const GUILD_OWNER: Self = Self::from_bits_retain(Self::ADMIN.bits() | Self::OWNER.bits());
+}
+
+impl Serialize for Permissions {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(self.bits())
+    }
+}
+
+impl<'de> Deserialize<'de> for Permissions {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        u64::deserialize(deserializer).map(Self::from_bits_retain)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn presets_include_only_their_defined_rights() {
+        assert!(Permissions::GUILD_OWNER.contains(Permissions::ADMIN));
+        assert!(Permissions::ADMIN.contains(Permissions::MEMBER));
+        assert!(!Permissions::ADMIN.contains(Permissions::OWNER));
+        assert!(!Permissions::MEMBER.contains(Permissions::MANAGE_MESSAGES));
+    }
+
+    #[test]
+    fn unknown_bits_survive_messagepack_without_granting_known_rights() {
+        let unknown = Permissions::from_bits_retain(1 << 60);
+        let bytes = rmp_serde::to_vec_named(&unknown).unwrap();
+        let decoded: Permissions = rmp_serde::from_slice(&bytes).unwrap();
+        assert_eq!(decoded, unknown);
+        assert!(!decoded.intersects(Permissions::GUILD_OWNER));
+    }
+}

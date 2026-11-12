@@ -1,0 +1,22 @@
+{
+	servers {
+		max_header_size 32KB
+		timeouts {
+			read_header 10s
+			read_body 120s
+			idle 2m
+		}
+	}
+}
+
+# Replace this hostname with your own DuckDNS hostname BEFORE reloading.
+YOUR-NAME.duckdns.org {
+	request_body {
+		# 25 MiB plus 64 KiB multipart overhead; the app enforces file size too.
+		max_size 26279936
+	}
+	# TLS issuance/renewal, HTTP redirects, and WS upgrades are automatic.
+	reverse_proxy 127.0.0.1:8080
+	# No access log: auth and private data must not be logged.
+	header Strict-Transport-Security "max-age=31536000"
+}

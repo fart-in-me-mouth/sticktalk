@@ -1,0 +1,594 @@
+use crate::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum ClientMsg {
+    Identify(Identify),
+    Heartbeat(Heartbeat),
+    Command(CommandRequest),
+    Voice(VoicePayload),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Identify {
+    pub version: u16,
+    pub token: String,
+    pub resume: Option<ResumeCursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Heartbeat {
+    pub nonce: Nonce,
+    pub last_seq: EventSeq,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Hello {
+    pub version: u16,
+    pub heartbeat_interval_ms: u32,
+    pub heartbeat_timeout_ms: u32,
+    pub max_frame_bytes: u32,
+    pub server_time: UnixMillis,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Ready {
+    pub cursor: ResumeCursor,
+    pub me: SelfUser,
+    pub guilds: Vec<GuildSummary>,
+    pub channels: Vec<ChannelSummary>,
+    pub relationships: Vec<Relationship>,
+    /// Deduplicated users needed for direct-message sidebar labels (not every guild member).
+    pub users: Vec<UserSummary>,
+    pub read_states: Vec<ReadState>,
+    pub presences: Vec<Presence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Resumed {
+    pub cursor: ResumeCursor,
+    pub replayed: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResyncReason {
+    StreamExpired,
+    CursorTooOld,
+    CursorAhead,
+    SlowConsumer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ResyncRequired {
+    pub reason: ResyncReason,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct HeartbeatAck {
+    pub nonce: Nonce,
+    pub server_time: UnixMillis,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum ServerMsg {
+    Hello(Hello),
+    Ready(Box<Ready>),
+    Resumed(Resumed),
+    ResyncRequired(ResyncRequired),
+    HeartbeatAck(HeartbeatAck),
+    Response(Box<CommandResponse>),
+    Event(Box<EventEnvelope>),
+    Error(ApiError),
+    Voice(VoicePayload),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct CommandRequest {
+    pub nonce: Nonce,
+    pub command: Command,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum Command {
+    UpdateProfile(ProfilePatch),
+    SetPresence {
+        status: PresenceStatus,
+    },
+    SendFriendRequest {
+        username: String,
+    },
+    AcceptFriendRequest {
+        user_id: UserId,
+    },
+    DeclineFriendRequest {
+        user_id: UserId,
+    },
+    CancelFriendRequest {
+        user_id: UserId,
+    },
+    RemoveFriend {
+        user_id: UserId,
+    },
+    BlockUser {
+        user_id: UserId,
+    },
+    UnblockUser {
+        user_id: UserId,
+    },
+    OpenDm {
+        user_id: UserId,
+    },
+    CreateGroupDm {
+        name: String,
+        user_ids: Vec<UserId>,
+    },
+    AddGroupRecipient {
+        channel_id: ChannelId,
+        user_id: UserId,
+    },
+    RemoveGroupRecipient {
+        channel_id: ChannelId,
+        user_id: UserId,
+    },
+    LeaveGroupDm {
+        channel_id: ChannelId,
+    },
+    TransferGroupOwnership {
+        channel_id: ChannelId,
+        user_id: UserId,
+    },
+    CloseDm {
+        channel_id: ChannelId,
+    },
+    CreateGuild {
+        name: String,
+        icon_id: Option<AttachmentId>,
+    },
+    UpdateGuild {
+        guild_id: GuildId,
+        patch: GuildPatch,
+    },
+    DeleteGuild {
+        guild_id: GuildId,
+    },
+    JoinGuild {
+        invite_code: String,
+    },
+    LeaveGuild {
+        guild_id: GuildId,
+    },
+    TransferGuildOwnership {
+        guild_id: GuildId,
+        user_id: UserId,
+    },
+    SetMemberRole {
+        guild_id: GuildId,
+        user_id: UserId,
+        role: MemberRole,
+    },
+    KickMember {
+        guild_id: GuildId,
+        user_id: UserId,
+    },
+    BanMember {
+        guild_id: GuildId,
+        user_id: UserId,
+        reason: Option<String>,
+    },
+    UnbanMember {
+        guild_id: GuildId,
+        user_id: UserId,
+    },
+    CreateInvite {
+        guild_id: GuildId,
+        ttl_seconds: u32,
+        max_uses: u32,
+    },
+    RevokeInvite {
+        guild_id: GuildId,
+        code: String,
+    },
+    CreateChannel {
+        guild_id: GuildId,
+        kind: ChannelKind,
+        name: String,
+        parent_id: Option<ChannelId>,
+        topic: Option<String>,
+    },
+    UpdateChannel {
+        channel_id: ChannelId,
+        patch: ChannelPatch,
+    },
+    ReorderChannels {
+        guild_id: GuildId,
+        placements: Vec<ChannelPlacement>,
+    },
+    DeleteChannel {
+        channel_id: ChannelId,
+    },
+    SendMessage(MessageDraft),
+    EditMessage(MessageEdit),
+    DeleteMessage {
+        channel_id: ChannelId,
+        message_id: MessageId,
+    },
+    AddReaction {
+        channel_id: ChannelId,
+        message_id: MessageId,
+        emoji: String,
+    },
+    RemoveReaction {
+        channel_id: ChannelId,
+        message_id: MessageId,
+        emoji: String,
+    },
+    Typing {
+        channel_id: ChannelId,
+    },
+    MarkRead {
+        channel_id: ChannelId,
+        message_id: MessageId,
+    },
+    /// Replace this connection's optional member/presence interest set, not persistent state.
+    SubscribeGuild {
+        guild_id: Option<GuildId>,
+        presence_user_ids: Vec<UserId>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct CommandResponse {
+    pub nonce: Nonce,
+    pub cursor: ResumeCursor,
+    /// A receipt's original result is historical; use only to resolve operation identity.
+    pub replayed: bool,
+    pub outcome: CommandOutcome,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", content = "data", rename_all = "snake_case")]
+pub enum CommandOutcome {
+    Ok(CommandResult),
+    Err(ApiError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum CommandResult {
+    Ack,
+    Profile(SelfUser),
+    Presence(Presence),
+    Relationship(Relationship),
+    Channel(Channel),
+    Guild(GuildDetail),
+    Member(Member),
+    Invite(Invite),
+    Message(Message),
+    Reaction(ReactionUpdate),
+    ReadState(ReadState),
+    Subscription { presences: Vec<Presence> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ReactionUpdate {
+    pub channel_id: ChannelId,
+    pub message_id: MessageId,
+    pub user_id: UserId,
+    pub added: bool,
+    pub reaction: ReactionSummary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct EventEnvelope {
+    pub seq: EventSeq,
+    pub event: Event,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum Event {
+    SelfUpdated(SelfUser),
+    UserUpdated(UserSummary),
+    RelationshipUpsert(Relationship),
+    RelationshipRemoved {
+        user_id: UserId,
+    },
+    PresenceUpdated(Presence),
+    GuildUpsert(GuildSummary),
+    GuildJoined {
+        detail: GuildDetail,
+        read_states: Vec<ReadState>,
+    },
+    GuildRemoved {
+        guild_id: GuildId,
+        reason: RemovalReason,
+    },
+    MemberUpsert(Member),
+    MemberRemoved {
+        guild_id: GuildId,
+        user_id: UserId,
+        reason: RemovalReason,
+    },
+    InviteUpsert(Invite),
+    InviteRemoved {
+        guild_id: GuildId,
+        invite_id: Id,
+    },
+    BanUpsert(Ban),
+    BanRemoved {
+        guild_id: GuildId,
+        user_id: UserId,
+    },
+    ChannelUpsert(Channel),
+    ChannelRemoved {
+        channel_id: ChannelId,
+        reason: RemovalReason,
+    },
+    ChannelsReordered {
+        guild_id: GuildId,
+        placements: Vec<ChannelPlacement>,
+    },
+    MessageCreated {
+        message: Message,
+        author: UserSummary,
+    },
+    MessageUpdated(Message),
+    MessageDeleted {
+        channel_id: ChannelId,
+        message_id: MessageId,
+    },
+    ReactionUpdated(ReactionUpdate),
+    Typing {
+        channel_id: ChannelId,
+        user_id: UserId,
+        expires_at: UnixMillis,
+    },
+    ReadStateUpdated(ReadState),
+}
+
+/// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:
+/// `kind = "signal"` contains VoiceSignal; `kind = "event"` contains VoiceEvent.
+/// The original four fields and legacy envelopes remain wire-compatible.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoicePayload {
+    pub nonce: Nonce,
+    pub version: u16,
+    pub kind: String,
+    pub payload: Vec<u8>,
+}
+
+pub const VOICE_VERSION: u16 = 1;
+pub const CONTROL_CHANNEL_LABEL: &str = "sticktalk-control-v1";
+pub const MAX_RTP_DATAGRAM_BYTES: usize = 1200;
+
+/// Supplied by the authenticated host, never taken from a client's signal body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct VoiceSession {
+    pub user_id: UserId,
+    pub connection_id: Id,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VideoCodec {
+    H264,
+    Hevc,
+    Av1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrackKind {
+    Audio,
+    Camera,
+    Screen,
+    SystemAudio,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShareSurface {
+    Monitor,
+    Window,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoiceCapabilities {
+    /// H.264 is mandatory. Advanced codecs must ALSO appear in hardware_decode.
+    pub video: Vec<VideoCodec>,
+    pub hardware_decode: Vec<VideoCodec>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublishedTrack {
+    pub mid: String,
+    pub kind: TrackKind,
+    /// None for Opus; mandatory for camera/screen.
+    pub codec: Option<VideoCodec>,
+    /// Ordered low to high; empty means a single non-simulcast stream.
+    pub layers: Vec<String>,
+    /// Required for screen, forbidden otherwise. Re-publish invalidates control.
+    pub surface: Option<ShareSurface>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum VoiceSignal {
+    Join {
+        channel_id: ChannelId,
+        capabilities: VoiceCapabilities,
+    },
+    Leave,
+    /// Client is always offerer. Include the complete publication set each time.
+    Offer {
+        sdp: String,
+        tracks: Vec<PublishedTrack>,
+    },
+    Ice {
+        candidate: String,
+    },
+    State {
+        muted: bool,
+        deafened: bool,
+    },
+    /// Receiver creates a recvonly m-line first; one source per receiver MID.
+    Subscribe {
+        publisher: VoiceSession,
+        source_mid: String,
+        receiver_mid: String,
+        rid: Option<String>,
+    },
+    Unsubscribe {
+        receiver_mid: String,
+    },
+    RequestKeyframe {
+        receiver_mid: String,
+        fir: bool,
+    },
+    RequestControl {
+        sharer: VoiceSession,
+    },
+    DecideControl {
+        requester: VoiceSession,
+        allow: bool,
+    },
+    RevokeControl,
+    Stats,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoiceParticipant {
+    pub session: VoiceSession,
+    pub muted: bool,
+    pub deafened: bool,
+    pub tracks: Vec<PublishedTrack>,
+}
+
+/// Tailscale DERP is invisible to ICE; only the trusted host can report that path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MediaPath {
+    Unknown,
+    Direct,
+    Relayed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoiceStats {
+    pub tx_bps: u64,
+    pub rx_bps: u64,
+    /// RTP marker-frame rate, not decoded/displayed frames. Aggregate video.
+    pub tx_fps_milli: u32,
+    pub rx_fps_milli: u32,
+    pub loss_per_million: Option<u32>,
+    pub rtt_ms: Option<u32>,
+    pub path: MediaPath,
+    pub cap_dropped_packets: u64,
+    pub queue_dropped_packets: u64,
+    pub mtu_dropped_packets: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum VoiceEvent {
+    Joined {
+        channel_id: ChannelId,
+        participants: Vec<VoiceParticipant>,
+        max_rtp_bytes: u16,
+    },
+    Participant(VoiceParticipant),
+    Left {
+        session: VoiceSession,
+    },
+    Answer {
+        sdp: String,
+    },
+    Speaking {
+        session: VoiceSession,
+        speaking: bool,
+        level_dbov: i8,
+    },
+    /// Apply this upstream bitrate to the named encoder (in addition to RTCP).
+    Bitrate {
+        mid: String,
+        bps: u64,
+    },
+    CodecRequired {
+        mid: String,
+        codec: VideoCodec,
+    },
+    ControlRequested {
+        requester: VoiceSession,
+        timeout_ms: u32,
+    },
+    ControlDenied {
+        sharer: VoiceSession,
+    },
+    ControlGranted {
+        sharer: VoiceSession,
+        controller: VoiceSession,
+        grant: u64,
+    },
+    ControlRevoked {
+        sharer: VoiceSession,
+        grant: u64,
+    },
+    Stats(VoiceStats),
+    Ack,
+    Error {
+        code: ErrorCode,
+        message: String,
+    },
+}
+
+/// ONLY sent as binary named MessagePack on CONTROL_CHANNEL_LABEL, never WS.
+/// u16 coordinates divided by 65535 normalize to [0,1] of the shared surface.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum ControlInput {
+    Move {
+        x: u16,
+        y: u16,
+    },
+    Button {
+        button: u8,
+        down: bool,
+    },
+    Wheel {
+        x: i16,
+        y: i16,
+    },
+    /// USB HID keyboard usage, not text or arbitrary OS commands.
+    Key {
+        usage: u16,
+        down: bool,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum ControlData {
+    Input {
+        sharer: VoiceSession,
+        grant: u64,
+        sequence: u64,
+        input: ControlInput,
+    },
+    /// Server -> sharer only. Release ALL held keys/buttons, idempotently.
+    ReleaseAll { grant: u64 },
+}

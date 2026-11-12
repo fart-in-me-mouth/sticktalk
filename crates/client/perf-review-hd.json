@@ -1,0 +1,15 @@
+{
+  "renderer": "tiny-skia",
+  "window_mode": "secondary-noactivate",
+  "arguments": "--mock --size 1920x1080 --agent-window-report \"C:\\Users\\dwhee\\OneDrive\\Desktop\\discord clone/crates/client/perf-review-placement-hd.json\"",
+  "timestamp": "2026-11-11T23:45:09.2754400-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.7608615,
+  "cpu_seconds": 0.0,
+  "one_core_cpu_percent": 0.0,
+  "working_set_mean": 34150809.6,
+  "working_set_max": 34164736.0,
+  "private_bytes_mean": 17994274.133333333,
+  "binary_bytes": 11679744,
+  "sha256": "9C96B41D2B7571E0D687FA5D706317E0AD5FDD3B683A50EAB58E375F6FFE429C"
+}

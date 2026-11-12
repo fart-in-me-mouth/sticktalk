@@ -1,0 +1,1186 @@
+# StickTalk protocol v1
+
+This is the normative Phase 1 contract. `crates/proto/src/{ids,permissions,
+models,rest,gifs,ws}.rs` defines **every serialized field**; names/types below match
+those files. The server implements this contract. All limits
+and authorization rules are enforced by the service, not by serde.
+See `ARCHITECTURE.md` for implementation, storage, limits and resource budgets.
+
+## 1. Encoding and common rules
+
+* REST base `/api/v1`, JSON UTF-8 except multipart uploads and binary downloads.
+  WebSocket `/api/v1/ws`, RFC 6455 binary messages only, subprotocol
+  `sticktalk.v1` (required). Version in Hello/Identify must also equal 1.
+* One complete `ClientMsg`/`ServerMsg` per binary **message**. Fragmented WS
+  frames may be reassembled only within the 512 KiB total bound. No concatenated
+  MessagePack values, trailing bytes, compression, text messages or extensions.
+* Encode with `rmp_serde::to_vec_named` and decode with `from_slice` plus a
+  transport check for complete input consumption. Structs are named maps, not
+  positional arrays. Enum tags/fields are snake_case. Ordinary enums are strings.
+  Message/command/event/result envelopes are adjacent tags
+  `{"type":"variant","data":...}`. Unit variants omit `data`.
+  `CommandOutcome` uses `{"status":"ok|err","data":...}`. `Patch<T>` uses
+  `{"op":"keep|set|clear","value":...}` with value present only for set.
+  Boxes have no wire effect. Option fields serialize null; Vec fields are arrays.
+* Unknown map fields are ignored. Unknown variants, wrong types, duplicate
+  required fields, unsupported versions, oversized/nested values are rejected;
+  no silent interpretation of future commands. Add optional fields compatibly;
+  changing required fields/semantics requires a protocol version change.
+* IDs are positive `Id(u64)` values <= 2^63-1, numeric in JSON/MessagePack and
+  decimal strings in URL/multipart text. Zero invalid. Treat as opaque except
+  order; aliases UserId/GuildId/ChannelId/MessageId/AttachmentId all use Id.
+  JSON clients must preserve 64-bit integers (the native Rust client does).
+* `UnixMillis`: nonnegative UTC epoch milliseconds. `EventSeq`: stream-local
+  nonnegative integer, zero is valid before any events. `Nonce`: 1..2^63-1,
+  generated randomly with a CSPRNG and never deliberately reused for another
+  command. Heartbeat nonces need only be unique while outstanding.
+* Auth REST header `Authorization: Bearer <token>`; never put token in URLs.
+  Auth/session responses use `Cache-Control: no-store`. API JSON errors are
+  always `ApiError`, not HTML, framework default text, or a different wrapper.
+* `ResumeCursor {stream_id: String, seq: EventSeq}`: stream_id is 32 lowercase
+  hex characters from 16 CSPRNG bytes, scoped to one login token. It is not a
+  credential, global sequence or entity ID. `Page<T>`/`Snapshot<T>` use it too.
+* Validation limits are measured as UTF-8 **bytes** unless explicitly called
+  Unicode scalar values. Do not trim/normalize message content. Identifiers and
+  names trim surrounding Unicode whitespace; username canonicalizes ASCII
+  lowercase. Uniqueness compares canonical username, not display name.
+
+### Validation reference
+
+| Value | Accepted bounds |
+|---|---|
+| Username | `[a-z0-9_]{3,32}` after ASCII lowercase/trim; unique; no display-name lookup ambiguity |
+| Password | 12..128 UTF-8 bytes; no trimming, case folding, or Unicode normalization |
+| Display name | null or 1..64 bytes after trim |
+| Status text | null or 1..128 bytes; clear rather than empty |
+| Guild/group name | 1..64 bytes after trim |
+| Guild channel/category name | 1..64 bytes after trim; no path/control characters |
+| Topic | null or 1..512 bytes; category topic must be null |
+| Message | <=4,000 Unicode scalar values; non-whitespace text or >=1 attachment; edits cannot make an attachment-free message empty |
+| Mention IDs | <=100 unique existing users with current access to that channel; no roles/everyone/here mentions |
+| Attachments | <=4 unique IDs/message; each <=26,214,400 bytes |
+| Emoji | One Unicode emoji grapheme cluster, 1..32 UTF-8 bytes; support variation selectors, modifiers and ZWJ; no custom emoji; exact sequence is key, no normalization |
+| Reactions | <=20 distinct emoji/message; one reaction/user/emoji; count excludes no one with access |
+| Invite | 16 random bytes encoded unpadded base64url; ttl_seconds 60..604800; max_uses 1..1000; uses starts 0 |
+| Moderation reason | null or 1..256 bytes after trim |
+| Filename | sanitized basename 1..255 bytes; never a filesystem path |
+| Pages | default/max 50, minimum 1; before and after mutually exclusive |
+| Bulk user IDs | 1..50 unique IDs; comma-separated decimal query values |
+| Presence interests | <=100 unique users from the selected guild; none without a guild |
+
+Guild/user/DM/session quotas and all rate limits in ARCHITECTURE apply in
+addition. Self-friend/block/DM, duplicate recipient IDs, invalid enum combinations,
+cross-guild parents, recursive categories, and cross-channel message targets
+are invalid_request. Limits are atomic, never partial success or truncation.
+
+## 2. Shared entity field reference
+
+Notation `?T` means `Option<T>` (null), `[T]` means `Vec<T>`, and integer widths
+are the Rust widths. Every struct has snake_case keys.
+
+| Type | Fields and meaning |
+|---|---|
+| `UserSummary` | `id:UserId`, `username:String`, `display_name:?String`, `avatar_id:?AttachmentId`, `status_text:?String`; public profile, never password/email/token |
+| `SelfUser` | `user:UserSummary`, `desired_presence:PresenceStatus`; private account preference |
+| `ProfilePatch` | `username:Patch<String>`, `display_name:Patch<String>`, `avatar_id:Patch<AttachmentId>`, `status_text:Patch<String>`; omitted fields default keep; clear username invalid |
+| `Presence` | `user_id:UserId`, `status:PresenceStatus` |
+| `Relationship` | `user:UserSummary`, `kind:RelationshipKind`, `since:UnixMillis`; kind is from recipient's perspective |
+| `Guild` | `id:GuildId`, `owner_id:UserId`, `name:String`, `icon_id:?AttachmentId`, `member_count:u32` |
+| `GuildSummary` | `guild:Guild`, `my_role:MemberRole`, `my_permissions:Permissions` |
+| `GuildPatch` | `name:Patch<String>`, `icon_id:Patch<AttachmentId>`; omitted keep; cannot clear name |
+| `Member` | `guild_id:GuildId`, `user:UserSummary`, `role:MemberRole`, `permissions:Permissions`, `joined_at:UnixMillis` |
+| `ChannelSummary` | `id:ChannelId`, `kind:ChannelKind`, `guild_id:?GuildId`, `parent_id:?ChannelId`, `name:?String`, `position:u16`, `recipient_ids:[UserId]`, `owner_id:?UserId` |
+| `Channel` | `summary:ChannelSummary`, `topic:?String`; topic fetched lazily, not in Ready |
+| `ChannelPatch` | `name:Patch<String>`, `topic:Patch<String>`; omitted keep; cannot clear name of named channel |
+| `ChannelPlacement` | `channel_id:ChannelId`, `parent_id:?ChannelId`, `position:u16` |
+| `Invite` | `id:Id`, `code:String`, `guild_id:GuildId`, `creator_id:UserId`, `expires_at:UnixMillis`, `max_uses:u32`, `uses:u32` |
+| `Ban` | `guild_id:GuildId`, `user:UserSummary`, `actor_id:UserId`, `reason:?String`, `created_at:UnixMillis` |
+| `Attachment` | `id:AttachmentId`, `filename:String`, `content_type:String`, `byte_size:u64`, `width:?u32`, `height:?u32`, `thumbnail:?Thumbnail`; dimensions null for non-images |
+| `Thumbnail` | `width:u16`, `height:u16`, `byte_size:u32`, `content_type:String`; WebP or JPEG, max 256x256/64 KiB |
+| `ReactionSummary` | `emoji:String`, `count:u32`, `me:bool`; me is personalized to viewing account, never the message author by default |
+| `Message` | `id:MessageId`, `channel_id:ChannelId`, `author_id:UserId`, `content:String`, `created_at:UnixMillis`, `edited_at:?UnixMillis`, `reply_to:?MessageId`, `attachments:[Attachment]`, `mention_ids:[UserId]`, `reactions:[ReactionSummary]` |
+| `MessageDraft` | `channel_id:ChannelId`, `content:String`, `reply_to:?MessageId`, `attachment_ids:[AttachmentId]`, `mention_ids:[UserId]` |
+| `MessageEdit` | `channel_id:ChannelId`, `message_id:MessageId`, `content:String`, `mention_ids:[UserId]`; both content/mentions replace, not append |
+| `ReadState` | `channel_id:ChannelId`, `last_read_id:?MessageId`, `latest_message_id:?MessageId`, `unread_count:u32`, `mention_count:u32` |
+| `ReactionUpdate` | `channel_id:ChannelId`, `message_id:MessageId`, `user_id:UserId` (actor), `added:bool`, `reaction:ReactionSummary` (absolute post-operation count/me, including count=0) |
+| `GuildDetail` | `summary:GuildSummary`, `channels:[ChannelSummary]` (all guild channels, no member/history bodies) |
+| `VoicePayload` | `nonce:Nonce`, `version:u16`, `kind:String`, `payload:[u8]`; legacy reserved body <=16 KiB, Phase 1 refuses all kinds/versions; opt-in Phase 2 typed body <=72 KiB, see section 10 |
+
+Enums: `PresenceStatus` = online, idle, dnd, invisible, offline;
+`RelationshipKind` = friend, incoming_request, outgoing_request, blocked;
+`MemberRole` = owner, admin, member; `ChannelKind` = category, text, direct,
+group_dm, voice (Phase 2); `RemovalReason` = left, kicked, banned, deleted;
+`UploadPurpose` = message, avatar, guild_icon;
+`ResyncReason` = stream_expired, cursor_too_old, cursor_ahead, slow_consumer.
+
+### Channel invariants
+
+Guild text/category: guild_id present, recipient_ids empty, owner_id null, name
+present. Category parent_id/topic null; text parent null or a category in that
+guild. No nested categories. Positions are zero-based/dense per sibling set.
+Direct: guild/parent/name/topic/owner null, position 0, exactly two sorted
+recipient_ids **including self**. Group: guild/parent/topic null, position 0,
+name present, 1..16 sorted recipient_ids including self, owner one of them.
+Categories cannot have messages, typing, reactions or read states.
+
+Ready channels and GuildDetail channels are sorted root siblings by position/id,
+with each category followed by its similarly sorted children; DMs follow by ID.
+The client may reorder DM display by latest_message_id without mutating position.
+
+### Permissions numeric bits
+
+| Bit | Name | Allows |
+|---|---|---|
+| 0 | view_channel | Channel metadata/access |
+| 1 | send_messages | Sending/editing own messages, typing |
+| 2 | read_history | History/specific message fetch |
+| 3 | attach_files | Upload/attach to channel |
+| 4 | add_reactions | Add/remove own Unicode reaction |
+| 5 | manage_messages | Delete others' messages (not edit them) |
+| 6 | manage_channels | Guild channel/category create/update/reorder/delete |
+| 7 | manage_guild | Guild name/icon, view/revoke all invites |
+| 8 | create_invites | Create invite and list/revoke own invites |
+| 9 | kick_members | Kick lower-role members |
+| 10 | ban_members | Ban/unban lower-role members, view bans |
+| 11 | manage_members | Reserved general role-management capability; Phase 1 owner-only assignment policy still applies |
+| 12 | administrator | All currently defined guild action bits, not ownership/hierarchy bypass |
+| 13 | owner | Transfer/delete guild, assign admin/member |
+| 14..63 | reserved | Never grant unknown permissions; bit 63 not stored in SQLite |
+
+Member=bits 0,1,2,3,4,8 (287); Admin=bits 0..12 (8191); Owner=0..13
+(16383). Owner-only and hierarchy restrictions always take precedence over
+individual bits. Clients must preserve unknown bits and not use them to grant
+access. DMs authorize by participant status; group owner alone manages group
+metadata/recipients. Any participant may delete **their own** messages, no group
+moderator deletion of others' messages. Roles/overwrites are not configurable.
+
+## 3. REST endpoint contract
+
+All paths below are relative to `/api/v1`. All except health, register/login,
+and WS upgrade require bearer auth. Successful GET=200. No content=204 with
+empty body. Request/response type names are public proto types. Path and query
+IDs are parsed losslessly and validated. No mutations for ordinary live chat
+are exposed via REST.
+
+### Common response wrappers and pagination
+
+`Snapshot<T> {data:T,cursor:ResumeCursor}` is a coherent read at that session
+stream cursor. `Page<T> {items:[T],users:[UserSummary],next_before:?Id,
+next_after:?Id,has_more:bool,cursor:ResumeCursor}`. Users contains deduplicated
+message authors (always), plus other referenced users when available; clients
+must tolerate unresolved mentions/replies and fetch names lazily. It is empty
+when items already embed user summaries or no extra summaries are needed.
+
+`PageQuery {before:?Id,after:?Id,limit:?u16}` serializes as ordinary query keys
+(omit nulls). Messages: no cursor or before selects descending newest/older;
+after selects ascending newer. Other collections default ascending by key;
+after is ascending and before descending. A cursor is **exclusive** and need
+not still exist. Sort by message.id, guild.id, channel.id, member.user.id,
+relationship.user.id, ban.user.id, invite.id, or read_state.channel_id as
+appropriate. Fetch limit+1 to determine has_more. Only the active direction's
+next cursor is set, to the last emitted item's key, **only if has_more**; both
+null at end/empty. Client reorders displayed message pages chronologically.
+Pagination is not a multi-page historical snapshot: reconcile each page with
+its own cursor and live events; new inserts may arrive between pages.
+
+| Method/path | Request | Success | Additional expected errors |
+|---|---|---|---|
+| GET `/health` | none, unauthenticated | `HealthResponse {version:String,protocol_version:u16}`; no internal config details | unavailable (503, before DB/migrations ready) |
+| POST `/auth/register` | `RegisterRequest {username,password,display_name:?String}` | 201 `AuthResponse` | username_taken, invalid_request, rate_limited, limit_exceeded |
+| POST `/auth/login` | `LoginRequest {username,password}` | `AuthResponse` | invalid_credentials, rate_limited, limit_exceeded |
+| POST `/auth/logout` | no body | 204; revoke caller token and close socket | unauthenticated, session_expired |
+| GET `/me` | none | `Snapshot<SelfUser>` | common |
+| GET `/users?ids=1,2,...` | 1..50 IDs, no PageQuery | `Snapshot<Vec<UserSummary>>`, sorted by ID | invalid_request; not_found if **any** user inaccessible (no partial profile leakage) |
+| GET `/relationships` | PageQuery | `Page<Relationship>` | common |
+| GET `/guilds` | PageQuery | `Page<GuildSummary>` | common |
+| GET `/guilds/{guild_id}` | none | `Snapshot<GuildDetail>` | not_found |
+| GET `/guilds/{guild_id}/channels` | PageQuery | `Page<ChannelSummary>` (ID pagination; client sorts position) | not_found |
+| GET `/guilds/{guild_id}/members` | PageQuery (user ID keys) | `Page<Member>` | not_found |
+| GET `/guilds/{guild_id}/invites` | PageQuery | `Page<Invite>`; members see own, admin/owner all | not_found, forbidden |
+| GET `/guilds/{guild_id}/bans` | PageQuery (banned user keys) | `Page<Ban>` | not_found, forbidden |
+| GET `/dms` | PageQuery | `Page<ChannelSummary>` of visible direct/groups only | common |
+| GET `/channels/{channel_id}` | none | `Snapshot<Channel>` | not_found |
+| GET `/channels/{channel_id}/messages` | PageQuery | `Page<Message>` of nondeleted messages | not_found, invalid_request (category) |
+| GET `/channels/{channel_id}/messages/{message_id}` | none | `Snapshot<Message>` | not_found (deleted included) |
+| GET `/read-states` | PageQuery (channel ID keys) | `Page<ReadState>`; text/visible DM channels only | common |
+| POST `/uploads` | multipart below | 201 `UploadResponse {attachment:Attachment,expires_at:UnixMillis}` | invalid_request, not_found, forbidden, payload_too_large, unsupported_media_type, limit_exceeded, unavailable |
+| DELETE `/uploads/{attachment_id}` | none | 204; own pending upload only, repeat missing own ID not_found | not_found, conflict (attached) |
+| GET `/files/{attachment_id}` | optional Range/If-None-Match | Original binary, 200/206/304; typed Content-Type/Length/Disposition and ETag | not_found, invalid_request (bad/multiple range), 416 unsatisfiable range |
+| GET `/files/{attachment_id}/thumbnail` | optional If-None-Match | Thumbnail binary, 200/304, with Content-Type/Length/ETag | not_found (including no thumbnail), invalid_request (Range supplied) |
+| GET `/ws` | WS upgrade, subprotocol `sticktalk.v1`, no token in headers required | 101, then Hello/Identify | 400 invalid upgrade, 426 unsupported/missing subprotocol; after upgrade errors use WS |
+
+`AuthResponse {token:String,expires_at:UnixMillis,user:SelfUser}`. Register logs
+in automatically; default desired presence online. Token is 43-char unpadded
+base64url of 32 random bytes, absolute expiry 30 days, only SHA-256 stored.
+Expired token=session_expired; missing/invalid/revoked=unauthenticated. Logout
+does not log out other sessions. No refresh/password-reset endpoint in Phase 1.
+
+Upload multipart fields must be ordered `purpose`, optional `channel_id`, then
+`file`; exactly one file, no duplicate/unknown fields. Purpose matches
+UploadPurpose strings. channel_id required only for message, absent for avatar/
+guild_icon. The proto `UploadMetadata` represents the text fields (its Rust
+Option is not a literal `null` multipart part). Filename comes from file part.
+Cap overhead 64 KiB beyond the 25 MiB file. Validate pending ownership/purpose
+again when attaching. The original is immediately readable by its uploader
+while pending; after attachment normal entity ACL applies. Pending expires one
+hour after upload. Reject quota-exhausting uploads before and during streaming;
+clean temporary files on errors/disconnect. The file/thumbnail read ACL and
+cache/range headers are specified in ARCHITECTURE. A 416 uses ApiError code
+invalid_request plus `Content-Range: bytes */<size>`. Successful 304 has no body.
+
+Common authenticated endpoint errors: invalid_request, unauthenticated,
+session_expired, not_found/forbidden where applicable, rate_limited,
+internal/unavailable. Inaccessible profile means not self, not relationship,
+and no shared guild/DM. Bulk/history access is always rechecked; being in a
+previous Ready does not confer access. JSON request limit 16 KiB (auth only).
+Framework body/type/route errors must map to ApiError. Caddy's own network/TLS
+failure is not an application response; clients must tolerate non-JSON errors.
+
+### Optional Google authentication (additive v1 endpoints)
+
+The following paths are relative to `/api/v1`; these new endpoints also accept
+`/api` as a base to match the installed-app Google login spec. Existing non-Google
+REST endpoints retain `/api/v1`. No existing request/response fields change.
+All responses/errors below use `Cache-Control: no-store`; auth bodies are JSON,
+maximum 16 KiB. `UnixMillis` is UTC milliseconds, including ticket expiry.
+
+| Method/path | Authorization / request | 200 response |
+|---|---|---|
+| GET `/meta` | Public, no body | `MetaResponse {version:String,protocol_version:u16,google_client_id:?String,gifs:GifCapability}` |
+| POST `/auth/google` | Public; `GoogleAuthRequest {id_token:String}` | `GoogleAuthResponse` below |
+| POST `/auth/google/complete` | Public; `GoogleCompleteRequest {ticket:String,username:String}` | Existing `AuthResponse {token,expires_at,user}` |
+| POST `/auth/google/link` | Bearer; `GoogleLinkRequest` (alias of `GoogleAuthRequest`) `{id_token:String}` | `AuthMethodsResponse {has_password:bool,google_linked:bool}` |
+| POST `/auth/google/unlink` | Bearer; `GoogleUnlinkRequest {}` | `AuthMethodsResponse` |
+| GET `/auth/methods` | Bearer, no body | `AuthMethodsResponse` |
+| POST `/auth/password` | Bearer; `SetPasswordRequest {current_password:?String,new_password:String}` | `AuthMethodsResponse` |
+
+`GoogleAuthResponse` is adjacent-tagged (like other protocol enums), exactly:
+
+```json
+{"type":"session","data":{"token":"OPAQUE_SESSION","expires_at":123456789,"user":{"user":{"id":1,"username":"alice","display_name":null,"avatar_id":null,"status_text":null},"desired_presence":"online"}}}
+{"type":"signup_required","data":{"ticket":"OPAQUE_SIGNUP_TICKET","expires_at":123456789}}
+```
+
+Rust variants are `GoogleAuthResponse::Session(AuthResponse)` and
+`GoogleAuthResponse::SignupRequired(GoogleSignupRequired {ticket:String,
+expires_at:UnixMillis})`. A Google-only user's normal `SelfUser`/Ready is
+unchanged; use `/auth/methods` when showing account settings.
+
+The client gets the public Google desktop client ID from `/meta` and hides
+Google buttons when it is null. The Google desktop client secret is **never**
+returned by this endpoint. Client browser/loopback code handles PKCE S256 and
+state; it sends only the resulting ID token, never an authorization code,
+Google access/refresh token, email assertion, or Google subject alone.
+The server verifies RS256 using Google's cached HTTPS JWKS, issuer (either
+`accounts.google.com` or `https://accounts.google.com`), exact string audience,
+exp/iat (60-second skew), nonempty subject and boolean `email_verified=true`.
+Invalid/malformed/wrong-audience/expired/unverified tokens are 401
+`invalid_credentials`. Key-fetch failures or expired-cache refresh backoff
+are 503 `unavailable`; unknown keys after a successful fetch are invalid
+credentials. Verification never falls back to a different algorithm or email.
+
+An existing provider+subject issues the normal session. An unknown subject
+gets a random 43-character signup ticket, ten minutes, SHA-256 stored only.
+Only one outstanding ticket per subject exists: requesting a new one replaces
+the previous ticket. At most 4,096 unexpired tickets globally. Complete uses
+ordinary username canonicalization/limits, returns `username_taken` on collision
+and lets the user retry with the same ticket. Success consumes it atomically
+with user, identity and session creation. Expired, unknown, consumed or
+superseded tickets all return 401 `invalid_signup_ticket`; signing in again
+obtains a new ticket. Neither email nor Google display name auto-selects or
+merges a StickTalk account.
+
+Linking requires current StickTalk bearer auth and proof of Google control.
+Linking the same subject to the same account is idempotent. A subject linked
+to another account, or an account with a different Google subject, returns 409
+`identity_already_linked`, without exposing the other account. Linking also
+invalidates outstanding signup tickets for that subject. Unlink is idempotent
+when absent, but linked Google cannot be removed without a password (409
+`last_login_method`). There is at most one Google identity per account.
+
+For Google-only users, setting a password accepts `current_password:null`;
+password replacement requires a matching current password, otherwise 401
+`invalid_credentials`. New passwords use existing 12..128-byte validation and
+Argon2id policy. Sessions remain valid; a concurrent password change returns
+409 `conflict`. `/auth/methods` and `/auth/password` remain available even if
+Google is disabled, allowing a still-authenticated Google-only user to set a
+password. Disabling Google does not revoke existing sessions.
+
+All `/auth/google*` routes return 404 `feature_disabled` when the server client
+ID is unset. Enabled auth routes share login's per-IP 10/minute burst-5 limiter
+(including failed requests), plus 10/minute burst-5 subject/account limits;
+completion also uses the 5/minute burst-3 canonical-name limiter. Standard
+rate_limited/retry headers, session quota, body/admission limits apply.
+
+### Optional GIF discovery and account favorites (additive v1)
+
+These endpoints accept both `/api/v1` and `/api` bases. All except public `/meta`
+require ordinary bearer authentication. All responses, including errors and
+favorites, use `Cache-Control: no-store`. These are private picker preferences
+and external discovery data, **not** chat snapshots: no `ResumeCursor`, command
+nonce, replay receipts, or WS events. Other sessions refetch favorites when
+opening the picker, not by polling. Protocol version remains 1.
+
+`MetaResponse.gifs` defaults to disabled when absent (older servers). Wire values:
+
+```json
+false
+{"mode":"proxy","provider":"klipy"}
+{"mode":"direct","provider":"klipy","public_client_key":"EXPLICITLY_PUBLIC_KEY"}
+```
+
+Rust: `GifCapability::Disabled` or `GifCapability::Enabled(GifConfig::Proxy
+{provider})` / `GifConfig::Direct {provider, public_client_key}`.
+`GifProviderName::Klipy` serializes `"klipy"`. Disabled is **false**, never true,
+null, or an object with `mode: disabled`. Hide discovery when disabled. Direct
+mode exposes only a separately configured public client key; the server-only
+API key is never returned. No provider/key is configured by default. Proxy mode
+requires the operator's explicit approval setting as well as provider/key.
+
+| Method/path | Request | Success |
+|---|---|---|
+| GET `/gifs/trending?cursor=...` | `GifQuery {q:?String,cursor:?String}`; q unused | 200 `GifPage` |
+| GET `/gifs/search?q=...&cursor=...` | `GifQuery`; q required, trimmed, 1..200 UTF-8 bytes, no controls | 200 `GifPage` |
+| GET `/gifs/categories` | none | 200 `GifCategoriesResponse` |
+| GET `/gifs/items?ids=klipy:123,klipy:456` | `GifItemsQuery {ids:String}`; 1..24 IDs, <=3300 bytes | 200 `GifPage`; order unspecified, missing/removed IDs may be omitted |
+| GET `/gifs/favorites` | none; works in disabled, direct and proxy modes | 200 `GifFavoritesResponse {ids:[String]}` |
+| PUT `/gifs/favorites/{id}` | no body; e.g. `/gifs/favorites/klipy:123` | 204; idempotently star for caller's account |
+| DELETE `/gifs/favorites/{id}` | no body | 204 even if absent; caller's account only |
+
+Discovery/items return 404 `feature_disabled` in disabled **or direct** mode;
+clients must not silently fall back to proxying in direct mode. Unknown routes
+or methods are `not_found`. Normal auth errors apply in every mode. Invalid
+query/cursor/ID is 400 `invalid_request`. Account rate limiting is 429
+`rate_limited`, with `retry_after_ms` and `Retry-After` seconds. Upstream quota
+errors also map to 429. Provider timeouts, malformed/oversized/unsafe responses,
+redirects and other provider failures are 503 `unavailable`; provider error
+bodies, key-bearing paths and secrets are never forwarded. Favorites exceeding
+the account limit return 409 `limit_exceeded`; re-starring an existing ID at
+the limit still succeeds. No endpoint takes another account's ID.
+
+Exact additional proto models (`crates/proto/src/gifs.rs`):
+
+| Type | Fields |
+|---|---|
+| `GifMedia` | `url:String,width:u16,height:u16,content_type:String` |
+| `GifItem` | `id:String,title:String,preview:GifMedia,send:GifMedia` |
+| `GifPage` | `items:[GifItem],next_cursor:?String` |
+| `GifCategory` | `title:String,query:String,preview:GifMedia` |
+| `GifCategoriesResponse` | `items:[GifCategory]` |
+| `GifFavoritesResponse` | `ids:[String]` |
+
+`GIF_PAGE_SIZE=24`, `MAX_GIF_FAVORITES=200`. Cursors are opaque strings, 1..256
+bytes without controls; URL-encode without interpreting, incrementing or
+truncating them. Omit cursor for the first page; null means no next page. IDs
+are **strings, not Snowflakes**: `klipy:` followed by 1..128 ASCII alphanumeric,
+underscore or hyphen characters. IDs remain provider-qualified in favorites.
+Favorites are newest-added first, breaking ties by ascending ID; duplicate PUT
+does not reorder them. SQLite stores **only these IDs and creation timestamps**,
+not titles, provider content or media URL copies. Deleting an account cascades
+its favorites. Removed content may resolve to no item; retain the ID so the
+user can unstar it. ID resolution is bounded to 24 per request.
+
+All returned media URLs are unchanged HTTPS provider CDN URLs, not StickTalk
+file URLs. KLIPY CDN hosts: `static.klipy.com`, `static1.klipy.com`,
+`static2.klipy.com`; credentials, fragments and nonstandard ports are rejected.
+Preview is nano WebM (preferred) or nano MP4, no more than 320x320; no full GIF
+preview fallback. Send is `mediumgif`, falling back to tiny WebM/MP4 when
+unavailable, with dimensions <=4096 on either axis. `content_type` is
+`video/webm`, `video/mp4`, `image/webp`, or send-only `image/gif`. Titles are
+1..512 bytes without controls and prefer provider accessibility descriptions.
+The category response contains at most eight categories; titles <=128 bytes,
+queries <=200. Selecting a category submits **query**, never a provider search
+URL. The proxy obtains nano previews using one search per category rather than
+returning the provider's large dimensionless category GIFs.
+
+The proxy coalesces concurrent cache misses and retains successful normalized
+metadata for ten minutes, at most 128 entries and 8 MiB serialized data. It
+does not fetch/cache/rehost media bytes. All picker/favorites requests share a
+per-account 30/minute token bucket, burst 10, across login sessions, including
+cache hits. All outgoing provider HTTP requests share a conservative 100/hour
+budget, including errors and category preview subrequests. Upstream request
+deadline 5 seconds; complete refresh 10 seconds inside the existing 15-second
+REST deadline; upstream body maximum 1 MiB. Network I/O never holds the chat
+mutation gate. Expiration/eviction is demand-driven; no GIF background polling.
+
+**Direct-mode client integration:** use `https://api.klipy.com/v2/featured`,
+`/search`, `/categories` and `/posts`, with the designated public key as `key`,
+`client_key=sticktalk`, `contentfilter=high`, `limit=24`, and
+`media_filter=nanowebm,nanomp4,tinywebm,tinymp4,mediumgif`. Search takes `q`;
+pagination translates `cursor` to `pos` and response `next` to `next_cursor`
+(empty or `"0"` means end). Convert result `id` to `klipy:<id>`, media
+`dims:[width,height]` to `GifMedia`, preferring the renditions above. Categories
+use `type=featured&locale=en_US`: `tags[].name/searchterm` map to title/query;
+obtain nano preview data via search rather than using `tags[].image`.
+Resolve favorite IDs via `/posts?ids=<unqualified comma-separated IDs>` after
+stripping the `klipy:` prefix. Still star/unstar on StickTalk, not KLIPY's
+customer-history API. Implement provider-required share/analytics behavior in
+the client where applicable. Do not forward StickTalk bearer tokens or account
+identifiers to the provider. Direct mode necessarily exposes the user's IP to
+the provider for **search as well as media**, unlike proxy search. This is the
+owner-approved fallback, not the original privacy guarantee. Standard-mode
+provider storage restrictions still apply to client media caches; approval is
+needed before implementing the disk-cache behavior proposed in GIFS.md.
+
+Sending uses the **existing** `SendMessage(MessageDraft)` with
+`content=item.send.url`, no attachments; no new chat message/event schema.
+Apply existing permissions and spam checks. Use `Search KLIPY` as the search
+placeholder and show `Powered by KLIPY` in the picker. Provider approval,
+attribution references and key setup are in `deploy/README.md`.
+
+## 4. WebSocket handshake, session streams and recovery
+
+### Fresh connection
+
+1. Upgrade `/api/v1/ws` with subprotocol `sticktalk.v1`. Server sends
+   `ServerMsg::Hello(Hello {version:u16,heartbeat_interval_ms:u32,
+   heartbeat_timeout_ms:u32,max_frame_bytes:u32,server_time:UnixMillis})`.
+   v1 values: 1, 30000, 75000, 524288, current UTC milliseconds.
+2. Within 10 seconds client sends `ClientMsg::Identify(Identify {version:u16,
+   token:String,resume:?ResumeCursor})`; fresh clients send resume=null.
+   No commands before successful Ready/Resumed. Only one Identify per socket.
+3. Server checks token, version, connection quota; closes an older socket for
+   this token if present (4009). Different login tokens are independent devices.
+4. Under the snapshot gate server attaches stream, emits `Ready`, then releases
+   queued newer events. Ready is a full replacement snapshot; its cursor is
+   the highest sequence already reflected. Start applying events above it.
+5. Client starts heartbeat timer, fetches selected history lazily and issues
+   SubscribeGuild for its visible member panel. No initial history polling.
+
+`Ready {cursor,me:SelfUser,guilds:[GuildSummary],channels:[ChannelSummary],
+relationships:[Relationship],users:[UserSummary],read_states:[ReadState],
+presences:[Presence]}` is complete at the cursor. Guilds are joined guilds only;
+channels are all guild channels plus visible direct/group channels; relationships
+are all own friend/pending/blocked rows. Users provides deduplicated other users
+of direct channels needed for unnamed sidebar labels (self and relationship
+profiles need not be repeated). Named groups need not preload all participants.
+Read states includes every listed non-category channel, zero counts included.
+Presences includes effective self + allowed friends/open-DM participants;
+missing presence defaults offline. No guild-wide member arrays, message bodies,
+topics, original files, reaction history or password/session secrets. Sort
+non-channel arrays by their entity/user/channel IDs for deterministic rendering.
+
+### Heartbeat and presence
+
+Client sends `Heartbeat {nonce:Nonce,last_seq:EventSeq}` every ~30 seconds,
+independent of user activity. Server returns `HeartbeatAck {nonce,server_time}`
+immediately. Heartbeat does not increment event sequence. Server closes after
+75 seconds without a valid client heartbeat; client reconnects after 75 seconds
+without an ack (do not treat unrelated traffic as an ack). More than one
+heartbeat outstanding is unnecessary. last_seq above current stream high-water
+is invalid_sequence; a lower last_seq does not rewind server state.
+
+Client uses focus/input to set idle after five minutes without interaction and
+online on activity unless DND/invisible is selected; send only transitions.
+SetPresence accepts online/idle/dnd/invisible, not offline. Desired presence is
+account-wide (last successful command wins across sessions). Effective presence
+is offline when no authenticated socket is connected, otherwise desired; for
+other users invisible is always mapped to offline. Self can see invisible.
+Connecting/disconnecting one of several sockets must not flap presence. Use a
+five-second disconnect grace before broadcasting offline. Heartbeat traffic is
+not user activity. Blocked relationships never receive each other's presence.
+
+### Resume
+
+Client keeps the last **applied** event sequence and its stream_id alongside its
+retained in-memory model, not just the last received frame. Reconnect using the
+same login token and `Identify.resume`. Server validates stream ownership,
+retention and `seq <= high_water`. With a usable cursor, replay events with
+seq>cursor in increasing order, then `Resumed {cursor:ResumeCursor,replayed:u32}`,
+then live events. Resumed.cursor is the replay boundary high-water and replayed
+counts actual replayed Event envelopes. Never interleave live events before
+Resumed; heartbeat control frames may interleave. Client must not send ordinary
+commands until Resumed, then re-establish interests if desired. An exact-current
+cursor produces zero replay. Existing interests survive a retained stream.
+
+Ring/stream missing, too old, ahead, or safely filtered replay unavailable:
+send `ResyncRequired {reason:ResyncReason}`, immediately followed by a fresh
+Ready on the same socket. Do not require another Identify. Rotate stream_id
+and reset seq=0 for a new/lost stream; if merely taking a fresh snapshot of an
+existing stream, retain its ID and high-water. Reason stream_expired covers
+restart/eviction; cursor_ahead is not treated as authentication success proof.
+Full Ready resets optional interests to none (base friend/DM presence remains).
+
+Events use `EventEnvelope {seq:EventSeq,event:Event}`. Sequence numbers are
+strictly increasing within a stream but may have gaps (expired typing or access
+filtering during replay). Ignore duplicates/lower seq. Do **not** invent missed
+messages from a numeric gap. Replay covers ten minutes at most, 2048 events or
+2 MiB; the global replay budget can shorten that. On removal purge inaccessible
+messages/media immediately. Recheck access on replay; never replay old private
+bodies to a user removed from their channel. If safe replay is not possible,
+take the full replacement snapshot. Replayed typing whose expires_at is past
+server_time is omitted. Presence/read upserts are idempotent.
+
+Slow consumer: best effort ResyncRequired(slow_consumer), then close 4010. It is
+not safe to queue a Ready behind a full queue. Reconnect may resume only if
+retention permits. No busy polling, automatic original-file redownloads, or
+unbounded buffering to avoid resync.
+
+### Snapshot/live merge
+
+Bulk replies carry a cursor from the **same token's stream**. Buffer affected
+live updates while fetching a page/entity; replace only that fetched subset at
+the returned cursor, then reapply buffered events with higher seq in order.
+Store bounded per-entity update/delete markers to prevent a late HTTP response
+from resurrecting a deletion or overwriting a newer message. Restoring a page
+must not remove unfetched newer/older pages. For arbitrary latency, if necessary
+events/markers have fallen out of the bounded reducer, abandon the fetch and
+refetch/resync; never assume its stale snapshot is current. If stream_id changed
+during the request, discard the response. Do not advance the WS applied cursor
+just because an HTTP snapshot of **one subset** reports a higher cursor.
+
+## 5. Commands, responses, nonce and retry behavior
+
+`ClientMsg::Command(CommandRequest {nonce,command:Command})`.
+One correlated `ServerMsg::Response(CommandResponse {nonce,cursor:ResumeCursor,
+replayed:bool,outcome:CommandOutcome})` per accepted command frame, including validation and
+authorization failures after identify. `outcome` is ok(CommandResult) or
+err(ApiError). Cursor is the stream high-water at result production. For a
+durable success, assign/enqueue its own-session events before its response;
+unrelated events may interleave. Clients merge result entities using the same
+cursor-aware policy as REST; result is also useful for mapping optimistic nonce
+to message ID. A result is not permission to overwrite a newer event.
+
+Response is not an event and is not replayed. Event broadcasts include the
+initiating session. Sender may see the event before response: deduplicate by
+entity ID and retain the pending nonce until response/error/timeout. At most
+32 commands in flight/client; bound pending state. No auto-retry of a new nonce
+on a lost response: that would duplicate sends.
+
+### Durable retry receipts
+
+For every successful **durable** command (all below except typing and
+subscribe_guild), store `(session_hash,nonce,request_hash,result)` in the **same
+transaction** as state mutation. Hash canonical named-MessagePack encoding of
+the decoded command using SHA-256 (exact strings/array ordering retained).
+Receipts last ten minutes from commit, capped at 256/session. Do not evict
+unexpired successes to accept new ones: return limit_exceeded until room exists.
+Duplicate nonce + identical command within the window returns the original
+result without mutation/new broadcasts, with a **current** response cursor and
+replayed=true. Such a result is historical: use it only to resolve operation
+identity (e.g. nonce -> message ID), **never** apply its entity state as current.
+Use live/REST state for current data. Fresh successes/failures set replayed=false;
+different command returns conflict. Receipt lookup precedes rate accounting
+for durable duplicates but authentication/active session and current access to
+returned entities remain required. If access was revoked, return not_found
+without re-executing the mutation or exposing the stored result (replayed=true).
+Application failures are not persisted; a caller may retry the same operation
+after a rate limit, but changing parameters must use a new nonce. Atomic
+idempotent no-op successes also have receipts.
+
+Never retry automatically after ten minutes, with another login token, or when
+commit status is unknown beyond that window. Ask the user to inspect current
+state/re-send explicitly. SubscribeGuild is replace-state, Typing is ephemeral;
+their retry must reflect current UI, not an old offline queue. Do not queue
+moderation/friend/profile commands indefinitely while offline. Client clock
+skew must not lengthen the ten-minute window; track monotonic elapsed time.
+
+### Command catalog (all fields)
+
+“Common errors” in every row: invalid_request, unauthenticated/session_expired
+(normally closes connection), not_found for inaccessible target, forbidden for
+known denied action, rate_limited, limit_exceeded, internal, unavailable,
+conflict for nonce misuse. Additional errors below are not the only common
+ones. No operation returns partial success. Ack means unit `{"type":"ack"}`.
+
+| Command snake_case | Data fields | Success CommandResult | Policy / additional errors |
+|---|---|---|---|
+| update_profile | ProfilePatch | profile(SelfUser) | Own account; username_taken; pending avatar-purpose image owned by caller only |
+| set_presence | `status:PresenceStatus` | presence(Presence) | Own desired status; offline invalid; private self result may say invisible |
+| send_friend_request | `username:String` | relationship(Relationship) outgoing | Existing canonical username; self invalid; blocked is generic forbidden; existing incoming returns conflict (explicit accept required); outgoing/friend returns already_exists |
+| accept_friend_request | `user_id:UserId` | relationship(Relationship) friend | Must be incoming, not blocked; stale/missing request not_found |
+| decline_friend_request | `user_id:UserId` | ack | Remove incoming only; absent is idempotent ack, wrong direction conflict |
+| cancel_friend_request | `user_id:UserId` | ack | Remove outgoing only; absent ack, wrong direction conflict |
+| remove_friend | `user_id:UserId` | ack | Remove reciprocal friendship; absent ack; pending row conflict |
+| block_user | `user_id:UserId` | relationship(Relationship) blocked | Remove both friendship/request rows atomically, create caller-only block; existing block returns existing row |
+| unblock_user | `user_id:UserId` | ack | Remove own block only, absent ack; no friendship restoration |
+| open_dm | `user_id:UserId` | channel(Channel) direct | New direct requires mutual friendship; existing pair can reopen after friendship ends; either-direction block denies with blocked; reopen not duplicate |
+| create_group_dm | `name:String,user_ids:[UserId]` | channel(Channel) group_dm | 2..15 unique other users, all caller's friends, none blocked with any proposed participant; caller auto-added owner |
+| add_group_recipient | `channel_id:ChannelId,user_id:UserId` | channel(Channel) | Group owner only; target caller's friend, no block with participants; already participant idempotent |
+| remove_group_recipient | `channel_id:ChannelId,user_id:UserId` | channel(Channel) | Group owner only, cannot remove self (use leave/transfer); absent target idempotent |
+| leave_group_dm | `channel_id:ChannelId` | ack | Participant; owner with others must transfer first (owner_required); last member deletes group; no rejoin except a new owner invitation |
+| transfer_group_ownership | `channel_id:ChannelId,user_id:UserId` | channel(Channel) | Owner to existing participant; self idempotent |
+| close_dm | `channel_id:ChannelId` | ack | Direct only, hides sidebar for caller (does not erase history, revoke pair, or hide for peer); already hidden ack |
+| create_guild | `name:String,icon_id:?AttachmentId` | guild(GuildDetail) | Caller owner; create default text `general` position 0; icon must be own pending guild_icon upload |
+| update_guild | `guild_id:GuildId,patch:GuildPatch` | guild(GuildDetail) | manage_guild; pending guild_icon owned by caller |
+| delete_guild | `guild_id:GuildId` | ack | Owner only; owner_required; cascade channels, history, members, invites, bans |
+| join_guild | `invite_code:String` | guild(GuildDetail) | Banned denies; existing member returns current detail without consuming use (but code must still resolve valid invite); invalid_invite/invite_expired/invite_exhausted/banned |
+| leave_guild | `guild_id:GuildId` | ack | Member; owner must transfer first, even sole owner must use delete; owner_required |
+| transfer_guild_ownership | `guild_id:GuildId,user_id:UserId` | guild(GuildDetail) | Owner to existing member; old owner becomes admin; self idempotent; owner_required |
+| set_member_role | `guild_id:GuildId,user_id:UserId,role:MemberRole` | member(Member) | Owner only; admin/member only; cannot alter owner; owner_required/hierarchy_violation |
+| kick_member | `guild_id:GuildId,user_id:UserId` | ack | kick_members and lower role; self use leave; hierarchy_violation; absent member not_found |
+| ban_member | `guild_id:GuildId,user_id:UserId,reason:?String` | ack | ban_members, lower role; may ban a nonmember known user; hierarchy_violation; removes membership, existing ban no-op (reason unchanged) |
+| unban_member | `guild_id:GuildId,user_id:UserId` | ack | ban_members; absent ban no-op; does not restore membership |
+| create_invite | `guild_id:GuildId,ttl_seconds:u32,max_uses:u32` | invite(Invite) | create_invites; max 100 active invites/guild, 10/creator/guild |
+| revoke_invite | `guild_id:GuildId,code:String` | ack | Creator or manage_guild; no-op if already absent but same guild authority required |
+| create_channel | `guild_id:GuildId,kind:ChannelKind,name:String,parent_id:?ChannelId,topic:?String` | channel(Channel) | manage_channels; kind category/text only; append to sibling list |
+| update_channel | `channel_id:ChannelId,patch:ChannelPatch` | channel(Channel) | Guild manage_channels; group owner can change name only; direct rename/topic invalid; category topic cannot set |
+| reorder_channels | `guild_id:GuildId,placements:[ChannelPlacement]` | ack | manage_channels; complete permutation of **all** guild channels; unique dense sibling positions, valid parents; atomic |
+| delete_channel | `channel_id:ChannelId` | ack | Guild manage_channels only; deleting category moves children to end of root preserving order; deleting text deletes its history; no group/DM deletion through this command |
+| send_message | MessageDraft | message(Message) | send_messages (+attach_files if needed), participant for DM; own pending channel-bound files; reply must be live same-channel; invalid_attachment/blocked |
+| edit_message | MessageEdit | message(Message) | Author only, still has channel access/send rights; attachments/reply immutable; no time limit; same content/mentions no-op, else edited_at now |
+| delete_message | `channel_id:ChannelId,message_id:MessageId` | ack | Author or guild manage_messages; tombstone same-channel repeated delete ack; absent ID not_found |
+| add_reaction | `channel_id:ChannelId,message_id:MessageId,emoji:String` | reaction(ReactionUpdate) | add_reactions, live message; already reacted idempotent added=true with current count/me |
+| remove_reaction | same fields as add_reaction | reaction(ReactionUpdate) | Remove own only; already absent idempotent added=false with current count/me |
+| typing | `channel_id:ChannelId` | ack | send rights; expires server_time+8000ms, coalesce 1/4 seconds/channel, ephemeral; no self echo required |
+| mark_read | `channel_id:ChannelId,message_id:MessageId` | read_state(ReadState) | Message or tombstone in same channel, existing access; monotonically max old/new; no future/arbitrary IDs |
+| subscribe_guild | `guild_id:?GuildId,presence_user_ids:[UserId]` | subscription `{presences:[Presence]}` | Replaces this connection's selected guild/interests; selected membership required; null clears; presence users must be guild members; response is initial effective presence snapshot |
+
+Friend transitions emit own and reciprocal RelationshipUpsert/Removed as
+appropriate; blocking is private (the other account sees a removal, never a
+“blocked by” event). Block forbids direct sends/reopen/typing and new shared
+group invitations in either direction, hides presence, and removes friendship.
+Existing common guild/group messages, history and reactions remain visible;
+blocking is not a retroactive shared-room content filter. Direct history is
+still readable by its pair members but new direct messages are forbidden.
+Unblocking does not restore friends or change existing messages.
+
+New group members get all previous group history; removal/leave immediately
+revokes group history/files. All guild members get existing guild history;
+joining initializes last_read to current latest message with zero counts.
+New group recipient likewise starts caught up. On direct creation initialize
+null/zero; on reopening preserve existing read state. Close hides own read state
+from Ready but retains it; next incoming direct message reopens automatically.
+If re-opening would exceed the peer's sidebar quota, send fails limit_exceeded.
+Never silently drop a new message or evict another DM to fit Ready.
+
+Successful durable mutations broadcast the events below, only if state really
+changed. Deletes and reaction no-ops do not double-count. Response receipt
+replays do not rebroadcast. Join/create can return complete GuildDetail without
+preloading members/history. Creating/reopening a DM must emit needed UserUpdated
+profiles before ChannelUpsert so sidebar names can render immediately.
+
+## 6. Event catalog and routing
+
+All event names are inside `ServerMsg::Event` -> EventEnvelope. Every payload
+field is listed here or is the shared entity of that exact type.
+
+| Event | Data | Recipients / behavior |
+|---|---|---|
+| self_updated | SelfUser | All own streams for profile/desired-presence changes |
+| user_updated | UserSummary | Streams whose profile projection includes that user (relationships, DM peers, selected-guild member interests); update cached author/profile labels |
+| relationship_upsert | Relationship | Affected account's streams, kind personalized |
+| relationship_removed | `user_id:UserId` | Affected account's streams; delete relationship, not shared history |
+| presence_updated | Presence | Authorized base friends/visible DM peers and selected custom interests; never invisible to others |
+| guild_upsert | GuildSummary | All current guild members; personalized role/permissions; includes name/icon/count/ownership changes |
+| guild_joined | `detail:GuildDetail,read_states:[ReadState]` | Newly joined/creating account's streams; atomically add sidebar and read state |
+| guild_removed | `guild_id:GuildId,reason:RemovalReason` | Leaving/kicked/banned user, or all on delete; atomically purge all guild children/history/interests/media |
+| member_upsert | Member | Selected-guild subscriber streams for join/role/profile changes; own streams too for own role; all get corresponding guild_upsert when count or their role changes |
+| member_removed | `guild_id:GuildId,user_id:UserId,reason:RemovalReason` | Selected-guild subscribers still in guild; departing account gets guild_removed instead |
+| invite_upsert | Invite | Creator and current manage_guild streams; create/use-count changes; invite codes never broadcast to ordinary peers |
+| invite_removed | `guild_id:GuildId,invite_id:Id` | Same privileged invite audience; revoke/expiry/exhaustion; expiry cleanup may be delayed up to housekeeping interval, join always checks expiry immediately |
+| ban_upsert | Ban | Current ban_members streams on new ban; never unrelated members/target account |
+| ban_removed | `guild_id:GuildId,user_id:UserId` | Current ban_members streams on unban |
+| channel_upsert | Channel | All authorized guild members or visible DM/group participants; full replacement metadata; needed user profiles precede new DM |
+| channel_removed | `channel_id:ChannelId,reason:RemovalReason` | Channel deletion to guild members; own closed DM=left, removed group member=kicked, leaving member=left; purge sidebar/history/typing/read state/media |
+| channels_reordered | `guild_id:GuildId,placements:[ChannelPlacement]` | All guild members, complete post-change placement list; category deletion emits removal then reordered |
+| message_created | `message:Message,author:UserSummary` | All current guild/channel or DM/group member streams, including author; no history subscription needed |
+| message_updated | Message | Same access audience; full post-edit state including personalized reactions |
+| message_deleted | `channel_id:ChannelId,message_id:MessageId` | Same access audience; remove body or show reply placeholder, remove cached reactions/attachments |
+| reaction_updated | ReactionUpdate | Same access audience, absolute post-change summary; count=0 removes emoji from list |
+| typing | `channel_id:ChannelId,user_id:UserId,expires_at:UnixMillis` | Same access audience except typing author; respect block rule for direct; no storage/history; expire locally without polling |
+| read_state_updated | ReadState | Only affected reader's streams; absolute counts, never infer counts solely from message events |
+
+On create/edit/delete, emit message/reaction event first and any changed
+read_state_updated afterward in the same mutation batch. Unread counts exclude
+self-authored/deleted messages and count messages with ID above last_read (null
+=0). Mention count is the unread subset mentioning this user. Editing mention
+IDs can change mention counts, not unread total; deleting can change both and
+latest_message_id. MarkRead emits own state across all devices. Counts are exact
+u32 under service quotas; reject impossible overflow as limit_exceeded.
+
+Message attachments/reply are immutable after creation; edits replace content/
+mentions only. On author deletion from channel membership, historical authors
+remain identifiable by embedded/fetched public UserSummary as permitted by
+shared message visibility; bulk profile authorization must permit authors of
+messages the caller currently can read. No account deletion is exposed in v1.
+
+Mention composition is client-side: selecting `@username` inserts the canonical
+text token `<@DECIMAL_USER_ID>` into content and adds that ID to mention_ids.
+The renderer resolves that token to the current display name only when its ID
+is in mention_ids; arbitrary `@username` text is plain text. The server does not
+parse tokens/URLs: validated mention_ids are authoritative for notifications and
+are stored separately, so a malicious client's unrendered explicit mention still
+counts as a mention and is subject to limits. Returned mention_ids are sorted;
+attachment order is draft order; reaction summaries sort by emoji UTF-8 bytes.
+
+Selecting a guild does not preload all members: REST pages populate the member
+panel; subscribed member events keep cached/visible entries current. New
+presence interests return their snapshot in subscription result. Do not
+subscribe all 1,000 members just to paint an offscreen list. Base presence is
+maintained automatically when friends/visible DMs change; emit an effective
+presence snapshot for newly visible peers, offline when interest/access ends.
+On removal from a guild clear optional interests in that stream. Interest
+changes use the current stream; replay can include events from the former
+interest set, which the reducer should ignore if no longer relevant.
+
+## 7. Error codes, transport errors, reserved voice
+
+`ApiError {code:ErrorCode,message:String,field:?String,retry_after_ms:?u32}`.
+message is safe diagnostic text, not a string for branching/localization; field
+is a snake_case/dotted request field path when useful, otherwise null. Do not
+include SQL, credentials, filesystem paths or content in errors. retry_after_ms
+is required for rate_limited, optional for unavailable, null otherwise.
+REST 429 also emits `Retry-After` rounded up seconds. These are the **complete**
+v1 ErrorCode values and default HTTP mappings:
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| invalid_request | 400 | Invalid fields/types/enum combination/cursor/range |
+| invalid_credentials | 401 | Username/password pair invalid, no enumeration |
+| unauthenticated | 401 | Missing/unknown/revoked token |
+| session_expired | 401 | Known expired token |
+| forbidden | 403 | Known accessible target, operation not authorized |
+| not_found | 404 | Missing/deleted or intentionally hidden inaccessible entity |
+| conflict | 409 | Incompatible state, attached pending-delete, nonce reused with different command |
+| username_taken | 409 | Canonical username already in use |
+| already_exists | 409 | Friend/request already exists |
+| blocked | 403 | Direct/group operation disallowed by a block (do not disclose blocker) |
+| invalid_invite | 404 | Unknown/revoked invite |
+| invite_expired | 410 | Resolved invite expired |
+| invite_exhausted | 409 | No uses left |
+| banned | 403 | Cannot join guild while banned |
+| owner_required | 403 | Ownership-only action or transfer needed before owner leaves |
+| hierarchy_violation | 403 | Cannot act on equal/higher role or owner |
+| rate_limited | 429 | Token bucket exhausted; retry_after_ms set |
+| limit_exceeded | 409 | Entity/storage/in-flight/receipt quota would be exceeded |
+| payload_too_large | 413 | HTTP/WS payload or file over size bound |
+| unsupported_media_type | 415 | Wrong encoding/MIME or image decoder policy failure |
+| invalid_attachment | 400 | File missing/expired, wrong purpose/channel/owner, already consumed |
+| version_mismatch | 426 | Unsupported protocol/voice schema version (voice is unsupported_feature in Phase 1) |
+| invalid_sequence | 400 | Heartbeat sequence ahead/invalid stream control |
+| resync_required | 409 | State cannot be safely incrementally recovered; normally use typed resync_required server message |
+| unsupported_feature | 501 | Reserved/unimplemented feature (all voice messages now) |
+| internal | 500 | Unexpected server failure; report generic diagnostic |
+| feature_disabled | 404 | Optional Google authentication is not configured |
+| invalid_signup_ticket | 401 | Google signup ticket is invalid, expired, superseded or consumed |
+| identity_already_linked | 409 | Google identity/account already has a conflicting link; no implicit merge |
+| last_login_method | 409 | Unlink would remove the account's only login method |
+| unavailable | 503 | Startup/shutdown/temporary storage or clock-allocation failure |
+
+ServerMsg::Error(ApiError) is for uncorrelated connection/protocol/auth errors,
+not ordinary command failures. If a command envelope and nonce decode, respond
+with its nonce for invalid command data where possible. Unknown enum/unparseable
+frame cannot be correlated safely: error then close. A known unauthorized
+mutation is a normal correlated failure and does not close the socket.
+
+| WS close | Meaning / client action |
+|---|---|
+| 1000 | Normal intentional shutdown/logout; no reconnect on local logout |
+| 1001 | Service going away; backoff reconnect with resume |
+| 1002 | Malformed protocol/frame or repeated Identify; fix client, no busy retry |
+| 1003 | Text/nonbinary unsupported |
+| 1008 | Invalid pre-auth traffic/Origin/abuse; stop or respect retry guidance |
+| 1009 | >512 KiB message, size/depth/collection bounds; do not retry same frame |
+| 1011 | Internal server failure; bounded backoff reconnect |
+| 4001 | Invalid/expired/revoked auth, including REST logout; clear token/show login |
+| 4002 | Protocol version mismatch; client upgrade required |
+| 4008 | Identify or heartbeat timeout; backoff reconnect |
+| 4009 | This token connected elsewhere; stop automatic reconnect to avoid socket duel |
+| 4010 | Slow consumer/resync needed; drop backlog, reconnect under bounded policy |
+
+In the Phase 1 server, `ClientMsg::Voice(VoicePayload)` still returns a
+CommandResponse using payload.nonce and Err(unsupported_feature), and never
+allocates media resources or emits ServerMsg::Voice. Section 10 defines the
+additive Phase 2 schema implemented by the standalone SFU library; enabling it
+requires explicit server integration. The original four-field outer envelope
+and variants remain unchanged, but a reserved version-0 body is not a valid
+Phase 2 request.
+
+## 8. Example flows (JSON notation, actual WS uses MessagePack)
+
+Fresh connect: `Hello` -> `Identify {version:1,token,resume:null}` ->
+`Ready {cursor:{stream_id:S,seq:0},...}` -> lazy REST history and optional
+SubscribeGuild. First durable send:
+
+```json
+{"type":"command","data":{"nonce":123,"command":{"type":"send_message","data":{"channel_id":456,"content":"hello","reply_to":null,"attachment_ids":[],"mention_ids":[]}}}}
+```
+
+Server commits message + receipt, emits Event(message_created), emits affected
+read_state_updated events, then Response nonce=123 outcome ok(message). Client
+maps pending send to returned message ID; event and response never create two
+rows. If response is lost, reconnect/resume and retry **the same command/nonce**
+within ten minutes; stored receipt returns original ID without a new message.
+
+Attachment: POST multipart purpose=message/channel_id/file -> UploadResponse ->
+send_message with attachment_ids -> message metadata + preview endpoint -> only
+explicit “save/open original” fetches original. Failure before attach leaves a
+pending upload; DELETE or one-hour GC removes it.
+
+Resume: applied cursor S:10 -> connection drops -> Identify resume S:10 -> events
+11,12 (or ordered gaps for filtered ephemeral data) -> Resumed cursor S:12 ->
+live event 13. Expired ring: ResyncRequired(cursor_too_old) -> Ready replacement;
+clear stale projections and refetch selected view, not all message histories.
+
+Friend invite: send_friend_request creates outgoing/incoming rows -> recipient
+accepts -> reciprocal friend events + initial effective presence snapshots.
+Guild invite: creator receives code -> user join_guild(code) -> transaction
+checks ban/expiry/uses/quota, inserts member and increments use -> GuildJoined
+and caught-up read states to joining account, GuildUpsert count to all members,
+MemberUpsert to selected-guild subscriber streams.
+
+Read: only when a message is actually visible/acknowledged, debounce MarkRead
+to the greatest visible ID (e.g. 500ms trailing, flush on channel switch). Do not
+mark the newest fetched but offscreen message read. Server returns and emits
+absolute ReadState to all own devices. No per-second unread polling.
+
+## 9. Required interoperability tests for implementation engineers
+
+The foundation tests exercise every command/event/result shape, control frames,
+REST models, Unicode reaction payloads, large numeric IDs, unknown permissions,
+patch defaults and a fixed named-map MessagePack fixture. They do not enforce
+business authorization or network behavior. Add shared fixture/contract tests
+before changing the schema. Server/client integration must additionally cover:
+
+* Bad version/token/Origin, timed-out Identify/heartbeat, replacement socket.
+* Fresh Ready vs concurrent mutation and REST snapshot/live merge races.
+* Empty replay, partial replay, lost ring/restart, expired typing, access
+  revocation during replay, bounded slow-consumer recovery.
+* Duplicate nonce before/after crash, changed payload conflict, expiry ambiguity.
+* Every role/hierarchy boundary; blocked DM vs shared group; invite use race.
+* Cross-channel replies, foreign/reused uploads, image bombs and path traversal.
+* Read counts on edits/deletes/own sends, monotonic multi-device read marker.
+* Reaction personalization/idempotency and MessagePack frames from both peers.
+* Maximal Ready fits frame budget; history/UI/cache queues remain bounded.
+# Operational additions: resumable uploads, recovery, releases (B2/B4/B5)
+
+These additions do not change protocol version 1 or existing WS envelopes.
+The following upload defaults supersede the original 25-MiB/global quota defaults
+elsewhere in this document. `--max-upload-mb 0` (the default) means no per-file
+limit on the **resumable API**. Configured sizes must fit signed SQLite integers;
+available disk is the practical limit. `--min-free-disk-gb` defaults to 10 GiB.
+`--user-quota-mb 0` and `--max-total-upload-mb 0` disable optional logical quotas.
+The existing multipart `/api/v1/uploads` is a compatibility path, still capped at
+25 MiB (or the smaller configured maximum), with its existing pending/daily/user
+anti-abuse bounds. Large/new clients must use the resumable path below, which has
+no daily bandwidth ceiling. Both paths preserve existing media validation and ACLs.
+
+## Resumable upload client contract
+
+All routes require the normal session Bearer header. IDs are opaque 32-character
+hex strings, **not Snowflakes**. Requests/responses use the additive DTOs in
+`crates/proto/src/rest.rs`; existing `UploadResponse`/`Attachment` remain unchanged.
+
+| Method/path | Body/result |
+|---|---|
+| POST `/api/v1/uploads/resumable` | JSON `CreateUploadRequest` -> 201 `ResumableUpload` |
+| GET `/api/v1/uploads/resumable/{upload_id}` | 200 `ResumableUpload` with durable offset |
+| PUT `/api/v1/uploads/resumable/{upload_id}` | Raw bytes; `Content-Length` and `Upload-Offset` required -> 200 `ResumableUpload` |
+| POST `/api/v1/uploads/resumable/{upload_id}/finish` | Empty body -> 200 `UploadResponse`; idempotent while record exists |
+| DELETE `/api/v1/uploads/resumable/{upload_id}` | 204; only unfinished uploads; normal delete-upload route handles published pending attachments |
+| GET `/api/v1/guilds/{guild_id}/storage` | Owner only -> `StorageUsage` for the physical instance (not a per-guild quota) |
+
+Create fields: `purpose`, `channel_id` (required only for message files), sanitized
+display `filename`, claimed `content_type`, `byte_size`, and lowercase hexadecimal
+`sha256` of the **whole file**. Unknown/non-image media remains octet-stream with
+attachment disposition/nosniff; this change does not bless executable HTML/SVG or
+unvalidated inline video. Avatar/icons must pass the existing bounded image decoder.
+The create response contains `upload_id`, `offset`, `byte_size`, `chunk_size`
+(16 MiB), `expires_at` in Unix ms, and nullable `completed: UploadResponse`.
+
+Persist the upload ID locally with its file identity/hash. Send sequential 8–16 MiB
+chunks (a smaller final chunk is allowed; the server accepts 1 byte–16 MiB).
+On disconnect/restart fetch status and resume at the **server's** durable offset.
+Offset mismatch or writing a completed upload gives `conflict`; no bytes are
+accepted for that request. Offsets commit only after disk sync. A rejected or
+interrupted chunk may leave trailing bytes, which the next valid PUT truncates.
+Finish checks full length and streamed SHA-256 (`invalid_attachment` on mismatch),
+sniffs media, and rechecks the caller's session/channel permissions before commit.
+If completion's response is lost, retry finish or read `completed` from status.
+Upload publication does not attach it to a message: use the existing send command.
+Published unattached files retain the existing one-hour expiry. The resumable
+record expires after 24 hours since the last successful chunk (creation for empty
+files); completing does not extend that deadline. Finish retry requires unexpired
+record **and** attachment. Abandoned partials are collected at startup/minutely.
+Lost channel membership prevents resuming/finishing; abandoned data is still GC'd.
+
+Admission reserves the remaining declared size plus thumbnail headroom against
+filesystem free bytes and other accepted uploads. Recheck on each chunk/finish.
+The error is `unavailable`, HTTP 503, message **"Server storage is full."**
+The floor does not stop unrelated applications/SQLite/backup processes writing:
+use a dedicated SSD and monitor free space. At most ten pending files per user;
+upload/file concurrency is bounded. Disk operations are serialized (not unbounded
+buffers). StorageUsage fields, in bytes: `total_bytes`, `available_bytes`,
+`committed_bytes` (attachments plus thumbnails), `partial_bytes` (durable received),
+`reserved_bytes` (remaining partials plus thumbnail headroom), `min_free_bytes`.
+Filesystem usage also includes SQLite, release installers, and non-upload files.
+An owner of any guild can read this instance-level operational summary; admins
+and ordinary members cannot. No file names, private paths or other-user counts.
+
+Original downloads already support single HTTP byte ranges: `bytes=a-b`, `bytes=a-`,
+`bytes=-suffix`; 206 with Content-Range/Length, 416 with `bytes */size` when
+unsatisfiable. Multi-range requests are rejected. Authorization precedes even 304.
+Thumbnails do not support ranges. `If-Range` mismatch returns full 200; immutable
+ETags can be used to safely resume. Downloads are streamed and memory-bounded.
+
+## Account recovery and local admin
+
+`sticktalk-server --data-dir <dir> admin list-users|reset-password <username>|disable-user <username>|enable-user <username>`.
+Local filesystem access is the admin authority. Reset prints a random 256-bit
+base64url code once; only SHA-256 is stored; replacement invalidates earlier codes.
+Codes expire in 30 minutes. Reset issuance and disabling delete all login sessions;
+existing WS connections close within the existing 60-second maintenance tick,
+and authenticated requests/mutations reject removed sessions immediately.
+Disabled accounts cannot password/Google login or redeem reset codes; enable does
+not revive old sessions. No account deletion or username reassignment occurs.
+
+POST `/api/v1/auth/reset-password` takes JSON `ResetPasswordRequest { username,
+code, new_password }`; success 204, invalid/expired/used code `invalid_credentials`.
+It consumes the code atomically with the password change and session revocation;
+password policy is 12–128 UTF-8 bytes, same as normal registration. Rate/hash slots
+are bounded. No automatic login; use the regular login afterwards.
+
+## Signed Windows update contract
+
+GET `/api/update/latest` (alias `/api/v1/update/latest`) -> `SignedUpdateManifest`:
+`{ "manifest": "<exact UTF-8 JSON string>", "signature": "<standard base64>" }`.
+404 if no release; `feature_disabled` if no server verification key. No login
+required; no-store. **Verify Ed25519 over the exact manifest string bytes before
+parsing/trusting its fields.** Never verify a reserialized JSON object. The trusted
+32-byte public key is embedded in the client, not accepted from the response.
+Do not downgrade an installed version on an older valid manifest.
+
+The signed `UpdateManifest` contains `version`, `target` (currently only
+`x86_64-pc-windows-msvc`), `url`, `byte_size`, `sha256` (lowercase hex). `url` is
+the configured HTTPS origin + `/api/update/artifact?sha256=<hash>`. Verify installer
+size/hash before execution. Signatures authenticate the manifest and, via its
+hash, the installer. Server response keys/headers alone are not a trust anchor.
+
+Owner release tooling: `tools/release/release.ps1`, using `sticktalk-release` signing
+helper. Default **private key outside repo**:
+`%USERPROFILE%/.sticktalk-secrets/update-signing.pk8` (Ed25519 PKCS#8).
+The server only gets base64 `STICKTALK_UPDATE_PUBLIC_KEY`. Publishing uses a
+separate random `STICKTALK_RELEASE_TOKEN` (32+ characters), never a user token.
+POST `/api/update/publish` streams the installer bytes; header
+`X-StickTalk-Manifest` is standard base64 of the outer signed-envelope JSON.
+Requires publishing Bearer, validates signature/origin/target/size/hash, 201 after
+publication. A version cannot be overwritten with another hash. Artifact URL is
+content-addressed/immutable and previous published artifacts remain available.
+Installers are limited to 1 GiB for this administrative path (not user uploads).
+The signing key never goes to the Pi or into the repository. No signing key is
+created automatically. Windows Authenticode is separate and not supplied here.
+
+
+## Additive v1 around-history cursors
+
+`GET /api/v1/channels/{channel_id}/messages` also accepts `around=<message_id>`
+or `around_timestamp=<UnixMillis>`. These are optional `PageQuery` fields;
+older requests remain unchanged. Exactly one of `before`, `after`, `around`,
+and `around_timestamp` may be present. `limit` remains 1–50 (default 50).
+Around cursors on other collection endpoints are invalid requests. ID zero,
+out-of-range IDs, and timestamps outside the signed-63-bit Snowflake time
+range (beginning at `SNOWFLAKE_EPOCH_MS`) are rejected.
+
+An ID pivot is inclusive on the older half; it need not still exist (a deleted
+reply target is a valid gap). A timestamp resolves to the start of that
+millisecond in Snowflake ID order, not a table scan or OFFSET. Results contain
+up to N nearest surrounding nondeleted messages, approximately half on either
+side; at the edges the other side fills the page. Even limits include the
+pivot in the older half; a one-item ID page prefers the pivot/nearest older
+message, or the nearest newer message if none is older. Results remain newest
+first. Normal history ACL checks and snapshot cursor semantics apply.
+
+For around pages **both** continuation cursors may be populated:
+`next_before` is the oldest returned ID if older messages remain, `next_after`
+is the newest returned ID if newer messages remain. `has_more` is their OR.
+Continue each direction using the existing exclusive before/after queries.
+An after continuation is oldest first, as before. Empty channels return an
+empty page with neither cursor. The server performs bounded indexed keyset
+queries, not a walk through intervening pages. Clients should replace a jump
+region, discard stale navigation responses, and preserve measured row slots
+when merely reloading an evicted visible region.
+
+Local integration tests can explicitly configure loopback Google issuer/JWKS
+and GIF HTTP upstreams; see `tools/e2e/README.md`. Public metadata never returns
+these operator-only mock endpoints or the GIF server key.
+
+## 10. Phase 2 voice schema (library contract; not enabled in the Phase 1 server)
+
+The independent `sticktalk-sfu` crate implements this schema. **Server wiring is
+not included**: an unmodified Phase 1 server still rejects Voice with
+`unsupported_feature`. Do not infer voice support from protocol version 1.
+`ChannelKind` additively includes `voice` for a guild voice channel, parented to
+an optional category with the same placement rules as text. Creating/listing
+these channels requires host persistence/permission integration separately.
+
+### Envelope and negotiation
+
+The existing outer WS variants and four fields are unchanged:
+`VoicePayload {nonce:u64,version:u16,kind:String,payload:[u8]}`. Old reserved
+bodies still decode, including version 0; no previously valid wire field was
+removed or retyped. For Phase 2, `version=1`, client `kind="signal"` contains a
+**named-map MessagePack VoiceSignal**, server `kind="event"` contains a
+**named-map MessagePack VoiceEvent**. Both bodies use the usual
+`{type:snake_case,data:...}` tagged representation. There is no opaque
+application-defined payload in the implemented schema. Encode with
+`rmp_serde::to_vec_named`; JSON below is descriptive, not a second transport.
+Clients must explicitly opt in; old peers do not understand new enum values.
+The runtime-free proto crate defines the types; SFU `encode_signal` and
+`encode_event` are the transport helpers.
+
+`nonce` correlates requests and responses; unsolicited events use 0. Voice is
+**ephemeral, not durable/replayed**, not part of EventSeq or command receipts.
+Reconnect creates a new voice session and fresh ICE/DTLS connection/grants;
+never replay an old voice grant. A trusted host binds
+`VoiceSession {user_id:UserId,connection_id:Id}` to the authenticated WS
+connection; a client cannot choose its own identity. Other-session references
+are checked against the live same-channel membership. The host must authorize
+access to an actual voice channel and disconnect the SFU session on WS loss,
+logout, kick, channel deletion, or permission revocation. ACLs are checked by the
+SFU for signaling, incoming media, outgoing recipients, and control input.
+
+Limits: SDP 64 KiB, inner signaling body 72 KiB, SDP 33 m-lines (32 media plus
+SCTP), four published tracks (one each kind), 32 subscriptions/receiver, three
+simulcast RIDs/track, MID/RID 1..16 ASCII alphanumeric/underscore/hyphen, 64
+non-join signals/session/second. ICE candidate strings <=1024 bytes and UDP
+only. Default 64 sessions total and 16/channel, configurable up to 256 and 32.
+Incomplete handshakes expire after 30 seconds. The host must retain the outer
+WS frame/rate limits too. Requests rejected for schema/version/access/resource
+errors do not allocate an authenticated media session.
+
+### Client VoiceSignal catalog
+
+| type | data |
+|---|---|
+| join | `channel_id,capabilities:{video:[VideoCodec],hardware_decode:[VideoCodec]}` |
+| leave | no data |
+| offer | `sdp:String,tracks:[PublishedTrack]` (complete replacement set) |
+| ice | `candidate:String` (trickle candidate, standard SDP candidate syntax) |
+| state | `muted:bool,deafened:bool` (deafen also suppresses outgoing audio) |
+| subscribe | `publisher:VoiceSession,source_mid:String,receiver_mid:String,rid:?String` |
+| unsubscribe | `receiver_mid:String` |
+| request_keyframe | `receiver_mid:String,fir:bool` (false=PLI, true=FIR) |
+| request_control | `sharer:VoiceSession` |
+| decide_control | `requester:VoiceSession,allow:bool` (only the sharer) |
+| revoke_control | no data (sharer or current controller) |
+| stats | no data |
+
+`PublishedTrack {mid,kind,codec:?VideoCodec,layers:[String],surface:?ShareSurface}`.
+Kinds: `audio` (Opus voice), `camera`, `screen`, `system_audio` (Opus system/app
+sound). Camera and screen have independent m-lines/subscriptions. Codec must be
+null for audio, non-null for video; `h264`, `hevc`, `av1` are the video codecs.
+`surface` is `monitor` or `window`, required only for screen. This is a server
+validated share declaration, not proof of what an OS captures. The native client
+must constrain input to the actual shared surface. Layers are ordered low to
+high; empty means non-simulcast. A receiver explicitly selects exactly one RID
+provided by the publisher, or null for a non-simulcast source. Re-subscribe to
+change layer; the SFU requests a keyframe and uses a fresh outgoing SSRC/RTX
+pair. No transcoding, spatial/temporal SVC splitting or codec conversion.
+
+The client is always SDP offerer. Native peers and browser RTCPeerConnection
+use standard bundled ICE/DTLS/SRTP/SCTP with rtcp-mux. On Join, publish an Offer;
+the SFU returns Answer. Before Subscribe, create a recvonly transceiver, offer
+it and apply Answer, then reference its MID. A receiver MID cannot also be a
+publication, and holds at most one source. Peers must match actual negotiated
+codec profiles/formats; H.264 High is offered for the native hardware path,
+with baseline/constrained-baseline interoperability configurations available
+for browsers. H.264 is mandatory in capabilities. HEVC/AV1 are allowed only if
+**all participants** report both support and hardware decode. If an incompatible
+participant joins, forwarding of the advanced codec stops immediately and the
+publisher receives CodecRequired(h264); it must reconfigure and re-offer.
+There is no transparent transcoder. Actual browser/native endpoint integration
+still needs to validate this handshake against their real implementations.
+
+Opus is forwarded as compressed RTP without decoding. Audio-level RTP
+extensions produce edge-triggered Speaking events; 300 ms of silence expires
+the indicator. Mute/deafen are also enforced in forwarding, not merely UI hints.
+TWCC feedback/estimates, REMB, PLI/FIR, NACK and negotiated RTX are handled by
+str0m per hop. Receiver PLI/FIR is propagated to the selected publisher/RID.
+RTX is terminated and regenerated per receiver; compressed payloads are shared.
+Sequence numbers are remapped with source ordering preserved and start at ROC 0.
+
+### Server VoiceEvent catalog
+
+| type | data |
+|---|---|
+| joined | `channel_id,participants:[VoiceParticipant],max_rtp_bytes:u16` |
+| participant | `VoiceParticipant {session,muted,deafened,tracks}` full replacement |
+| left | `session:VoiceSession` (cleanup, including own session) |
+| answer | `sdp:String` |
+| speaking | `session,speaking:bool,level_dbov:i8` (negative dBov) |
+| bitrate | `mid:String,bps:u64` upstream encoder ceiling; applies alongside RTCP |
+| codec_required | `mid:String,codec:VideoCodec` |
+| control_requested | `requester:VoiceSession,timeout_ms:u32` (30000) |
+| control_denied | `sharer:VoiceSession` |
+| control_granted | `sharer,controller:VoiceSession,grant:u64` |
+| control_revoked | `sharer:VoiceSession,grant:u64` |
+| stats | `VoiceStats` below |
+| ack | no data |
+| error | `code:ErrorCode,message:String` (safe diagnostics, no SDP/input contents) |
+
+Participant, Left, Speaking and grant/revoke announcements go only to authorized
+current channel participants. Answers/errors/stats/bitrate/prompt/denial go to
+the relevant session, not the whole guild. Clients must render the persistent
+control banner from grant state, and clear stale state on disconnect.
+
+### Tailscale packet/bandwidth policy and statistics
+
+Bind the SFU's configurable UDP range and advertised IP to the Pi's Tailscale
+address. One socket multiplexes sessions, using the first available port in the
+range. ICE host candidates advertise that address/port. No STUN/TURN server or
+external port-forwarding is required for the Tailscale host path.
+All forwarded SRTP **UDP payloads**, including RTX, are <=1200 bytes. Native
+packetizers must limit compressed RTP payloads to **1060 bytes** to leave room
+for rewritten MID/extensions/authentication/RTX. **Stock-browser packet-size
+interoperability remains incomplete:** there is no implemented repacketizer;
+browser RTP above this admission limit is dropped. A verified browser-specific
+size workaround or codec-aware SFU repacketization is still required before
+claiming drop-in browser media support. Oversized media is rejected, never IP-fragmented or silently
+repacketized. str0m's MTU is set to 1200, with a final size guard at egress.
+
+`video_egress_bps` caps aggregate outgoing **video UDP bytes ×8**, including
+headers, authentication, retransmissions and BWE probes. Default 32 Mbps.
+Audio/ICE/DTLS/SCTP/RTCP are not charged against this video budget. A byte token
+bucket permits a 100 ms burst (minimum one 1200-byte datagram); over an interval
+T, transmitted video <= `cap*T/8 + max(cap/80,1200)` bytes. There is no growing
+media queue to hide congestion. Per-stream pacer queue admission is bounded to 128 packets/128 KiB and rejects an oldest queued age over 250 ms; overflow discards the stale queue and requests a keyframe with a fresh SSRC. Each active video subscription receives a fair
+share of the cap, reduced by its receiver's BWE estimate; the minimum receiver
+budget (with 10% RTP/SRTP/RTX headroom) is requested from the publisher through REMB and Bitrate. Noncompliant
+senders are hard-dropped at the final output boundary, so RTX/probes cannot
+escape the cap. Budget includes network overhead: 4 × 8 Mbps **payload** needs
+more than 32 Mbps UDP egress. Separate RTCP/handshake/control host limits remain
+necessary to bound non-video abuse.
+
+`VoiceStats {tx_bps:u64,rx_bps:u64,tx_fps_milli:u32,rx_fps_milli:u32,
+loss_per_million:?u32,rtt_ms:?u32,path:MediaPath,cap_dropped_packets:u64,
+mtu_dropped_packets:u64,queue_dropped_packets:u64}`. Published about once/second by str0m while in a call,
+and on Stats requests. Bitrates count emitted/accepted UDP bytes (not cap-rejected writes). Queue drops are counted separately from global-cap drops. FPS counts aggregate video RTP frame markers, **not
+renderer/decoder output**, and may include RTX markers. Loss/RTT stay null until
+measured, not invented zeroes. Counters are session-local. Path is
+`unknown|direct|relayed`, supplied by trusted host Tailscale telemetry; ICE host
+candidates cannot reveal DERP relaying. Do not label a Tailscale path direct from
+its host candidate alone. No stats polling/media work outside a call.
+
+### Remote-control data channel
+
+Input **never travels on the chat WS**. The viewer opens one in-band negotiated
+DCEP channel labeled `sticktalk-control-v1`, ordered/reliable, binary named-map
+MessagePack. Other labels, duplicate channels and unreliable channels are closed.
+Max message is 512 bytes; send buffer 16 KiB, forwarding stops/revokes at 8 KiB.
+The server only forwards `ControlData::Input {sharer,grant:u64,sequence:u64,input}`
+from the exact approved controller connection, within the same live call and
+while that full-monitor/window publication exists and the requester subscribes to it. A fresh random grant is
+issued only in response to a pending request and the sharer's explicit Allow;
+one pending request and one active controller per sharer. Requests expire after
+30 seconds as Deny, with no remember mechanism. Re-offering a share invalidates
+the old grant, even if a MID is reused. Session loss, channel closure, revoke,
+share stop and either party leaving invalidate grants. No input contents are
+logged; only grant/revoke metadata is logged.
+
+`ControlInput` tagged variants:
+- `move {x:u16,y:u16}`: divide each by 65535 for normalized [0,1] bounds.
+- `button {button:u8,down:bool}`: buttons 0..4.
+- `wheel {x:i16,y:i16}`: bounded -4096..4096 relative deltas.
+- `key {usage:u16,down:bool}`: USB HID usage 4..0xe7, never arbitrary commands/text.
+
+Sequence strictly increases within a grant; at most 1000 events in each
+server-anchored one-second grant window. Invalid matching-grant input, replay,
+overrun or data backpressure **revokes**, rather than dropping a key-up and
+leaving control active. Unauthorized/stale-grant packets are discarded. On
+revoke, the SFU sends data `release_all {grant}` and WS ControlRevoked as a
+fallback. The sharer must clear its local grant and release all held keys and
+buttons on **either** message, local hotkey/physical mouse, stream stop or any
+transport disconnect. It must also ignore already queued input for a revoked
+or mismatched grant. Implementing SendInput, UAC restrictions, local bounds,
+Ctrl+Alt+Shift+S and the always-on-top banner is client work, not SFU work.

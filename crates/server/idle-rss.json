@@ -1,0 +1,12 @@
+{
+  "platform": "Microsoft Windows 10.0.26200",
+  "architecture": "X64",
+  "seconds": 60.78,
+  "idle_rss_min_mib": 9.36,
+  "idle_rss_max_mib": 9.41,
+  "idle_rss_mean_mib": 9.38,
+  "cpu_seconds": 0.0,
+  "percent_one_cpu": 0.0,
+  "executable_bytes": 8116224,
+  "data_directory": "C:\\Users\\dwhee\\.cargo-target\\sticktalk-server\\rss-f18a8f25548c4e9a8757a4e4d1236893"
+}

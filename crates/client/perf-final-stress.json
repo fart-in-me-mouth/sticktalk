@@ -1,0 +1,14 @@
+{
+  "renderer": "tiny-skia",
+  "arguments": "--mock --screen stress-scroll --stats C:/Users/dwhee/.cargo-target/sticktalk-client/perf/last-scroll.json",
+  "timestamp": "2026-11-11T22:21:19.0826175-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.756168,
+  "cpu_seconds": 0.0,
+  "one_core_cpu_percent": 0.0,
+  "working_set_mean": 38745361.06666667,
+  "working_set_max": 38760448.0,
+  "private_bytes_mean": 22115601.066666666,
+  "binary_bytes": 11010048,
+  "sha256": "DACBD91AEE25B98F280119B2422E361CCFF5B5281B75518E19CFB5E7C93A9E57"
+}

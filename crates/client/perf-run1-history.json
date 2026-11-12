@@ -1,0 +1,15 @@
+{
+  "renderer": "wgpu/dx12",
+  "window_mode": "secondary-noactivate",
+  "arguments": "--mock --screen scroll-5000 --size 2560x1440 --stats \"C:\\Users\\dwhee\\OneDrive\\Desktop\\discord clone\\crates\\client\\perf-final-history-stats.json\" --agent-window-report \"C:\\Users\\dwhee\\OneDrive\\Desktop\\discord clone\\crates\\client/perf-final-placement-history.json\"",
+  "timestamp": "2026-11-12T14:32:41.9998875-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.9879819,
+  "cpu_seconds": 0.03125,
+  "one_core_cpu_percent": 0.0512396033225687,
+  "working_set_mean": 136947165.86666667,
+  "working_set_max": 137584640.0,
+  "private_bytes_mean": 179277892.26666668,
+  "binary_bytes": 16250880,
+  "sha256": "369F6A492A22811932E8B0A6DB31B03EDE4FCA5ECE7719D06BA116A2BF0FC217"
+}
