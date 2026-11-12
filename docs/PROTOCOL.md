@@ -1,7 +1,7 @@
 # StickTalk protocol v1
 
-This is the normative Phase 1 contract. `crates/proto/src/{ids,permissions,
-models,rest,gifs,ws}.rs` defines **every serialized field**; names/types below match
+This is the normative v1 contract, including the launch extensions in section 11. `crates/proto/src/{ids,permissions,
+models,rest,gifs,launch,ws}.rs` defines **every serialized field**; names/types below match
 those files. The server implements this contract. All limits
 and authorization rules are enforced by the service, not by serde.
 See `ARCHITECTURE.md` for implementation, storage, limits and resource budgets.
@@ -88,7 +88,7 @@ are the Rust widths. Every struct has snake_case keys.
 | `Guild` | `id:GuildId`, `owner_id:UserId`, `name:String`, `icon_id:?AttachmentId`, `member_count:u32` |
 | `GuildSummary` | `guild:Guild`, `my_role:MemberRole`, `my_permissions:Permissions` |
 | `GuildPatch` | `name:Patch<String>`, `icon_id:Patch<AttachmentId>`; omitted keep; cannot clear name |
-| `Member` | `guild_id:GuildId`, `user:UserSummary`, `role:MemberRole`, `permissions:Permissions`, `joined_at:UnixMillis` |
+| `Member` | `guild_id:GuildId`, `user:UserSummary`, `role:MemberRole`, `permissions:Permissions`, `joined_at:UnixMillis`, `role_ids:[RoleId]`, `nickname:?String` |
 | `ChannelSummary` | `id:ChannelId`, `kind:ChannelKind`, `guild_id:?GuildId`, `parent_id:?ChannelId`, `name:?String`, `position:u16`, `recipient_ids:[UserId]`, `owner_id:?UserId` |
 | `Channel` | `summary:ChannelSummary`, `topic:?String`; topic fetched lazily, not in Ready |
 | `ChannelPatch` | `name:Patch<String>`, `topic:Patch<String>`; omitted keep; cannot clear name of named channel |
@@ -103,8 +103,8 @@ are the Rust widths. Every struct has snake_case keys.
 | `MessageEdit` | `channel_id:ChannelId`, `message_id:MessageId`, `content:String`, `mention_ids:[UserId]`; both content/mentions replace, not append |
 | `ReadState` | `channel_id:ChannelId`, `last_read_id:?MessageId`, `latest_message_id:?MessageId`, `unread_count:u32`, `mention_count:u32` |
 | `ReactionUpdate` | `channel_id:ChannelId`, `message_id:MessageId`, `user_id:UserId` (actor), `added:bool`, `reaction:ReactionSummary` (absolute post-operation count/me, including count=0) |
-| `GuildDetail` | `summary:GuildSummary`, `channels:[ChannelSummary]` (all guild channels, no member/history bodies) |
-| `VoicePayload` | `nonce:Nonce`, `version:u16`, `kind:String`, `payload:[u8]`; legacy reserved bodies still decode; enabled typed body <=72 KiB, see section 10 |
+| `GuildDetail` | `summary:GuildSummary`, `channels:[ChannelSummary]` (authorized guild channels, no member/history bodies) |
+| `VoicePayload` | `nonce:Nonce`, `version:u16`, `kind:String`, `payload:[u8]`; legacy reserved body <=16 KiB, Phase 1 refuses all kinds/versions; opt-in Phase 2 typed body <=72 KiB, see section 10 |
 
 Enums: `PresenceStatus` = online, idle, dnd, invisible, offline;
 `RelationshipKind` = friend, incoming_request, outgoing_request, blocked;
@@ -142,18 +142,32 @@ The client may reorder DM display by latest_message_id without mutating position
 | 8 | create_invites | Create invite and list/revoke own invites |
 | 9 | kick_members | Kick lower-role members |
 | 10 | ban_members | Ban/unban lower-role members, view bans |
-| 11 | manage_members | Reserved general role-management capability; Phase 1 owner-only assignment policy still applies |
+| 11 | manage_members | Deprecated legacy bit; use manage_roles (14) |
 | 12 | administrator | All currently defined guild action bits, not ownership/hierarchy bypass |
-| 13 | owner | Transfer/delete guild, assign admin/member |
-| 14 | connect | Join guild voice channels (subject to per-member denial) |
-| 15..63 | reserved | Never grant unknown permissions; bit 63 not stored in SQLite |
+| 13 | owner | Internal owner sentinel; cannot be assigned by a role/overwrite |
+| 14 | manage_roles | Manage lower roles and channel overwrites |
+| 15 | change_nickname | Change own per-server nickname |
+| 16 | manage_nicknames | Change lower members' nicknames |
+| 17 | embed_links | Allow link embeds |
+| 18 | mention_everyone | Allow broadcast mentions |
+| 19 | connect | Join voice |
+| 20 | speak | Publish voice |
+| 21 | stream | Share screen/system audio |
+| 22 | video | Publish camera |
+| 23 | mute_members | Server-mute voice members |
+| 24 | deafen_members | Server-deafen voice members |
+| 25 | move_members | Move voice members |
+| 26 | use_voice_activity | Use VAD |
+| 27 | priority_speaker | Priority speaker |
+| 28..63 | reserved | Never grant unknown permissions; bit 63 not stored in SQLite |
 
-Member=bits 0,1,2,3,4,8,14 (16671); Admin=bits 0..12 plus 14 (24575);
-Owner=0..14 (32767). Owner-only and hierarchy restrictions always take precedence over
-individual bits. Clients must preserve unknown bits and not use them to grant
-access. DMs authorize by participant status; group owner alone manages group
-metadata/recipients. Any participant may delete **their own** messages, no group
-moderator deletion of others' messages. General roles/overwrites are not configurable; section 10 adds Connect-only denials.
+The legacy `Permissions::MEMBER` (287), `ADMIN` (8191), and `GUILD_OWNER`
+(16383) constants retain their numeric values for wire compatibility, but are
+**not** authorization presets. Authorization uses the role evaluator in section
+11. Owner-only actions and hierarchy take precedence over Administrator.
+Clients preserve unknown bits without granting them. DMs authorize by
+participant status; group owner alone manages group metadata/recipients. Any
+participant may delete their own messages, not other participants' messages.
 
 ## 3. REST endpoint contract
 
@@ -450,8 +464,9 @@ attribution references and key setup are in `deploy/README.md`.
 
 `Ready {cursor,me:SelfUser,guilds:[GuildSummary],channels:[ChannelSummary],
 relationships:[Relationship],users:[UserSummary],read_states:[ReadState],
-presences:[Presence],voice_states:[GuildVoiceState]}` is complete at the cursor. Guilds are joined guilds only;
-channels are all guild channels plus visible direct/group channels; relationships
+presences:[Presence],voice_states:[GuildVoiceState],roles:[Role],memberships:[Member],
+notification_settings:[NotificationSettings]}` is complete at the cursor. Guilds are joined guilds only;
+channels are View Channel-authorized guild channels plus visible direct/group channels; relationships
 are all own friend/pending/blocked rows. Users provides deduplicated other users
 of direct channels needed for unnamed sidebar labels (self and relationship
 profiles need not be repeated). Named groups need not preload all participants.
@@ -551,7 +566,7 @@ on a lost response: that would duplicate sends.
 ### Durable retry receipts
 
 For every successful **durable** command (all below except typing and
-subscribe_guild), store `(session_hash,nonce,request_hash,result)` in the **same
+subscribe_guild and launch logout commands), store `(session_hash,nonce,request_hash,result)` in the **same
 transaction** as state mutation. Hash canonical named-MessagePack encoding of
 the decoded command using SHA-256 (exact strings/array ordering retained).
 Receipts last ten minutes from commit, capped at 256/session. Do not evict
@@ -1230,3 +1245,212 @@ buttons on **either** message, local hotkey/physical mouse, stream stop or any
 transport disconnect. It must also ignore already queued input for a revoked
 or mismatched grant. Implementing SendInput, UAC restrictions, local bounds,
 Ctrl+Alt+Shift+S and the always-on-top banner is client work, not SFU work.
+
+
+## 11. Launch roles, profiles, pins, notifications and devices
+
+All additions use named maps with the existing v1 numeric ID and permissions
+encoding. Existing fields, command tags and permission bits 0..13 are unchanged.
+`Member.role_ids`/`nickname` and `Ready.roles`/`memberships`/
+`notification_settings` have serde defaults when reading old snapshots.
+`Member.role`/`GuildSummary.my_role` remain legacy compatibility labels, not
+sources of authority. `Ready.memberships` contains only the caller's member
+records; other members remain paged. `roles` contains definitions for every
+joined guild. Joining emits `roles_updated` to bootstrap definitions without
+another Ready. A role-definition update invalidates cached computed member
+permissions; role IDs in messages/member caches are resolved against the newest
+role definitions (deleted IDs are ignored). Member changes carry full role IDs
+and nickname. Name color is derived from the highest colored role; hoisting is
+client presentation, never permission precedence.
+
+### Roles and authorization
+
+`Role {id:RoleId,guild_id,name,color:u32,position:u16,hoist:bool,
+mentionable:bool,permissions:Permissions}`. RGB color is 0..0xFFFFFF, zero means
+uncolored; name 1..100 trimmed UTF-8 bytes. Maximum **64 roles/guild**, including
+@everyone. Greater positions are higher; @everyone has ID=guild_id, name
+`@everyone`, position 0, no hoist/mentionable, and applies to every member
+implicitly. `role_ids` in server member projections includes @everyone.
+
+The one server entry point is:
+
+```rust
+pub async fn permissions::evaluate(
+    connection: &mut sqlx::SqliteConnection,
+    user: UserId,
+    guild: GuildId,
+    channel: Option<ChannelId>,
+) -> sticktalk_server::Result<Permissions>;
+```
+
+Use inside the shared serialization gate/current transaction, not a cached
+MemberRole. Voice integration should call it with Some(channel), require
+VIEW_CHANNEL | CONNECT for joining/subscription, and require SPEAK/STREAM/VIDEO/
+USE_VOICE_ACTIVITY/moderation bits for the corresponding operations. Reauthorize
+live sessions when roles/overwrites change; the separate voice host owns SFU
+session teardown. This patch does not implement the concurrent voice host.
+
+1. Validate membership and channel/guild association (nonmembers/cross-guild
+   channels return not_found). Guild owner gets all known bits. Ownership is
+   determined from guilds.owner_id, not an assignable mask.
+2. OR @everyone and all assigned role masks. Strip OWNER. Administrator grants
+   all known action bits and bypasses all overwrites, but not ownership/hierarchy.
+3. For channel evaluation, apply category overwrites first, then channel
+   overwrites. At **each scope** apply @everyone deny then allow; aggregate all
+   matching role denies/allows and apply deny then allow; apply the member's
+   deny then allow last. Role positions do not alter overwrite precedence;
+   one role's allow wins another role's deny. This launch category-inheritance
+   contract is explicit; there is no separate category-sync flag. The per-scope
+   formula follows [Discord's overwrite algorithm](https://docs.discord.com/developers/topics/permissions).
+4. Without View Channel, channel message/history/reaction/media capabilities
+   are ineffective. Without Send Messages, Attach Files/Embed Links/broadcast
+   mention capabilities are ineffective. Without Connect, speaking, stream,
+   video, VAD and priority speaker capabilities are ineffective. Guild-level
+   permissions remain available for guild management.
+
+`PermissionOverwrite {kind:role|member,target_id,allow:Permissions,
+deny:Permissions}`. Maximum **128/channel**; unique (kind,target_id), no overlap
+between allow/deny, known bits only, no OWNER/ADMINISTRATOR. Targets must exist
+in the same guild. Set requires effective Manage Roles in the channel and
+cannot set bits the actor lacks (owner bypass). Overwrites are complete
+replacement sets; empty deletes all. Categories use the same endpoint/command.
+Manage Roles may edit/delete/assign only roles strictly below the actor's
+highest role. Reordering cannot move/change roles at or above that boundary or
+move a lower role across it. Owner bypasses hierarchy. Role creation inserts
+above @everyone and shifts numeric positions without changing existing relative
+order. Kick/ban/manage-nickname compare highest role positions, never numeric
+permission-mask magnitude. No Administrator hierarchy bypass.
+
+Every guild channel access, history/file/upload route, message mutation,
+read-state projection and channel-bearing event uses the evaluator. Unauthorized
+channels are absent from Ready, GuildDetail, channel lists, unread/mention
+counts, reorder placements and event audiences. An otherwise visible child of
+an invisible category is projected at the root with parent_id=null, including
+single-channel snapshots/events (no hidden parent-ID leak). ACL changes clear
+body-bearing replay and emit per-user additions/removals/read-state projections.
+Connections which lose channel visibility close with **4003** to discard queued
+pre-revocation packets; reconnect/resume receives safe removals or Ready.
+Already-delivered content cannot be recalled. Receipt replay rechecks current
+access. Private channel deletion is sent only to its previous audience.
+
+**Migration:** `202611120001_launch.sql` keeps legacy tables/role strings and
+numeric bit assignments intact. It materializes @everyone for every old guild
+with all six old Member rights plus Change Nickname, Embed Links, Connect,
+Speak, Stream, Video and VAD. A migrated Admin role (guild-local ID=guild_id+1)
+has Administrator, and old admin members are assigned it. Owner derives from
+owner_id. Triggers support new guilds and legacy `set_member_role`/ownership
+transfer commands. The migrated Admin role can be edited/deleted like any
+other role; the owner-only legacy assignment command recreates it if necessary.
+A custom Administrator role need not have the legacy admin label. New launch
+commands never trust that label. New tables avoid rebuilding existing data.
+
+### Commands and events
+
+Launch mutations use `Command::Launch(LaunchCommand)`, wire:
+
+```json
+{"type":"command","data":{"nonce":123,"command":{"type":"launch","data":{"type":"create_role","data":{"guild_id":10,"name":"Moderators"}}}}}
+```
+
+The launch command data catalog (snake_case tags):
+
+| Tag | Data | Result / authorization |
+|---|---|---|
+| create_role | guild_id,name | role(Role); Manage Roles, below own highest |
+| update_role | role:Role | role(Role); full replacement, position immutable; use reorder |
+| delete_role | guild_id,role_id | ack; not @everyone; removes assignments/overwrites |
+| reorder_roles | guild_id,role_ids:[RoleId] | ack; complete lowest-to-highest list, @everyone first |
+| set_member_roles | guild_id,user_id,role_ids | member(Member); complete assignment replacement, @everyone implicit |
+| set_overwrites | channel_id,overwrites | ack; complete ACL replacement |
+| update_guild_profile | guild_id,description,banner_color:u8 | ack; Manage Server; description <=120 Unicode scalars; preset 0..9 |
+| update_user_profile | banner_color:u32,pronouns,about_me | ack; own profile; RGB, pronouns <=40, about-me <=190 Unicode scalars |
+| set_nickname | guild_id,user_id,nickname:?String | member(Member); <=32 Unicode scalars/128 bytes; null clears; Change Nickname for self, Manage Nicknames + hierarchy for others |
+| pin_message | channel_id,message_id,pinned:bool | ack; effective Manage Messages in guilds, participant ACL in DMs; <=50 pins/channel |
+| set_notifications | NotificationSettings | notification_settings(NotificationSettings); own accessible guild/channel only |
+| update_device | device_name,platform | ack; current session; trimmed 1..100 / 1..40 UTF-8 bytes |
+| logout_session | session_id:String | ack; own session only; may include current device |
+| logout_all_others | no data | ack; preserve current token |
+
+All except logout commands use ordinary durable receipts. Logout commands are
+terminal/idempotent destructive session operations without receipts (deleting
+the current token also deletes its receipts); retry of an already-deleted
+session ID returns not_found. Session sockets are closed **after commit**.
+`auth/logout` remains the existing REST log-out-current endpoint.
+
+New event variants:
+- `roles_updated {guild_id,roles:[Role]}`: full role-definition replacement to
+  guild members; member role assignments still use MemberUpsert.
+- `profile_updated(UserProfile)`: own/shared-guild/relationship/DM audiences.
+- `guild_profile_updated(GuildProfile)`: current guild members.
+- `pins_updated {channel_id,message_id,pinned}`: current authorized channel audience.
+- `notification_settings_updated(NotificationSettings)`: all own device streams.
+- `sessions_updated`: all remaining own streams; refetch session list.
+
+`Identify.launch_features:bool` defaults false and is omitted when false.
+Updated clients set it true to receive the new event catalog; sending a launch
+command also opts that session in. Old sessions never receive unknown launch
+event variants. Changing the flag across reconnect invalidates replay and
+requires a fresh compatible snapshot (including missed events when upgrading). Ready's extra named fields remain
+safe for old decoders to ignore. Unknown variants are still rejected, never
+guessed by legacy clients. Existing login and old command request shapes remain unchanged. Link embed generation
+and role/@everyone mention expansion are not introduced by this server patch;
+their permission bits are defined for consumers, as are voice capabilities.
+
+### REST snapshots and profiles
+
+All endpoints are bearer-authenticated GETs returning `Snapshot<T>`:
+
+| Path | T / access |
+|---|---|
+| /guilds/{g}/roles | Vec<Role>; member |
+| /guilds/{g}/profile | GuildProfile; member |
+| /guilds/{g}/preview | GuildPreview; member |
+| /users/{u}/profile | ProfileDetail; normal profile access, including readable historical authors |
+| /channels/{ch}/overwrites | Vec<PermissionOverwrite>; View Channel + Manage Roles |
+| /channels/{ch}/pins | Vec<Message>, newest pin first; View Channel + Read History |
+| /me/notifications | Vec<NotificationSettings>; own, inaccessible scopes omitted |
+| /me/sessions | Vec<DeviceSession>; own unexpired sessions only |
+
+`GuildProfile {guild_id,description,banner_color:u8,created_at:UnixMillis}` uses
+the original guild creation date. `GuildPreview {guild:Guild,profile:GuildProfile,
+online_count:u32}` includes member_count in Guild; online counts effective
+online/idle/DND presence, not offline/invisible or synthetic REST streams.
+`UserProfile {user:UserSummary,banner_color:u32,pronouns,about_me,created_at}`.
+`ProfileDetail {profile:UserProfile,mutual_servers:[MutualServer],
+mutual_friends:[UserSummary]}` includes only servers shared with the caller and
+intersection of accepted friend relationships. `MutualServer {guild:Guild,
+member_since:UnixMillis}` gives the target member's join date in that guild,
+not global account creation. Missing profile customization defaults to zero/empty.
+
+`NotificationSettings {guild_id:?GuildId,channel_id:?ChannelId,
+level:all|mentions|nothing,muted:bool,mute_until:?UnixMillis,
+suppress_everyone:bool,hide_muted_channels:bool}`. Server scope: guild_id set,
+channel_id null. Channel scope: channel_id set, guild_id must match its guild
+(null for DMs). Missing channel override inherits server settings; missing server
+settings defaults to all/unmuted/unsuppressed/show muted. Settings affect client
+notification presentation, **not authorization or delivery of sync events**.
+Clients apply mute expiry by timestamp without polling. Server snapshots report
+muted=false after expiry; persisted expiry is retained. All writes sync to own
+devices; hidden/inaccessible channel settings are omitted from Ready/snapshots.
+
+`DeviceSession {id:String,device_name,platform,last_active:UnixMillis,
+place:String,current:bool}` uses an independent random opaque management ID,
+never token/token hash. Place is the literal `this device`; no IP lookup,
+geolocation or network dependency. Metadata defaults to This device/Unknown;
+clients may label the session with update_device. Last activity is updated on
+authenticated HTTP/WS commands (writes coalesced to at most once/minute/session),
+not by a new background timer. Revocation immediately removes token validity,
+closes live WS, drops replay and cascades device metadata/receipts.
+
+### Validation coverage
+
+`launch_tests` covers all 28 known bit positions (including the legacy internal
+sentinels), owner/admin/outsider paths, same-guild validation, everyone/aggregate
+role/member overwrite precedence, category/channel composition, implicit
+text/voice dependencies, hierarchy/escalation/reorder/assignment/deletion,
+legacy-data migration, all existing channel command families, hidden channels
+in Ready/read counts, HTTP history/message/file/thumbnail/upload ACLs, personalized
+fan-out/reorder/delete/parent filtering, replay/receipt revocation and queued
+connection closure, Unicode profile limits/mutuals/nicknames, pin lifecycle,
+notification cross-device privacy/expiry and session revocation. Proto launch
+round trips and maximum Ready tests cover additive defaults and frame budgets.

@@ -401,6 +401,10 @@ async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiResponse> {
         )?;
     }
     let parts: Vec<_> = path.split('/').collect();
+    if let Some(response) = crate::launch::snapshot(&mut c, &core, u, &key, &parts, &cursor).await?
+    {
+        return Ok(response);
+    }
     match parts.as_slice() {
         ["me"] => Ok(json(Snapshot {
             data: me(&mut c, u).await?,
@@ -457,7 +461,8 @@ async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiResponse> {
         })),
         ["guilds", g, kind] => {
             let g = url_id(g)?;
-            let r = role(&mut c, u, g).await?;
+            role(&mut c, u, g).await?;
+            let effective = crate::permissions::evaluate(&mut c, u, g, None).await?;
             match *kind {
                 "channels" => Ok(json(page(
                     channels(&mut c, u, Some(g)).await?,
@@ -482,7 +487,7 @@ async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiResponse> {
                     )
                     .bind(id(g)?)
                     .bind(id(u)?)
-                    .bind(permissions(r).contains(Permissions::MANAGE_GUILD))
+                    .bind(effective.contains(Permissions::MANAGE_GUILD))
                     .bind(state::now() as i64)
                     .bind(opt(q.before)?).bind(opt(q.before)?).bind(opt(q.after)?).bind(opt(q.after)?)
                     .bind(q.before.is_some()).bind(q.before.is_some()).bind(i64::from(q.limit.unwrap_or(50))+1)

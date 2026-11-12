@@ -42,7 +42,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            bind_ip: "0.0.0.0".parse().unwrap(),
+            bind_ip: "127.0.0.1".parse().unwrap(),
             advertised_ip: "127.0.0.1".parse().unwrap(),
             ports: 50000..=50100,
             video_egress_bps: 32_000_000,

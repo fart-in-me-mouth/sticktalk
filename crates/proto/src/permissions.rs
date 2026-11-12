@@ -18,7 +18,20 @@ bitflags::bitflags! {
         const MANAGE_MEMBERS = 1 << 11;
         const ADMINISTRATOR = 1 << 12;
         const OWNER = 1 << 13;
-        const CONNECT = 1 << 14;
+        const MANAGE_ROLES = 1 << 14;
+        const CHANGE_NICKNAME = 1 << 15;
+        const MANAGE_NICKNAMES = 1 << 16;
+        const EMBED_LINKS = 1 << 17;
+        const MENTION_EVERYONE = 1 << 18;
+        const CONNECT = 1 << 19;
+        const SPEAK = 1 << 20;
+        const STREAM = 1 << 21;
+        const VIDEO = 1 << 22;
+        const MUTE_MEMBERS = 1 << 23;
+        const DEAFEN_MEMBERS = 1 << 24;
+        const MOVE_MEMBERS = 1 << 25;
+        const USE_VOICE_ACTIVITY = 1 << 26;
+        const PRIORITY_SPEAKER = 1 << 27;
     }
 }
 
@@ -29,8 +42,7 @@ impl Permissions {
             | Self::READ_HISTORY.bits()
             | Self::ATTACH_FILES.bits()
             | Self::ADD_REACTIONS.bits()
-            | Self::CREATE_INVITES.bits()
-            | Self::CONNECT.bits(),
+            | Self::CREATE_INVITES.bits(),
     );
 
     pub const ADMIN: Self = Self::from_bits_retain(

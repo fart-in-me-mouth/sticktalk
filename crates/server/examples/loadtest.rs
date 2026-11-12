@@ -157,7 +157,7 @@ async fn main() -> Result<(), AnyError> {
             let (mut ws,_)=connect_async(req).await?;
             let hello=ws.next().await.ok_or("missing Hello")??;
             if !matches!(hello,Frame::Binary(ref b) if matches!(rmp_serde::from_slice::<ServerMsg>(b),Ok(ServerMsg::Hello(_)))) {return Err::<Samples,AnyError>("bad Hello".into());}
-            ws.send(Frame::Binary(rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {version:1,token,resume:None}))?.into())).await?;
+            ws.send(Frame::Binary(rmp_serde::to_vec_named(&ClientMsg::Identify(Identify { launch_features:true,version:1,token,resume:None}))?.into())).await?;
             let mut seq=0;
             loop {
                 let frame=ws.next().await.ok_or("closed before Ready")??;

@@ -12,6 +12,7 @@ Project: StickTalk, a Discord-like chat app in Rust. Contracts:
   - Set `STICKTALK_AGENT_WINDOW=secondary`. This opens the window on the **non-primary monitor**, without taking focus or activating it.
   - Close the window as soon as the test is done.
 - Never open the system browser, play sounds, show notifications or steal focus. Mock all of these in tests. The Google OAuth flow is tested with a mock authorization server and no real browser.
+- **No Windows security prompts.** Tests, benchmarks and dev servers must bind to `127.0.0.1` / `::1` only, never `0.0.0.0`, `::` or the Tailscale/LAN address. Binding to those triggers Windows Firewall "Allow access" popups for every new test binary. Any "advertised IP" or auto-detect logic must be tested with injected fake addresses. Never run anything that needs admin rights/UAC. Prefer per-user installs (`winget --scope user`, portable zips). If admin is truly unavoidable, stop and report it instead.
 - Screen-capture benchmarks are fine, because capturing is invisible, but they must not open preview windows.
 
 ## Build hygiene

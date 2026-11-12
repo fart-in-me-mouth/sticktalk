@@ -340,10 +340,7 @@ pub async fn usage(
 ) -> Result<Json<StorageUsage>> {
     let mut c = app.0.pool.acquire().await?;
     let (_, u) = auth(&mut c, bearer(&headers)?).await?;
-    require(
-        role(&mut c, u, url_id(&g)?).await? == MemberRole::Owner,
-        ErrorCode::OwnerRequired,
-    )?;
+    guild_perm(&mut c, u, url_id(&g)?, Permissions::OWNER).await?;
     let committed: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(byte_size+COALESCE(thumbnail_size,0)),0) FROM uploads",
     )

@@ -18,7 +18,7 @@ use tokio::sync::mpsc;
 
 #[derive(Args, Clone, Debug)]
 pub struct VoiceOptions {
-    #[arg(long, env = "STICKTALK_VOICE_BIND_IP", default_value = "0.0.0.0")]
+    #[arg(long, env = "STICKTALK_VOICE_BIND_IP", default_value = "127.0.0.1")]
     pub voice_bind_ip: IpAddr,
     /// Default: an assigned Tailscale 100.64/10 address, else the HTTP bind IP.
     #[arg(long, env = "STICKTALK_VOICE_ADVERTISED_IP")]
@@ -36,7 +36,7 @@ pub struct VoiceOptions {
 impl Default for VoiceOptions {
     fn default() -> Self {
         Self {
-            voice_bind_ip: "0.0.0.0".parse().unwrap(),
+            voice_bind_ip: "127.0.0.1".parse().unwrap(),
             voice_advertised_ip: None,
             voice_udp_port_start: 50000,
             voice_udp_port_end: 50100,

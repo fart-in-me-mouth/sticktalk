@@ -101,6 +101,10 @@ pub struct Member {
     pub role: MemberRole,
     pub permissions: Permissions,
     pub joined_at: UnixMillis,
+    #[serde(default)]
+    pub role_ids: Vec<crate::Id>,
+    #[serde(default)]
+    pub nickname: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

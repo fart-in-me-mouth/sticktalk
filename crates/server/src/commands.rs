@@ -52,21 +52,8 @@ async fn put_relationship(
     Ok(())
 }
 async fn guild_events(c: &mut SqliteConnection, out: &mut Deliveries, g: Id) -> Result<()> {
-    for r in [MemberRole::Owner, MemberRole::Admin, MemberRole::Member] {
-        let users: Vec<_> = sqlx::query_scalar::<_, i64>(
-            "SELECT user_id FROM guild_members WHERE guild_id=? AND role=? ORDER BY user_id",
-        )
-        .bind(id(g)?)
-        .bind(enum_str(r))
-        .fetch_all(&mut *c)
-        .await?
-        .into_iter()
-        .map(|v| Id(v as u64))
-        .collect();
-        if let Some(first) = users.first() {
-            let summary = guild(c, *first, g).await?;
-            event(out, users, Event::GuildUpsert(summary));
-        }
+    for u in guild_users(c, g).await? {
+        event(out, vec![u], Event::GuildUpsert(guild(c, u, g).await?));
     }
     Ok(())
 }
@@ -79,16 +66,16 @@ async fn member_event(c: &mut SqliteConnection, out: &mut Deliveries, g: Id, u: 
     Ok(())
 }
 async fn invite_users(c: &mut SqliteConnection, i: &Invite) -> Result<Vec<Id>> {
-    let mut users = sqlx::query_scalar::<_, i64>(
-        "SELECT user_id FROM guild_members WHERE guild_id=? AND (role IN ('owner','admin') OR user_id=?)",
-    )
-    .bind(id(i.guild_id)?)
-    .bind(id(i.creator_id)?)
-    .fetch_all(c)
-    .await?
-    .into_iter()
-    .map(|v| Id(v as u64))
-    .collect::<Vec<_>>();
+    let mut users = vec![];
+    for u in guild_users(c, i.guild_id).await? {
+        if u == i.creator_id
+            || crate::permissions::evaluate(c, u, i.guild_id, None)
+                .await?
+                .contains(Permissions::MANAGE_GUILD)
+        {
+            users.push(u);
+        }
+    }
     users.sort();
     users.dedup();
     Ok(users)
@@ -115,15 +102,16 @@ pub(crate) async fn expire_invites(c: &mut SqliteConnection, core: &mut Core) ->
     Ok(())
 }
 async fn admins(c: &mut SqliteConnection, g: Id) -> Result<Vec<Id>> {
-    Ok(sqlx::query_scalar::<_, i64>(
-        "SELECT user_id FROM guild_members WHERE guild_id=? AND role IN ('owner','admin')",
-    )
-    .bind(id(g)?)
-    .fetch_all(c)
-    .await?
-    .into_iter()
-    .map(|v| Id(v as u64))
-    .collect())
+    let mut out = vec![];
+    for u in guild_users(c, g).await? {
+        if crate::permissions::evaluate(c, u, g, None)
+            .await?
+            .contains(Permissions::BAN_MEMBERS)
+        {
+            out.push(u);
+        }
+    }
+    Ok(out)
 }
 async fn channel_event(c: &mut SqliteConnection, out: &mut Deliveries, ch: Id) -> Result<Channel> {
     let ch = channel(c, ch).await?;
@@ -181,6 +169,14 @@ async fn joined(c: &mut SqliteConnection, out: &mut Deliveries, g: Id, u: Id) ->
             read_states: reads,
         },
     );
+    event(
+        out,
+        vec![u],
+        Event::RolesUpdated {
+            guild_id: g,
+            roles: crate::permissions::roles(c, g).await?,
+        },
+    );
     guild_events(c, out, g).await?;
     member_event(c, out, g, u).await
 }
@@ -206,7 +202,12 @@ async fn append_position(c: &mut SqliteConnection, g: Id, p: Option<Id>) -> Resu
     )
 }
 async fn compact(c: &mut SqliteConnection, out: &mut Deliveries, g: Id) -> Result<()> {
-    let viewer = guild_users(c, g).await?[0];
+    let viewer = Id(
+        sqlx::query_scalar::<_, i64>("SELECT owner_id FROM guilds WHERE id=?")
+            .bind(id(g)?)
+            .fetch_one(&mut *c)
+            .await? as u64,
+    );
     let all = channels(c, viewer, Some(g)).await?;
     let mut positions: HashMap<Option<Id>, u16> = HashMap::new();
     for ch in all {
@@ -288,6 +289,9 @@ async fn validate_message(
         content.chars().count() <= 4000 && (!content.trim().is_empty() || attachments > 0),
         ErrorCode::InvalidRequest,
     )?;
+    if attachments > 0 {
+        access(c, u, ch.summary.id, Permissions::ATTACH_FILES).await?;
+    }
     unique(mentions, 100)?;
     for v in mentions {
         text(c, *v, ch.summary.id, Permissions::VIEW_CHANNEL)
@@ -397,7 +401,9 @@ pub(crate) async fn execute(
 ) -> Result<CommandResponse> {
     let durable = !matches!(
         req.command,
-        Command::Typing { .. } | Command::SubscribeGuild { .. }
+        Command::Typing { .. }
+            | Command::SubscribeGuild { .. }
+            | Command::Launch(LaunchCommand::LogoutSession { .. } | LaunchCommand::LogoutAllOthers)
     );
     let mut c = app.0.pool.acquire().await?;
     let valid: Option<i64> =
@@ -409,7 +415,19 @@ pub(crate) async fn execute(
         valid.is_some_and(|v| v > now() as i64),
         ErrorCode::Unauthenticated,
     )?;
+    sqlx::query("UPDATE sessions SET last_used_at=? WHERE token_hash=? AND last_used_at<?")
+        .bind(now() as i64)
+        .bind(key)
+        .bind(now().saturating_sub(60_000) as i64)
+        .execute(&mut *c)
+        .await?;
     let cursor = core.cursor(key, u);
+    // Sending a launch command also proves support for its event catalog.
+    if matches!(req.command, Command::Launch(_)) {
+        if let Some(s) = core.streams.get_mut(key) {
+            s.launch_features = true;
+        }
+    }
     let mut replayed = false;
     let outcome: Result<CommandResult>=async {
         require(req.nonce>0&&req.nonce<=i64::MAX as u64,ErrorCode::InvalidRequest)?;
@@ -417,8 +435,10 @@ pub(crate) async fn execute(
         if durable {
             if let Some(r)=sqlx::query("SELECT request_hash,result_msgpack FROM command_receipts WHERE session_hash=? AND nonce=? AND expires_at>?").bind(key).bind(req.nonce as i64).bind(now() as i64).fetch_optional(&mut *c).await? {
                 require(r.get::<Vec<u8>,_>("request_hash")==request_hash,ErrorCode::Conflict)?;replayed=true;
-                let result:CommandResult=rmp_serde::from_slice(&r.get::<Vec<u8>,_>("result_msgpack")).map_err(|_|Error::new(ErrorCode::Internal))?;
-                result_access(&mut c,u,&result).await?;return Ok(result);
+                let mut result:CommandResult=rmp_serde::from_slice(&r.get::<Vec<u8>,_>("result_msgpack")).map_err(|_|Error::new(ErrorCode::Internal))?;
+                result_access(&mut c,u,&result).await?;
+                if let CommandResult::Channel(ch)=&mut result {*ch=access(&mut c,u,ch.summary.id,Permissions::VIEW_CHANNEL).await?;}
+                return Ok(result);
             }
             core.rate(format!("cmd:{}",u.0),120.,20.)?;
             if matches!(req.command,Command::SendMessage(_)) {core.rate(format!("send:{}",u.0),60.,10.)?;}
@@ -429,26 +449,62 @@ pub(crate) async fn execute(
         for viewer in visibility_users { previous_base.push((viewer, base_presence(&mut c, viewer).await?)); }
         let previous_interests = core.streams.get(key).map(|s| s.interests.clone()).unwrap_or_default();
         let subscription_changed = matches!(req.command, Command::SubscribeGuild { .. });
+        let acl_guild = crate::launch::acl_guild(&mut c,&req.command).await?;
+        let mut before=vec![];
+        if let Some(g)=acl_guild {for v in guild_users(&mut c,g).await? {before.push((v,channels(&mut c,v,Some(g)).await?));}}
         let mut tx=c.begin().await?;let mut out=vec![];
+        let revoke_sessions=matches!(req.command,Command::Launch(LaunchCommand::LogoutSession{..}|LaunchCommand::LogoutAllOthers));
         let presence_changed=matches!(req.command,Command::SetPresence{..});
         let needs_file_gc=matches!(req.command,Command::DeleteGuild{..}|Command::DeleteChannel{..}|Command::LeaveGroupDm{..});
         let block_pair=if let Command::BlockUser{user_id}=req.command {Some(user_id)}else{None};
         let voice_acl_changed=matches!(req.command,Command::SetVoicePermission{..}|Command::SetMemberRole{..}|Command::TransferGuildOwnership{..}|Command::KickMember{..}|Command::BanMember{..}|Command::LeaveGuild{..}|Command::DeleteGuild{..}|Command::DeleteChannel{..});
         let voice_snapshot=matches!(req.command,Command::JoinGuild{..});
         let role_target=if let Command::SetMemberRole{user_id,..}=req.command {Some(user_id)}else{None};
-        let result=mutate(&mut tx,core,key,u,req.command,&mut out).await?;
+        let deleted_channel=if let Command::DeleteChannel {channel_id}=req.command {Some(channel_id)} else {None};
+        let mut revoked_visibility=vec![];
+        let mut result=mutate(&mut tx,core,key,u,req.command,&mut out).await?;
+        if let CommandResult::Channel(ch)=&mut result {*ch=access(&mut tx,u,ch.summary.id,Permissions::VIEW_CHANNEL).await?;}
+        if let Some(g)=acl_guild {
+            for (v,old) in &before {
+                let after=channels(&mut tx,*v,Some(g)).await?;
+                if old.iter().any(|ch|Some(ch.id)!=deleted_channel && !after.iter().any(|a|a.id==ch.id)) {revoked_visibility.push(*v);}
+                for ch in old.iter().filter(|ch|!after.iter().any(|a|a.id==ch.id)) {out.push((vec![*v],Event::ChannelRemoved {channel_id:ch.id,reason:RemovalReason::Left}));}
+                for ch in &after {
+                    let newly_visible=!old.iter().any(|o|o.id==ch.id);
+                    let mut full=channel(&mut tx,ch.id).await?;full.summary=ch.clone();
+                    out.push((vec![*v],Event::ChannelUpsert(full)));
+                    if newly_visible && ch.kind!=ChannelKind::Category {init_read(&mut tx,*v,ch.id,true).await?;out.push((vec![*v],Event::ReadStateUpdated(read(&mut tx,*v,ch.id).await?)));}
+                }
+            }
+        }
         if durable {let result_bytes=rmp_serde::to_vec_named(&result).map_err(|_|Error::new(ErrorCode::Internal))?;sqlx::query("INSERT INTO command_receipts(session_hash,nonce,request_hash,result_msgpack,created_at,expires_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_hash,nonce) DO UPDATE SET request_hash=excluded.request_hash,result_msgpack=excluded.result_msgpack,created_at=excluded.created_at,expires_at=excluded.expires_at") .bind(key).bind(req.nonce as i64).bind(request_hash).bind(result_bytes).bind(now() as i64).bind((now()+600_000) as i64).execute(&mut *tx).await?;}
         let changed=!out.is_empty();
         let orphaned=gc_uploads(&mut tx).await?;
         core.persist_id(&mut tx).await?;
         tx.commit().await?;
         if voice_acl_changed { crate::voice::reconcile(app, core, &mut c).await?; }
+        // Discard queued pre-revocation packets as well as replay. The writer's
+        // biased close branch drops its pending queue; reconnect obtains removals/Ready.
+        for s in core.streams.values_mut().filter(|s|revoked_visibility.contains(&s.user)) {
+            if let Some(connection)=s.connection.take() {let _=connection.close.send(Some(4003));}
+        }
+        if acl_guild.is_some() {core.invalidate(&before.iter().map(|(u,_)|*u).collect::<Vec<_>>());}
+        if revoke_sessions {
+        let mut revoked=vec![];
+        for (k,s) in &core.streams {
+            if s.user==u && sqlx::query_scalar::<_,i64>("SELECT COUNT(*) FROM sessions WHERE token_hash=?").bind(k).fetch_one(&mut *c).await?==0 {revoked.push(k.clone());}
+        }
+        for k in revoked {if let Some(s)=core.streams.remove(&k) {if let Some(c)=s.connection {let _=c.close.send(Some(4001));}}}
+
+        }
         if let Some(v)=block_pair {core.invalidate(&[u,v]);}
         if let Some(v)=role_target {core.invalidate(&[v]);}
         if needs_file_gc || !orphaned.is_empty() {let app=app.clone();tokio::spawn(async move{let _=app.collect_orphan_files().await;});}
         // Access revocation invalidates old body-bearing replay before admitting removal events.
         for (users,e) in &out {if matches!(e,Event::GuildRemoved{..}|Event::ChannelRemoved{..}|Event::RelationshipRemoved{..}|Event::MessageDeleted{..}) {core.invalidate(users);}}
         for (users,e) in out {
+            let deliveries=crate::launch::filter_event(&mut c,users,e).await?;
+            for (users,e) in deliveries {
             if let Event::UserUpdated(ref profile) = e {
                 let mut streams = Vec::new();
                 for s in core.streams.values().filter(|s| users.contains(&s.user)) {
@@ -456,6 +512,7 @@ pub(crate) async fn execute(
                 }
                 core.emit_filtered(&users, e, |s| streams.contains(&s.id))?;
             } else { core.emit(&users,e)?; }
+        }
         }
         if let Some(v) = block_pair.filter(|_| changed) {
             for (viewer, target) in [(u, v), (v, u)] {
@@ -570,6 +627,23 @@ async fn profile_projection(
 }
 async fn result_access(c: &mut SqliteConnection, u: Id, r: &CommandResult) -> Result<()> {
     match r {
+        CommandResult::Role(r) => {
+            role(c, u, r.guild_id).await?;
+            require(
+                crate::permissions::roles(c, r.guild_id)
+                    .await?
+                    .iter()
+                    .any(|v| v.id == r.id),
+                ErrorCode::NotFound,
+            )?;
+        }
+        CommandResult::NotificationSettings(s) => {
+            if let Some(ch) = s.channel_id {
+                access(c, u, ch, Permissions::VIEW_CHANNEL).await?;
+            } else if let Some(g) = s.guild_id {
+                role(c, u, g).await?;
+            }
+        }
         CommandResult::Channel(ch) => {
             access(c, u, ch.summary.id, Permissions::VIEW_CHANNEL).await?;
         }
@@ -588,14 +662,17 @@ async fn result_access(c: &mut SqliteConnection, u: Id, r: &CommandResult) -> Re
             role(c, m.user.id, m.guild_id).await?;
         }
         CommandResult::Invite(i) => {
-            let r = role(c, u, i.guild_id).await?;
+            role(c, u, i.guild_id).await?;
             let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM invites WHERE id=?")
                 .bind(id(i.id)?)
                 .fetch_one(&mut *c)
                 .await?;
             require(exists != 0, ErrorCode::NotFound)?;
             require(
-                i.creator_id == u || permissions(r).contains(Permissions::MANAGE_GUILD),
+                i.creator_id == u
+                    || crate::permissions::evaluate(c, u, i.guild_id, None)
+                        .await?
+                        .contains(Permissions::MANAGE_GUILD),
                 ErrorCode::NotFound,
             )?;
         }
@@ -624,6 +701,7 @@ async fn mutate(
     use Command::*;
     let adding_reaction = matches!(cmd, Command::AddReaction { .. });
     match cmd {
+        Launch(cmd) => crate::launch::mutate(c, core, key, u, cmd, out).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
@@ -1216,6 +1294,15 @@ async fn mutate(
             guild_perm(c, u, g, Permissions::OWNER).await?;
             role(c, v, g).await?;
             if v != u {
+                crate::launch::ensure_legacy_admin(c, g).await?;
+                event(
+                    out,
+                    guild_users(c, g).await?,
+                    Event::RolesUpdated {
+                        guild_id: g,
+                        roles: crate::permissions::roles(c, g).await?,
+                    },
+                );
                 sqlx::query("UPDATE guild_members SET role='admin' WHERE guild_id=? AND user_id=?")
                     .bind(id(g)?)
                     .bind(id(u)?)
@@ -1247,6 +1334,17 @@ async fn mutate(
             let old = role(c, v, g).await?;
             require(old != MemberRole::Owner, ErrorCode::HierarchyViolation)?;
             if old != r {
+                if r == MemberRole::Admin {
+                    crate::launch::ensure_legacy_admin(c, g).await?;
+                    event(
+                        out,
+                        guild_users(c, g).await?,
+                        Event::RolesUpdated {
+                            guild_id: g,
+                            roles: crate::permissions::roles(c, g).await?,
+                        },
+                    );
+                }
                 sqlx::query("UPDATE guild_members SET role=? WHERE guild_id=? AND user_id=?")
                     .bind(enum_str(r))
                     .bind(id(g)?)
@@ -1268,7 +1366,7 @@ async fn mutate(
             ..
         } => {
             let is_ban = matches!(cmd, BanMember { .. });
-            let actor = guild_perm(
+            guild_perm(
                 c,
                 u,
                 g,
@@ -1282,11 +1380,8 @@ async fn mutate(
             require(v != u, ErrorCode::HierarchyViolation)?;
             user(c, v).await?;
             let target = role(c, v, g).await.ok();
-            if let Some(target) = target {
-                require(
-                    permissions(actor).bits() > permissions(target).bits(),
-                    ErrorCode::HierarchyViolation,
-                )?;
+            if target.is_some() {
+                crate::permissions::above_member(c, g, u, v).await?;
             } else {
                 require(is_ban, ErrorCode::NotFound)?;
             }
@@ -1386,7 +1481,7 @@ async fn mutate(
             Ok(CommandResult::Invite(i))
         }
         RevokeInvite { guild_id: g, code } => {
-            let r = role(c, u, g).await?;
+            role(c, u, g).await?;
             let iid: Option<i64> =
                 sqlx::query_scalar("SELECT id FROM invites WHERE guild_id=? AND code_hash=?")
                     .bind(id(g)?)
@@ -1396,7 +1491,10 @@ async fn mutate(
             if let Some(iid) = iid {
                 let i = invite(c, Id(iid as u64)).await?;
                 require(
-                    i.creator_id == u || permissions(r).contains(Permissions::MANAGE_GUILD),
+                    i.creator_id == u
+                        || crate::permissions::evaluate(c, u, i.guild_id, None)
+                            .await?
+                            .contains(Permissions::MANAGE_GUILD),
                     ErrorCode::Forbidden,
                 )?;
                 let users = invite_users(c, &i).await?;
@@ -1438,8 +1536,15 @@ async fn mutate(
             require(!s.contains(['/', '\\']), ErrorCode::InvalidRequest)?;
             let topic = optional(topic, 512)?;
             parent(c, g, p).await?;
+            if let Some(p) = p {
+                access(c, u, p, Permissions::MANAGE_CHANNELS).await?;
+            }
             require(
-                channels(c, u, Some(g)).await?.len() < 32,
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM channels WHERE guild_id=?")
+                    .bind(id(g)?)
+                    .fetch_one(&mut *c)
+                    .await?
+                    < 32,
                 ErrorCode::LimitExceeded,
             )?;
             let pos = append_position(c, g, p).await?;
@@ -1470,12 +1575,7 @@ async fn mutate(
                 .summary
                 .guild_id
                 .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
-            let actor = role(c, u, g).await?;
-            let target = role(c, user_id, g).await?;
-            require(
-                permissions(actor).bits() > permissions(target).bits(),
-                ErrorCode::Forbidden,
-            )?;
+            crate::permissions::above_member(c, g, u, user_id).await?;
             if connect {
                 sqlx::query("DELETE FROM voice_connect_denials WHERE channel_id=? AND user_id=?")
                     .bind(id(channel_id)?)
@@ -1498,8 +1598,8 @@ async fn mutate(
             patch: p,
         } => {
             let old = access(c, u, ch, Permissions::VIEW_CHANNEL).await?;
-            if let Some(g) = old.summary.guild_id {
-                guild_perm(c, u, g, Permissions::MANAGE_CHANNELS).await?;
+            if old.summary.guild_id.is_some() {
+                access(c, u, ch, Permissions::MANAGE_CHANNELS).await?;
             } else {
                 require(
                     old.summary.kind == ChannelKind::GroupDm,
@@ -1542,6 +1642,10 @@ async fn mutate(
             unique(&ids, 32)?;
             let mut siblings: HashMap<Option<Id>, Vec<u16>> = HashMap::new();
             for p in &placements {
+                access(c, u, p.channel_id, Permissions::MANAGE_CHANNELS).await?;
+                if let Some(parent) = p.parent_id {
+                    access(c, u, parent, Permissions::MANAGE_CHANNELS).await?;
+                }
                 let ch = list
                     .iter()
                     .find(|ch| ch.id == p.channel_id)
@@ -1611,13 +1715,14 @@ async fn mutate(
                     channel_event(c, out, child.id).await?;
                 }
             }
+            let previous_audience = audience(c, ch).await?;
             sqlx::query("DELETE FROM channels WHERE id=?")
                 .bind(id(ch)?)
                 .execute(&mut *c)
                 .await?;
             event(
                 out,
-                guild_users(c, g).await?,
+                previous_audience,
                 Event::ChannelRemoved {
                     channel_id: ch,
                     reason: RemovalReason::Deleted,
@@ -1754,15 +1859,31 @@ async fn mutate(
             let channel = text(c, u, ch, Permissions::VIEW_CHANNEL).await?;
             let old = command_message(c, u, ch, m, true).await?;
             if old.author_id != u {
-                let g = channel
-                    .summary
-                    .guild_id
-                    .ok_or_else(|| Error::new(ErrorCode::Forbidden))?;
-                guild_perm(c, u, g, Permissions::MANAGE_MESSAGES).await?;
+                require(channel.summary.guild_id.is_some(), ErrorCode::Forbidden)?;
+                access(c, u, ch, Permissions::MANAGE_MESSAGES).await?;
             }
             let res=sqlx::query("UPDATE messages SET content='',reply_to=NULL,edited_at=NULL,deleted_at=? WHERE id=? AND deleted_at IS NULL").bind(now() as i64).bind(id(m)?).execute(&mut *c).await?;
             if res.rows_affected() > 0 {
+                let pinned: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM pins WHERE channel_id=? AND message_id=?)",
+                )
+                .bind(id(ch)?)
+                .bind(id(m)?)
+                .fetch_one(&mut *c)
+                .await?;
+                if pinned {
+                    event(
+                        out,
+                        audience(c, ch).await?,
+                        Event::PinsUpdated {
+                            channel_id: ch,
+                            message_id: m,
+                            pinned: false,
+                        },
+                    );
+                }
                 for query in [
+                    "DELETE FROM pins WHERE message_id=?",
                     "DELETE FROM message_mentions WHERE message_id=?",
                     "DELETE FROM reactions WHERE message_id=?",
                     "DELETE FROM message_attachments WHERE message_id=?",

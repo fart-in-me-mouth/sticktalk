@@ -137,6 +137,7 @@ pub(crate) struct Stream {
     pub connection: Option<Connection>,
     pub guild: Option<Id>,
     pub interests: Vec<Id>,
+    pub launch_features: bool,
 }
 impl Drop for Connection {
     fn drop(&mut self) {
@@ -158,6 +159,7 @@ impl Stream {
             connection: None,
             guild: None,
             interests: vec![],
+            launch_features: false,
         }
     }
     pub fn cursor(&self) -> ResumeCursor {
@@ -283,6 +285,19 @@ impl Core {
             .values_mut()
             .filter(|s| users.contains(&s.user) && filter(s))
         {
+            if !s.launch_features
+                && matches!(
+                    &event,
+                    Event::RolesUpdated { .. }
+                        | Event::ProfileUpdated(_)
+                        | Event::GuildProfileUpdated(_)
+                        | Event::PinsUpdated { .. }
+                        | Event::NotificationSettingsUpdated(_)
+                        | Event::SessionsUpdated
+                )
+            {
+                continue;
+            }
             if matches!(&event, Event::MemberUpsert(m) if s.guild != Some(m.guild_id) && s.user != m.user.id)
                 || matches!(&event, Event::MemberRemoved{guild_id,..} if s.guild != Some(*guild_id))
             {
@@ -672,6 +687,9 @@ mod tests {
             status_text: Some("s".repeat(128)),
         };
         let mut ready = Ready {
+            roles: vec![],
+            memberships: vec![],
+            notification_settings: vec![],
             cursor: ResumeCursor {
                 stream_id: stream_id(),
                 seq: 0,
