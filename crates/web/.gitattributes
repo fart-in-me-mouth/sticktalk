@@ -1,0 +1,3 @@
+# Preserve upstream license text verbatim, including its original spacing.
+public/emoji/LICENSE-CC-BY-4.0 -whitespace
+public/fonts/*-OFL.txt -whitespace

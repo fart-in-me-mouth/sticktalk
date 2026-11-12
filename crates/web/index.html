@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#111113">
+  <meta name="description" content="StickTalk — messages, friends and voice calls.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="StickTalk">
+  <title>StickTalk</title>
+  <link data-trunk rel="rust" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int">
+  <link data-trunk rel="css" href="style.css">
+  <link data-trunk rel="copy-dir" href="public">
+  <link rel="manifest" href="public/manifest.webmanifest">
+  <link rel="icon" href="public/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="public/icons/apple-touch-icon.png">
+  <link rel="preload" href="public/fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="public/mock-workspace.jpg" as="image">
+  <style>html,body{margin:0;background:#111113;color:#E8EAED;font-family:Inter,system-ui,sans-serif}#boot{padding:32px;font-size:15px}</style>
+  <script type="module" src="public/platform.js"></script>
+</head>
+<body><div id="boot" role="status">Opening StickTalk…</div><noscript>Enable JavaScript to open StickTalk.</noscript></body>
+</html>

@@ -1,0 +1,9 @@
+[build]
+target = "index.html"
+dist = "dist"
+filehash = true
+
+[[hooks]]
+stage = "post_build"
+command = "node"
+command_arguments = ["scripts/finalize.mjs"]

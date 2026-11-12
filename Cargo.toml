@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/proto", "crates/server", "crates/client", "crates/client-core", "crates/media", "crates/sfu", "crates/desktop-platform", "crates/emoji"]
+members = ["crates/proto", "crates/server", "crates/client", "crates/client-core", "crates/media", "crates/sfu", "crates/desktop-platform", "crates/emoji", "crates/web"]
 resolver = "2"
 
 [workspace.package]
@@ -30,3 +30,9 @@ strip = true
 [profile.release-small]
 inherits = "release"
 opt-level = "s"
+
+# Preserve the isolated web shell's full dependency size profile, not only its bin.
+[profile.web-release]
+inherits = "release"
+opt-level = "z"
+strip = "debuginfo"

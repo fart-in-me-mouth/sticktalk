@@ -1,0 +1,13 @@
+[package]
+name = "sticktalk-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+build = "build.rs"
+
+[dependencies]
+leptos = { version = "0.8.20", features = ["csr"] }
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "Event", "CustomEvent", "CustomEventInit", "Location", "KeyboardEvent"] }

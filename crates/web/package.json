@@ -1,0 +1,1 @@
+{"private":true,"type":"module","scripts":{"test":"node tests/browser.mjs","audit":"node tests/audit.mjs","serve":"node scripts/serve.mjs"},"devDependencies":{"lighthouse":"^12.8.2","lighthouse-pwa":"npm:lighthouse@^11.7.1","playwright":"^1.56.1"}}
