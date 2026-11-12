@@ -18,7 +18,10 @@ impl TestServer {
     async fn start() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let app = App::open(Config {
-            operations: Default::default(),
+            operations: sticktalk_server::OperationsConfig {
+                min_free_disk_gb: 0,
+                ..Default::default()
+            },
             bind: "127.0.0.1:0".parse().unwrap(),
             data_dir: dir.path().into(),
             public_url: "http://localhost".into(),
@@ -98,6 +101,7 @@ impl Peer {
         assert!(matches!(read(&mut ws).await, ServerMsg::Hello(_)));
         ws.send(Frame::Binary(
             rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+                launch_features: true,
                 version: 1,
                 token: auth.token.clone(),
                 resume,
@@ -977,6 +981,7 @@ async fn handshake_control_and_replacement() {
     assert!(matches!(read(&mut bad).await, ServerMsg::Hello(_)));
     bad.send(Frame::Binary(
         rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+            launch_features: true,
             version: 2,
             token: a.token.clone(),
             resume: None,

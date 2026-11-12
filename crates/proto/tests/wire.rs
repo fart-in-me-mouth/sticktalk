@@ -74,6 +74,8 @@ fn member() -> Member {
         role: MemberRole::Owner,
         permissions: Permissions::GUILD_OWNER,
         joined_at: SNOWFLAKE_EPOCH_MS,
+        role_ids: vec![],
+        nickname: None,
     }
 }
 
@@ -400,6 +402,7 @@ fn every_event_round_trips() {
 #[test]
 fn handshake_reconnect_and_all_result_shapes_round_trip() {
     round_trip(ClientMsg::Identify(Identify {
+        launch_features: true,
         version: PROTOCOL_VERSION,
         token: "secret".into(),
         resume: Some(cursor()),
@@ -424,6 +427,9 @@ fn handshake_reconnect_and_all_result_shapes_round_trip() {
         server_time: SNOWFLAKE_EPOCH_MS,
     }));
     round_trip(ServerMsg::Ready(Box::new(Ready {
+        roles: vec![],
+        memberships: vec![],
+        notification_settings: vec![],
         cursor: cursor(),
         me: me(),
         guilds: vec![guild().summary],
@@ -589,6 +595,9 @@ fn maximum_bootstrap_metadata_fits_the_frame_budget() {
     profile.status_text = Some("s".repeat(128));
     profile.avatar_id = Some(key(2));
     let mut ready = Ready {
+        roles: vec![],
+        memberships: vec![],
+        notification_settings: vec![],
         cursor: cursor(),
         me: SelfUser {
             user: profile.clone(),
@@ -662,8 +671,60 @@ fn maximum_bootstrap_metadata_fits_the_frame_budget() {
             status: PresenceStatus::Offline,
         });
     }
+    for g in &ready.guilds {
+        let guild_id = g.guild.id;
+        let mut role_ids = vec![];
+        for n in 0..MAX_ROLES_PER_GUILD {
+            let id = if n == 0 {
+                guild_id
+            } else {
+                key(9000 + ready.roles.len() as u64)
+            };
+            ready.roles.push(Role {
+                id,
+                guild_id,
+                name: "r".repeat(100),
+                color: 0xffffff,
+                position: n as u16,
+                hoist: true,
+                mentionable: true,
+                permissions: Permissions::all() - Permissions::OWNER,
+            });
+            role_ids.push(id);
+        }
+        ready.memberships.push(Member {
+            guild_id,
+            user: profile.clone(),
+            role: MemberRole::Owner,
+            permissions: Permissions::all(),
+            joined_at: SNOWFLAKE_EPOCH_MS,
+            role_ids,
+            nickname: Some("🦀".repeat(32)),
+        });
+        ready.notification_settings.push(NotificationSettings {
+            guild_id: Some(guild_id),
+            channel_id: None,
+            level: NotificationLevel::Mentions,
+            muted: true,
+            mute_until: Some(i64::MAX as u64),
+            suppress_everyone: true,
+            hide_muted_channels: true,
+        });
+    }
+    for ch in &ready.channels {
+        ready.notification_settings.push(NotificationSettings {
+            guild_id: ch.guild_id,
+            channel_id: Some(ch.id),
+            level: NotificationLevel::Mentions,
+            muted: true,
+            mute_until: Some(i64::MAX as u64),
+            suppress_everyone: true,
+            hide_muted_channels: true,
+        });
+    }
     let wire = ServerMsg::Ready(Box::new(ready));
     let bytes = rmp_serde::to_vec_named(&wire).unwrap();
+    println!("maximum launch Ready bytes: {}", bytes.len());
     assert!(
         bytes.len() <= MAX_WS_FRAME_BYTES as usize,
         "Ready was {} bytes",

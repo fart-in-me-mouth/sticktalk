@@ -7,7 +7,10 @@ use sticktalk_proto::*;
 pub(crate) async fn fixture() -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     let app = App::open(Config {
-        operations: Default::default(),
+        operations: crate::OperationsConfig {
+            min_free_disk_gb: 0,
+            ..Default::default()
+        },
         bind: "127.0.0.1:0".parse().unwrap(),
         data_dir: dir.path().into(),
         public_url: "http://localhost".into(),
@@ -542,6 +545,7 @@ async fn slow_initial_replay_has_one_deadline() {
     );
     ws.send(Frame::Binary(
         rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+            launch_features: false,
             version: 1,
             token,
             resume: Some(resume),
@@ -973,6 +977,7 @@ async fn failed_ready_detaches_stream_and_is_not_an_auth_failure() {
     let _hello = ws.next().await.unwrap().unwrap();
     ws.send(Frame::Binary(
         rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+            launch_features: true,
             version: 1,
             token,
             resume: None,

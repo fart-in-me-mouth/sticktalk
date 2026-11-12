@@ -16,6 +16,9 @@ pub struct Identify {
     pub version: u16,
     pub token: String,
     pub resume: Option<ResumeCursor>,
+    /// Opt in to launch-only event variants; old peers omit this field.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub launch_features: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,6 +50,13 @@ pub struct Ready {
     pub users: Vec<UserSummary>,
     pub read_states: Vec<ReadState>,
     pub presences: Vec<Presence>,
+    #[serde(default)]
+    pub roles: Vec<Role>,
+    /// Current user's memberships; full member lists remain paged.
+    #[serde(default)]
+    pub memberships: Vec<Member>,
+    #[serde(default)]
+    pub notification_settings: Vec<NotificationSettings>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,6 +112,7 @@ pub struct CommandRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum Command {
+    Launch(LaunchCommand),
     UpdateProfile(ProfilePatch),
     SetPresence {
         status: PresenceStatus,
@@ -268,6 +279,8 @@ pub enum CommandOutcome {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum CommandResult {
+    Role(Role),
+    NotificationSettings(NotificationSettings),
     Ack,
     Profile(SelfUser),
     Presence(Presence),
@@ -302,6 +315,19 @@ pub struct EventEnvelope {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum Event {
+    RolesUpdated {
+        guild_id: GuildId,
+        roles: Vec<Role>,
+    },
+    ProfileUpdated(UserProfile),
+    GuildProfileUpdated(GuildProfile),
+    PinsUpdated {
+        channel_id: ChannelId,
+        message_id: MessageId,
+        pinned: bool,
+    },
+    NotificationSettingsUpdated(NotificationSettings),
+    SessionsUpdated,
     SelfUpdated(SelfUser),
     UserUpdated(UserSummary),
     RelationshipUpsert(Relationship),

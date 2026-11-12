@@ -9,8 +9,10 @@ mod files;
 pub mod gifs;
 mod google;
 mod http;
+mod launch;
 #[cfg(test)]
 mod operations_tests;
+pub mod permissions;
 mod resumable;
 mod state;
 pub mod updates;
@@ -21,3 +23,5 @@ pub use state::{App, Config};
 pub fn router(app: App) -> axum::Router {
     http::router(app)
 }
+#[cfg(test)]
+mod launch_tests;

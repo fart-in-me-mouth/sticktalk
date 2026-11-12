@@ -52,13 +52,6 @@ pub fn unique(ids: &[Id], max: usize) -> Result<()> {
         ErrorCode::InvalidRequest,
     )
 }
-pub fn permissions(role: MemberRole) -> Permissions {
-    match role {
-        MemberRole::Owner => Permissions::GUILD_OWNER,
-        MemberRole::Admin => Permissions::ADMIN,
-        MemberRole::Member => Permissions::MEMBER,
-    }
-}
 pub async fn auth(c: &mut SqliteConnection, token: &str) -> Result<(Vec<u8>, Id)> {
     use base64::Engine;
     require(
@@ -80,6 +73,12 @@ pub async fn auth(c: &mut SqliteConnection, token: &str) -> Result<(Vec<u8>, Id)
         r.get::<i64, _>("expires_at") > now() as i64,
         ErrorCode::SessionExpired,
     )?;
+    sqlx::query("UPDATE sessions SET last_used_at=? WHERE token_hash=? AND last_used_at<?")
+        .bind(now() as i64)
+        .bind(&h)
+        .bind(now().saturating_sub(60_000) as i64)
+        .execute(&mut *c)
+        .await?;
     Ok((h, Id(r.get::<i64, _>("user_id") as u64)))
 }
 pub fn user_row(r: &SqliteRow) -> UserSummary {
@@ -115,9 +114,17 @@ pub async fn profile_access(c: &mut SqliteConnection, viewer: Id, target: Id) ->
     if n != 0 {
         return Ok(());
     }
-    let authored: i64 = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM messages m WHERE m.author_id=? AND m.deleted_at IS NULL AND (m.channel_id IN(SELECT ch.id FROM channels ch JOIN guild_members gm ON gm.guild_id=ch.guild_id WHERE gm.user_id=?) OR m.channel_id IN(SELECT channel_id FROM dm_members WHERE user_id=?)))")
-        .bind(id(target)?).bind(id(viewer)?).bind(id(viewer)?).fetch_one(c).await?;
-    require(authored != 0, ErrorCode::NotFound)
+    let candidates: Vec<i64> = sqlx::query_scalar("SELECT DISTINCT m.channel_id FROM messages m WHERE m.author_id=? AND m.deleted_at IS NULL AND (m.channel_id IN(SELECT ch.id FROM channels ch JOIN guild_members gm ON gm.guild_id=ch.guild_id WHERE gm.user_id=?) OR m.channel_id IN(SELECT channel_id FROM dm_members WHERE user_id=?))")
+        .bind(id(target)?).bind(id(viewer)?).bind(id(viewer)?).fetch_all(&mut *c).await?;
+    for ch in candidates {
+        if access(c, viewer, Id(ch as u64), Permissions::READ_HISTORY)
+            .await
+            .is_ok()
+        {
+            return Ok(());
+        }
+    }
+    Err(Error::new(ErrorCode::NotFound))
 }
 pub async fn role(c: &mut SqliteConnection, u: Id, g: Id) -> Result<MemberRole> {
     let r: Option<String> =
@@ -136,7 +143,9 @@ pub async fn guild_perm(
 ) -> Result<MemberRole> {
     let r = role(c, u, g).await?;
     require(
-        permissions(r).contains(p),
+        crate::permissions::evaluate(c, u, g, None)
+            .await?
+            .contains(p),
         if p == Permissions::OWNER {
             ErrorCode::OwnerRequired
         } else {
@@ -157,7 +166,15 @@ pub async fn member(c: &mut SqliteConnection, g: Id, u: Id) -> Result<Member> {
         guild_id: g,
         user: user(c, u).await?,
         role,
-        permissions: permissions(role),
+        permissions: crate::permissions::evaluate(c, u, g, None).await?,
+        role_ids: crate::permissions::role_ids(c, g, u).await?,
+        nickname: sqlx::query_scalar(
+            "SELECT nickname FROM nicknames WHERE guild_id=? AND user_id=?",
+        )
+        .bind(id(g)?)
+        .bind(id(u)?)
+        .fetch_optional(&mut *c)
+        .await?,
         joined_at: r.get::<i64, _>("joined_at") as u64,
     })
 }
@@ -174,7 +191,7 @@ pub async fn guild_users(c: &mut SqliteConnection, g: Id) -> Result<Vec<Id>> {
 }
 pub async fn guild(c: &mut SqliteConnection, u: Id, g: Id) -> Result<GuildSummary> {
     let role = role(c, u, g).await?;
-    let r=sqlx::query("SELECT *, (SELECT COUNT(*) FROM guild_members WHERE guild_id=guilds.id) AS n FROM guilds WHERE id=?").bind(id(g)?).fetch_one(c).await?;
+    let r=sqlx::query("SELECT *, (SELECT COUNT(*) FROM guild_members WHERE guild_id=guilds.id) AS n FROM guilds WHERE id=?").bind(id(g)?).fetch_one(&mut *c).await?;
     Ok(GuildSummary {
         guild: Guild {
             id: g,
@@ -184,7 +201,7 @@ pub async fn guild(c: &mut SqliteConnection, u: Id, g: Id) -> Result<GuildSummar
             member_count: r.get::<i64, _>("n") as u32,
         },
         my_role: role,
-        my_permissions: permissions(role),
+        my_permissions: crate::permissions::evaluate(c, u, g, None).await?,
     })
 }
 pub async fn channel(c: &mut SqliteConnection, ch: Id) -> Result<Channel> {
@@ -217,9 +234,22 @@ pub async fn channel(c: &mut SqliteConnection, ch: Id) -> Result<Channel> {
     })
 }
 pub async fn access(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Result<Channel> {
-    let channel = channel(c, ch).await?;
+    let mut channel = channel(c, ch).await?;
     if let Some(g) = channel.summary.guild_id {
-        guild_perm(c, u, g, p).await?;
+        let effective = crate::permissions::evaluate(c, u, g, Some(ch)).await?;
+        require(
+            effective.contains(Permissions::VIEW_CHANNEL),
+            ErrorCode::NotFound,
+        )?;
+        require(effective.contains(p), ErrorCode::Forbidden)?;
+        if let Some(parent) = channel.summary.parent_id {
+            if !crate::permissions::evaluate(c, u, g, Some(parent))
+                .await?
+                .contains(Permissions::VIEW_CHANNEL)
+            {
+                channel.summary.parent_id = None;
+            }
+        }
     } else {
         require(
             channel.summary.recipient_ids.contains(&u),
@@ -239,7 +269,16 @@ pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Re
 pub async fn audience(c: &mut SqliteConnection, ch: Id) -> Result<Vec<Id>> {
     let ch = channel(c, ch).await?;
     if let Some(g) = ch.summary.guild_id {
-        guild_users(c, g).await
+        let mut users = vec![];
+        for u in guild_users(c, g).await? {
+            if crate::permissions::evaluate(c, u, g, Some(ch.summary.id))
+                .await?
+                .contains(Permissions::VIEW_CHANNEL)
+            {
+                users.push(u);
+            }
+        }
+        Ok(users)
     } else {
         Ok(ch.summary.recipient_ids)
     }
@@ -260,7 +299,16 @@ pub async fn channels(
     };
     let mut list = vec![];
     for i in ids {
-        list.push(channel(c, Id(i as u64)).await?.summary);
+        let ch = channel(c, Id(i as u64)).await?.summary;
+        if let Some(g) = ch.guild_id {
+            if !crate::permissions::evaluate(c, u, g, Some(ch.id))
+                .await?
+                .contains(Permissions::VIEW_CHANNEL)
+            {
+                continue;
+            }
+        }
+        list.push(ch);
     }
     // Tree ordering: each root is followed by its children; DMs last by ID.
     let mut roots: Vec<_> = list
@@ -279,6 +327,18 @@ pub async fn channels(
         children.sort_by_key(|c| (c.position, c.id));
         out.push(root);
         out.extend(children);
+    }
+    // A visible child can have an invisible category; expose it as a root without
+    // leaking the category ID or dropping the otherwise accessible channel.
+    for ch in list
+        .iter()
+        .filter(|ch| ch.parent_id.is_some() && !out.iter().any(|v| v.id == ch.id))
+        .cloned()
+        .collect::<Vec<_>>()
+    {
+        let mut ch = ch;
+        ch.parent_id = None;
+        out.push(ch);
     }
     let mut dms: Vec<_> = list.into_iter().filter(|c| c.guild_id.is_none()).collect();
     dms.sort_by_key(|c| c.id);
@@ -501,7 +561,16 @@ pub async fn ready(c: &mut SqliteConnection, core: &mut Core, key: &[u8], u: Id)
     for v in ids {
         presences.push(presence(c, core, u, v).await?);
     }
+    let mut roles = vec![];
+    let mut memberships = vec![];
+    for g in &guilds {
+        roles.extend(crate::permissions::roles(c, g.guild.id).await?);
+        memberships.push(member(c, g.guild.id, u).await?);
+    }
     Ok(Ready {
+        roles,
+        memberships,
+        notification_settings: crate::launch::notifications(c, u).await?,
         cursor: core.cursor(key, u),
         me: me(c, u).await?,
         guilds,

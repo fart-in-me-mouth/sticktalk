@@ -173,7 +173,11 @@ async fn run(app: App, mut socket: WebSocket) {
         let was_online=core.streams.values().any(|s|s.user==u&&(s.connection.is_some()||(s.ever_connected&&state::now().saturating_sub(s.touched)<5000)));
         core.trim();core.cursor(&key,u);let s=core.streams.get_mut(&key).ok_or_else(||Error::new(ErrorCode::Internal))?;
         if let Some(old)=s.connection.take(){let _=old.close.send(Some(4009));}
-        let reason=if let Some(cursor)=&identify.resume {if cursor.stream_id!=s.id {Some(ResyncReason::StreamExpired)}else if cursor.seq>s.seq{Some(ResyncReason::CursorAhead)}else if cursor.seq<s.floor||s.ring.front().is_some_and(|e|state::now().saturating_sub(e.1)>600_000){Some(ResyncReason::CursorTooOld)}else{None}}else{None};
+        let mut reason=if let Some(cursor)=&identify.resume {if cursor.stream_id!=s.id {Some(ResyncReason::StreamExpired)}else if cursor.seq>s.seq{Some(ResyncReason::CursorAhead)}else if cursor.seq<s.floor||s.ring.front().is_some_and(|e|state::now().saturating_sub(e.1)>600_000){Some(ResyncReason::CursorTooOld)}else{None}}else{None};
+        // Decoder capability changes need a fresh projection: a legacy decoder
+        // cannot replay launch variants, and an upgrade missed suppressed events.
+        if identify.launch_features != s.launch_features {s.clear_replay();if identify.resume.is_some() {reason=Some(ResyncReason::CursorTooOld);}}
+        s.launch_features=identify.launch_features;
         let mut initial=vec![];
         let resume_ok=identify.resume.is_some()&&reason.is_none();
         if resume_ok {let cursor=identify.resume.as_ref().expect("checked");let mut count=0;for (seq,_,b) in &s.ring{if *seq>cursor.seq{let decoded:ServerMsg=rmp_serde::from_slice(b).map_err(|_|Error::new(ErrorCode::Internal))?;if matches!(decoded,ServerMsg::Event(ref e) if matches!(e.event,Event::Typing{expires_at,..} if expires_at<state::now())){continue;}initial.push(b.clone());count+=1;}}initial.push(encode(&ServerMsg::Resumed(Resumed{cursor:s.cursor(),replayed:count}))?);}else{if let Some(reason)=reason{initial.push(encode(&ServerMsg::ResyncRequired(ResyncRequired{reason}))?);}s.guild=None;s.interests.clear();}
@@ -473,6 +477,7 @@ fn invalid_command_nonce(bytes: &[u8]) -> Option<u64> {
             | "typing"
             | "mark_read"
             | "subscribe_guild"
+            | "launch"
     );
     known.then_some(m.data.nonce)
 }
@@ -571,6 +576,25 @@ fn named_shapes(v: &serde_json::Value) -> Result<()> {
                 }
             }
         }
+        if name == "launch" {
+            let kind = fields
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if kind != "logout_all_others" {
+                let fields = object(fields.get("data").unwrap_or(&Value::Null))?;
+                if kind == "update_role" {
+                    object(fields.get("role").unwrap_or(&Value::Null))?;
+                }
+                if kind == "set_overwrites" {
+                    if let Some(overwrites) = fields.get("overwrites").and_then(Value::as_array) {
+                        for o in overwrites {
+                            object(o)?;
+                        }
+                    }
+                }
+            }
+        }
         if name == "reorder_channels" {
             if let Some(placements) = fields.get("placements").and_then(Value::as_array) {
                 for p in placements {
@@ -641,6 +665,20 @@ mod tests {
         ] {
             assert!(decode(&rmp_serde::to_vec_named(&value).unwrap()).is_err());
         }
+        for value in [
+            serde_json::json!({"type":"command","data":{"nonce":1,"command":{"type":"launch","data":{"type":"update_role","data":{"role":[20,10,"role",0,1,false,false,0]}}}}}),
+            serde_json::json!({"type":"command","data":{"nonce":1,"command":{"type":"launch","data":{"type":"set_overwrites","data":{"channel_id":11,"overwrites":[["role",10,0,1]]}}}}}),
+        ] {
+            assert!(decode(&rmp_serde::to_vec_named(&value).unwrap()).is_err());
+        }
+        let logout = ClientMsg::Command(CommandRequest {
+            nonce: 1,
+            command: Command::Launch(LaunchCommand::LogoutAllOthers),
+        });
+        assert_eq!(
+            decode(&rmp_serde::to_vec_named(&logout).unwrap()).unwrap(),
+            logout
+        );
         assert!(decode(&[0x81, 0xa1, b'x', 0xdd, 0xff, 0xff, 0xff, 0xff]).is_err());
         let mut deep = vec![0x81, 0xa1, b'x'];
         deep.extend(vec![0x91; 34]);
