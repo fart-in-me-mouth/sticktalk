@@ -243,6 +243,10 @@ async fn static_security_headers_compression_caching_and_no_api_fallback() {
         assert_eq!(r.headers()["cache-control"], "no-cache");
         let csp = r.headers()["content-security-policy"].to_str().unwrap();
         assert!(csp.contains("'wasm-unsafe-eval'") && csp.contains("https://media.klipy.com"));
+        let csp = r.headers()["content-security-policy"].to_str().unwrap();
+        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval';"));
+        assert!(csp.contains("style-src 'self'; style-src-attr 'unsafe-inline';"));
+        assert!(!csp.contains("script-src 'self' 'unsafe-inline'"));
         assert!(!r.headers().contains_key("cross-origin-embedder-policy"));
         assert_eq!(r.headers()["referrer-policy"], "no-referrer");
         assert_eq!(r.headers()["x-content-type-options"], "nosniff");

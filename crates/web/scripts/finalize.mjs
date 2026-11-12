@@ -3,6 +3,44 @@ import { resolve, join, relative } from "node:path";
 import { createHash } from "node:crypto";
 import { brotliCompressSync, constants } from "node:zlib";
 const dist = resolve(process.env.TRUNK_STAGING_DIR ?? "dist");
+async function hashedAsset(prefix, extension, content) {
+  const digest = createHash("sha256").update(content).digest("hex").slice(0, 20);
+  const name = `${prefix}-${digest}.${extension}`;
+  await writeFile(join(dist, name), content);
+  return name;
+}
+// One authoritative token generator, moved from build.rs so CSS ships as an
+// external stylesheet rather than a CSP-blocked runtime <style> element.
+const spec = await readFile(new URL("../../../docs/UI_SPEC.md", import.meta.url), "utf8");
+let tokens = "/* Generated from docs/UI_SPEC.md. */\n:root {\n";
+for (const line of spec.split(/\r?\n/).filter((line) => line.startsWith("| "))) {
+  const cols = line.split("|").map((col) => col.trim());
+  if (cols.length < 4) continue;
+  const [key, value] = cols.slice(1, 3);
+  if (key === "online / idle / dnd / offline") {
+    const colors = value.split(" / ");
+    key.split(" / ").forEach((name, i) => { tokens += `  --${name}: ${colors[i]};\n`; });
+  } else if (value.startsWith("#")) {
+    tokens += `  --${key.replaceAll(".", "-")}: ${key === "mention.bg" ? "rgb(242 184 75 / 8%)" : value};\n`;
+  }
+}
+for (const size of [4, 8, 12, 16, 24, 32]) tokens += `  --space-${size}: ${size}px;\n`;
+tokens += "  --radius-small: 4px; --radius: 8px; --radius-modal: 12px;\n}\n";
+const tokenAsset = await hashedAsset("ui-tokens", "css", tokens);
+let html = await readFile(join(dist, "index.html"), "utf8");
+for (const match of [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]) {
+  if (/\bsrc\s*=/i.test(match[1]) || !match[2].trim()) continue;
+  const asset = await hashedAsset("bootstrap", "js", match[2]);
+  html = html.replace(match[0], `<script${match[1]} src="/${asset}"></script>`);
+}
+for (const match of [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)]) {
+  const asset = await hashedAsset("boot", "css", match[1]);
+  html = html.replace(match[0], `<link rel="stylesheet" href="/${asset}">`);
+}
+html = html.replace("</head>", `<link rel="stylesheet" href="/${tokenAsset}"></head>`);
+if (/<style\b/i.test(html) || /<script\b(?![^>]*\bsrc\s*=)[^>]*>\s*\S/i.test(html))
+  throw new Error("CSP packaging left an inline script or style element");
+await writeFile(join(dist, "index.html"), html);
 async function files(dir) {
   const all = [];
   for (const name of await readdir(dir)) {

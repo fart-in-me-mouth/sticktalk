@@ -1573,7 +1573,10 @@ All responses carry CSP (`default-src 'none'`, script self +
 `'wasm-unsafe-eval'`, same-origin connections including WS, styles/fonts/
 workers/manifests self, no objects/frames/base URL), `Referrer-Policy:
 no-referrer`, `X-Content-Type-Options: nosniff`, and `Permissions-Policy` allowing
-microphone, camera and display-capture **for self only**. CSP img/media sources
+microphone, camera and display-capture **for self only**. Inline script and style
+elements remain blocked: the web build externalizes Trunk bootstrap, boot CSS
+and generated UI tokens. `style-src-attr 'unsafe-inline'` is the narrow exception
+for dynamic avatar/role colors and virtualized layout geometry. CSP img/media sources
 add only operator-configured HTTPS origins from `--gif-media-origins` /
 `STICKTALK_GIF_MEDIA_ORIGINS` (comma separated, no wildcards/paths). GIF
 metadata must use the same-origin proxy under this policy; direct browser

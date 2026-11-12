@@ -24,6 +24,9 @@ cargo fmt --all -- --check
 npm ci
 npx playwright install chromium
 npm test
+cargo build -p sticktalk-server
+$env:STICKTALK_SERVER_EXE = Join-Path $env:CARGO_TARGET_DIR "debug/sticktalk-server.exe"
+npm run test:server
 npm run audit
 ```
 
@@ -53,7 +56,10 @@ Old StickTalk shell caches are deleted on activation. Offline launch shows
   visualViewport, focus, keyboard shortcuts, file-drop preview, PWA registration).
   Only one-shot long-press/toast deadlines and idle service-worker startup; no animation frames,
   polling, audio, notifications, browser launching, or remote requests.
-- `build.rs`: derives CSS properties directly from `docs/UI_SPEC.md`.
+- `scripts/finalize.mjs`: derives CSS properties directly from `docs/UI_SPEC.md`,
+  externalizes Trunk bootstrap/boot styles, and hashes all generated assets for
+  the strict same-origin script/style-element CSP. Dynamic style attributes are
+  the only inline-style exception (avatar colors and virtual spacer heights).
 - `scripts/assets.py`: rebuilds WOFF2 Latin/punctuation subsets from the native
   assets, Lucide inline symbols from native/vendored SVGs, and the simple PWA
   mark. Requires Python fontTools, Brotli and Pillow; no network access.

@@ -25,7 +25,6 @@ fn main() {
             .expect("action listener");
         listener.forget();
         view! {
-            <style>{include_str!(concat!(env!("OUT_DIR"), "/tokens.css"))}</style>
             {move || views::app(state.get())}
         }
     });

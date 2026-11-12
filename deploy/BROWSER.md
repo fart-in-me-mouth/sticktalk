@@ -60,3 +60,13 @@ JWKS/token and push services. `STICKTALK_MOCK_GOOGLE_TOKEN_URL` and
 these on a deployed service. Dev/test servers must bind 127.0.0.1/::1 (including
 `--voice-bind-ip` and `--voice-advertised-ip`), never wildcard/LAN/Tailscale.
 No administrator install, firewall-rule changes or UAC actions are needed.
+
+### Bundled web-shell CSP compatibility
+
+The Trunk post-build hook externalizes its module bootstrap, boot styles and
+UI_SPEC-derived tokens into content-hashed same-origin assets. Inline scripts
+and style elements remain blocked. Only `style-src-attr` allows inline values,
+for validated avatar/role colors and virtualized layout geometry. Run the web
+`test:server` smoke test against the native `--web-root` server, not just the
+fixture server; it asserts zero application CSP violations and verifies that
+injected inline script/style elements are blocked.

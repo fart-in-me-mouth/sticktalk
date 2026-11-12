@@ -118,7 +118,10 @@ impl Browser {
             .public_url
             .replacen("https://", "wss://", 1)
             .replacen("http://", "ws://", 1);
-        let csp=format!("default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self'{media}; media-src 'self'{media}; connect-src 'self' {}; worker-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",ws_origin.trim_end_matches('/')).parse().map_err(|_|Error::new(ErrorCode::InvalidRequest))?;
+        // Dynamic avatar colors/virtual spacer heights are style attributes only.
+        // Keep inline script and style ELEMENTS blocked; the web packager externalizes
+        // Trunk's bootstrap and generated UI tokens into same-origin hashed assets.
+        let csp=format!("default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; font-src 'self'; img-src 'self'{media}; media-src 'self'{media}; connect-src 'self' {}; worker-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",ws_origin.trim_end_matches('/')).parse().map_err(|_|Error::new(ErrorCode::InvalidRequest))?;
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(8))
             .connect_timeout(Duration::from_secs(3))
