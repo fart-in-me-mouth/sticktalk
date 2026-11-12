@@ -1,0 +1,15 @@
+{
+  "renderer": "wgpu/dx12",
+  "window_mode": "secondary-noactivate",
+  "arguments": "--mock --agent-window-report C:/Users/dwhee/.cargo-target/sticktalk-b8-core/placement-after-gpu.json",
+  "timestamp": "2026-11-12T16:04:51.2979721-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.8538703,
+  "cpu_seconds": 0.046875,
+  "one_core_cpu_percent": 0.07702879006530503,
+  "working_set_mean": 184687411.2,
+  "working_set_max": 186265600.0,
+  "private_bytes_mean": 161742984.53333333,
+  "binary_bytes": 55364608,
+  "sha256": "41B83F0DACA6813C28591CD71B1E6F7669A30A19CDC4EEDDFD3FD549D20FF89B"
+}

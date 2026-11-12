@@ -32,7 +32,7 @@ pub fn run(args: &[String], index: usize) -> Result<(), String> {
     let mut results = Vec::new();
     for mode in ["wheel-deltas", "scrollbar-seek", "scrollbar-drag-skeleton"] {
         let mut app = App::headless("scroll-5000", size);
-        app.at_present = false;
+        app.state.at_present = false;
         app.fast_scrolling = mode == "scrollbar-drag-skeleton";
         let mut cache = Cache::new();
         #[cfg(not(feature = "wgpu"))]
@@ -264,7 +264,7 @@ mod input_tests {
     fn native_iced_fractional_wheel_and_scrollbar_drag_are_headless() {
         let size = Size::new(2560., 1440.);
         let mut app = App::headless("scroll-5000", size);
-        app.at_present = false;
+        app.state.at_present = false;
         app.scroll_y = app.history_height() * 0.5;
         #[cfg(feature = "wgpu")]
         let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(

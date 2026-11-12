@@ -17,60 +17,8 @@ use std::{
 };
 use sticktalk_proto::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FriendTab {
-    Online,
-    All,
-    Pending,
-    Blocked,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Screen {
-    Friends(FriendTab),
-    Channel(Id),
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GuildTab {
-    Overview,
-    Channels,
-    Members,
-    Invites,
-    Bans,
-}
-#[derive(Debug, Clone)]
-pub enum Dialog {
-    None,
-    AddGuild,
-    CreateGuild,
-    JoinGuild,
-    Invite,
-    AddFriend,
-    GuildMenu,
-    EmojiPicker,
-    UserSettings,
-    GuildSettings(GuildTab),
-    NewChannel(ChannelKind, Option<Id>),
-    ChannelSettings(Id),
-    NewGroup,
-    GroupSettings(Id),
-    MessageActions(Id),
-    Profile(Id),
-    Confirm(String, Command),
-    ExternalLink(String),
-    ReplyPreview(Id),
-    HistoryJump,
-    Password,
-    MemberMenu(Id),
-}
-#[derive(Default)]
-pub struct Form {
-    pub name: String,
-    pub topic: String,
-    pub code: String,
-    pub reason: String,
-    pub selected: BTreeSet<Id>,
-    pub icon: Option<Id>,
-}
+use sticktalk_client_core::state::ClientState;
+pub use sticktalk_client_core::state::{Dialog, Form, FriendTab, GuildTab, Screen};
 #[derive(Debug, Clone)]
 pub enum Msg {
     Server(String),
@@ -209,20 +157,16 @@ struct RowCache {
 }
 
 pub struct App {
+    pub state: ClientState,
     trace: Option<PathBuf>,
     trace_counts: BTreeMap<&'static str, u64>,
     trace_total: u64,
-    pub model: Model,
     pub message_layouts: crate::message_layout::Cache,
     history_slots: std::cell::RefCell<BTreeMap<Id, HistorySlot>>,
     pub fast_scrolling: bool,
     scroll_settle_armed: bool,
     last_scroll: Instant,
-    history_seek: u64,
-    seek_loading: bool,
-    jump_seek: Option<u64>,
     pub images: Images,
-    pub session: Option<Session>,
     pub tx: Option<backend::Handle>,
     pub server: String,
     pub username: String,
@@ -242,36 +186,18 @@ pub struct App {
     auth_task: Option<iced::task::Handle>,
     mock_account: backend::MockAccount,
     hover_serial: u64,
-    manual_unread: BTreeSet<Id>,
     pub busy: bool,
     pub error: String,
     pub notice: String,
-    pub connection: ConnectionState,
-    pub screen: Screen,
-    pub guild: Option<Id>,
     pub dialog: Dialog,
     pub form: Form,
     form_revision: u64,
     pub editor: text_editor::Content,
-    pub reply: Option<Id>,
-    pub editing: Option<Id>,
-    pub attachments: Vec<Attachment>,
-    pub pending: BTreeMap<Nonce, Command>,
-    pending_files: BTreeMap<Nonce, Vec<Attachment>>,
-    pub loading: bool,
-    pub history_more: bool,
-    pub before: Option<Id>,
-    pub after: Option<Id>,
-    pub member_after: Option<Id>,
-    pub invite_after: Option<Id>,
-    pub ban_after: Option<Id>,
     pub hovered_guild: Option<Option<Id>>,
-    pub generation: u64,
     pub scroll_y: f32,
     pub viewport_h: f32,
     pub viewport_w: f32,
     pub total_h: f32,
-    pub at_present: bool,
     pub width: f32,
     pub height: f32,
     pub focused: bool,
@@ -280,19 +206,13 @@ pub struct App {
     pub user_tab: u8,
     pub suggestion: usize,
     pub suggestions_dismissed: bool,
-    drafts: BTreeMap<Id, String>,
-    draft_mentions: BTreeMap<Id, BTreeSet<Id>>,
-    selected_mentions: BTreeSet<Id>,
     last_typing: Option<Instant>,
     last_activity: Instant,
     idle_armed: bool,
-    read_serial: u64,
-    read_id: Option<Id>,
     pub uploading: usize,
     capture: Option<PathBuf>,
     initial_screen: String,
     stats: Option<PathBuf>,
-    history_seen: usize,
     heights: BTreeMap<Id, (u64, u32, u64, bool, f32)>,
     layout_cache: std::cell::RefCell<Option<RowCache>>,
     layout_revision: u64,
@@ -333,20 +253,19 @@ impl App {
             None
         };
         let state = Self {
+            state: ClientState {
+                session,
+                ..ClientState::default()
+            },
             trace: flag("--trace-events").map(PathBuf::from),
             trace_counts: BTreeMap::new(),
             trace_total: 0,
-            model: Model::default(),
             message_layouts: Default::default(),
             history_slots: Default::default(),
             fast_scrolling: false,
             scroll_settle_armed: false,
             last_scroll: Instant::now(),
-            history_seek: 0,
-            seek_loading: false,
-            jump_seek: None,
             images: Images::default(),
-            session,
             tx: None,
             server: server.clone(),
             username: String::new(),
@@ -371,31 +290,14 @@ impl App {
                 crate::mock::MockAuth::default(),
             )),
             hover_serial: 0,
-            manual_unread: BTreeSet::new(),
             busy: false,
             error: String::new(),
             notice: String::new(),
-            connection: ConnectionState::Offline,
-            screen: Screen::Friends(FriendTab::Online),
-            guild: None,
             dialog: Dialog::None,
             form: Form::default(),
             form_revision: 0,
             editor: text_editor::Content::new(),
-            reply: None,
-            editing: None,
-            attachments: vec![],
-            pending: BTreeMap::new(),
-            pending_files: BTreeMap::new(),
-            loading: false,
-            history_more: false,
-            before: None,
-            after: None,
-            member_after: None,
-            invite_after: None,
-            ban_after: None,
             hovered_guild: None,
-            generation: 0,
             scroll_y: 0.0,
             viewport_h: crate::window_size().height
                 - crate::theme::HEADER
@@ -412,7 +314,6 @@ impl App {
                     0.
                 },
             total_h: 0.0,
-            at_present: true,
             width: crate::window_size().width,
             height: crate::window_size().height,
             focused: true,
@@ -421,18 +322,12 @@ impl App {
             user_tab: 0,
             suggestion: 0,
             suggestions_dismissed: false,
-            drafts: BTreeMap::new(),
-            draft_mentions: BTreeMap::new(),
-            selected_mentions: BTreeSet::new(),
             last_typing: None,
             last_activity: Instant::now(),
             idle_armed: false,
-            read_serial: 0,
-            read_id: None,
             uploading: 0,
             capture,
             stats: flag("--stats").map(PathBuf::from),
-            history_seen: 0,
             heights: BTreeMap::new(),
             layout_cache: std::cell::RefCell::new(None),
             layout_revision: 0,
@@ -462,7 +357,7 @@ impl App {
                 },
                 Msg::Restore,
             )
-        } else if state.capture.is_some() && state.session.is_none() {
+        } else if state.capture.is_some() && state.state.session.is_none() {
             Task::perform(
                 async {
                     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -523,7 +418,7 @@ impl App {
         )];
         let toast = if !self.error.is_empty()
             && matches!(self.dialog, Dialog::None)
-            && self.session.is_some()
+            && self.state.session.is_some()
         {
             self.error.clone()
         } else {
@@ -537,7 +432,7 @@ impl App {
                 })
             }));
         }
-        if let Some(s) = &self.session {
+        if let Some(s) = &self.state.session {
             subs.push(
                 Subscription::run_with(s.config.clone(), backend::subscription).map(Msg::Net),
             );
@@ -564,7 +459,7 @@ impl App {
             *self.trace_counts.entry(name).or_default() += 1;
             self.trace_total += 1;
             if self.trace_total.is_power_of_two() {
-                let data = serde_json::json!({"counts":self.trace_counts,"total":self.trace_total,"scroll_y":self.scroll_y,"viewport_h":self.viewport_h,"viewport_w":self.viewport_w,"total_h":self.total_h,"height":self.history_height(),"retained":self.model.retained_count(),"heights":self.heights.len(),"cursor":self.model.cursor.as_ref().map(|c|c.seq)});
+                let data = serde_json::json!({"counts":self.trace_counts,"total":self.trace_total,"scroll_y":self.scroll_y,"viewport_h":self.viewport_h,"viewport_w":self.viewport_w,"total_h":self.total_h,"height":self.history_height(),"retained":self.state.model.retained_count(),"heights":self.heights.len(),"cursor":self.state.model.cursor.as_ref().map(|c|c.seq)});
                 let _ = std::fs::write(path, serde_json::to_vec_pretty(&data).unwrap());
             }
         }
@@ -669,7 +564,7 @@ impl App {
                 match result {
                     Ok(token) => {
                         let task = if link {
-                            let Some(session) = &self.session else {
+                            let Some(session) = &self.state.session else {
                                 self.busy = false;
                                 return Task::none();
                             };
@@ -755,7 +650,7 @@ impl App {
                 if self.busy {
                     return Task::none();
                 }
-                if let Some(session) = &self.session {
+                if let Some(session) = &self.state.session {
                     self.busy = true;
                     self.error.clear();
                     let generation = session.config.generation;
@@ -768,6 +663,7 @@ impl App {
             }
             Msg::Methods(generation, password, result) => {
                 if self
+                    .state
                     .session
                     .as_ref()
                     .is_none_or(|s| s.config.generation != generation)
@@ -811,26 +707,8 @@ impl App {
                 self.revealed.insert((id, index));
             }
             Msg::MarkUnread(id) => {
-                if let Screen::Channel(channel) = self.screen {
-                    let last = self
-                        .model
-                        .messages
-                        .get(&channel)
-                        .and_then(|ms| ms.range(..id).next_back())
-                        .map(|(id, _)| *id);
-                    self.manual_unread.insert(channel);
-                    self.read_id = None;
-                    self.read_serial += 1;
-                    self.model.reads.insert(
-                        channel,
-                        ReadState {
-                            channel_id: channel,
-                            last_read_id: last,
-                            latest_message_id: Some(id),
-                            unread_count: 1,
-                            mention_count: 0,
-                        },
-                    );
+                if matches!(self.state.screen, Screen::Channel(_)) {
+                    self.state.mark_unread(id);
                     self.dialog = Dialog::None;
                     self.notice = "Marked unread on this device.".into();
                 }
@@ -917,8 +795,9 @@ impl App {
             }
             Msg::JumpTo(message) => self.jump_history(backend::HistoryAnchor::Message(message)),
             Msg::PreviewReply(message) => {
-                if let Screen::Channel(channel) = self.screen {
+                if let Screen::Channel(channel) = self.state.screen {
                     self.preview = self
+                        .state
                         .model
                         .messages
                         .get(&channel)
@@ -929,7 +808,7 @@ impl App {
                         self.request(Request::Message {
                             channel,
                             message,
-                            generation: self.generation,
+                            generation: self.state.generation,
                         });
                     }
                 }
@@ -952,7 +831,7 @@ impl App {
                     }
                     self.password.clear();
                     self.error.clear();
-                    self.session = Some(Session {
+                    self.state.session = Some(Session {
                         config: Config {
                             server: self.server.clone(),
                             token: self.username.clone(),
@@ -985,25 +864,25 @@ impl App {
                 match v {
                     Ok(s) => {
                         self.server = s.config.server.clone();
-                        self.session = Some(s);
+                        self.state.session = Some(s);
                         self.password.clear();
                         self.signup = None;
-                        self.connection = ConnectionState::Connecting;
+                        self.state.connection = ConnectionState::Connecting;
                     }
                     Err(e) => self.error = e,
                 }
             }
             Msg::Restore(s) => {
-                self.session = s;
-                if self.session.is_some() {
-                    self.connection = ConnectionState::Connecting;
+                self.state.session = s;
+                if self.state.session.is_some() {
+                    self.state.connection = ConnectionState::Connecting;
                 }
             }
             Msg::Net(delivery) => return self.network((*delivery.data).clone()),
             Msg::Guild(g) => {
-                self.guild = g;
-                self.model.members.clear();
-                self.member_after = None;
+                self.state.guild = g;
+                self.state.model.members.clear();
+                self.state.member_after = None;
                 self.images.pending.clear();
                 if g.is_some() {
                     let channel = self
@@ -1015,7 +894,7 @@ impl App {
                         return self.navigate(id);
                     }
                 } else {
-                    self.screen = Screen::Friends(FriendTab::Online);
+                    self.state.screen = Screen::Friends(FriendTab::Online);
                     self.send(Command::SubscribeGuild {
                         guild_id: None,
                         presence_user_ids: vec![],
@@ -1024,8 +903,8 @@ impl App {
             }
             Msg::Select(id) => return self.navigate(id),
             Msg::Friends(tab) => {
-                self.guild = None;
-                self.screen = Screen::Friends(tab);
+                self.state.guild = None;
+                self.state.screen = Screen::Friends(tab);
                 self.dialog = Dialog::None;
                 self.send(Command::SubscribeGuild {
                     guild_id: None,
@@ -1068,7 +947,7 @@ impl App {
                     if matches!(self.dialog, Dialog::UserSettings) {
                         self.open(Dialog::UserSettings);
                     }
-                } else if self.signup.is_some() || self.busy && self.session.is_none() {
+                } else if self.signup.is_some() || self.busy && self.state.session.is_none() {
                     return self.update(Msg::GoogleCancel);
                 } else {
                     self.cancel_compose();
@@ -1112,7 +991,7 @@ impl App {
                 }
                 if edit {
                     self.activity();
-                    if let Screen::Channel(channel) = self.screen {
+                    if let Screen::Channel(channel) = self.state.screen {
                         if self
                             .last_typing
                             .is_none_or(|v| v.elapsed() > Duration::from_secs(4))
@@ -1126,22 +1005,23 @@ impl App {
                 }
             }
             Msg::Send => {
-                if let Screen::Channel(channel_id) = self.screen {
+                if let Screen::Channel(channel_id) = self.state.screen {
                     let content = self.editor.text();
                     if content.chars().count() > MAX_MESSAGE_CHARS {
                         self.error = "Messages can have up to 4,000 characters.".into();
                         return Task::none();
                     }
-                    if content.trim().is_empty() && self.attachments.is_empty() {
+                    if content.trim().is_empty() && self.state.attachments.is_empty() {
                         return Task::none();
                     }
                     let mention_ids = self
+                        .state
                         .selected_mentions
                         .iter()
                         .filter(|id| content.contains(&format!("<@{}>", id.0)))
                         .copied()
                         .collect();
-                    let command = if let Some(message_id) = self.editing {
+                    let command = if let Some(message_id) = self.state.editing {
                         Command::EditMessage(MessageEdit {
                             channel_id,
                             message_id,
@@ -1152,30 +1032,30 @@ impl App {
                         Command::SendMessage(MessageDraft {
                             channel_id,
                             content,
-                            reply_to: self.reply,
-                            attachment_ids: self.attachments.iter().map(|v| v.id).collect(),
+                            reply_to: self.state.reply,
+                            attachment_ids: self.state.attachments.iter().map(|v| v.id).collect(),
                             mention_ids,
                         })
                     };
                     if self.send(command) {
                         replace_editor(&mut self.editor, "");
-                        self.editing = None;
-                        self.reply = None;
-                        self.selected_mentions.clear();
-                        self.attachments.clear();
-                        self.drafts.remove(&channel_id);
-                        self.at_present = true;
+                        self.state.editing = None;
+                        self.state.reply = None;
+                        self.state.selected_mentions.clear();
+                        self.state.attachments.clear();
+                        self.state.drafts.remove(&channel_id);
+                        self.state.at_present = true;
                         return self.jump();
                     }
                 }
             }
             Msg::Edit(id) => {
-                if let Screen::Channel(c) = self.screen {
-                    if let Some(m) = self.model.messages.get(&c).and_then(|ms| ms.get(&id)) {
+                if let Screen::Channel(c) = self.state.screen {
+                    if let Some(m) = self.state.model.messages.get(&c).and_then(|ms| ms.get(&id)) {
                         replace_editor(&mut self.editor, &m.content);
-                        self.selected_mentions = m.mention_ids.iter().copied().collect();
-                        self.editing = Some(id);
-                        self.reply = None;
+                        self.state.selected_mentions = m.mention_ids.iter().copied().collect();
+                        self.state.editing = Some(id);
+                        self.state.reply = None;
                         self.dialog = Dialog::None;
                         let mut y = crate::theme::VIRTUAL_HEADER;
                         for (m, h, _) in self.rows() {
@@ -1197,8 +1077,9 @@ impl App {
             }
             Msg::EditLast => {
                 if self.editor.text().trim().is_empty() {
-                    if let Screen::Channel(c) = self.screen {
+                    if let Screen::Channel(c) = self.state.screen {
                         if let Some(id) = self
+                            .state
                             .model
                             .messages
                             .get(&c)
@@ -1213,14 +1094,14 @@ impl App {
                 }
             }
             Msg::Reply(id) => {
-                self.reply = Some(id);
-                self.editing = None;
+                self.state.reply = Some(id);
+                self.state.editing = None;
                 self.dialog = Dialog::None;
             }
             Msg::CancelCompose => self.cancel_compose(),
             Msg::Reaction(message_id, emoji, remove) => {
                 self.dialog = Dialog::None;
-                if let Screen::Channel(channel_id) = self.screen {
+                if let Screen::Channel(channel_id) = self.state.screen {
                     self.send(if remove {
                         Command::RemoveReaction {
                             channel_id,
@@ -1250,13 +1131,13 @@ impl App {
             }
             Msg::DismissSuggestions => self.suggestions_dismissed = true,
             Msg::Mention(id) => {
-                if self.selected_mentions.len() >= MAX_MESSAGE_MENTIONS
-                    && !self.selected_mentions.contains(&id)
+                if self.state.selected_mentions.len() >= MAX_MESSAGE_MENTIONS
+                    && !self.state.selected_mentions.contains(&id)
                 {
                     self.error = "You can mention up to 100 people in one message.".into();
                     return Task::none();
                 }
-                self.selected_mentions.insert(id);
+                self.state.selected_mentions.insert(id);
                 self.suggestions_dismissed = true;
 
                 let current = self.editor.text();
@@ -1273,9 +1154,10 @@ impl App {
                 editing,
                 height,
             } => {
-                if generation != self.generation
+                if generation != self.state.generation
                     || width != self.viewport_w.to_bits()
                     || self
+                        .state
                         .model
                         .messages
                         .values()
@@ -1284,7 +1166,7 @@ impl App {
                     || !height.is_finite()
                     || height <= 0.
                     || height > 100_000.
-                    || editing != (self.editing == Some(message))
+                    || editing != (self.state.editing == Some(message))
                 {
                     return Task::none();
                 }
@@ -1331,7 +1213,7 @@ impl App {
                     self.heights.pop_first();
                 }
                 if (old - height).abs() > 0.5 {
-                    if self.at_present {
+                    if self.state.at_present {
                         self.scroll_y = (self.history_height() - self.viewport_h).max(0.);
                         return operation::snap_to_end("messages");
                     }
@@ -1359,17 +1241,17 @@ impl App {
                 let rapid =
                     fast_scroll_delta(distance, self.viewport_h, self.last_scroll.elapsed());
                 self.fast_scrolling |= rapid;
-                if rapid && self.seek_loading {
-                    self.history_seek = self.history_seek.wrapping_add(1);
-                    self.seek_loading = false;
+                if rapid && self.state.seek_loading {
+                    self.state.history_seek = self.state.history_seek.wrapping_add(1);
+                    self.state.seek_loading = false;
                 }
                 self.last_scroll = Instant::now();
                 self.scroll_y = v.absolute_offset().y;
                 self.viewport_h = v.bounds().height;
                 self.viewport_w = v.bounds().width;
                 self.total_h = v.content_bounds().height;
-                self.at_present =
-                    self.after.is_none() && self.scroll_y + self.viewport_h >= self.total_h - 24.0;
+                self.state.at_present = self.state.after.is_none()
+                    && self.scroll_y + self.viewport_h >= self.total_h - 24.0;
                 let mut tasks = vec![];
                 if !self.fast_scrolling {
                     tasks.push(self.load_images());
@@ -1386,21 +1268,23 @@ impl App {
                 tasks.push(self.defer_read());
                 if !self.fast_scrolling
                     && self.scroll_y < 100.0
-                    && self.history_more
-                    && !self.loading
+                    && self.state.history_more
+                    && !self.state.loading
                 {
                     tasks.push(self.older());
                 }
                 if !self.fast_scrolling
                     && self.scroll_y + self.viewport_h >= self.total_h - 100.
-                    && !self.loading
+                    && !self.state.loading
                 {
-                    if let (Screen::Channel(channel), Some(after)) = (self.screen, self.after) {
-                        self.loading = self.request(Request::NewerHistory {
-                            seek: self.history_seek,
+                    if let (Screen::Channel(channel), Some(after)) =
+                        (self.state.screen, self.state.after)
+                    {
+                        self.state.loading = self.request(Request::NewerHistory {
+                            seek: self.state.history_seek,
                             channel,
                             after,
-                            generation: self.generation,
+                            generation: self.state.generation,
                         });
                     }
                 }
@@ -1424,41 +1308,45 @@ impl App {
             }
             Msg::Older => return self.older(),
             Msg::Present => {
-                if let Screen::Channel(channel) = self.screen {
-                    self.history_seek = self.history_seek.wrapping_add(1);
-                    self.jump_seek = None;
-                    self.seek_loading = false;
-                    self.after = None;
+                if let Screen::Channel(channel) = self.state.screen {
+                    self.state.history_seek = self.state.history_seek.wrapping_add(1);
+                    self.state.jump_seek = None;
+                    self.state.seek_loading = false;
+                    self.state.after = None;
                     self.request(Request::View);
-                    self.model.messages.remove(&channel);
+                    self.state.model.messages.remove(&channel);
                     self.history_slots.borrow_mut().clear();
                     self.layout_cache.replace(None);
-                    self.loading = true;
+                    self.state.loading = true;
                     self.request(Request::History {
-                        seek: Some(self.history_seek),
+                        seek: Some(self.state.history_seek),
                         channel,
                         before: None,
-                        generation: self.generation,
+                        generation: self.state.generation,
                     });
                 }
-                self.at_present = true;
+                self.state.at_present = true;
                 return self.jump();
             }
             Msg::ReadDue(serial) => {
-                if serial == self.read_serial && self.focused && !self.fast_scrolling {
+                if serial == self.state.read_serial && self.focused && !self.fast_scrolling {
                     self.flush_read();
                 }
             }
             Msg::TypingExpire => {
                 self.typing_armed = false;
-                self.model.typing.retain(|_, expires| *expires > now());
+                self.state
+                    .model
+                    .typing
+                    .retain(|_, expires| *expires > now());
                 return self.typing_expiry();
             }
             Msg::IdleDue => {
                 self.idle_armed = false;
-                if self.session.is_some() {
+                if self.state.session.is_some() {
                     if self.last_activity.elapsed() >= Duration::from_secs(300) {
                         if self
+                            .state
                             .model
                             .me
                             .as_ref()
@@ -1475,7 +1363,7 @@ impl App {
             }
             Msg::Activity => {
                 self.activity();
-                if !self.idle_armed && self.session.is_some() {
+                if !self.idle_armed && self.state.session.is_some() {
                     return self.arm_idle();
                 }
             }
@@ -1497,14 +1385,15 @@ impl App {
                     return Task::none();
                 }
                 let channel = if purpose == UploadPurpose::Message {
-                    match self.screen {
+                    match self.state.screen {
                         Screen::Channel(c) => Some(c),
                         _ => None,
                     }
                 } else {
                     None
                 };
-                if purpose == UploadPurpose::Message && self.attachments.len() + self.uploading >= 4
+                if purpose == UploadPurpose::Message
+                    && self.state.attachments.len() + self.uploading >= 4
                 {
                     self.error = "You can attach up to four files.".into();
                 } else {
@@ -1514,7 +1403,7 @@ impl App {
                         path,
                         purpose,
                         channel,
-                        generation: self.generation,
+                        generation: self.state.generation,
                     });
                 }
             }
@@ -1527,12 +1416,12 @@ impl App {
                 ))
             }
             Msg::RemoveUpload(id) => {
-                self.attachments.retain(|v| v.id != id);
+                self.state.attachments.retain(|v| v.id != id);
                 self.request(Request::DiscardUpload(id));
             }
             Msg::Image(id, generation, result) => {
                 self.media_tasks.remove(&id);
-                if generation == self.generation {
+                if generation == self.state.generation {
                     match result {
                         Ok(v) => self.images.insert(v),
                         Err(_) => {
@@ -1565,11 +1454,11 @@ impl App {
             Msg::SaveOriginal(_, None) => {}
             Msg::Reorder(id, down) => self.reorder(id, down),
             Msg::Reconnect => {
-                if let Some(s) = &mut self.session {
+                if let Some(s) = &mut self.state.session {
                     s.config.generation = backend::nonce();
-                    self.connection = ConnectionState::Connecting;
-                    self.pending.clear();
-                    self.pending_files.clear();
+                    self.state.connection = ConnectionState::Connecting;
+                    self.state.pending.clear();
+                    self.state.pending_files.clear();
                     self.tx = None;
                 }
             }
@@ -1599,29 +1488,29 @@ impl App {
             Msg::FocusComposer => return operation::focus("composer-editor"),
             Msg::GuildHover(id) => self.hovered_guild = id,
             Msg::MoreInvites => {
-                if let (Some(guild), Some(after)) = (self.guild, self.invite_after) {
+                if let (Some(guild), Some(after)) = (self.state.guild, self.state.invite_after) {
                     self.request(Request::Invites {
                         guild,
                         after: Some(after),
-                        generation: self.generation,
+                        generation: self.state.generation,
                     });
                 }
             }
             Msg::MoreBans => {
-                if let (Some(guild), Some(after)) = (self.guild, self.ban_after) {
+                if let (Some(guild), Some(after)) = (self.state.guild, self.state.ban_after) {
                     self.request(Request::Bans {
                         guild,
                         after: Some(after),
-                        generation: self.generation,
+                        generation: self.state.generation,
                     });
                 }
             }
             Msg::MoreMembers => {
-                if let (Some(guild), Some(after)) = (self.guild, self.member_after) {
+                if let (Some(guild), Some(after)) = (self.state.guild, self.state.member_after) {
                     self.request(Request::Members {
                         guild,
                         after: Some(after),
-                        generation: self.generation,
+                        generation: self.state.generation,
                     });
                 }
             }
@@ -1629,22 +1518,22 @@ impl App {
                 self.send(Command::SetPresence { status });
             }
             Msg::Logout => {
-                if let Some(s) = self.session.take() {
+                if let Some(s) = self.state.session.take() {
                     let account = self.me();
                     self.tx = None;
-                    self.pending.clear();
-                    self.pending_files.clear();
+                    self.state.pending.clear();
+                    self.state.pending_files.clear();
                     self.media_tasks.clear();
-                    if let (Some(s), Some(id)) = (&self.session, self.me()) {
+                    if let (Some(s), Some(id)) = (&self.state.session, self.me()) {
                         let c = s.config.clone();
                         tokio::task::spawn_blocking(move || media::purge(&c, id));
                     }
                     self.heights.clear();
                     self.history_slots.borrow_mut().clear();
                     self.layout_cache.borrow_mut().take();
-                    self.model = Model::default();
+                    self.state.model = Model::default();
                     self.settings_return = None;
-                    self.manual_unread.clear();
+                    self.state.manual_unread.clear();
                     self.methods = None;
                     self.busy = false;
                     self.auth_task.take();
@@ -1653,18 +1542,18 @@ impl App {
                     self.message_layouts.clear();
                     self.revealed.clear();
                     self.images = Images::default();
-                    self.drafts.clear();
-                    self.draft_mentions.clear();
-                    self.selected_mentions.clear();
+                    self.state.drafts.clear();
+                    self.state.draft_mentions.clear();
+                    self.state.selected_mentions.clear();
                     self.preview = None;
-                    self.reply = None;
-                    self.editing = None;
+                    self.state.reply = None;
+                    self.state.editing = None;
                     self.form = Form::default();
                     self.resolving.clear();
-                    self.attachments.clear();
+                    self.state.attachments.clear();
                     replace_editor(&mut self.editor, "");
                     self.dialog = Dialog::None;
-                    self.connection = ConnectionState::Offline;
+                    self.state.connection = ConnectionState::Offline;
                     return Task::perform(
                         async move {
                             if !s.config.mock {
@@ -1751,16 +1640,16 @@ impl App {
         match data {
             Data::Connected(tx) => self.tx = Some(tx),
             Data::Rejected { nonce, reason } => {
-                let files = self.pending_files.remove(&nonce).unwrap_or_default();
-                if let Some(Command::SendMessage(draft)) = self.pending.remove(&nonce) {
+                let files = self.state.pending_files.remove(&nonce).unwrap_or_default();
+                if let Some(Command::SendMessage(draft)) = self.state.pending.remove(&nonce) {
                     self.restore_send(draft, files);
                 }
                 self.error = reason;
             }
             Data::Uncertain(nonces) => {
                 for n in nonces {
-                    self.pending.remove(&n);
-                    self.pending_files.remove(&n);
+                    self.state.pending.remove(&n);
+                    self.state.pending_files.remove(&n);
                 }
                 self.error="Some actions could not be confirmed within the safe retry window. Inspect the current conversation before sending again.".into();
             }
@@ -1771,34 +1660,35 @@ impl App {
                     self.error = "Your session expired. Sign in again.".into();
                     return task;
                 }
-                self.connection = state;
+                self.state.connection = state;
             }
             Data::Frame(frame) => match frame {
                 ServerMsg::Ready(ready) => {
-                    let old = self.screen;
-                    self.model.ready(*ready);
+                    let old = self.state.screen;
+                    self.state.model.ready(*ready);
                     self.markdown.clear();
                     self.message_layouts.clear();
                     self.revealed.clear();
-                    if let (Some(session), Some(account)) = (&self.session, self.me()) {
+                    if let (Some(session), Some(account)) = (&self.state.session, self.me()) {
                         let config = session.config.clone();
                         tokio::task::spawn_blocking(move || media::maintain(&config, account));
                     }
                     self.images = Images::default();
-                    self.connection = ConnectionState::Ready;
-                    self.loading = false;
-                    self.generation += 1;
+                    self.state.connection = ConnectionState::Ready;
+                    self.state.loading = false;
+                    self.state.generation += 1;
                     self.ack();
                     let mut tasks = vec![self.arm_idle()];
                     if self.initial_screen == "friends" {
-                        self.guild = None;
-                        self.screen = Screen::Friends(FriendTab::All);
+                        self.state.guild = None;
+                        self.state.screen = Screen::Friends(FriendTab::All);
                     } else {
                         let c = match old {
-                            Screen::Channel(id) if self.model.channels.contains_key(&id) => {
+                            Screen::Channel(id) if self.state.model.channels.contains_key(&id) => {
                                 Some(id)
                             }
                             _ => self
+                                .state
                                 .model
                                 .channels
                                 .values()
@@ -1806,26 +1696,26 @@ impl App {
                                 .map(|c| c.id),
                         };
                         if let Some(c) = c {
-                            self.guild = self.model.channels[&c].guild_id;
+                            self.state.guild = self.state.model.channels[&c].guild_id;
                             tasks.push(self.navigate(c));
                         }
                     }
                     match self.initial_screen.as_str() {
                         "home-online" | "empty-home" => {
-                            self.guild = None;
-                            self.screen = Screen::Friends(FriendTab::Online);
+                            self.state.guild = None;
+                            self.state.screen = Screen::Friends(FriendTab::Online);
                         }
                         "home-all" => {
-                            self.guild = None;
-                            self.screen = Screen::Friends(FriendTab::All);
+                            self.state.guild = None;
+                            self.state.screen = Screen::Friends(FriendTab::All);
                         }
                         "home-pending" => {
-                            self.guild = None;
-                            self.screen = Screen::Friends(FriendTab::Pending);
+                            self.state.guild = None;
+                            self.state.screen = Screen::Friends(FriendTab::Pending);
                         }
                         "home-blocked" => {
-                            self.guild = None;
-                            self.screen = Screen::Friends(FriendTab::Blocked);
+                            self.state.guild = None;
+                            self.state.screen = Screen::Friends(FriendTab::Blocked);
                         }
                         "dm-chat" => tasks.push(self.navigate(Id(20))),
                         "group-chat" => tasks.push(self.navigate(Id(21))),
@@ -1867,7 +1757,7 @@ impl App {
                             tasks.push(operation::focus("composer-editor"));
                         }
                         "edit-message" => {
-                            self.editing = Some(Id(2276));
+                            self.state.editing = Some(Id(2276));
                             replace_editor(
                                 &mut self.editor,
                                 "I tried the first version today. It feels thoughtful.",
@@ -1885,7 +1775,7 @@ impl App {
                         "members" => self.open(Dialog::GuildSettings(GuildTab::Members)),
                         "add-guild" => self.open(Dialog::AddGuild),
                         "message" => {
-                            if let Some(m) = self.model.channels.get(&Id(12)) {
+                            if let Some(m) = self.state.model.channels.get(&Id(12)) {
                                 let _ = m;
                                 self.open(Dialog::MessageActions(Id(2279)));
                             }
@@ -1902,8 +1792,8 @@ impl App {
                         "settings" => self.open(Dialog::UserSettings),
                         "guild" => self.open(Dialog::GuildSettings(GuildTab::Overview)),
                         "pending" => {
-                            self.guild = None;
-                            self.screen = Screen::Friends(FriendTab::Pending)
+                            self.state.guild = None;
+                            self.state.screen = Screen::Friends(FriendTab::Pending)
                         }
                         _ => {}
                     }
@@ -1940,8 +1830,9 @@ impl App {
                         ..
                     } = &envelope.event
                     {
-                        if self.screen == Screen::Channel(*channel_id)
+                        if self.state.screen == Screen::Channel(*channel_id)
                             && self
+                                .state
                                 .model
                                 .cursor
                                 .as_ref()
@@ -1950,38 +1841,40 @@ impl App {
                             self.history_slots.borrow_mut().remove(message_id);
                         }
                     }
-                    self.model.apply(*envelope);
+                    self.state.model.apply(*envelope);
                     self.ack();
                     if removed {
-                        self.generation += 1;
+                        self.state.generation += 1;
                         self.message_layouts.clear();
                         self.markdown.clear();
                         self.media_tasks.clear();
                         self.preview = None;
-                        self.drafts
-                            .retain(|id, _| self.model.channels.contains_key(id));
-                        self.pending.retain(|_, c| match c {
+                        self.state
+                            .drafts
+                            .retain(|id, _| self.state.model.channels.contains_key(id));
+                        self.state.pending.retain(|_, c| match c {
                             Command::SendMessage(v) => {
-                                self.model.channels.contains_key(&v.channel_id)
+                                self.state.model.channels.contains_key(&v.channel_id)
                             }
                             Command::EditMessage(v) => {
-                                self.model.channels.contains_key(&v.channel_id)
+                                self.state.model.channels.contains_key(&v.channel_id)
                             }
                             _ => true,
                         });
-                        self.pending_files
-                            .retain(|nonce, _| self.pending.contains_key(nonce));
+                        self.state
+                            .pending_files
+                            .retain(|nonce, _| self.state.pending.contains_key(nonce));
                         self.images = Images::default();
-                        if let (Some(s), Some(id)) = (&self.session, self.me()) {
+                        if let (Some(s), Some(id)) = (&self.state.session, self.me()) {
                             let c = s.config.clone();
                             tokio::task::spawn_blocking(move || media::purge(&c, id));
                         }
-                        if let Screen::Channel(c) = self.screen {
-                            if !self.model.channels.contains_key(&c) {
+                        if let Screen::Channel(c) = self.state.screen {
+                            if !self.state.model.channels.contains_key(&c) {
                                 self.history_slots.borrow_mut().clear();
                                 self.layout_cache.replace(None);
-                                self.screen = Screen::Friends(FriendTab::Online);
-                                self.guild = None;
+                                self.state.screen = Screen::Friends(FriendTab::Online);
+                                self.state.guild = None;
                             }
                         }
                     }
@@ -1993,15 +1886,16 @@ impl App {
                     }
                     if messages {
                         let t = self.load_images();
-                        if self.at_present {
+                        if self.state.at_present {
                             return Task::batch([t, self.jump()]);
                         }
                         return t;
                     }
                 }
                 ServerMsg::Response(response) => {
-                    let command = self.pending.remove(&response.nonce);
+                    let command = self.state.pending.remove(&response.nonce);
                     let files = self
+                        .state
                         .pending_files
                         .remove(&response.nonce)
                         .unwrap_or_default();
@@ -2031,7 +1925,7 @@ impl App {
                                                     | Command::CreateGroupDm { .. }
                                             )
                                         ) {
-                                            self.guild = None;
+                                            self.state.guild = None;
                                             return self.navigate(id);
                                         }
                                     }
@@ -2053,7 +1947,7 @@ impl App {
                                     }
                                     CommandResult::Subscription { presences } => {
                                         for p in presences {
-                                            self.model.presences.insert(p.user_id, p.status);
+                                            self.state.model.presences.insert(p.user_id, p.status);
                                         }
                                     }
                                     _ => {}
@@ -2064,25 +1958,25 @@ impl App {
                 }
                 ServerMsg::ResyncRequired(_) => {
                     self.media_tasks.clear();
-                    if let (Some(s), Some(id)) = (&self.session, self.me()) {
+                    if let (Some(s), Some(id)) = (&self.state.session, self.me()) {
                         let c = s.config.clone();
                         tokio::task::spawn_blocking(move || media::purge(&c, id));
                     }
                     self.heights.clear();
                     self.history_slots.borrow_mut().clear();
                     self.layout_cache.borrow_mut().take();
-                    self.model = Model::default();
+                    self.state.model = Model::default();
                     self.images = Images::default();
-                    self.connection = ConnectionState::Connecting;
-                    self.loading = false;
+                    self.state.connection = ConnectionState::Connecting;
+                    self.state.loading = false;
                 }
                 ServerMsg::Resumed(v) => {
-                    if let Some(cursor) = self.model.cursor.as_mut() {
+                    if let Some(cursor) = self.state.model.cursor.as_mut() {
                         if cursor.stream_id == v.cursor.stream_id {
                             cursor.seq = cursor.seq.max(v.cursor.seq);
                         }
                     }
-                    self.connection = ConnectionState::Ready;
+                    self.state.connection = ConnectionState::Ready;
                     self.ack();
                     self.subscribe();
                 }
@@ -2095,16 +1989,13 @@ impl App {
                 page,
                 generation,
             } => {
-                if generation != self.generation
-                    || seek != self.history_seek
-                    || self.screen != Screen::Channel(channel)
+                if generation != self.state.generation
+                    || seek != self.state.history_seek
+                    || self.state.screen != Screen::Channel(channel)
                 {
                     return Task::none();
                 }
-                self.loading = false;
-                if self.model.snapshot_valid(&page.cursor) {
-                    self.after = page.next_after;
-                    self.model.merge_page(channel, page);
+                if self.state.newer_history(channel, page) {
                     self.layout_revision = self.layout_revision.wrapping_add(1);
                     return self.load_images();
                 }
@@ -2116,18 +2007,18 @@ impl App {
                 page,
                 generation,
             } => {
-                if generation != self.generation
-                    || seek != self.history_seek
-                    || self.screen != Screen::Channel(channel)
+                if generation != self.state.generation
+                    || seek != self.state.history_seek
+                    || self.state.screen != Screen::Channel(channel)
                 {
                     return Task::none();
                 }
-                self.seek_loading = false;
-                if !self.model.snapshot_valid(&page.cursor) {
+                self.state.seek_loading = false;
+                if !self.state.model.snapshot_valid(&page.cursor) {
                     self.error = "History changed while loading. Please try again.".into();
                     return Task::none();
                 }
-                if self.jump_seek != Some(seek) {
+                if self.state.jump_seek != Some(seek) {
                     // Reload evicted bodies in-place. Retain compact slots/heights so
                     // a landing fetch cannot shrink history or move the scrollbar.
                     let keep: BTreeSet<_> = self.visible_items().iter().map(|r| r.0).collect();
@@ -2135,32 +2026,17 @@ impl App {
                         self.error = "This history region is no longer available.".into();
                         return Task::none();
                     }
-                    if let Some(messages) = self.model.messages.get_mut(&channel) {
+                    if let Some(messages) = self.state.model.messages.get_mut(&channel) {
                         messages.retain(|id, _| keep.contains(id));
                     }
-                    self.model.merge_page(channel, page);
+                    self.state.model.merge_page(channel, page);
                     self.layout_revision = self.layout_revision.wrapping_add(1);
                     self.fetch_landing();
                     return Task::batch([self.load_images(), self.defer_read()]);
                 }
-                self.jump_seek = None;
-                let target = match anchor {
-                    backend::HistoryAnchor::Message(id) => id,
-                    backend::HistoryAnchor::Timestamp(time) => page
-                        .items
-                        .iter()
-                        .min_by_key(|m| m.created_at.abs_diff(time))
-                        .map_or(Id(0), |m| m.id),
-                };
-                self.history_more = page.next_before.is_some();
-                self.before = page.next_before;
-                self.after = page.next_after;
-                self.loading = false;
-                self.at_present = false;
-                self.model.messages.remove(&channel);
+                let target = self.state.replace_history(channel, anchor, page);
                 self.history_slots.borrow_mut().clear();
                 self.layout_cache.replace(None);
-                self.model.merge_page(channel, page);
                 self.layout_revision = self.layout_revision.wrapping_add(1);
                 self.scroll_y = crate::theme::VIRTUAL_HEADER
                     + self
@@ -2187,52 +2063,49 @@ impl App {
                 page,
                 generation,
             } => {
-                if generation != self.generation
-                    || seek.is_some_and(|serial| serial != self.history_seek)
+                if generation != self.state.generation
+                    || seek.is_some_and(|serial| serial != self.state.history_seek)
                 {
                     return Task::none();
                 }
-                self.loading = false;
-                self.history_seen += page.items.len();
                 let old_height = self.history_height();
-                self.history_more = page.has_more;
-                self.before = page.next_before;
                 let initial = self
+                    .state
                     .model
                     .messages
                     .get(&channel)
                     .is_none_or(BTreeMap::is_empty);
-                if !self.model.merge_page(channel, page) {
+                if !self.state.older_history(channel, page) {
                     self.error =
                         "History changed while loading. Reopen this channel to refresh.".into();
                     return Task::none();
                 }
                 self.layout_revision = self.layout_revision.wrapping_add(1);
                 let images = self.load_images();
-                if self.session.as_ref().is_some_and(|s| {
+                if self.state.session.as_ref().is_some_and(|s| {
                     s.config.mock
                         && matches!(s.config.scenario.as_str(), "stress-scroll" | "scroll-5000")
                 }) {
-                    self.at_present = false;
+                    self.state.at_present = false;
                     self.scroll_y = 0.;
-                    if self.history_more {
-                        self.loading = true;
+                    if self.state.history_more {
+                        self.state.loading = true;
                         self.request(Request::History {
-                            seek: Some(self.history_seek),
+                            seek: Some(self.state.history_seek),
                             channel,
-                            before: self.before,
-                            generation: self.generation,
+                            before: self.state.before,
+                            generation: self.state.generation,
                         });
                     } else if let Some(path) = self.stats.take() {
                         let (start, end, _, _) = self.visible_range();
-                        let stats = serde_json::json!({"messages_seen":self.history_seen,"retained_messages":self.model.retained_count(),"retained_bytes":self.model.retained_bytes(),"rendered_message_widgets":end-start});
+                        let stats = serde_json::json!({"messages_seen":self.state.history_seen,"retained_messages":self.state.model.retained_count(),"retained_bytes":self.state.model.retained_bytes(),"rendered_message_widgets":end-start});
                         tokio::task::spawn_blocking(move || {
                             std::fs::write(path, serde_json::to_vec_pretty(&stats).unwrap())
                         });
                     }
                     return images;
                 }
-                if initial || self.at_present {
+                if initial || self.state.at_present {
                     return Task::batch([images, self.jump()]);
                 }
                 let added = (self.history_height() - old_height).max(0.0);
@@ -2252,14 +2125,19 @@ impl App {
                 snapshot,
                 generation,
             } => {
-                if generation == self.generation
-                    && self.model.snapshot_valid(&snapshot.cursor)
-                    && self.model.channels.contains_key(&snapshot.data.summary.id)
+                if generation == self.state.generation
+                    && self.state.model.snapshot_valid(&snapshot.cursor)
+                    && self
+                        .state
+                        .model
+                        .channels
+                        .contains_key(&snapshot.data.summary.id)
                 {
-                    self.model
+                    self.state
+                        .model
                         .topics
                         .insert(snapshot.data.summary.id, snapshot.data.topic);
-                    self.model.reconcile_metadata(&snapshot.cursor);
+                    self.state.model.reconcile_metadata(&snapshot.cursor);
                 }
             }
             Data::Members {
@@ -2268,19 +2146,7 @@ impl App {
                 page,
                 generation,
             } => {
-                if self.guild == Some(guild)
-                    && generation == self.generation
-                    && self.model.snapshot_valid(&page.cursor)
-                {
-                    if after.is_none() {
-                        self.model.members.clear();
-                    }
-                    self.member_after = page.next_after;
-                    for m in page.items {
-                        self.model.users.insert(m.user.id, m.user.clone());
-                        self.model.members.insert(m.user.id, m);
-                    }
-                    self.model.reconcile_metadata(&page.cursor);
+                if self.state.member_page(guild, after, page, generation) {
                     self.subscribe();
                     return self.load_images();
                 }
@@ -2291,19 +2157,7 @@ impl App {
                 page,
                 generation,
             } => {
-                if self.guild == Some(guild)
-                    && generation == self.generation
-                    && self.model.snapshot_valid(&page.cursor)
-                {
-                    if after.is_none() {
-                        self.model.invites.clear();
-                    }
-                    self.invite_after = page.next_after;
-                    for v in page.items {
-                        self.model.invites.insert(v.id, v);
-                    }
-                    self.model.reconcile_metadata(&page.cursor);
-                }
+                self.state.invite_page(guild, after, page, generation);
             }
             Data::Bans {
                 guild,
@@ -2311,20 +2165,7 @@ impl App {
                 page,
                 generation,
             } => {
-                if self.guild == Some(guild)
-                    && generation == self.generation
-                    && self.model.snapshot_valid(&page.cursor)
-                {
-                    if after.is_none() {
-                        self.model.bans.clear();
-                    }
-                    self.ban_after = page.next_after;
-                    for v in page.items {
-                        self.model.users.insert(v.user.id, v.user.clone());
-                        self.model.bans.insert(v.user.id, v);
-                    }
-                    self.model.reconcile_metadata(&page.cursor);
-                }
+                self.state.ban_page(guild, after, page, generation);
             }
             Data::Uploaded {
                 form_revision,
@@ -2334,7 +2175,7 @@ impl App {
                 generation,
             } => {
                 self.uploading = self.uploading.saturating_sub(1);
-                if generation != self.generation
+                if generation != self.state.generation
                     || purpose == UploadPurpose::GuildIcon && form_revision != self.form_revision
                 {
                     self.request(Request::DiscardUpload(response.attachment.id));
@@ -2342,8 +2183,8 @@ impl App {
                 }
                 match purpose {
                     UploadPurpose::Message => {
-                        if matches!(self.screen,Screen::Channel(c)if Some(c)==channel) {
-                            self.attachments.push(response.attachment);
+                        if matches!(self.state.screen,Screen::Channel(c)if Some(c)==channel) {
+                            self.state.attachments.push(response.attachment);
                         }
                     }
                     UploadPurpose::Avatar => {
@@ -2356,7 +2197,7 @@ impl App {
                         if matches!(self.dialog, Dialog::CreateGuild) {
                             self.form.icon = Some(response.attachment.id);
                         } else if let (Dialog::GuildSettings(GuildTab::Overview), Some(guild_id)) =
-                            (&self.dialog, self.guild)
+                            (&self.dialog, self.state.guild)
                         {
                             self.send(Command::UpdateGuild {
                                 guild_id,
@@ -2375,27 +2216,31 @@ impl App {
                 snapshot,
                 generation,
             } => {
-                if generation == self.generation && self.model.snapshot_valid(&snapshot.cursor) {
+                if generation == self.state.generation
+                    && self.state.model.snapshot_valid(&snapshot.cursor)
+                {
                     for user in snapshot.data {
                         self.resolving.remove(&user.id);
-                        self.model.users.insert(user.id, user);
+                        self.state.model.users.insert(user.id, user);
                     }
-                    self.model.reconcile_metadata(&snapshot.cursor);
-                    self.model.compact_users();
+                    self.state.model.reconcile_metadata(&snapshot.cursor);
+                    self.state.model.compact_users();
                 }
             }
             Data::Message {
                 snapshot,
                 generation,
             } => {
-                if generation == self.generation && self.model.snapshot_valid(&snapshot.cursor) {
+                if generation == self.state.generation
+                    && self.state.model.snapshot_valid(&snapshot.cursor)
+                {
                     self.preview = Some(snapshot.data);
                 }
             }
             Data::Saved => self.notice = "File saved.".into(),
             Data::Error(e) => {
-                self.loading = false;
-                self.seek_loading = false;
+                self.state.loading = false;
+                self.state.seek_loading = false;
                 self.uploading = 0;
                 if !e.is_empty() {
                     self.error = e;
@@ -2405,35 +2250,39 @@ impl App {
         Task::none()
     }
     pub fn me(&self) -> Option<Id> {
-        self.model.me.as_ref().map(|u| u.user.id)
+        self.state.model.me.as_ref().map(|u| u.user.id)
     }
     pub fn permissions(&self) -> Permissions {
-        self.guild
-            .and_then(|g| self.model.guilds.get(&g))
-            .map_or(Permissions::empty(), |g| g.my_permissions)
+        self.state.model.permissions(self.state.guild)
     }
     fn restore_send(&mut self, draft: MessageDraft, files: Vec<Attachment>) {
-        if !self.model.channels.contains_key(&draft.channel_id) {
+        if !self.state.model.channels.contains_key(&draft.channel_id) {
             return;
         }
-        if self.screen == Screen::Channel(draft.channel_id) && self.editor.text().trim().is_empty()
+        if self.state.screen == Screen::Channel(draft.channel_id)
+            && self.editor.text().trim().is_empty()
         {
             replace_editor(&mut self.editor, &draft.content);
-            self.selected_mentions = draft.mention_ids.iter().copied().collect();
-            self.reply = draft.reply_to;
-            if self.attachments.is_empty() {
-                self.attachments = files;
+            self.state.selected_mentions = draft.mention_ids.iter().copied().collect();
+            self.state.reply = draft.reply_to;
+            if self.state.attachments.is_empty() {
+                self.state.attachments = files;
             }
         } else if !draft.content.is_empty() {
-            if self.drafts.len() >= 4 {
-                self.drafts.pop_first();
+            if self.state.drafts.len() >= 4 {
+                self.state.drafts.pop_first();
             }
-            self.draft_mentions
+            self.state
+                .draft_mentions
                 .entry(draft.channel_id)
                 .or_insert_with(|| draft.mention_ids.iter().copied().collect());
-            self.drafts.entry(draft.channel_id).or_insert(draft.content);
-            self.draft_mentions
-                .retain(|id, _| self.drafts.contains_key(id));
+            self.state
+                .drafts
+                .entry(draft.channel_id)
+                .or_insert(draft.content);
+            self.state
+                .draft_mentions
+                .retain(|id, _| self.state.drafts.contains_key(id));
         }
     }
     pub fn request(&mut self, r: Request) -> bool {
@@ -2450,11 +2299,11 @@ impl App {
         false
     }
     pub fn send(&mut self, command: Command) -> bool {
-        if self.connection != ConnectionState::Ready {
+        if self.state.connection != ConnectionState::Ready {
             self.error = "You are offline. This action was not queued.".into();
             return false;
         }
-        if self.pending.len() >= 32 {
+        if self.state.pending.len() >= 32 {
             self.error = "Please wait for pending actions to finish.".into();
             return false;
         }
@@ -2463,91 +2312,100 @@ impl App {
             nonce,
             command: command.clone(),
         })) {
-            if matches!(command, Command::SendMessage(_)) && !self.attachments.is_empty() {
-                self.pending_files.insert(nonce, self.attachments.clone());
+            if matches!(command, Command::SendMessage(_)) && !self.state.attachments.is_empty() {
+                self.state
+                    .pending_files
+                    .insert(nonce, self.state.attachments.clone());
             }
-            self.pending.insert(nonce, command);
+            self.state.pending.insert(nonce, command);
             true
         } else {
             false
         }
     }
     fn ack(&mut self) {
-        if let Some(cursor) = self.model.cursor.clone() {
+        if let Some(cursor) = self.state.model.cursor.clone() {
             self.request(Request::Applied(cursor));
         }
     }
     fn navigate(&mut self, id: Id) -> Task<Msg> {
-        if !self.model.channels.contains_key(&id) {
+        if !self.state.model.channels.contains_key(&id) {
             return Task::none();
         }
         self.flush_read();
-        if let Screen::Channel(old) = self.screen {
+        if let Screen::Channel(old) = self.state.screen {
             let draft = self.editor.text();
             if !draft.is_empty() {
-                if self.drafts.len() >= 4 {
-                    self.drafts.pop_first();
+                if self.state.drafts.len() >= 4 {
+                    self.state.drafts.pop_first();
                 }
-                self.drafts.insert(old, draft);
-                self.draft_mentions
-                    .insert(old, self.selected_mentions.clone());
-                self.draft_mentions
-                    .retain(|id, _| self.drafts.contains_key(id));
+                self.state.drafts.insert(old, draft);
+                self.state
+                    .draft_mentions
+                    .insert(old, self.state.selected_mentions.clone());
+                self.state
+                    .draft_mentions
+                    .retain(|id, _| self.state.drafts.contains_key(id));
             }
         }
-        for a in std::mem::take(&mut self.attachments) {
+        for a in std::mem::take(&mut self.state.attachments) {
             self.request(Request::DiscardUpload(a.id));
         }
-        let old_guild = self.guild;
-        self.guild = self.model.channels[&id].guild_id;
-        self.manual_unread.remove(&id);
-        self.screen = Screen::Channel(id);
+        let old_guild = self.state.guild;
+        self.state.guild = self.state.model.channels[&id].guild_id;
+        self.state.manual_unread.remove(&id);
+        self.state.screen = Screen::Channel(id);
         self.dialog = Dialog::None;
-        self.generation += 1;
+        self.state.generation += 1;
         self.media_tasks.clear();
         self.resolving.clear();
         self.uploading = 0;
         self.request(Request::View);
-        self.loading = true;
-        self.history_more = false;
-        self.before = None;
-        self.after = None;
+        self.state.loading = true;
+        self.state.history_more = false;
+        self.state.before = None;
+        self.state.after = None;
         self.scroll_y = 0.0;
-        self.at_present = true;
-        self.read_id = None;
-        self.reply = None;
-        self.editing = None;
+        self.state.at_present = true;
+        self.state.read_id = None;
+        self.state.reply = None;
+        self.state.editing = None;
         self.history_slots.borrow_mut().clear();
         self.layout_cache.replace(None);
         self.fast_scrolling = false;
-        self.seek_loading = false;
-        self.jump_seek = None;
-        self.history_seek = self.history_seek.wrapping_add(1);
+        self.state.seek_loading = false;
+        self.state.jump_seek = None;
+        self.state.history_seek = self.state.history_seek.wrapping_add(1);
         self.images.pending.clear();
         replace_editor(
             &mut self.editor,
-            self.drafts.get(&id).map_or("", String::as_str),
+            self.state.drafts.get(&id).map_or("", String::as_str),
         );
-        self.selected_mentions = self.draft_mentions.get(&id).cloned().unwrap_or_default();
-        self.model.touch(id);
-        self.model.enforce_bounds();
+        self.state.selected_mentions = self
+            .state
+            .draft_mentions
+            .get(&id)
+            .cloned()
+            .unwrap_or_default();
+        self.state.model.touch(id);
+        self.state.model.enforce_bounds();
         self.request(Request::History {
-            seek: Some(self.history_seek),
+            seek: Some(self.state.history_seek),
             channel: id,
             before: None,
-            generation: self.generation,
+            generation: self.state.generation,
         });
         self.request(Request::Channel {
             channel: id,
-            generation: self.generation,
+            generation: self.state.generation,
         });
-        if self.guild != old_guild || self.model.members.is_empty() {
-            self.model.members.clear();
-            if let Some(guild) = self.guild {
+        if self.state.guild != old_guild || self.state.model.members.is_empty() {
+            self.state.model.members.clear();
+            if let Some(guild) = self.state.guild {
                 self.request(Request::Members {
                     guild,
                     after: None,
-                    generation: self.generation,
+                    generation: self.state.generation,
                 });
             }
         }
@@ -2555,38 +2413,38 @@ impl App {
         self.jump()
     }
     fn subscribe(&mut self) {
-        if self.connection != ConnectionState::Ready {
+        if self.state.connection != ConnectionState::Ready {
             return;
         }
-        let ids = if self.guild.is_some() {
-            self.model.members.keys().take(30).copied().collect()
+        let ids = if self.state.guild.is_some() {
+            self.state.model.members.keys().take(30).copied().collect()
         } else {
             vec![]
         };
         self.send(Command::SubscribeGuild {
-            guild_id: self.guild,
+            guild_id: self.state.guild,
             presence_user_ids: ids,
         });
     }
     fn jump_history(&mut self, anchor: backend::HistoryAnchor) {
-        if let Screen::Channel(channel) = self.screen {
+        if let Screen::Channel(channel) = self.state.screen {
             self.dialog = Dialog::None;
-            self.history_seek = self.history_seek.wrapping_add(1);
-            self.jump_seek = Some(self.history_seek);
+            self.state.history_seek = self.state.history_seek.wrapping_add(1);
+            self.state.jump_seek = Some(self.state.history_seek);
             self.request(Request::View);
-            self.seek_loading = self.request(Request::AroundHistory {
+            self.state.seek_loading = self.request(Request::AroundHistory {
                 channel,
                 anchor,
-                seek: self.history_seek,
-                generation: self.generation,
+                seek: self.state.history_seek,
+                generation: self.state.generation,
             });
         }
     }
     fn fetch_landing(&mut self) {
-        if self.seek_loading {
+        if self.state.seek_loading {
             return;
         }
-        let Screen::Channel(channel) = self.screen else {
+        let Screen::Channel(channel) = self.state.screen else {
             return;
         };
         let visible = self.visible_items();
@@ -2595,12 +2453,12 @@ impl App {
         };
         let center = (first_missing + 24).min(visible.len() - 1);
         let anchor = backend::HistoryAnchor::Message(visible[center].0);
-        self.history_seek = self.history_seek.wrapping_add(1);
-        self.seek_loading = self.request(Request::AroundHistory {
-            seek: self.history_seek,
+        self.state.history_seek = self.state.history_seek.wrapping_add(1);
+        self.state.seek_loading = self.request(Request::AroundHistory {
+            seek: self.state.history_seek,
             channel,
             anchor,
-            generation: self.generation,
+            generation: self.state.generation,
         });
     }
     pub fn laid_out(&self, id: Id) -> bool {
@@ -2611,36 +2469,37 @@ impl App {
                 .is_some_and(|(_, w, _, _, _)| *w == self.viewport_w.to_bits())
     }
     fn older(&mut self) -> Task<Msg> {
-        if !self.loading && self.history_more {
-            if let Screen::Channel(channel) = self.screen {
-                self.loading = self.request(Request::History {
-                    seek: Some(self.history_seek),
+        if !self.state.loading && self.state.history_more {
+            if let Screen::Channel(channel) = self.state.screen {
+                self.state.loading = self.request(Request::History {
+                    seek: Some(self.state.history_seek),
                     channel,
-                    before: self.before,
-                    generation: self.generation,
+                    before: self.state.before,
+                    generation: self.state.generation,
                 });
             }
         }
         Task::none()
     }
     pub fn pending_messages(&self) -> impl Iterator<Item = (Nonce, &MessageDraft)> {
-        self.pending
-            .iter()
-            .filter_map(|(nonce, command)| match (self.screen, command) {
+        self.state.pending.iter().filter_map(|(nonce, command)| {
+            match (self.state.screen, command) {
                 (Screen::Channel(channel), Command::SendMessage(draft))
                     if draft.channel_id == channel =>
                 {
                     Some((*nonce, draft))
                 }
                 _ => None,
-            })
+            }
+        })
     }
     pub fn sorted_channels(&self) -> Vec<&ChannelSummary> {
         let mut root: Vec<_> = self
+            .state
             .model
             .channels
             .values()
-            .filter(|c| c.guild_id == self.guild && c.parent_id.is_none())
+            .filter(|c| c.guild_id == self.state.guild && c.parent_id.is_none())
             .collect();
         root.sort_by_key(|c| (c.position, c.id));
         let mut out = vec![];
@@ -2648,6 +2507,7 @@ impl App {
             out.push(c);
             if c.kind == ChannelKind::Category {
                 let mut children: Vec<_> = self
+                    .state
                     .model
                     .channels
                     .values()
@@ -2663,24 +2523,10 @@ impl App {
         if self.suggestions_dismissed {
             return vec![];
         }
-        let text = self.editor.text();
-        let Some(query) = text
-            .rsplit_once('@')
-            .map(|(_, v)| v)
-            .filter(|v| !v.contains(char::is_whitespace) && !v.contains('>'))
-        else {
-            return vec![];
-        };
-        self.model
-            .users
-            .values()
-            .filter(|u| u.username.starts_with(query))
-            .take(5)
-            .map(|u| u.id)
-            .collect()
+        self.state.model.mention_candidates(&self.editor.text())
     }
     fn previous_row(&self, m: &Message) -> Option<(Id, Id, u64)> {
-        let loaded = self.model.messages.get(&m.channel_id).and_then(|ms| {
+        let loaded = self.state.model.messages.get(&m.channel_id).and_then(|ms| {
             ms.range(..m.id)
                 .next_back()
                 .map(|(id, m)| (*id, m.author_id, m.created_at))
@@ -2698,7 +2544,7 @@ impl App {
         let date = previous.is_none_or(|(_, _, time)| {
             crate::datetime::local(time).date() != crate::datetime::local(m.created_at).date()
         });
-        let unread = self.model.reads.get(&m.channel_id).is_some_and(|r| {
+        let unread = self.state.model.reads.get(&m.channel_id).is_some_and(|r| {
             r.unread_count > 0
                 && r.last_read_id.is_some_and(|id| {
                     m.id > id && previous.is_none_or(|(previous, _, _)| previous <= id)
@@ -2727,18 +2573,18 @@ impl App {
     }
     fn ensure_rows(&self) {
         use crate::theme as t;
-        let Screen::Channel(channel) = self.screen else {
+        let Screen::Channel(channel) = self.state.screen else {
             return;
         };
-        let Some(messages) = self.model.messages.get(&channel) else {
+        let Some(messages) = self.state.model.messages.get(&channel) else {
             return;
         };
         let key = (
-            self.generation,
+            self.state.generation,
             self.viewport_w.to_bits(),
-            self.model.layout_revision,
-            self.editing,
-            if self.editing.is_some() {
+            self.state.model.layout_revision,
+            self.state.editing,
+            if self.state.editing.is_some() {
                 self.editor.text().len()
             } else {
                 0
@@ -2757,6 +2603,7 @@ impl App {
             return;
         }
         let result: Vec<_> = self
+            .state
             .model
             .messages
             .get(&channel)
@@ -2766,13 +2613,13 @@ impl App {
                 let grouped = self.grouped_row(m);
                 let width = (self.viewport_w - t::MESSAGE_GUTTER - t::S16).max(t::ATTACHMENT_CARD);
                 let chars = (width / t::GLYPH_WIDTH).max(1.) as usize;
-                let resolved = self.model.content(m);
+                let resolved = self.state.model.content(m);
                 let lines = resolved
                     .lines()
                     .map(|l| l.chars().count().max(1).div_ceil(chars))
                     .sum::<usize>()
                     .max(1);
-                let body = if self.editing == Some(m.id) {
+                let body = if self.state.editing == Some(m.id) {
                     t::COMPOSER_MIN + t::S24 + t::S24 + t::HINT * t::LINE + t::S4
                 } else {
                     lines as f32 * t::BODY * t::LINE
@@ -2810,10 +2657,10 @@ impl App {
                     .heights
                     .get(&m.id)
                     .filter(|(g, w, seq, editing, _)| {
-                        *g == self.generation
+                        *g == self.state.generation
                             && *w == self.viewport_w.to_bits()
                             && *seq == self.row_revision(m)
-                            && *editing == (self.editing == Some(m.id))
+                            && *editing == (self.state.editing == Some(m.id))
                     })
                     .map(|v| v.4)
                     .unwrap_or(estimated);
@@ -2834,7 +2681,7 @@ impl App {
         }
         // Compact IDs/heights survive body eviction. Cap metadata separately from the 1,000-body cap.
         while slots.len() > 20_000 {
-            if self.at_present {
+            if self.state.at_present {
                 slots.pop_first();
             } else {
                 slots.pop_last();
@@ -2854,10 +2701,10 @@ impl App {
     }
     pub fn rows(&self) -> Vec<(&Message, f32, bool)> {
         self.ensure_rows();
-        let Screen::Channel(channel) = self.screen else {
+        let Screen::Channel(channel) = self.state.screen else {
             return vec![];
         };
-        let Some(messages) = self.model.messages.get(&channel) else {
+        let Some(messages) = self.state.model.messages.get(&channel) else {
             return vec![];
         };
         self.layout_cache
@@ -2874,10 +2721,10 @@ impl App {
     }
     pub fn visible_items(&self) -> Vec<(Id, Option<&Message>, f32, bool)> {
         let (start, end, _, _) = self.visible_range();
-        let Screen::Channel(channel) = self.screen else {
+        let Screen::Channel(channel) = self.state.screen else {
             return vec![];
         };
-        let messages = self.model.messages.get(&channel);
+        let messages = self.state.model.messages.get(&channel);
         self.layout_cache
             .borrow()
             .as_ref()
@@ -2929,10 +2776,10 @@ impl App {
     }
     fn visible_read(&self) -> Option<Id> {
         self.ensure_rows();
-        let Screen::Channel(channel) = self.screen else {
+        let Screen::Channel(channel) = self.state.screen else {
             return None;
         };
-        let messages = self.model.messages.get(&channel)?;
+        let messages = self.state.model.messages.get(&channel)?;
         let cache = self.layout_cache.borrow();
         let cache = cache.as_ref()?;
         let first = cache
@@ -2957,12 +2804,12 @@ impl App {
             return Task::none();
         }
         let read = self.visible_read();
-        if read == self.read_id {
+        if read == self.state.read_id {
             return Task::none();
         }
-        self.read_id = read;
-        self.read_serial = self.read_serial.wrapping_add(1);
-        let serial = self.read_serial;
+        self.state.read_id = read;
+        self.state.read_serial = self.state.read_serial.wrapping_add(1);
+        let serial = self.state.read_serial;
         Task::perform(
             async move {
                 tokio::time::sleep(Duration::from_millis(500)).await;
@@ -2972,33 +2819,15 @@ impl App {
         )
     }
     fn flush_read(&mut self) {
-        if let Screen::Channel(c) = self.screen {
-            if self.manual_unread.contains(&c) {
-                return;
-            }
-        }
-        if self.connection != ConnectionState::Ready {
-            return;
-        }
-        if let (Screen::Channel(channel_id), Some(message_id)) = (self.screen, self.read_id) {
-            let old = self
-                .model
-                .reads
-                .get(&channel_id)
-                .and_then(|v| v.last_read_id);
-            if old.is_none_or(|v| v < message_id) {
-                self.send(Command::MarkRead {
-                    channel_id,
-                    message_id,
-                });
-            }
+        if let Some(command) = self.state.read_command() {
+            self.send(command);
         }
     }
     fn jump(&mut self) -> Task<Msg> {
         self.scroll_y = (self.history_height() - self.viewport_h).max(0.0);
-        self.read_id = self.visible_read();
-        self.read_serial += 1;
-        let serial = self.read_serial;
+        self.state.read_id = self.visible_read();
+        self.state.read_serial += 1;
+        let serial = self.state.read_serial;
         Task::batch([
             operation::snap_to("messages", scrollable::RelativeOffset::END),
             Task::perform(
@@ -3011,14 +2840,15 @@ impl App {
         ])
     }
     fn cancel_compose(&mut self) {
-        self.reply = None;
-        self.editing = None;
+        self.state.reply = None;
+        self.state.editing = None;
         replace_editor(&mut self.editor, "");
-        self.selected_mentions.clear();
+        self.state.selected_mentions.clear();
     }
     fn activity(&mut self) {
         self.last_activity = Instant::now();
         if self
+            .state
             .model
             .me
             .as_ref()
@@ -3043,7 +2873,7 @@ impl App {
         if self.typing_armed {
             return Task::none();
         }
-        if let Some(t) = self.model.typing.values().min() {
+        if let Some(t) = self.state.model.typing.values().min() {
             self.typing_armed = true;
             let wait = Duration::from_millis(t.saturating_sub(now()).max(50));
             Task::perform(
@@ -3057,10 +2887,15 @@ impl App {
         }
     }
     fn load_images(&mut self) -> Task<Msg> {
-        self.markdown.retain(&self.model);
-        self.revealed
-            .retain(|(id, _)| self.model.messages.values().any(|m| m.contains_key(id)));
-        let Some(s) = &self.session else {
+        self.markdown.retain(&self.state.model);
+        self.revealed.retain(|(id, _)| {
+            self.state
+                .model
+                .messages
+                .values()
+                .any(|m| m.contains_key(id))
+        });
+        let Some(s) = &self.state.session else {
             return Task::none();
         };
         let Some(account) = self.me() else {
@@ -3077,7 +2912,7 @@ impl App {
                     .copied()
                     .chain(std::iter::once(m.author_id))
             })
-            .filter(|id| !self.model.users.contains_key(id) && !self.resolving.contains(id))
+            .filter(|id| !self.state.model.users.contains_key(id) && !self.resolving.contains(id))
             .take(50)
             .collect::<BTreeSet<_>>()
             .into_iter()
@@ -3086,7 +2921,7 @@ impl App {
             self.resolving.extend(unknown.iter().copied());
             self.request(Request::Users {
                 ids: unknown,
-                generation: self.generation,
+                generation: self.state.generation,
             });
         }
 
@@ -3098,18 +2933,31 @@ impl App {
                     .iter()
                     .filter(|a| a.thumbnail.is_some())
                     .map(|a| a.id)
-                    .chain(self.model.users.get(&m.author_id).and_then(|u| u.avatar_id))
+                    .chain(
+                        self.state
+                            .model
+                            .users
+                            .get(&m.author_id)
+                            .and_then(|u| u.avatar_id),
+                    )
             })
             .collect();
-        ids.extend(self.model.guilds.values().filter_map(|g| g.guild.icon_id));
         ids.extend(
-            self.model
+            self.state
+                .model
+                .guilds
+                .values()
+                .filter_map(|g| g.guild.icon_id),
+        );
+        ids.extend(
+            self.state
+                .model
                 .members
                 .values()
                 .take(30)
                 .filter_map(|m| m.user.avatar_id),
         );
-        if let Some(me) = &self.model.me {
+        if let Some(me) = &self.state.model.me {
             ids.extend(me.user.avatar_id);
         }
         ids.sort();
@@ -3123,7 +2971,7 @@ impl App {
             if !self.images.contains(id) && self.images.pending.len() < 2 {
                 self.images.pending.insert(id);
                 let c = config.clone();
-                let generation = self.generation;
+                let generation = self.state.generation;
                 let (task, handle) = Task::perform(media::load(c, account, id), move |v| {
                     Msg::Image(id, generation, v)
                 })
@@ -3163,16 +3011,21 @@ impl App {
             Dialog::CreateGuild => {
                 self.form.name = format!(
                     "{}'s server",
-                    self.model
+                    self.state
+                        .model
                         .me
                         .as_ref()
                         .map_or("My", |m| m.user.username.as_str())
                 );
             }
             Dialog::Invite => {
-                if let Some(guild_id) = self.guild {
-                    if let Some(invite) =
-                        self.model.invites.values().find(|v| v.guild_id == guild_id)
+                if let Some(guild_id) = self.state.guild {
+                    if let Some(invite) = self
+                        .state
+                        .model
+                        .invites
+                        .values()
+                        .find(|v| v.guild_id == guild_id)
                     {
                         self.form.code = invite.code.clone();
                     } else {
@@ -3185,15 +3038,16 @@ impl App {
                 }
             }
             Dialog::UserSettings => {
-                if let Some(me) = &self.model.me {
+                if let Some(me) = &self.state.model.me {
                     self.form.code = me.user.username.clone();
                     self.form.name = me.user.display_name.clone().unwrap_or_default();
                     self.form.topic = me.user.status_text.clone().unwrap_or_default();
                 }
             }
             Dialog::GuildSettings(tab) => {
-                if let Some(g) = self.guild {
+                if let Some(g) = self.state.guild {
                     self.form.name = self
+                        .state
                         .model
                         .guilds
                         .get(&g)
@@ -3202,22 +3056,23 @@ impl App {
                         self.request(Request::Invites {
                             after: None,
                             guild: g,
-                            generation: self.generation,
+                            generation: self.state.generation,
                         });
                     }
                     if *tab == GuildTab::Bans {
                         self.request(Request::Bans {
                             after: None,
                             guild: g,
-                            generation: self.generation,
+                            generation: self.state.generation,
                         });
                     }
                 }
             }
             Dialog::ChannelSettings(c) | Dialog::GroupSettings(c) => {
-                if let Some(ch) = self.model.channels.get(c) {
+                if let Some(ch) = self.state.model.channels.get(c) {
                     self.form.name = ch.name.clone().unwrap_or_default();
                     self.form.topic = self
+                        .state
                         .model
                         .topics
                         .get(c)
@@ -3271,7 +3126,7 @@ impl App {
                 ..ProfilePatch::default()
             })),
             Dialog::GuildSettings(GuildTab::Overview) => {
-                self.guild.map(|guild_id| Command::UpdateGuild {
+                self.state.guild.map(|guild_id| Command::UpdateGuild {
                     guild_id,
                     patch: GuildPatch {
                         name: Patch::Set(name),
@@ -3280,7 +3135,7 @@ impl App {
                 })
             }
             Dialog::NewChannel(kind, parent_id) => {
-                self.guild.map(|guild_id| Command::CreateChannel {
+                self.state.guild.map(|guild_id| Command::CreateChannel {
                     guild_id,
                     kind,
                     name,
@@ -3314,7 +3169,7 @@ impl App {
                 user_ids: self.form.selected.iter().copied().collect(),
             }),
             Dialog::Profile(user_id) => {
-                if let Some(guild_id) = self.guild {
+                if let Some(guild_id) = self.state.guild {
                     close = false;
                     Some(Command::BanMember {
                         guild_id,
@@ -3341,12 +3196,15 @@ impl App {
         Task::none()
     }
     fn reorder(&mut self, id: Id, down: bool) {
-        let Some(guild_id) = self.guild else { return };
-        let Some(channel) = self.model.channels.get(&id) else {
+        let Some(guild_id) = self.state.guild else {
+            return;
+        };
+        let Some(channel) = self.state.model.channels.get(&id) else {
             return;
         };
         let parent = channel.parent_id;
         let mut siblings: Vec<_> = self
+            .state
             .model
             .channels
             .values()
@@ -3368,6 +3226,7 @@ impl App {
             .map(|(i, (_, id))| (*id, i as u16))
             .collect();
         let placements = self
+            .state
             .model
             .channels
             .values()
@@ -3476,23 +3335,24 @@ impl App {
         let page = mock.history(channel, None);
         let benchmark_messages = (matches!(screen, "scroll-5000" | "scroll-skeleton"))
             .then(|| mock.model.messages[&channel].clone());
-        app.model = mock.model;
-        app.model.messages.retain(|id, _| *id == channel);
-        app.model
+        app.state.model = std::mem::take(&mut mock.model);
+        app.state.model.messages.retain(|id, _| *id == channel);
+        app.state
+            .model
             .messages
             .insert(channel, page.items.into_iter().map(|m| (m.id, m)).collect());
         if let Some(messages) = benchmark_messages {
-            app.model.messages.insert(channel, messages);
+            app.state.model.messages.insert(channel, messages);
         }
-        app.history_more = page.has_more;
-        app.before = page.next_before;
-        app.loading = false;
-        app.connection = ConnectionState::Ready;
-        app.screen = Screen::Channel(channel);
-        app.guild = app.model.channels[&channel].guild_id;
+        app.state.history_more = page.has_more;
+        app.state.before = page.next_before;
+        app.state.loading = false;
+        app.state.connection = ConnectionState::Ready;
+        app.state.screen = Screen::Channel(channel);
+        app.state.guild = app.state.model.channels[&channel].guild_id;
         app.google_id = Some("mock-desktop".into());
         app.signup = None;
-        app.session = Some(Session {
+        app.state.session = Some(Session {
             config: Config {
                 server: storage::DEFAULT_SERVER.into(),
                 token: "river".into(),
@@ -3505,9 +3365,9 @@ impl App {
         app.dialog = Dialog::None;
         app.typing_armed = false;
         for id in [Id(2), Id(3)] {
-            app.model.typing.insert((channel, id), now() + 8000);
+            app.state.model.typing.insert((channel, id), now() + 8000);
         }
-        let image = image::load_from_memory(include_bytes!("../assets/mock-workspace.jpg"))
+        let image = image::load_from_memory(sticktalk_client_core::mock::IMAGE)
             .unwrap()
             .into_rgba8();
         app.images.insert(Decoded {
@@ -3518,7 +3378,7 @@ impl App {
         });
         match screen {
             "login" | "register" | "google-login" | "pick-username" => {
-                app.session = None;
+                app.state.session = None;
                 app.register = screen == "register";
                 if screen == "login" {
                     app.google_id = None;
@@ -3532,20 +3392,20 @@ impl App {
                 }
             }
             "home-online" | "empty-home" => {
-                app.guild = None;
-                app.screen = Screen::Friends(FriendTab::Online);
+                app.state.guild = None;
+                app.state.screen = Screen::Friends(FriendTab::Online);
             }
             "home-all" => {
-                app.guild = None;
-                app.screen = Screen::Friends(FriendTab::All);
+                app.state.guild = None;
+                app.state.screen = Screen::Friends(FriendTab::All);
             }
             "home-pending" => {
-                app.guild = None;
-                app.screen = Screen::Friends(FriendTab::Pending);
+                app.state.guild = None;
+                app.state.screen = Screen::Friends(FriendTab::Pending);
             }
             "home-blocked" => {
-                app.guild = None;
-                app.screen = Screen::Friends(FriendTab::Blocked);
+                app.state.guild = None;
+                app.state.screen = Screen::Friends(FriendTab::Blocked);
             }
             "community-picker" => app.open(Dialog::AddGuild),
             "create-guild-form" => app.open(Dialog::CreateGuild),
@@ -3560,6 +3420,7 @@ impl App {
             }
             "reply-preview" => {
                 app.preview = app
+                    .state
                     .model
                     .messages
                     .get(&Id(12))
@@ -3596,13 +3457,13 @@ impl App {
             )),
             "toast" => app.notice = "Invite copied.".into(),
             "loading" => {
-                app.model.messages.clear();
-                app.loading = true;
+                app.state.model.messages.clear();
+                app.state.loading = true;
             }
-            "disconnected" => app.connection = ConnectionState::Backoff(4),
+            "disconnected" => app.state.connection = ConnectionState::Backoff(4),
             "mention-autocomplete" => replace_editor(&mut app.editor, "@mi"),
             "edit-message" => {
-                app.editing = Some(Id(2276));
+                app.state.editing = Some(Id(2276));
                 replace_editor(
                     &mut app.editor,
                     "I tried the first version today. It feels thoughtful.",
@@ -3612,11 +3473,11 @@ impl App {
             "message-hover-own" => app.hovered = Some(Id(2276)),
             "message-hover-grouped" => app.hovered = Some(Id(2273)),
             "change-server" => {
-                app.session = None;
+                app.state.session = None;
                 app.change_server = true;
             }
             "channel-top" => {
-                app.at_present = false;
+                app.state.at_present = false;
                 app.scroll_y = 0.;
             }
             "markdown-revealed" => {
@@ -3648,7 +3509,7 @@ impl App {
             app.mock_account.lock().unwrap().methods = methods.clone();
         }
         if screen == "scroll-skeleton" {
-            app.at_present = false;
+            app.state.at_present = false;
             app.scroll_y = app.history_height() * 0.5;
             app.fast_scrolling = true;
         }
@@ -3656,7 +3517,7 @@ impl App {
         app
     }
     pub(crate) fn headless_scroll(&mut self) {
-        if self.at_present {
+        if self.state.at_present {
             self.scroll_y = (self.history_height() - self.viewport_h).max(0.);
         }
     }
@@ -3689,18 +3550,19 @@ mod tests {
     #[test]
     fn virtual_index_keeps_evicted_slots_and_only_builds_visible_rows() {
         let mut app = App::headless("scroll-5000", iced::Size::new(2560., 1440.));
-        app.at_present = false;
+        app.state.at_present = false;
         let total = app.history_height();
         app.scroll_y = total * 0.5;
         let rows = app.visible_items();
         assert!(rows.len() < 64);
         let target = rows[rows.len() / 2].0;
-        app.model
+        app.state
+            .model
             .messages
             .get_mut(&Id(12))
             .unwrap()
             .retain(|id, _| *id < Id(1_000_100));
-        app.model.layout_revision += 1;
+        app.state.model.layout_revision += 1;
         assert_eq!(app.history_height(), total);
         assert!(app
             .visible_items()
@@ -3711,8 +3573,8 @@ mod tests {
         backend.configure("scroll-5000");
         let before = Id(app.visible_items().last().unwrap().0 .0 + 1);
         let page = backend.history(Id(12), Some(before));
-        app.history_seek = 7;
-        let generation = app.generation;
+        app.state.history_seek = 7;
+        let generation = app.state.generation;
         let stale = page.clone();
         let _ = app.network(Data::AroundHistory {
             seek: 6,
@@ -3721,7 +3583,7 @@ mod tests {
             page: stale,
             generation,
         });
-        assert!(!app.model.messages[&Id(12)].contains_key(&target));
+        assert!(!app.state.model.messages[&Id(12)].contains_key(&target));
         let _ = app.network(Data::AroundHistory {
             seek: 7,
             anchor: backend::HistoryAnchor::Message(target),
@@ -3729,7 +3591,7 @@ mod tests {
             page,
             generation,
         });
-        assert!(app.model.messages[&Id(12)].contains_key(&target));
+        assert!(app.state.model.messages[&Id(12)].contains_key(&target));
         assert_eq!(app.scroll_y, y);
         assert_eq!(app.history_height(), total);
     }
@@ -3737,12 +3599,16 @@ mod tests {
     fn unrelated_stream_events_do_not_invalidate_message_geometry() {
         let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
         let id = Id(2276);
-        let before = app.row_revision(&app.model.messages[&Id(12)][&id]);
+        let before = app.row_revision(&app.state.model.messages[&Id(12)][&id]);
         let total = app.history_height();
-        app.model.cursor.as_mut().unwrap().seq += 1;
-        assert_eq!(app.row_revision(&app.model.messages[&Id(12)][&id]), before);
+        app.state.model.cursor.as_mut().unwrap().seq += 1;
+        assert_eq!(
+            app.row_revision(&app.state.model.messages[&Id(12)][&id]),
+            before
+        );
         assert_eq!(app.history_height(), total);
-        app.model
+        app.state
+            .model
             .messages
             .get_mut(&Id(12))
             .unwrap()
@@ -3750,21 +3616,24 @@ mod tests {
             .unwrap()
             .content
             .push_str(" edited");
-        assert_ne!(app.row_revision(&app.model.messages[&Id(12)][&id]), before);
+        assert_ne!(
+            app.row_revision(&app.state.model.messages[&Id(12)][&id]),
+            before
+        );
     }
     #[test]
     fn subpixel_row_measurements_do_not_invalidate_layout_forever() {
         let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
         let id = Id(2276);
         let width = app.viewport_w.to_bits();
-        let seq = app.row_revision(&app.model.messages[&Id(12)][&id]);
+        let seq = app.row_revision(&app.state.model.messages[&Id(12)][&id]);
         app.heights
-            .insert(id, (app.generation, width, seq, false, 80.25));
+            .insert(id, (app.state.generation, width, seq, false, 80.25));
         let revision = app.layout_revision;
         for height in [80.25 - 1.0 / 128.0, 80.25 + 1.0 / 128.0, 80.25] {
             let _ = app.update(Msg::Measured {
                 message: id,
-                generation: app.generation,
+                generation: app.state.generation,
                 width,
                 seq,
                 editing: false,
@@ -3778,7 +3647,7 @@ mod tests {
     fn cancelled_server_icon_upload_cannot_apply_to_another_form() {
         let mut app = App::headless("create-guild-form", iced::Size::new(1280., 800.));
         let revision = app.form_revision;
-        let attachment = app.model.messages[&Id(12)][&Id(2274)].attachments[0].clone();
+        let attachment = app.state.model.messages[&Id(12)][&Id(2274)].attachments[0].clone();
         let delivery = |revision| Data::Uploaded {
             form_revision: revision,
             response: UploadResponse {
@@ -3871,11 +3740,15 @@ mod tests {
         let _ = app.update(Msg::Mention(Id(2)));
         assert_eq!(app.editor.text(), "<@2> ");
         assert_eq!(
-            app.selected_mentions.iter().copied().collect::<Vec<_>>(),
+            app.state
+                .selected_mentions
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
             vec![Id(2)]
         );
         let _ = app.update(Msg::CancelCompose);
-        assert!(app.selected_mentions.is_empty());
+        assert!(app.state.selected_mentions.is_empty());
         assert_eq!(
             editor_content("line one\nline two").text(),
             "line one\nline two"
@@ -3885,17 +3758,23 @@ mod tests {
     fn virtualized_rows_are_bounded_and_measurements_override_estimates() {
         let (mut app, _) = App::new();
         let mock = crate::mock::Mock::new();
-        app.model.ready(mock.ready());
-        app.screen = Screen::Channel(Id(12));
+        app.state.model.ready(mock.ready());
+        app.state.screen = Screen::Channel(Id(12));
         let page = mock.history(Id(12), None);
-        assert!(app.model.merge_page(Id(12), page));
+        assert!(app.state.model.merge_page(Id(12), page));
         let (start, end, _, _) = app.visible_range();
         assert!(end - start < 50);
         let id = app.rows()[0].0.id;
-        let seq = app.row_revision(&app.model.messages[&Id(12)][&id]);
+        let seq = app.row_revision(&app.state.model.messages[&Id(12)][&id]);
         app.heights.insert(
             id,
-            (app.generation, app.viewport_w.to_bits(), seq, false, 777.),
+            (
+                app.state.generation,
+                app.viewport_w.to_bits(),
+                seq,
+                false,
+                777.,
+            ),
         );
         app.layout_revision += 1;
         assert_eq!(app.rows()[0].1, 777.);
@@ -3909,15 +3788,16 @@ mod tests {
             next_before: None,
             next_after: None,
             has_more: false,
-            cursor: app.model.cursor.clone().unwrap(),
+            cursor: app.state.model.cursor.clone().unwrap(),
         }
     }
     #[test]
     fn metadata_continuation_pages_append_instead_of_replacing() {
         let mut app = App::headless("guild-settings-members", iced::Size::new(1280., 800.));
-        let guild = app.guild.unwrap();
-        let generation = app.generation;
+        let guild = app.state.guild.unwrap();
+        let generation = app.state.generation;
         let members: Vec<_> = app
+            .state
             .model
             .members
             .values()
@@ -3935,7 +3815,7 @@ mod tests {
                 generation,
             });
         }
-        assert_eq!(app.model.members.len(), 2);
+        assert_eq!(app.state.model.members.len(), 2);
         for n in 0..2 {
             let invite = Invite {
                 id: Id(800 + n),
@@ -3968,21 +3848,21 @@ mod tests {
                 generation,
             });
         }
-        assert_eq!(app.model.invites.len(), 2);
-        assert_eq!(app.model.bans.len(), 2);
+        assert_eq!(app.state.model.invites.len(), 2);
+        assert_eq!(app.state.model.bans.len(), 2);
     }
     #[test]
     fn jump_to_unloaded_reply_replaces_only_the_region_and_ignores_stale_results() {
         let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
         let channel = Id(12);
-        let generation = app.generation;
+        let generation = app.state.generation;
         let mut source = crate::mock::Mock::new();
         source.configure("scroll-5000");
         let page = source.history(channel, Some(Id(1_000_100)));
         let target = page.items[20].id;
-        app.history_seek = 42;
-        app.jump_seek = Some(42);
-        let old_count = app.model.retained_count();
+        app.state.history_seek = 42;
+        app.state.jump_seek = Some(42);
+        let old_count = app.state.model.retained_count();
         let _ = app.network(Data::History {
             channel,
             seek: Some(41),
@@ -3995,7 +3875,7 @@ mod tests {
             page: page.clone(),
             generation,
         });
-        assert_eq!(app.model.retained_count(), old_count);
+        assert_eq!(app.state.model.retained_count(), old_count);
 
         let _ = app.network(Data::AroundHistory {
             channel,
@@ -4004,7 +3884,7 @@ mod tests {
             page: page.clone(),
             generation,
         });
-        assert_eq!(app.model.retained_count(), old_count);
+        assert_eq!(app.state.model.retained_count(), old_count);
         let _ = app.network(Data::AroundHistory {
             channel,
             anchor: backend::HistoryAnchor::Message(target),
@@ -4012,16 +3892,16 @@ mod tests {
             page,
             generation,
         });
-        assert!(app.model.messages[&channel].contains_key(&target));
-        assert!(app.model.messages[&channel].len() <= 50);
+        assert!(app.state.model.messages[&channel].contains_key(&target));
+        assert!(app.state.model.messages[&channel].len() <= 50);
         assert!(app.history_slots.borrow().len() <= 50);
-        assert!(!app.at_present);
+        assert!(!app.state.at_present);
     }
     #[test]
     fn failed_history_request_does_not_leave_the_landing_loader_stuck() {
         let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
-        app.seek_loading = true;
+        app.state.seek_loading = true;
         let _ = app.network(Data::Error("Server request failed".into()));
-        assert!(!app.seek_loading);
+        assert!(!app.state.seek_loading);
     }
 }

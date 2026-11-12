@@ -1042,7 +1042,7 @@ async fn history_regions(alice: &mut Peer, channel: Id) {
 async fn uploads(fixture: &Fixture, alice: &mut Peer, bob: &Peer, channel: Id) {
     let dir = tempfile::tempdir().unwrap();
     let image_path = dir.path().join("photo.jpg");
-    let bytes = include_bytes!("../assets/mock-workspace.jpg");
+    let bytes = sticktalk_client_core::mock::IMAGE;
     tokio::fs::write(&image_path, bytes).await.unwrap();
     let legacy = alice
         .http

@@ -1,6 +1,4 @@
 //! Installed-app OAuth: system browser, loopback only, PKCE S256, bounded I/O.
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use sha2::{Digest, Sha256};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -9,78 +7,7 @@ const CLIENT_SECRET: Option<&str> = option_env!("STICKTALK_GOOGLE_CLIENT_SECRET"
 pub fn configured(server_id: Option<&str>) -> bool {
     matches!((server_id, CLIENT_ID, CLIENT_SECRET), (Some(a), Some(b), Some(c)) if !a.is_empty() && a == b && !c.is_empty())
 }
-struct Proof {
-    verifier: String,
-    state: String,
-}
-impl Proof {
-    fn new() -> Result<Self, String> {
-        let mut bytes = [0; 64];
-        getrandom::fill(&mut bytes).map_err(|_| "Could not start secure sign-in".to_string())?;
-        Ok(Self {
-            verifier: URL_SAFE_NO_PAD.encode(&bytes[..32]),
-            state: URL_SAFE_NO_PAD.encode(&bytes[32..]),
-        })
-    }
-    fn challenge(&self) -> String {
-        URL_SAFE_NO_PAD.encode(Sha256::digest(self.verifier.as_bytes()))
-    }
-}
-fn state_matches(expected: &str, actual: &str) -> bool {
-    // Fixed-size generated states; do not short-circuit comparisons of equal lengths.
-    expected.len() == actual.len()
-        && expected
-            .bytes()
-            .zip(actual.bytes())
-            .fold(0u8, |d, (a, b)| d | (a ^ b))
-            == 0
-}
-fn callback(request: &str, port: u16, state: &str) -> Result<String, String> {
-    if request.len() > 8192 || !request.ends_with("\r\n\r\n") {
-        return Err("Invalid Google callback".into());
-    }
-    let mut lines = request.split("\r\n");
-    let parts: Vec<_> = lines.next().unwrap_or_default().split(' ').collect();
-    if parts.len() != 3
-        || parts[0] != "GET"
-        || parts[2] != "HTTP/1.1"
-        || !parts[1].starts_with("/?")
-    {
-        return Err("Invalid Google callback".into());
-    }
-    let hosts: Vec<_> = lines
-        .filter_map(|l| l.split_once(':'))
-        .filter(|(k, _)| k.eq_ignore_ascii_case("host"))
-        .collect();
-    if hosts.len() != 1 || hosts[0].1.trim() != format!("127.0.0.1:{port}") {
-        return Err("Invalid callback host".into());
-    }
-    let url = reqwest::Url::parse(&format!("http://127.0.0.1:{port}{}", parts[1]))
-        .map_err(|_| "Invalid Google callback".to_string())?;
-    let pairs: Vec<_> = url.query_pairs().collect();
-    let one = |key| -> Result<Option<&str>, String> {
-        let values: Vec<_> = pairs
-            .iter()
-            .filter(|(k, _)| k == key)
-            .map(|(_, v)| v.as_ref())
-            .collect();
-        if values.len() > 1 {
-            Err("Duplicate callback parameter".into())
-        } else {
-            Ok(values.first().copied())
-        }
-    };
-    if !state_matches(state, one("state")?.unwrap_or_default()) {
-        return Err("Google sign-in state did not match. Please try again.".into());
-    }
-    if one("error")?.is_some() {
-        return Err("Google sign-in was cancelled or denied.".into());
-    }
-    one("code")?
-        .filter(|v| !v.is_empty() && v.len() <= 4096)
-        .map(str::to_owned)
-        .ok_or_else(|| "Missing Google authorization code".into())
-}
+use sticktalk_client_core::oauth::{callback, Proof};
 
 pub async fn sign_in(
     client_id: String,
@@ -122,7 +49,7 @@ where
     F: FnOnce(String) -> Fut,
     Fut: std::future::Future<Output = Result<(), String>>,
 {
-    let proof = Proof::new()?;
+    let proof = Proof::new(&crate::platform::Native)?;
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
         .await
         .map_err(|_| "Could not open the sign-in callback. Please try again.".to_string())?;
@@ -131,18 +58,9 @@ where
         .map_err(|_| "Could not start sign-in".to_string())?
         .port();
     let redirect = format!("http://127.0.0.1:{port}");
-    let mut url = reqwest::Url::parse(&authorization_endpoint).expect("constant URL");
-    url.query_pairs_mut().extend_pairs([
-        ("client_id", client_id.as_str()),
-        ("response_type", "code"),
-        ("scope", "openid email profile"),
-        ("redirect_uri", redirect.as_str()),
-        ("code_challenge", proof.challenge().as_str()),
-        ("code_challenge_method", "S256"),
-        ("state", proof.state.as_str()),
-        ("prompt", "select_account"),
-    ]);
-    let url = url.to_string();
+    let url = proof
+        .authorization_url(&authorization_endpoint, &client_id, &redirect)
+        .expect("constant URL");
     open_browser(url).await?;
     let code = loop {
         let (mut stream, peer) = listener
@@ -203,91 +121,24 @@ where
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|_| "Could not initialize Google sign-in".to_string())?;
-    let response = client
-        .post(token_endpoint)
-        .form(&[
-            ("client_id", client_id.as_str()),
-            ("client_secret", client_secret),
-            ("code", code.as_str()),
-            ("code_verifier", proof.verifier.as_str()),
-            ("redirect_uri", redirect.as_str()),
-            ("grant_type", "authorization_code"),
-        ])
-        .send()
-        .await
-        .map_err(|_| "Could not reach Google. Please try again.".to_string())?;
-    let status = response.status();
-    let bytes = crate::backend::limited(response, 32768).await?;
-    if !status.is_success() {
-        return Err("Google could not complete sign-in. Please try again.".into());
-    }
-    #[derive(serde::Deserialize)]
-    struct Tokens {
-        id_token: String,
-    }
-    let token: Tokens = serde_json::from_slice(&bytes)
-        .map_err(|_| "Google did not return a sign-in token".to_string())?;
-    if token.id_token.is_empty() {
-        return Err("Google did not return a sign-in token".into());
-    }
-    Ok(token.id_token)
+    sticktalk_client_core::oauth::exchange(
+        &crate::platform::NativeHttp(client),
+        token_endpoint,
+        sticktalk_client_core::oauth::TokenExchange {
+            client_id: &client_id,
+            client_secret,
+            code: &code,
+            verifier: &proof.verifier,
+            redirect: &redirect,
+        },
+    )
+    .await
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn pkce_rfc7636_vector_and_random_state() {
-        let p = Proof {
-            verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk".into(),
-            state: String::new(),
-        };
-        assert_eq!(p.challenge(), "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
-        let a = Proof::new().unwrap();
-        let b = Proof::new().unwrap();
-        assert_eq!(a.verifier.len(), 43);
-        assert_eq!(a.state.len(), 43);
-        assert_ne!(a.verifier, b.verifier);
-        assert_ne!(a.state, b.state);
-        assert_ne!(a.state, a.verifier);
-        assert!(a
-            .verifier
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c)));
-        assert!(state_matches(&a.state, &a.state));
-        assert!(!state_matches(&a.state, &b.state));
-        assert!(!state_matches(&a.state, ""));
-    }
-    #[test]
-    fn loopback_parser_rejects_spoofing_duplicates_and_denial() {
-        let req = |q: &str| format!("GET /?{q} HTTP/1.1\r\nHost: 127.0.0.1:12345\r\n\r\n");
-        assert_eq!(
-            callback(&req("state=abc&code=a%2Bb"), 12345, "abc").unwrap(),
-            "a+b"
-        );
-        for q in [
-            "code=x",
-            "state=bad&code=x",
-            "state=abc&code=",
-            "state=abc&state=abc&code=x",
-            "state=abc&code=x&code=y",
-            "state=abc&error=access_denied",
-        ] {
-            assert!(callback(&req(q), 12345, "abc").is_err());
-        }
-        for s in [
-            req("state=abc&code=x").replace("GET", "POST"),
-            req("state=abc&code=x").replace("127.0.0.1:12345", "evil.example"),
-            req("state=abc&code=x").replace("/?", "/favicon.ico?"),
-            "x".repeat(8193),
-        ] {
-            assert!(callback(&s, 12345, "abc").is_err());
-        }
-    }
-}
-
 #[cfg(test)]
 mod flow_tests {
     use super::*;
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+    use sha2::{Digest, Sha256};
     use std::collections::BTreeMap;
     async fn request(stream: &mut tokio::net::TcpStream) -> String {
         let mut bytes = Vec::new();

@@ -1,0 +1,15 @@
+{
+  "renderer": "tiny-skia",
+  "window_mode": "secondary-noactivate",
+  "arguments": "--mock --agent-window-report C:/Users/dwhee/.cargo-target/sticktalk-b8-core/placement-before.json",
+  "timestamp": "2026-11-12T15:37:21.6594180-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.5588655,
+  "cpu_seconds": 0.0,
+  "one_core_cpu_percent": 0.0,
+  "working_set_mean": 61898137.6,
+  "working_set_max": 63356928.0,
+  "private_bytes_mean": 12102109.866666667,
+  "binary_bytes": 39425536,
+  "sha256": "D4CF728C93F911BDF1B069E6BF7018F353E129C10FBD25EDBBD16E780A760ABF"
+}

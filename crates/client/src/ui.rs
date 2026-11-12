@@ -243,6 +243,7 @@ fn dot<'a>(color: Color, size: f32) -> Element<'a, Msg> {
 }
 fn avatar<'a>(app: &App, id: Id, size: f32, presence: bool) -> Element<'a, Msg> {
     let face: Element<'_, Msg> = if let Some(handle) = app
+        .state
         .model
         .users
         .get(&id)
@@ -256,7 +257,7 @@ fn avatar<'a>(app: &App, id: Id, size: f32, presence: bool) -> Element<'a, Msg> 
             .content_fit(iced::ContentFit::Cover)
             .into()
     } else {
-        let name = app.model.name(id);
+        let name = app.state.model.name(id);
         let initials = name
             .split_whitespace()
             .take(if size <= t::S24 { 1 } else { 2 })
@@ -280,7 +281,8 @@ fn avatar<'a>(app: &App, id: Id, size: f32, presence: bool) -> Element<'a, Msg> 
         return face;
     }
     let color = status(
-        app.model
+        app.state
+            .model
             .presences
             .get(&id)
             .copied()
@@ -338,10 +340,10 @@ fn empty<'a>(name: &str, label: impl Into<String>, button: Button<'a>) -> Elemen
     .into()
 }
 pub fn view(app: &App) -> Element<'_, Msg> {
-    if app.session.is_none() {
+    if app.state.session.is_none() {
         return login(app);
     }
-    if app.model.me.is_none() {
+    if app.state.model.me.is_none() {
         return container(
             column![
                 icon("message-circle", t::AVATAR, t::ACCENT),
@@ -367,7 +369,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         row![
             rail(app),
             sidebar(app),
-            match app.screen {
+            match app.state.screen {
                 Screen::Friends(tab) => friends(app, tab),
                 Screen::Channel(id) => chat(app, id),
             }
@@ -625,7 +627,7 @@ fn rail(app: &App) -> Element<'_, Msg> {
     ]
     .spacing(t::S8)
     .align_x(Center);
-    for g in app.model.guilds.values() {
+    for g in app.state.model.guilds.values() {
         list = list.push(guild_button(app, Some(g.guild.id), &g.guild.name, ""));
     }
     list = list.push(
@@ -651,12 +653,12 @@ fn rail(app: &App) -> Element<'_, Msg> {
         .into()
 }
 fn guild_button<'a>(app: &App, id: Option<Id>, name: &str, home_icon: &str) -> Element<'a, Msg> {
-    let selected = app.guild == id;
+    let selected = app.state.guild == id;
     let hovered = app.hovered_guild == Some(id);
     let glyph: Element<'_, Msg> = if id.is_none() {
         icon(home_icon, t::ICON, t::ACCENT).into()
     } else if let Some(h) = id
-        .and_then(|g| app.model.guilds.get(&g))
+        .and_then(|g| app.state.model.guilds.get(&g))
         .and_then(|g| g.guild.icon_id)
         .and_then(|i| app.images.get(i))
     {
@@ -696,12 +698,14 @@ fn guild_button<'a>(app: &App, id: Option<Id>, name: &str, home_icon: &str) -> E
         s
     });
     let unread = id.is_some_and(|g| {
-        app.model
+        app.state
+            .model
             .channels
             .values()
             .filter(|c| c.guild_id == Some(g))
             .any(|c| {
-                app.model
+                app.state
+                    .model
                     .reads
                     .get(&c.id)
                     .is_some_and(|r| r.unread_count > 0)
@@ -745,14 +749,15 @@ fn guild_button<'a>(app: &App, id: Option<Id>, name: &str, home_icon: &str) -> E
 }
 fn sidebar(app: &App) -> Element<'_, Msg> {
     let name = app
+        .state
         .guild
-        .and_then(|g| app.model.guilds.get(&g))
+        .and_then(|g| app.state.model.guilds.get(&g))
         .map_or("Direct messages".into(), |g| g.guild.name.clone());
     let header = button(
         row![
             txt(ellipsis(&name, 24)).font(t::semibold()).width(Fill),
             icon(
-                if app.guild.is_some() {
+                if app.state.guild.is_some() {
                     "chevron-down"
                 } else {
                     "search"
@@ -763,7 +768,7 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
         ]
         .align_y(Center),
     )
-    .on_press(Msg::Open(if app.guild.is_some() {
+    .on_press(Msg::Open(if app.state.guild.is_some() {
         Dialog::GuildMenu
     } else {
         Dialog::AddFriend
@@ -773,13 +778,13 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
     .padding([t::S12, t::S16])
     .style(t::icon);
     let mut list = column![].spacing(t::S4);
-    if app.guild.is_none() {
+    if app.state.guild.is_none() {
         list = list
             .push(nav(
                 "users",
                 "Friends",
                 Msg::Friends(FriendTab::Online),
-                matches!(app.screen, Screen::Friends(_)),
+                matches!(app.state.screen, Screen::Friends(_)),
             ))
             .push(space().height(t::S16))
             .push(
@@ -796,7 +801,11 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
             list = list.push(space().height(t::S12)).push(
                 row![
                     icon("chevron-down", t::S12, t::TEXT_MUTED),
-                    section(ellipsis(&app.model.channel_name(c).to_uppercase(), 23)).width(Fill),
+                    section(ellipsis(
+                        &app.state.model.channel_name(c).to_uppercase(),
+                        23
+                    ))
+                    .width(Fill),
                     if app.permissions().contains(Permissions::MANAGE_CHANNELS) {
                         icon_button(
                             "plus",
@@ -811,10 +820,10 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
                 .align_y(Center),
             );
         } else {
-            let read = app.model.reads.get(&c.id);
+            let read = app.state.model.reads.get(&c.id);
             let unread = read.is_some_and(|r| r.unread_count > 0);
-            let selected = app.screen == Screen::Channel(c.id);
-            let content = app.model.channel_name(c);
+            let selected = app.state.screen == Screen::Channel(c.id);
+            let content = app.state.model.channel_name(c);
             let mut channel = row![
                 if c.kind == ChannelKind::Text {
                     icon("hash", t::CHANNEL_ICON, t::TEXT_MUTED).into()
@@ -882,7 +891,14 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
             ]);
         }
     }
-    if app.guild.is_none() && app.model.channels.values().all(|c| c.guild_id.is_some()) {
+    if app.state.guild.is_none()
+        && app
+            .state
+            .model
+            .channels
+            .values()
+            .all(|c| c.guild_id.is_some())
+    {
         list = list.push(
             column![
                 hint("No conversations yet."),
@@ -892,12 +908,12 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
         );
     }
     let me = app.me().unwrap();
-    let own = app.model.me.as_ref().unwrap();
+    let own = app.state.model.me.as_ref().unwrap();
     let footer = container(
         row![
             avatar(app, me, t::SMALL_AVATAR, true),
             column![
-                txt(ellipsis(&app.model.name(me), 16))
+                txt(ellipsis(&app.state.model.name(me), 16))
                     .font(t::semibold())
                     .size(t::USER_NAME),
                 hint(ellipsis(
@@ -933,12 +949,12 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
     .into()
 }
 fn connection_banner(app: &App) -> Element<'_, Msg> {
-    if matches!(app.connection, ConnectionState::Ready) {
+    if matches!(app.state.connection, ConnectionState::Ready) {
         return space().height(0).into();
     }
     let mut body = row![
         icon("wifi-off", t::INLINE_ICON, t::WARNING),
-        hint(match &app.connection {
+        hint(match &app.state.connection {
             ConnectionState::Stopped(v) => v.clone(),
             _ => "Reconnecting… Your conversation will resume automatically.".into(),
         })
@@ -947,7 +963,7 @@ fn connection_banner(app: &App) -> Element<'_, Msg> {
     ]
     .spacing(t::S8)
     .align_y(Center);
-    if matches!(app.connection, ConnectionState::Stopped(_)) {
+    if matches!(app.state.connection, ConnectionState::Stopped(_)) {
         body = body.push(
             action("Reconnect", Msg::Reconnect)
                 .height(t::ROW)
@@ -989,6 +1005,7 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
         .height(t::HEADER)
         .style(t::chat);
     let rels: Vec<_> = app
+        .state
         .model
         .relationships
         .values()
@@ -996,6 +1013,7 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
             FriendTab::Online => {
                 r.kind == RelationshipKind::Friend
                     && app
+                        .state
                         .model
                         .presences
                         .get(&r.user.id)
@@ -1030,7 +1048,8 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
             RelationshipKind::OutgoingRequest => ("Outgoing friend request", t::TEXT_MUTED),
             RelationshipKind::Blocked => ("Blocked", t::TEXT_MUTED),
             _ => status(
-                app.model
+                app.state
+                    .model
                     .presences
                     .get(&id)
                     .copied()
@@ -1087,7 +1106,7 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
                 row![
                     avatar(app, id, t::AVATAR, true),
                     column![
-                        txt(app.model.name(id)).font(t::semibold()),
+                        txt(app.state.model.name(id)).font(t::semibold()),
                         hint(label).color(color)
                     ]
                     .spacing(t::S4),
@@ -1172,15 +1191,16 @@ fn skeleton<'a>() -> Element<'a, Msg> {
     .into()
 }
 fn chat(app: &App, id: Id) -> Element<'_, Msg> {
-    let Some(channel) = app.model.channels.get(&id) else {
+    let Some(channel) = app.state.model.channels.get(&id) else {
         return empty(
             "message-circle",
             "This conversation is no longer available.",
             primary("Go to friends", Msg::Friends(FriendTab::Online)),
         );
     };
-    let name = app.model.channel_name(channel);
+    let name = app.state.model.channel_name(channel);
     let topic = app
+        .state
         .model
         .topics
         .get(&id)
@@ -1243,7 +1263,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
     .style(t::chat);
     let rows = app.visible_items();
     let (_, _, top, tail) = app.visible_range();
-    let history: Element<'_, Msg> = if app.loading && rows.is_empty() {
+    let history: Element<'_, Msg> = if app.state.loading && rows.is_empty() {
         container(skeleton()).height(Fill).style(t::bare).into()
     } else if rows.is_empty() {
         empty(
@@ -1252,7 +1272,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
             primary("Write the first message", Msg::FocusComposer),
         )
     } else {
-        let top_label: Element<'_, Msg> = if app.history_more {
+        let top_label: Element<'_, Msg> = if app.state.history_more {
             action("Load earlier messages", Msg::Older)
                 .height(t::ROW)
                 .style(t::link)
@@ -1291,7 +1311,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
             .into()
     };
     let mut history_layers = vec![history];
-    if !app.at_present
+    if !app.state.at_present
         && app.total_h > app.viewport_h
         && app.total_h - app.scroll_y - app.viewport_h > app.viewport_h
     {
@@ -1368,18 +1388,22 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
             .style(t::bare),
         );
     }
-    if let Some(id) = app.reply {
+    if let Some(id) = app.state.reply {
         body = body.push(
             container(
                 row![
                     icon("reply", t::INLINE_ICON, t::TEXT_SECONDARY),
                     hint(format!(
                         "Replying to {}",
-                        app.model
+                        app.state
+                            .model
                             .messages
                             .get(&channel.id)
                             .and_then(|ms| ms.get(&id))
-                            .map_or("a deleted message".into(), |m| app.model.name(m.author_id))
+                            .map_or("a deleted message".into(), |m| app
+                                .state
+                                .model
+                                .name(m.author_id))
                     )),
                     space().width(Fill),
                     icon_button("x", "Cancel reply", Msg::CancelCompose)
@@ -1395,12 +1419,12 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
     if !candidates.is_empty() {
         let mut suggestions = column![section("MENTION SOMEONE")].spacing(t::S4);
         for (i, id) in candidates.iter().enumerate() {
-            if let Some(user) = app.model.users.get(id) {
+            if let Some(user) = app.state.model.users.get(id) {
                 suggestions = suggestions.push(
                     button(
                         row![
                             avatar(app, *id, t::S24, false),
-                            txt(app.model.name(*id)),
+                            txt(app.state.model.name(*id)),
                             hint(format!("@{}", user.username))
                         ]
                         .spacing(t::S12)
@@ -1416,9 +1440,9 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         }
         body = body.push(container(suggestions).padding(t::S8).style(t::elevated));
     }
-    if !app.attachments.is_empty() {
+    if !app.state.attachments.is_empty() {
         let mut attachments = Row::new().spacing(t::S8);
-        for a in &app.attachments {
+        for a in &app.state.attachments {
             attachments = attachments.push(
                 container(
                     column![
@@ -1440,7 +1464,7 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         }
         body = body.push(attachments);
     }
-    if app.editing.is_some() {
+    if app.state.editing.is_some() {
         body = body.push(
             container(
                 row![
@@ -1461,7 +1485,7 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
             } else {
                 "@"
             },
-            app.model.channel_name(channel)
+            app.state.model.channel_name(channel)
         );
         let wrap =
             ((app.viewport_w - t::MESSAGE_GUTTER - t::S32) / t::GLYPH_WIDTH).max(1.) as usize;
@@ -1493,11 +1517,12 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         );
     }
     let names: Vec<_> = app
+        .state
         .model
         .typing
         .keys()
         .filter(|(c, _)| *c == channel.id)
-        .map(|(_, u)| app.model.name(*u))
+        .map(|(_, u)| app.state.model.name(*u))
         .collect();
     let typing = match names.as_slice() {
         [] => {
@@ -1540,7 +1565,7 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
 }
 fn member_panel<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
     let ids: Vec<_> = if channel.guild_id.is_some() {
-        app.model.members.keys().take(50).copied().collect()
+        app.state.model.members.keys().take(50).copied().collect()
     } else {
         channel.recipient_ids.clone()
     };
@@ -1550,7 +1575,8 @@ fn member_panel<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Ms
             .iter()
             .copied()
             .filter(|id| {
-                app.model
+                app.state
+                    .model
                     .presences
                     .get(id)
                     .is_some_and(|s| *s != PresenceStatus::Offline)
@@ -1569,8 +1595,9 @@ fn member_panel<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Ms
             )))
             .push(space().height(t::S4));
         for id in group {
-            let name = app.model.name(id);
+            let name = app.state.model.name(id);
             let status_text = app
+                .state
                 .model
                 .users
                 .get(&id)
@@ -1603,7 +1630,7 @@ fn member_panel<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Ms
             );
         }
     }
-    if app.member_after.is_some() {
+    if app.state.member_after.is_some() {
         list = list.push(action("More members", Msg::MoreMembers).style(t::link));
     }
     container(scroller(list).height(Fill))
@@ -1655,6 +1682,7 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
     let mut content = column![].spacing(t::S4).width(Fill);
     if let Some(reply) = m.reply_to {
         let target = app
+            .state
             .model
             .messages
             .get(&m.channel_id)
@@ -1671,8 +1699,8 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
                 "Original message deleted or unavailable".into(),
                 |v| format!(
                     "{}  {}",
-                    app.model.name(v.author_id),
-                    ellipsis(&app.model.content(v), 70)
+                    app.state.model.name(v.author_id),
+                    ellipsis(&app.state.model.content(v), 70)
                 )
             ))
         ]
@@ -1688,14 +1716,14 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
     if !grouped {
         content = content.push(
             row![
-                txt(app.model.name(m.author_id)).font(t::semibold()),
+                txt(app.state.model.name(m.author_id)).font(t::semibold()),
                 hint(timestamp(m.created_at, false))
             ]
             .spacing(t::S8)
             .align_y(Center),
         );
     }
-    if app.editing == Some(m.id) {
+    if app.state.editing == Some(m.id) {
         content = content
             .push(
                 container(compose_editor(
@@ -1936,10 +1964,10 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
         );
     }
     let id = m.id;
-    let generation = app.generation;
+    let generation = app.state.generation;
     let width = app.viewport_w.to_bits();
     let seq = app.row_revision(m);
-    let editing = app.editing == Some(id);
+    let editing = app.state.editing == Some(id);
     widget::sensor(full.push(message))
         .key((id, generation, width, seq, editing))
         .on_show(move |size| Msg::Measured {
@@ -2027,7 +2055,7 @@ fn inline_content<'a>(
                     span = span.color(t::ACCENT).link(RichLink::Url(url.clone(), true))
                 }
                 Target::Mention(id) if m.mention_ids.contains(id) => {
-                    label = format!("@{}", app.model.name(*id));
+                    label = format!("@{}", app.state.model.name(*id));
                     span = widget::span(label)
                         .font(font)
                         .color(t::ACCENT)
@@ -2140,7 +2168,7 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
     m.content.hash(&mut hash);
     m.edited_at.hash(&mut hash);
     for id in &m.mention_ids {
-        app.model.name(*id).hash(&mut hash);
+        app.state.model.name(*id).hash(&mut hash);
     }
     for value in app.revealed.iter().filter(|(id, _)| *id == m.id) {
         value.hash(&mut hash);
@@ -2173,7 +2201,7 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
     let mut items = Column::new().spacing(t::S4);
     match &app.dialog {
         Dialog::GuildMenu => {
-            if let Some(g) = app.guild {
+            if let Some(g) = app.state.guild {
                 let p = app.permissions();
                 if p.contains(Permissions::CREATE_INVITES) {
                     items = items.push(menu_item(
@@ -2209,8 +2237,9 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
             }
         }
         Dialog::MessageActions(id) => {
-            if let Screen::Channel(channel_id) = app.screen {
+            if let Screen::Channel(channel_id) = app.state.screen {
                 if let Some(m) = app
+                    .state
                     .model
                     .messages
                     .get(&channel_id)
@@ -2285,7 +2314,7 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
             }
         }
         Dialog::MemberMenu(id) => {
-            if let Some(guild_id) = app.guild {
+            if let Some(guild_id) = app.state.guild {
                 if app.permissions().contains(Permissions::KICK_MEMBERS) {
                     items = items.push(menu_item(
                         "log-out",
@@ -2470,7 +2499,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
                     .style(t::input_container),
                 )
                 .push(hint("Valid for 7 days · Up to 100 uses"));
-            if let Some(guild_id) = app.guild {
+            if let Some(guild_id) = app.state.guild {
                 body = body.push(
                     action(
                         "Create a new invite",
@@ -2511,16 +2540,17 @@ fn modal(app: &App) -> Element<'_, Msg> {
             if let Some(parent) = parent {
                 body = body.push(hint(format!(
                     "Inside {}",
-                    app.model
+                    app.state
+                        .model
                         .channels
                         .get(parent)
-                        .map_or(String::new(), |v| app.model.channel_name(v))
+                        .map_or(String::new(), |v| app.state.model.channel_name(v))
                 )));
             }
             body = body.push(footer("Create channel", Msg::Submit));
         }
         Dialog::ChannelSettings(id) => {
-            if let Some(c) = app.model.channels.get(id) {
+            if let Some(c) = app.state.model.channels.get(id) {
                 body = body.push(field("NAME", "Channel name", &app.form.name, 0));
                 if c.kind == ChannelKind::Text {
                     body = body.push(field("TOPIC", "A short description", &app.form.topic, 1));
@@ -2540,6 +2570,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
                 0,
             ));
             for r in app
+                .state
                 .model
                 .relationships
                 .values()
@@ -2550,7 +2581,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
                     button(
                         row![
                             avatar(app, r.user.id, t::SMALL_AVATAR, true),
-                            txt(app.model.name(r.user.id)).width(Fill),
+                            txt(app.state.model.name(r.user.id)).width(Fill),
                             icon(
                                 if selected { "check" } else { "plus" },
                                 t::INLINE_ICON,
@@ -2584,7 +2615,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
             );
         }
         Dialog::GroupSettings(id) => {
-            if let Some(c) = app.model.channels.get(id) {
+            if let Some(c) = app.state.model.channels.get(id) {
                 body = body.push(field("GROUP NAME", "Group name", &app.form.name, 0));
                 let owner = c.owner_id == app.me();
                 if owner {
@@ -2594,7 +2625,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
                 for user_id in &c.recipient_ids {
                     let mut member = row![
                         avatar(app, *user_id, t::SMALL_AVATAR, true),
-                        txt(app.model.name(*user_id)).width(Fill)
+                        txt(app.state.model.name(*user_id)).width(Fill)
                     ]
                     .spacing(t::S12)
                     .align_y(Center);
@@ -2626,12 +2657,12 @@ fn modal(app: &App) -> Element<'_, Msg> {
                 }
                 if owner {
                     body = body.push(section("ADD FRIENDS"));
-                    for r in app.model.relationships.values().filter(|r| {
+                    for r in app.state.model.relationships.values().filter(|r| {
                         r.kind == RelationshipKind::Friend && !c.recipient_ids.contains(&r.user.id)
                     }) {
                         body = body.push(
                             action(
-                                app.model.name(r.user.id),
+                                app.state.model.name(r.user.id),
                                 Msg::Command(Command::AddGroupRecipient {
                                     channel_id: *id,
                                     user_id: r.user.id,
@@ -2658,15 +2689,17 @@ fn modal(app: &App) -> Element<'_, Msg> {
                 row![
                     avatar(app, *id, t::MODAL_INSET, true),
                     column![
-                        title(app.model.name(*id)),
+                        title(app.state.model.name(*id)),
                         hint(
-                            app.model
+                            app.state
+                                .model
                                 .users
                                 .get(id)
                                 .map_or(String::new(), |u| format!("@{}", u.username))
                         ),
                         hint(
-                            app.model
+                            app.state
+                                .model
                                 .users
                                 .get(id)
                                 .and_then(|u| u.status_text.clone())
@@ -2703,9 +2736,9 @@ fn modal(app: &App) -> Element<'_, Msg> {
                     .spacing(t::S8),
                 );
             }
-            if let (Some(guild_id), Some(m)) = (app.guild, app.model.members.get(id)) {
+            if let (Some(guild_id), Some(m)) = (app.state.guild, app.state.model.members.get(id)) {
                 let p = app.permissions();
-                let my_role = app.model.guilds.get(&guild_id).map(|g| g.my_role);
+                let my_role = app.state.model.guilds.get(&guild_id).map(|g| g.my_role);
                 let lower = match my_role {
                     Some(MemberRole::Owner) => m.role != MemberRole::Owner,
                     Some(MemberRole::Admin) => m.role == MemberRole::Member,
@@ -2760,8 +2793,9 @@ fn modal(app: &App) -> Element<'_, Msg> {
                     }
                 }
             }
-            if let Screen::Channel(channel_id) = app.screen {
+            if let Screen::Channel(channel_id) = app.state.screen {
                 if app
+                    .state
                     .model
                     .channels
                     .get(&channel_id)
@@ -2812,7 +2846,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
         Dialog::ReplyPreview(id) => {
             if let Some(m) = &app.preview {
                 body = body
-                    .push(txt(app.model.name(m.author_id)).font(t::semibold()))
+                    .push(txt(app.state.model.name(m.author_id)).font(t::semibold()))
                     .push(linked_content(app, m))
                     .push(action("Jump to message", Msg::JumpTo(*id)).style(t::link));
             } else {
@@ -2916,7 +2950,7 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                 tab == value,
             ));
         }
-        if let Some(gid) = app.guild {
+        if let Some(gid) = app.state.guild {
             let p = app.permissions();
             match tab {
                 GuildTab::Overview => {
@@ -2957,7 +2991,7 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                         .push(line())
                         .push(section("YOUR ROLE"))
                         .push(chip(
-                            format!("{:?}", app.model.guilds[&gid].my_role).to_uppercase(),
+                            format!("{:?}", app.state.model.guilds[&gid].my_role).to_uppercase(),
                             t::ACCENT,
                         ))
                         .push(hint("Owners manage roles and ownership."));
@@ -3007,7 +3041,7 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                                 t::INLINE_ICON,
                                 t::TEXT_MUTED
                             ),
-                            txt(app.model.channel_name(c)).width(Fill)
+                            txt(app.state.model.channel_name(c)).width(Fill)
                         ]
                         .spacing(t::S8)
                         .align_y(Center);
@@ -3043,15 +3077,21 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                     );
                     let mut member_rows = column![].spacing(t::S4);
                     let query = app.member_search.to_lowercase();
-                    for m in app.model.members.values().filter(|m| {
+                    for m in app.state.model.members.values().filter(|m| {
                         m.guild_id == gid
-                            && (app.model.name(m.user.id).to_lowercase().contains(&query)
+                            && (app
+                                .state
+                                .model
+                                .name(m.user.id)
+                                .to_lowercase()
+                                .contains(&query)
                                 || m.user.username.to_lowercase().contains(&query))
                     }) {
                         let mut member = row![
                             avatar(app, m.user.id, t::AVATAR, true),
                             column![
-                                txt(ellipsis(&app.model.name(m.user.id), 32)).font(t::medium()),
+                                txt(ellipsis(&app.state.model.name(m.user.id), 32))
+                                    .font(t::medium()),
                                 hint(format!("@{}", m.user.username))
                             ]
                             .spacing(t::S4)
@@ -3076,7 +3116,7 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                             .push(line());
                     }
                     content = content.push(member_rows);
-                    if app.member_after.is_some() {
+                    if app.state.member_after.is_some() {
                         content =
                             content.push(action("More members", Msg::MoreMembers).style(t::link));
                     }
@@ -3086,7 +3126,13 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                     if p.contains(Permissions::CREATE_INVITES) {
                         content = content.push(primary("Invite people", Msg::Open(Dialog::Invite)));
                     }
-                    for v in app.model.invites.values().filter(|v| v.guild_id == gid) {
+                    for v in app
+                        .state
+                        .model
+                        .invites
+                        .values()
+                        .filter(|v| v.guild_id == gid)
+                    {
                         content = content.push(
                             column![
                                 row![
@@ -3109,11 +3155,11 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                             .spacing(t::S8),
                         );
                     }
-                    if app.invite_after.is_some() {
+                    if app.state.invite_after.is_some() {
                         content =
                             content.push(action("More invites", Msg::MoreInvites).style(t::link));
                     }
-                    if app.model.invites.is_empty() {
+                    if app.state.model.invites.is_empty() {
                         content = content.push(hint("No active invites."));
                     }
                 }
@@ -3123,12 +3169,12 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                         content = content
                             .push(hint("You need Ban Members permission to manage this list."));
                     }
-                    for b in app.model.bans.values().filter(|v| v.guild_id == gid) {
+                    for b in app.state.model.bans.values().filter(|v| v.guild_id == gid) {
                         content = content.push(
                             row![
                                 avatar(app, b.user.id, t::SMALL_AVATAR, false),
                                 column![
-                                    txt(app.model.name(b.user.id)),
+                                    txt(app.state.model.name(b.user.id)),
                                     hint(b.reason.clone().unwrap_or_default())
                                 ]
                                 .spacing(t::S4)
@@ -3146,10 +3192,10 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                             .align_y(Center),
                         );
                     }
-                    if app.ban_after.is_some() {
+                    if app.state.ban_after.is_some() {
                         content = content.push(action("More bans", Msg::MoreBans).style(t::link));
                     }
-                    if app.model.bans.is_empty() {
+                    if app.state.model.bans.is_empty() {
                         content = content.push(empty(
                             "shield",
                             "No banned members.",
@@ -3186,8 +3232,11 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                         row![
                             avatar(app, id, t::MODAL_INSET, true),
                             column![
-                                title(app.model.name(id)),
-                                hint(format!("@{}", app.model.me.as_ref().unwrap().user.username))
+                                title(app.state.model.name(id)),
+                                hint(format!(
+                                    "@{}",
+                                    app.state.model.me.as_ref().unwrap().user.username
+                                ))
                             ]
                             .spacing(t::S8)
                         ]
@@ -3329,7 +3378,8 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                         .on_press(Msg::Presence(value))
                         .padding(t::S8)
                         .style(t::navigation(
-                            app.model
+                            app.state
+                                .model
                                 .me
                                 .as_ref()
                                 .is_some_and(|u| u.desired_presence == value),
