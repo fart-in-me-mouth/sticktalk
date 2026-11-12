@@ -1397,6 +1397,7 @@ impl App {
                 {
                     if let (Screen::Channel(channel), Some(after)) = (self.screen, self.after) {
                         self.loading = self.request(Request::NewerHistory {
+                            seek: self.history_seek,
                             channel,
                             after,
                             generation: self.generation,
@@ -1434,7 +1435,7 @@ impl App {
                     self.layout_cache.replace(None);
                     self.loading = true;
                     self.request(Request::History {
-                        seek: None,
+                        seek: Some(self.history_seek),
                         channel,
                         before: None,
                         generation: self.generation,
@@ -2089,11 +2090,15 @@ impl App {
                 _ => {}
             },
             Data::NewerHistory {
+                seek,
                 channel,
                 page,
                 generation,
             } => {
-                if generation != self.generation || self.screen != Screen::Channel(channel) {
+                if generation != self.generation
+                    || seek != self.history_seek
+                    || self.screen != Screen::Channel(channel)
+                {
                     return Task::none();
                 }
                 self.loading = false;
@@ -2187,44 +2192,6 @@ impl App {
                 {
                     return Task::none();
                 }
-                if seek.is_some() {
-                    self.seek_loading = false;
-                    let missing: BTreeSet<_> = self
-                        .visible_items()
-                        .into_iter()
-                        .filter(|r| r.1.is_none())
-                        .map(|r| r.0)
-                        .collect();
-                    if !page.items.iter().any(|m| missing.contains(&m.id)) {
-                        self.error="This history region is no longer available. Reopen the channel to refresh.".into();
-                        return Task::none();
-                    }
-                    let keep: BTreeSet<_> = {
-                        let visible = self.visible_items();
-                        let first = visible.first().map(|r| r.0);
-                        let last = visible.last().map(|r| r.0);
-                        self.history_slots
-                            .borrow()
-                            .keys()
-                            .filter(|id| {
-                                first.is_some_and(|first| **id >= first)
-                                    && last.is_some_and(|last| **id <= last)
-                            })
-                            .copied()
-                            .collect()
-                    };
-                    if let Some(messages) = self.model.messages.get_mut(&channel) {
-                        messages.retain(|id, _| keep.contains(id));
-                    }
-                    if !self.model.merge_page(channel, page) {
-                        self.error =
-                            "History changed while loading. Reopen this channel to refresh.".into();
-                        return Task::none();
-                    }
-                    self.layout_revision = self.layout_revision.wrapping_add(1);
-                    self.fetch_landing();
-                    return Task::batch([self.load_images(), self.defer_read()]);
-                }
                 self.loading = false;
                 self.history_seen += page.items.len();
                 let old_height = self.history_height();
@@ -2251,7 +2218,7 @@ impl App {
                     if self.history_more {
                         self.loading = true;
                         self.request(Request::History {
-                            seek: None,
+                            seek: Some(self.history_seek),
                             channel,
                             before: self.before,
                             generation: self.generation,
@@ -2428,6 +2395,7 @@ impl App {
             Data::Saved => self.notice = "File saved.".into(),
             Data::Error(e) => {
                 self.loading = false;
+                self.seek_loading = false;
                 self.uploading = 0;
                 if !e.is_empty() {
                     self.error = e;
@@ -2564,7 +2532,7 @@ impl App {
         self.model.touch(id);
         self.model.enforce_bounds();
         self.request(Request::History {
-            seek: None,
+            seek: Some(self.history_seek),
             channel: id,
             before: None,
             generation: self.generation,
@@ -2646,7 +2614,7 @@ impl App {
         if !self.loading && self.history_more {
             if let Screen::Channel(channel) = self.screen {
                 self.loading = self.request(Request::History {
-                    seek: None,
+                    seek: Some(self.history_seek),
                     channel,
                     before: self.before,
                     generation: self.generation,
@@ -4015,6 +3983,20 @@ mod tests {
         app.history_seek = 42;
         app.jump_seek = Some(42);
         let old_count = app.model.retained_count();
+        let _ = app.network(Data::History {
+            channel,
+            seek: Some(41),
+            page: page.clone(),
+            generation,
+        });
+        let _ = app.network(Data::NewerHistory {
+            channel,
+            seek: 41,
+            page: page.clone(),
+            generation,
+        });
+        assert_eq!(app.model.retained_count(), old_count);
+
         let _ = app.network(Data::AroundHistory {
             channel,
             anchor: backend::HistoryAnchor::Message(target),
@@ -4034,5 +4016,12 @@ mod tests {
         assert!(app.model.messages[&channel].len() <= 50);
         assert!(app.history_slots.borrow().len() <= 50);
         assert!(!app.at_present);
+    }
+    #[test]
+    fn failed_history_request_does_not_leave_the_landing_loader_stuck() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.seek_loading = true;
+        let _ = app.network(Data::Error("Server request failed".into()));
+        assert!(!app.seek_loading);
     }
 }

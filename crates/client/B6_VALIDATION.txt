@@ -1,0 +1,292 @@
+B6 validation — 2026-11-12. CARGO_TARGET_DIR per top-level crate: C:/Users/dwhee/.cargo-target/sticktalk-b6-{client,server,proto}
+
+=== client-test ===
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\client)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 25.99s
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-client\debug\deps\sticktalk-31028075f918bedb.exe)
+
+running 24 tests
+test backend::tests::jump_targets_validate_dates_and_ids_without_a_timezone_or_clock ... ok
+test markdown::tests::cache_reuses_and_invalidates_edits ... ok
+test backend::tests::rejects_trailing_and_large_frames ... ok
+test mock::google_tests::google_signup_collision_replay_and_last_method ... ok
+test markdown::tests::discord_subset_and_escapes ... ok
+test model::tests::ordered_upserts_and_duplicate_sequences ... ok
+test model::tests::pagination_replays_deletion_and_edit ... ok
+test model::tests::read_counts_are_authoritative_and_idempotent ... ok
+test model::tests::reconnect_resume_backoff_and_terminal_close ... ok
+test backend::tests::inbound_budget_counts_large_non_frame_payloads_and_releases_on_drop ... ok
+test oauth::tests::pkce_rfc7636_vector_and_random_state ... ok
+test oauth::tests::loopback_parser_rejects_spoofing_duplicates_and_denial ... ok
+test backend::tests::requires_secure_server ... ok
+test mock::tests::guild_channel_invite_and_moderation_flows ... ok
+test mock::tests::messages_reactions_and_receipt_replay ... ok
+test mock::tests::relationships_and_group_lifecycle ... ok
+test mock::tests::profile_presence_pagination_and_read ... ok
+test backend::tests::outgoing_queue_obeys_byte_budget_and_accepts_maximum_message ... ok
+test media::tests::decoded_lru_is_bounded_and_touches_preserve_recent_images ... ok
+test oauth::flow_tests::full_oauth_exchange_uses_mock_authorization_and_token_servers_only ... ok
+test markdown::tests::unsafe_links_remain_text_and_nesting_is_bounded ... ok
+test model::tests::replay_budget_includes_reactions_and_mentions ... ok
+test model::tests::bounded_cache_and_purge ... ok
+test oauth::flow_tests::timeout_and_cancellation_drop_the_loopback_listener ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.06s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-client\debug\deps\sticktalk-87207017c6286d78.exe)
+
+running 16 tests
+test app::tests::composer_keyboard_contract ... ok
+test app::tests::high_refresh_drag_uses_velocity_not_only_single_event_distance ... ok
+test app::tests::virtualized_rows_are_bounded_and_measurements_override_estimates ... ok
+test message_layout::tests::shaped_tree_and_layout_survive_leaving_the_visible_window ... ok
+test app::tests::mention_selection_and_editor_replacement ... ok
+test app::tests::cancelled_server_icon_upload_cannot_apply_to_another_form ... ok
+test app::tests::subpixel_row_measurements_do_not_invalidate_layout_forever ... ok
+test ui::integration_layout_tests::owner_and_member_reserve_the_same_action_column ... ok
+test app::tests::unrelated_stream_events_do_not_invalidate_message_geometry ... ok
+test app::tests::failed_history_request_does_not_leave_the_landing_loader_stuck ... ok
+test app::tests::metadata_continuation_pages_append_instead_of_replacing ... ok
+test app::tests::jump_to_unloaded_reply_replaces_only_the_region_and_ignores_stale_results ... ok
+test app::tests::settings_escape_modal_return_and_google_cancel_are_local ... ok
+test app::tests::virtual_index_keeps_evicted_slots_and_only_builds_visible_rows ... ok
+test scroll_bench::input_tests::native_iced_fractional_wheel_and_scrollbar_drag_are_headless ... ok
+test headless::tests::offscreen_png_has_exact_size_and_neutral_rgba_tokens ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+
+     Running tests\live.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-client\debug\deps\live-d56303cdabbd1976.exe)
+
+running 2 tests
+test cut_socket_replays_into_the_real_client_reducer ... ok
+test phase_one_real_clients has been running for over 60 seconds
+test phase_one_real_clients ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 117.01s
+
+   Doc-tests sticktalk
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+=== client-clippy ===
+    Checking sticktalk v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\client)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.03s
+
+=== server-test ===
+   Compiling sticktalk-server v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\server)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.31s
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-server\debug\deps\sticktalk_server-2fb119d92d463401.exe)
+
+running 48 tests
+test audit_tests::deployment_security_invariants ... ok
+test audit_tests::guild_commands_enforce_role_and_hierarchy_boundaries ... ok
+test audit_tests::read_counts_never_silently_wrap ... ok
+test audit_tests::profile_events_obey_each_sessions_projection ... ok
+test audit_tests::cross_channel_target_errors_do_not_leak_hidden_message_ids ... ok
+test audit_tests::failed_ready_detaches_stream_and_is_not_an_auth_failure ... ok
+test audit_tests::every_channel_mutation_rechecks_current_membership ... ok
+test audit_tests::presence_visibility_changes_emit_snapshots_and_offline ... ok
+test gifs::tests::normalized_renditions_and_inputs_fail_closed ... ok
+test google::tests::cache_control_bounds ... ok
+test files::tests::media_bounds_mime_and_small_thumbnail ... ok
+test audit_tests::dm_and_group_mutations_cannot_use_nonparticipant_ids ... ok
+test audit_tests::readable_historical_authors_can_be_resolved_but_not_enumerated ... ok
+test commands::audit_receipt_tests::receipts_cannot_return_removed_nested_entities ... ok
+test audit_tests::rest_acl_matrix_and_authorization_before_304 ... ok
+test files::tests::cancellation_after_upload_commit_preserves_published_files ... ok
+test audit_tests::rest_streams_are_offline_and_metadata_is_bounded ... ok
+test gifs::tests::discovery_uses_light_renditions_caches_and_preserves_opaque_cursors ... ok
+test gifs::tests::cache_coalesces_and_stays_bounded_without_idle_work ... ok
+test gifs::tests::authentication_validation_account_rate_limits_and_upstream_errors ... ok
+test http::tests::login_cannot_follow_reassigned_username ... ok
+test audit_tests::http_admission_and_global_upload_reservation_are_bounded ... ok
+test gifs::tests::config_is_explicit_disabled_by_default_and_secrets_are_not_public ... ok
+test operations_tests::duplicate_chunks_are_serialized_and_cancel_frees_reservations ... ok
+test gifs::tests::favorites_are_idempotent_private_bounded_and_survive_reopen ... ok
+test operations_tests::signed_release_publish_round_trip_and_tamper_rejection ... ok
+test state::mock_configuration_tests::local_upstreams_cannot_be_public_or_credential_bearing ... ok
+test state::tests::bounded_shared_replay_and_slow_consumer ... ok
+test state::tests::global_replay_budget_and_limiter ... ok
+test state::tests::maximal_bootstrap_fits_frame ... ok
+test state::tests::snowflakes_and_rollback ... ok
+test ws::tests::framing ... ok
+test ws::tests::positional_nested_structs_and_hostile_lengths_are_rejected ... ok
+test operations_tests::unlimited_admission_quota_storage_guard_gc_and_owner_usage ... ok
+test operations_tests::resumable_crash_restart_hash_acl_range_and_idempotent_finish ... ok
+test operations_tests::reset_code_single_use_and_disable_covers_all_sessions ... ok
+test google::tests::tickets_expire_rotate_and_are_atomically_single_use ... ok
+test google::tests::google_endpoints_share_login_rate_limit_and_body_bound ... ok
+test google::tests::jwks_cache_rotation_throttle_expiry_and_failure ... ok
+test google::tests::signup_session_ticket_hash_replay_collision_and_subject_not_email ... ok
+test google::tests::valid_token_and_claim_signature_rejections ... ok
+test google::tests::malformed_or_oversized_jwks_fails_closed_and_backs_off ... ok
+test google::tests::existing_google_login_obeys_session_cap_and_ticket_table_is_bounded ... ok
+test google::tests::disabled_google_still_allows_session_password_setup_and_methods_are_strict ... ok
+test google::tests::disabled_meta_and_routes ... ok
+test google::tests::link_unlink_and_password_recovery_rules ... ok
+test audit_tests::slow_initial_replay_has_one_deadline ... ok
+test audit_tests::stalled_http_body_has_a_deadline_and_releases_admission ... ok
+
+test result: ok. 48 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.04s
+
+     Running unittests src\bin\sticktalk-release.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-server\debug\deps\sticktalk_release-9dd8af2dda851764.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-server\debug\deps\sticktalk_server-915735129146a75b.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\integration.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-server\debug\deps\integration-1f259c21c2bc364b.exe)
+
+running 10 tests
+test preauth_oversize_and_depth_use_size_close_code ... ok
+test graceful_shutdown_drains_authenticated_and_pre_auth_sockets ... ok
+test handshake_control_and_replacement ... ok
+test around_history_is_bounded_bidirectional_and_accepts_deleted_gaps ... ok
+test authorization_and_protocol_boundaries ... ok
+test receipts_survive_restart_and_streams_do_not ... ok
+test moderation_reorder_and_safe_replay_after_revocation ... ok
+test single_use_invite_is_consumed_atomically ... ok
+test group_lifecycle_and_relationship_policies ... ok
+test phase1_end_to_end ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.48s
+
+   Doc-tests sticktalk_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+=== server-clippy ===
+    Checking sticktalk-server v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\server)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.12s
+
+=== proto-test ===
+   Compiling sticktalk-proto v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\proto)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.09s
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-proto\debug\deps\sticktalk_proto-0eb4596cedfb37ed.exe)
+
+running 2 tests
+test permissions::tests::presets_include_only_their_defined_rights ... ok
+test permissions::tests::unknown_bits_survive_messagepack_without_granting_known_rights ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\operations.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-proto\debug\deps\operations-2af67cc11ca26499.exe)
+
+running 2 tests
+test signed_manifest_envelope_preserves_exact_signed_bytes ... ok
+test operations_round_trip_as_named_maps_without_changing_attachments ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-proto\debug\deps\voice-7da77ed94d08235b.exe)
+
+running 1 test
+test voice_contract_shapes_and_legacy_envelope ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\wire.rs (C:/Users/dwhee/.cargo-target/sticktalk-b6-proto\debug\deps\wire-67fc32c4ac20127e.exe)
+
+running 9 tests
+test old_page_query_remains_decodable ... ok
+test named_wire_shape_and_patch_defaults_are_stable ... ok
+test gif_discovery_and_favorites_contracts_are_additive ... ok
+test rest_models_and_numeric_masks_round_trip ... ok
+test google_auth_contracts_are_additive_named_maps ... ok
+test every_event_round_trips ... ok
+test handshake_reconnect_and_all_result_shapes_round_trip ... ok
+test every_command_round_trips ... ok
+test maximum_bootstrap_metadata_fits_the_frame_budget ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+   Doc-tests sticktalk_proto
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+=== proto-clippy ===
+    Checking sticktalk-proto v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\proto)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.87s
+
+=== fmt ===
+
+=== screenshots ===
+   Compiling num-traits v0.2.19
+   Compiling futures-io v0.3.34
+   Compiling tracing-core v0.1.36
+   Compiling hashbrown v0.15.5
+   Compiling indexmap v2.14.2
+   Compiling getrandom v0.2.17
+   Compiling serde_core v1.0.229
+   Compiling serde v1.0.229
+   Compiling subtle v2.6.1
+   Compiling digest v0.10.7
+   Compiling hyper v1.12.0
+   Compiling serde_json v1.0.154
+   Compiling tokio-util v0.7.20
+   Compiling futures-util v0.3.34
+   Compiling ring v0.17.14
+   Compiling sha1 v0.10.7
+   Compiling sha2 v0.10.9
+   Compiling tracing v0.1.44
+   Compiling gpu-descriptor v0.3.2
+   Compiling softbuffer v0.4.8
+   Compiling winit v0.30.13
+   Compiling rustls-webpki v0.103.16
+   Compiling half v2.7.1
+   Compiling iced_core v0.14.0
+   Compiling moxcms v0.8.1
+   Compiling ordered-float v5.5.1
+   Compiling euclid v0.22.14
+   Compiling rmp v0.8.15
+   Compiling naga v27.0.3
+   Compiling rustls v0.23.46
+   Compiling etagere v0.2.15
+   Compiling guillotiere v0.6.2
+   Compiling futures v0.3.34
+   Compiling tower v0.5.3
+   Compiling hyper-util v0.1.21
+   Compiling iced_futures v0.14.0
+   Compiling tower-http v0.6.11
+   Compiling iced_debug v0.14.0
+   Compiling iced_runtime v0.14.0
+   Compiling serde_urlencoded v0.7.1
+   Compiling rmp-serde v1.3.1
+   Compiling sticktalk-proto v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\proto)
+   Compiling image v0.25.10
+   Compiling tokio-rustls v0.26.6
+   Compiling tungstenite v0.28.0
+   Compiling hyper-rustls v0.27.10
+   Compiling reqwest v0.12.28
+   Compiling tokio-tungstenite v0.28.0
+   Compiling iced_graphics v0.14.0
+   Compiling iced_tiny_skia v0.14.1
+   Compiling iced_program v0.14.0
+   Compiling iced_winit v0.14.1
+   Compiling wgpu-hal v27.0.4
+   Compiling wgpu-core-deps-windows-linux-android v27.0.0
+   Compiling wgpu-core v27.0.3
+   Compiling wgpu v27.0.1
+   Compiling cryoglyph v0.1.0
+   Compiling iced_wgpu v0.14.0
+   Compiling iced_renderer v0.14.0
+   Compiling iced_widget v0.14.2
+   Compiling iced v0.14.0
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\client)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 06s
+     Running `C:/Users/dwhee/.cargo-target/sticktalk-b6-client\debug\sticktalk.exe --mock --screenshots crates/client/screenshots/b6`

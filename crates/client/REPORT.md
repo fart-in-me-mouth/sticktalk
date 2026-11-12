@@ -1,5 +1,11 @@
 # StickTalk client — lead-review handoff
 
+**B6 integration addendum:** see [B6_REPORT.md](B6_REPORT.md) for real-server
+coverage, compatibility fixes, around-history navigation, validation and the
+remaining whole-history scrollbar limitation. The older handoff below predates
+that work; its no-real-server-certification statement is superseded for the
+scripted production transport/reducer flows, not native GUI/provider testing.
+
 Scope: client-only source/assets/tools/reports and client dependency resolution in Cargo.lock. No proto/server edits; no git commits. Build output stayed in `C:/Users/dwhee/.cargo-target/sticktalk-client`.
 
 ## A1–A9

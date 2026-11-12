@@ -49,6 +49,7 @@ pub enum Request {
         generation: u64,
     },
     NewerHistory {
+        seek: u64,
         channel: Id,
         after: Id,
         generation: u64,
@@ -224,6 +225,7 @@ pub enum Data {
         generation: u64,
     },
     NewerHistory {
+        seek: u64,
         channel: Id,
         page: Page<Message>,
         generation: u64,
@@ -405,6 +407,7 @@ pub fn subscription(config: &Config) -> impl Stream<Item = Delivery> {
                     }
                     Request::Applied(_) | Request::View => continue,
                     Request::NewerHistory {
+                        seek,
                         channel,
                         after,
                         generation,
@@ -423,6 +426,7 @@ pub fn subscription(config: &Config) -> impl Stream<Item = Delivery> {
                         items.truncate(50);
                         let next_after = items.last().map(|m| m.id).filter(|_| has_more);
                         Data::NewerHistory {
+                            seek,
                             channel,
                             generation,
                             page: Page {
@@ -928,10 +932,12 @@ impl Http {
     pub async fn request(&self, request: Request) -> Result<Data, String> {
         match request {
             Request::NewerHistory {
+                seek,
                 channel,
                 after,
                 generation,
             } => Ok(Data::NewerHistory {
+                seek,
                 channel,
                 generation,
                 page: self

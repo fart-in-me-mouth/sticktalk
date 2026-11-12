@@ -972,6 +972,7 @@ async fn history_regions(alice: &mut Peer, channel: Id) {
     alice
         .handle
         .try_send(Request::NewerHistory {
+            seek: 1,
             channel,
             after: page.next_after.unwrap(),
             generation: 1,
