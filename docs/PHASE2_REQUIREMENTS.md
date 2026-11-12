@@ -14,6 +14,32 @@
 - **Budget on the sharer's PC at 1080p60 with a hardware encoder**: < 5% CPU, < 150 MB extra RAM. Measure it and document the numbers.
 - **Acceptance test**: share a 1080p60 game/video for 10 minutes to 2 viewers. Show an fps/bitrate/dropped-frames overlay (toggleable). It must hold ≥ 58 fps average with no growing latency.
 
+## Voice quality: must beat Discord (owner: "best on the market")
+- **Noise suppression:** use **DeepFilterNet3** (Rust: `deep_filter` / libDF, MIT/Apache), which runs real-time on the CPU. Modes: Off / Standard (RNNoise-class, lightest) / **High quality (DeepFilterNet, default on capable CPUs)**. Auto-select based on a quick CPU benchmark at first run.
+- **Echo cancellation and AGC:** use **WebRTC AudioProcessing (AEC3 + AGC2 + high-pass)** through `webrtc-audio-processing` bindings, the industry standard. Prefer it over home-grown DSP.
+- **Codec:**
+  - Opus 48 kHz with in-band FEC, DTX, and an adaptive bitrate of 32–128 kbps.
+  - The default is 64 kbps mono voice.
+  - A **"Studio / Music" mode**: stereo, 128–256 kbps, all processing off, for music and streaming instruments.
+  - Packet-loss concealment.
+  - An **adaptive jitter buffer** (NetEQ-style, with time-stretching) to minimize latency on good links and stay smooth on bad ones.
+- **Device handling (must be flawless):**
+  - Enumerate input and output devices with friendly names.
+  - **Hot-plug and default-device change events (`IMMNotificationClient`)**, so the app follows the Windows default automatically unless the user pins a device.
+  - Survive device unplug mid-call without dropping the call: fall back, and toast "Switched to <device>".
+  - Bluetooth headsets: avoid accidentally forcing hands-free (HFP) mode. Use the A2DP output when the mic comes from another device, and explain the tradeoff in settings.
+  - Exclusive-mode is off. Communications ducking is off by default.
+- **Settings UX:**
+  - Mic test with a live level meter and loopback playback ("Let's Check"). This is the only time a meter animates, and only while it's open.
+  - Input sensitivity: automatic, or a manual slider over the live meter.
+  - Per-user volume (0–200%) and per-user mute that persist.
+  - Push-to-talk with a release delay. Global hotkeys work in fullscreen games.
+  - Attenuate other apps while others speak: an option, off by default.
+- **Measure and report:**
+  - CPU% per mode on this PC.
+  - Mouth-to-ear latency on loopback, with a target of 80 ms or less on a good network.
+  - Voice quality: PESQ/POLQA-style objective scores, or DNSMOS for noise suppression if available.
+
 ## Voice / video (also Phase 2)
 - Opus voice with noise suppression (RNNoise-class, `nnnoiseless`), echo cancellation, voice activity detection (VAD) + push-to-talk, per-user volume, mute/deafen.
 - Camera video 720p30 by default, using the hardware encode path.

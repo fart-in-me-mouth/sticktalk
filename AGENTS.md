@@ -18,16 +18,20 @@ Project: StickTalk, a Discord-like chat app in Rust. Contracts:
 ## Build hygiene
 - Build output must stay out of OneDrive. Use your own target dir per task, for example `$env:CARGO_TARGET_DIR = "C:/Users/dwhee/.cargo-target/sticktalk-<task>"`.
 - Git: if you were given your own worktree/branch, commit your work there with clear messages when done (never push, never rewrite history). In the shared main checkout, do not commit; the lead does.
+- Updating `Cargo.lock` and the workspace `members` list for your crates is always allowed — include them in your commit, don't ask.
 - Edit only the crates your task names. `crates/proto` changes must be additive and wire-compatible.
 - Before reporting done, run `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --all -- --check` for the crates you touched.
 
-## Product priorities
-1. Extremely low resource use on users' PCs:
-   - client idle RAM under 60 MB
-   - ~0% idle CPU
-   - no animation loops or polling
-2. Polished UI that follows `docs/UI_SPEC.md` exactly.
-3. Security: validate all input on the server, and check permissions on every action.
+## Product priorities (owner: "10x better than Discord")
+1. **Feature quality and smoothness come first.** Calls must sound better than any competitor; scrolling, typing and switching must feel instant. Spend binary size or RAM where it **buys real quality**: best-in-class voice DSP, smooth GPU rendering, great codecs. Never spend it on waste such as duplicate dependencies, idle work or bloat.
+2. **Efficiency is the second priority.**
+   - ~0% CPU when idle.
+   - No animation loops or polling.
+   - Every subsystem, audio included, does zero work when it isn't in use.
+   - Memory is bounded everywhere.
+   - Client idle RAM target is under ~100 MB (working set). Report private bytes too.
+3. **Polished UI** that follows `docs/UI_SPEC.md` and `docs/UI_PARITY.md` exactly.
+4. **Security:** validate all input on the server and check permissions on every action.
 
 ## Reports
 Keep the final report short: what changed, what's not done and why, key numbers, and the commands that passed. The lead reads screenshots directly, so don't describe them at length.
