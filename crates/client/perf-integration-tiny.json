@@ -1,0 +1,15 @@
+{
+  "renderer": "tiny-skia",
+  "window_mode": "secondary-noactivate",
+  "arguments": "--mock --size 2560x1440 --agent-window-report \"C:\\Users\\dwhee\\OneDrive\\Desktop\\discord clone\\crates\\client\\perf-integration-placement-tiny.json\"",
+  "timestamp": "2026-11-12T17:51:44.4266321-05:00",
+  "warmup_seconds": 10,
+  "seconds": 60.683151,
+  "cpu_seconds": 0.0,
+  "one_core_cpu_percent": 0.0,
+  "working_set_mean": 44002508.8,
+  "working_set_max": 44367872.0,
+  "private_bytes_mean": 26156851.2,
+  "binary_bytes": 16869376,
+  "sha256": "A9FF78531ADC7ED49332D3851B739243CAA2D3E4D4B154353DB1F9551D7239B5"
+}

@@ -1,0 +1,429 @@
+   Compiling sticktalk-server v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\server)
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\client)
+   Compiling sticktalk-desktop-platform v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\desktop-platform)
+   Compiling sticktalk-web v0.1.0 (C:\Users\dwhee\OneDrive\Desktop\discord clone\crates\web)
+    Finished `test` profile [unoptimized] target(s) in 30.88s
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk-c568230667e3860e.exe)
+
+running 7 tests
+test platform::tests::dropping_a_spawned_task_cancels_its_work ... ok
+test backend::tests::inbound_budget_counts_large_non_frame_payloads_and_releases_on_drop ... ok
+test backend::tests::requires_secure_server ... ok
+test backend::tests::outgoing_queue_obeys_byte_budget_and_accepts_maximum_message ... ok
+test media::tests::decoded_lru_is_bounded_and_touches_preserve_recent_images ... ok
+test oauth::flow_tests::full_oauth_exchange_uses_mock_authorization_and_token_servers_only ... ok
+test oauth::flow_tests::timeout_and_cancellation_drop_the_loopback_listener ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.06s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk-a7a6c5535dadf873.exe)
+
+running 16 tests
+test app::tests::composer_keyboard_contract ... ok
+test app::tests::high_refresh_drag_uses_velocity_not_only_single_event_distance ... ok
+test message_layout::tests::shaped_tree_and_layout_survive_leaving_the_visible_window ... ok
+test app::tests::mention_selection_and_editor_replacement ... ok
+test app::tests::virtualized_rows_are_bounded_and_measurements_override_estimates ... ok
+test ui::integration_layout_tests::owner_and_member_reserve_the_same_action_column ... ok
+test app::tests::subpixel_row_measurements_do_not_invalidate_layout_forever ... ok
+test app::tests::unrelated_stream_events_do_not_invalidate_message_geometry ... ok
+test app::tests::failed_history_request_does_not_leave_the_landing_loader_stuck ... ok
+test app::tests::metadata_continuation_pages_append_instead_of_replacing ... ok
+test app::tests::cancelled_server_icon_upload_cannot_apply_to_another_form ... ok
+test app::tests::jump_to_unloaded_reply_replaces_only_the_region_and_ignores_stale_results ... ok
+test app::tests::settings_escape_modal_return_and_google_cancel_are_local ... ok
+test app::tests::virtual_index_keeps_evicted_slots_and_only_builds_visible_rows ... ok
+test scroll_bench::input_tests::native_iced_fractional_wheel_and_scrollbar_drag_are_headless ... ok
+test headless::tests::offscreen_png_has_exact_size_and_neutral_rgba_tokens ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+
+     Running tests\live.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\live-1b91c109672cdaf3.exe)
+
+running 2 tests
+test cut_socket_replays_into_the_real_client_reducer ... ok
+test phase_one_real_clients has been running for over 60 seconds
+test phase_one_real_clients ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 116.34s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_client_core-aa0cbdc85c407871.exe)
+
+running 21 tests
+test backend::tests::jump_targets_validate_dates_and_ids_without_a_timezone_or_clock ... ok
+test markdown::tests::cache_reuses_and_invalidates_edits ... ok
+test markdown::tests::discord_subset_and_escapes ... ok
+test mock::google_tests::google_signup_collision_replay_and_last_method ... ok
+test backend::tests::rejects_trailing_and_large_frames ... ok
+test model::tests::reconnect_resume_backoff_and_terminal_close ... ok
+test model::tests::read_counts_are_authoritative_and_idempotent ... ok
+test model::tests::ordered_upserts_and_duplicate_sequences ... ok
+test model::tests::pagination_replays_deletion_and_edit ... ok
+test oauth::tests::pkce_rfc7636_vector_and_random_state ... ok
+test oauth::tests::loopback_parser_rejects_spoofing_duplicates_and_denial ... ok
+test tests::http_upload_hashes_and_uses_durable_offset_then_finishes ... ok
+test mock::tests::messages_reactions_and_receipt_replay ... ok
+test mock::tests::profile_presence_pagination_and_read ... ok
+test mock::tests::guild_channel_invite_and_moderation_flows ... ok
+test mock::tests::relationships_and_group_lifecycle ... ok
+test tests::state_read_permissions_mentions_and_timestamp_formatting_are_portable ... ok
+test tests::injected_driver_correlates_heartbeats_retries_applied_cursor_and_expires_receipts ... ok
+test markdown::tests::unsafe_links_remain_text_and_nesting_is_bounded ... ok
+test model::tests::replay_budget_includes_reactions_and_mentions ... ok
+test model::tests::bounded_cache_and_purge ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_desktop_platform-bf918784adf43b86.exe)
+
+running 5 tests
+test notification::tests::policy_respects_overrides_focus_dm_and_dnd ... ok
+test sound::tests::tiny_valid_pcm_assets ... ok
+test tray::tests::closing_never_hides_without_a_tray ... ok
+test notification::tests::toast_escapes_text_and_contains_activation ... ok
+test activation::tests::deep_links_are_bounded_and_strict ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\bin\sticktalk-maintenance.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_maintenance-96b933ad4c821926.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\instance.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\instance-3ae9f5f6c6d3ec31.exe)
+
+running 1 test
+test second_launch_and_invite_forward_without_any_window ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\native_data.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\native_data-6c80e1aad1d817d4.exe)
+
+running 3 tests
+test badge_pixels_are_upright_and_use_spec_colors_in_memory_only ... ok
+test toast_xml_is_accepted_by_windows_without_showing_it ... ok
+test installer_shortcut_aumid_roundtrips_without_shell_ui ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests\updater.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\updater-3aed089487276563.exe)
+
+running 11 tests
+test tampered_manifest_and_wrong_key_fail_before_download ... ok
+test invalid_content_range_is_rejected ... ok
+test larger_than_signed_binary_never_stages ... ok
+test no_release_current_and_older_are_normal ... ok
+test signed_bounds_origin_target_and_version_are_checked ... ok
+test range_resume_survives_restart ... ok
+test ignored_range_restarts_safely ... ok
+test tampered_binary_is_deleted_and_not_staged ... ok
+test timer_is_immediate_then_six_hours_and_stops_on_receiver_drop ... ok
+test persisted_manifest_is_not_trusted ... ok
+test verifies_downloads_stages_and_reverifies_after_restart ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_emoji-6ad8d319590131bb.exe)
+
+running 6 tests
+test tests::decay ... ok
+test tests::tones ... ok
+test tests::aliases_and_replacement ... ok
+test tests::searching ... ok
+test tests::generated_tones_are_official ... ok
+test tests::coverage ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_media-1e6e72221e993ec4.exe)
+
+running 5 tests
+test platform::encoder::tests::preserve_parameter_sets_for_later_idrs ... ok
+test annexb::tests::normalize_and_reject_malformed ... ok
+test quality::tests::all_fifteen_quality_combinations ... ok
+test platform::session::tests::invalid_config_is_rejected_before_creating_any_device ... ok
+test quality::tests::native_and_portrait_and_invalid ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_proto-3bcd7ca1f0038e04.exe)
+
+running 2 tests
+test permissions::tests::presets_include_only_their_defined_rights ... ok
+test permissions::tests::unknown_bits_survive_messagepack_without_granting_known_rights ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\browser.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\browser-bc3b9a3250a49287.exe)
+
+running 2 tests
+test browser_dtos_roundtrip_without_a_bearer_field ... ok
+test focus_is_additive_named_wire_and_old_identify_is_unchanged ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\launch.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\launch-ad61509ad8820e76.exe)
+
+running 5 tests
+test default_scaffolding_preserves_legacy_identify_and_safe_empty_extensions ... ok
+test legacy_identify_has_no_new_required_wire_fields ... ok
+test legacy_members_decode_with_additive_defaults_and_old_bits_unchanged ... ok
+test launch_events_and_results_round_trip ... ok
+test all_launch_commands_round_trip_named_json_and_messagepack ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\operations.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\operations-8f66fa660ab4d3d2.exe)
+
+running 2 tests
+test signed_manifest_envelope_preserves_exact_signed_bytes ... ok
+test operations_round_trip_as_named_maps_without_changing_attachments ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\voice-b99ae772e73dab93.exe)
+
+running 2 tests
+test pre_voice_ready_defaults_to_empty_voice_projection ... ok
+test voice_contract_shapes_and_legacy_envelope ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\wire.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\wire-06c173888b434f26.exe)
+
+running 9 tests
+test old_page_query_remains_decodable ... ok
+test named_wire_shape_and_patch_defaults_are_stable ... ok
+test google_auth_contracts_are_additive_named_maps ... ok
+test gif_discovery_and_favorites_contracts_are_additive ... ok
+test rest_models_and_numeric_masks_round_trip ... ok
+test every_event_round_trips ... ok
+test every_command_round_trips ... ok
+test handshake_reconnect_and_all_result_shapes_round_trip ... ok
+test maximum_bootstrap_metadata_fits_the_frame_budget ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_server-1bfa279139d2aedb.exe)
+
+running 88 tests
+test audit_tests::deployment_security_invariants ... ok
+test audit_tests::profile_events_obey_each_sessions_projection ... ok
+test browser::tests::duplicate_cookie_and_csp_config_rejected ... ok
+test audit_tests::read_counts_never_silently_wrap ... ok
+test audit_tests::presence_visibility_changes_emit_snapshots_and_offline ... ok
+test browser::tests::cookie_websocket_origin_auth_identify_and_focus ... ok
+test audit_tests::every_channel_mutation_rechecks_current_membership ... ok
+test audit_tests::guild_commands_enforce_role_and_hierarchy_boundaries ... ok
+test files::tests::media_bounds_mime_and_small_thumbnail ... ok
+test audit_tests::failed_ready_detaches_stream_and_is_not_an_auth_failure ... ok
+test audit_tests::rest_acl_matrix_and_authorization_before_304 ... ok
+test audit_tests::dm_and_group_mutations_cannot_use_nonparticipant_ids ... ok
+test audit_tests::readable_historical_authors_can_be_resolved_but_not_enumerated ... ok
+test gifs::tests::normalized_renditions_and_inputs_fail_closed ... ok
+test google::tests::cache_control_bounds ... ok
+test audit_tests::cross_channel_target_errors_do_not_leak_hidden_message_ids ... ok
+test audit_tests::rest_streams_are_offline_and_metadata_is_bounded ... ok
+test browser::tests::browser_login_csrf_all_routes_logout_and_bearer_unchanged ... ok
+test commands::audit_receipt_tests::receipts_cannot_return_removed_nested_entities ... ok
+test browser::tests::static_security_headers_compression_caching_and_no_api_fallback ... ok
+test gifs::tests::cache_coalesces_and_stays_bounded_without_idle_work ... ok
+test gifs::tests::discovery_uses_light_renditions_caches_and_preserves_opaque_cursors ... ok
+test gifs::tests::authentication_validation_account_rate_limits_and_upstream_errors ... ok
+test files::tests::cancellation_after_upload_commit_preserves_published_files ... ok
+test audit_tests::http_admission_and_global_upload_reservation_are_bounded ... ok
+test gifs::tests::config_is_explicit_disabled_by_default_and_secrets_are_not_public ... ok
+test http::tests::login_cannot_follow_reassigned_username ... ok
+test gifs::tests::favorites_are_idempotent_private_bounded_and_survive_reopen ... ok
+test launch_tests::channel_overwrite_controls_management_not_just_guild_base ... ok
+test launch_tests::deleted_legacy_admin_can_be_recreated_by_old_assignment_and_transfer ... ok
+test launch_tests::devices_are_opaque_user_scoped_and_revocation_closes_live_streams ... ok
+test launch_tests::evaluator_full_bit_matrix_and_owner_admin_bypass ... ok
+test launch_tests::hidden_channel_denies_every_existing_channel_command_and_snapshot_projection ... ok
+test launch_tests::hidden_category_parent_ids_and_delete_reorder_events_do_not_leak ... ok
+test launch_tests::migration_preserves_legacy_member_admin_owner_and_wire_bits ... ok
+test launch_tests::legacy_sessions_never_receive_unknown_launch_event_variants ... ok
+test launch_tests::notifications_are_durable_device_synced_expiring_and_visibility_filtered ... ok
+test launch_tests::overwrite_order_aggregate_roles_member_and_implicit_dependencies ... ok
+test launch_tests::pins_require_channel_manage_messages_and_deleted_messages_drop_pins ... ok
+test launch_tests::private_channel_fanout_replay_receipts_and_visibility_restoration ... ok
+test launch_tests::profiles_unicode_limits_mutuals_preview_and_nicknames ... ok
+test launch_tests::rest_private_channel_matrix_profiles_pins_and_device_endpoints ... ok
+test launch_tests::role_hierarchy_assignment_escalation_reorder_and_owner_bypass ... ok
+test legacy::tests::voice_and_role_bits_never_alias_across_negotiated_wire_projection ... ok
+test google::tests::google_endpoints_share_login_rate_limit_and_body_bound ... ok
+test google::tests::malformed_or_oversized_jwks_fails_closed_and_backs_off ... ok
+test google::tests::valid_token_and_claim_signature_rejections ... ok
+test google::tests::signup_session_ticket_hash_replay_collision_and_subject_not_email ... ok
+test google::tests::tickets_expire_rotate_and_are_atomically_single_use ... ok
+test google::tests::jwks_cache_rotation_throttle_expiry_and_failure ... ok
+test google::tests::existing_google_login_obeys_session_cap_and_ticket_table_is_bounded ... ok
+test legacy::tests::persisted_pre_merge_receipts_reproject_permission_masks_before_replay ... ok
+test mentions::tests::broadcasts_and_roles_expand_only_authorized_viewers_and_update_unread_counts ... ok
+test google::tests::disabled_google_still_allows_session_password_setup_and_methods_are_strict ... ok
+test google::tests::disabled_meta_and_routes ... ok
+test push::tests::fresh_ephemeral_encryption_roundtrip_and_invalid_curve ... ok
+test push::tests::rfc8291_appendix_a_derivation_and_ciphertext_vector ... ok
+test google::tests::web_redirect_pkce_state_cookie_signup_and_existing_session ... ok
+test state::mock_configuration_tests::local_upstreams_cannot_be_public_or_credential_bearing ... ok
+test state::tests::bounded_shared_replay_and_slow_consumer ... ok
+test state::tests::global_replay_budget_and_limiter ... ok
+test operations_tests::signed_release_publish_round_trip_and_tamper_rejection ... ok
+test state::tests::snowflakes_and_rollback ... ok
+test state::tests::maximal_bootstrap_fits_frame ... ok
+test operations_tests::unlimited_admission_quota_storage_guard_gc_and_owner_usage ... ok
+test voice::role_tests::injected_advertised_address_selection_and_loopback_defaults ... ok
+test mentions::tests::here_excludes_offline_invisible_and_private_members_and_edits_reexpand ... ok
+test operations_tests::duplicate_chunks_are_serialized_and_cancel_frees_reservations ... ok
+test mentions::tests::notifications_respect_suppression_explicit_mentions_mutes_overrides_and_dnd ... ok
+test voice::tests::only_tailscale_cgnat_addresses_match ... ok
+test voice::role_tests::both_branch_database_histories_upgrade_without_checksum_changes_or_data_loss ... ok
+test ws::tests::framing ... ok
+test ws::tests::positional_nested_structs_and_hostile_lengths_are_rejected ... ok
+test push::tests::delivery_encryption_expired_cleanup_focus_mute_acl_and_policy ... ok
+test push::tests::delivery_rechecks_launch_preferences_and_current_mentions ... ok
+test push::tests::subscriptions_session_isolation_ssrf_quota_keys_and_logout_cascade ... ok
+test operations_tests::resumable_crash_restart_hash_acl_range_and_idempotent_finish ... ok
+test voice::role_tests::moderation_checks_channel_roles_hierarchy_and_cannot_be_self_unmuted ... ok
+test voice::role_tests::private_voice_visibility_and_individual_moderator_rights_use_overwrites ... ok
+test voice::role_tests::overwrite_revokes_live_speak_stream_video_then_connect_synchronously ... ok
+test voice::tests::upgrade_retains_channel_children_messages_and_foreign_keys ... ok
+test operations_tests::reset_code_single_use_and_disable_covers_all_sessions ... ok
+test google::tests::link_unlink_and_password_recovery_rules ... ok
+test voice::role_tests::all_role_and_membership_mutations_revoke_live_connect ... ok
+test browser::tests::history_extent_exact_counts_gaps_acl_and_index_plans ... ok
+test audit_tests::slow_initial_replay_has_one_deadline ... ok
+test push::tests::committed_mentions_coalesce_rate_limit_and_dm_hook ... ok
+test audit_tests::stalled_http_body_has_a_deadline_and_releases_admission ... ok
+
+test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.99s
+
+     Running unittests src\bin\sticktalk-release.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_release-50b6c4f109f9b101.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_server-ad1b0a3fc8d02d54.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\integration.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\integration-d5de9e241820106b.exe)
+
+running 10 tests
+test preauth_oversize_and_depth_use_size_close_code ... ok
+test graceful_shutdown_drains_authenticated_and_pre_auth_sockets ... ok
+test handshake_control_and_replacement ... ok
+test around_history_is_bounded_bidirectional_and_accepts_deleted_gaps ... ok
+test receipts_survive_restart_and_streams_do_not ... ok
+test authorization_and_protocol_boundaries ... ok
+test moderation_reorder_and_safe_replay_after_revocation ... ok
+test single_use_invite_is_consumed_atomically ... ok
+test group_lifecycle_and_relationship_policies ... ok
+test phase1_end_to_end ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.70s
+
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\voice-bf522f92b77e1cb7.exe)
+
+running 3 tests
+test voice_channel_permissions_delete_logout_and_session_expiry ... ok
+test role_overwrites_and_moderation_stop_real_media_and_move_without_reconnect ... ok
+test full_server_real_peers_media_control_revoke_kick_and_reconnect ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.67s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_sfu-0a993ee180def522.exe)
+
+running 1 test
+test engine::policy_queue_tests::policy_generation_discards_pre_revocation_encrypted_datagrams ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\driver.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\driver-083bcbb4b28ea159.exe)
+
+running 2 tests
+test lost_host_notifications_fail_actor_closed ... ok
+test udp_driver_correlates_bad_schema_and_shuts_down_without_polling ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\peers.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\peers-1f0fb0ba2e4babc1.exe)
+
+running 12 tests
+test acl_checked_after_join_and_old_envelopes_remain_decodable ... ok
+test voice_flags_offer_rights_and_moves_are_enforced_by_sfu ... ok
+test stopping_share_invalidates_control_and_releases_held_input ... ok
+test live_role_policy_stops_audio_screen_camera_and_server_mute_deafen_media ... ok
+test control_rate_replay_and_1000_events_per_second ... ok
+test browser_sized_rtp_passes_and_custom_path_mtu_is_enforced ... ok
+test global_cap_feedback_mtu_and_overlay_stats ... ok
+test per_receiver_simulcast_selection_and_keyframe_gated_switch ... ok
+test three_peers_audio_camera_screen_receive_mute_deafen_leave ... ok
+test pli_and_fir_reach_publisher_and_nack_rtx_repairs_loss ... ok
+test data_channel_control_requires_explicit_session_grant_and_revokes ... ok
+test advanced_codecs_require_every_participant_and_hardware_capability ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.15s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-integration\debug\deps\sticktalk_web-879a28289bb08246.exe)
+
+running 3 tests
+test model::tests::bounded_virtual_window ... ok
+test model::tests::local_actions_and_input_bounds ... ok
+test model::tests::markdown_is_not_executable ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_client_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_desktop_platform
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_emoji
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_media
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_proto
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_sfu
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

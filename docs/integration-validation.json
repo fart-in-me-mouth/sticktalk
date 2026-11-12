@@ -1,0 +1,2746 @@
+{
+  "timestamp_utc": "2026-11-12T22:53:03.007446+00:00",
+  "source_commit": "78b43bdc3b6189a6c205adff4081e1a12e1f69c1",
+  "implementation_commits": [
+    "ec3f303f6dcd1954885a7b59c21cd47880370ed7 Merge browser server support with launch notification policy",
+    "cb007322584425210266005628c745f06604a0f0 Merge shared client core and retain additive protocol compatibility",
+    "73357cbe97410b1231dce7e69a52ba94325514ac Merge desktop platform services and retain shared core workspace",
+    "7f4b0260dd8537684ec0b15217c77569f27ef65d Merge allocation-free emoji search library into shared workspace",
+    "1e8732b883a889be3f6e1bac163e45f2ee565d7e Merge Leptos web shell into shared workspace with dedicated size profile",
+    "78b43bdc3b6189a6c205adff4081e1a12e1f69c1 Fix packaged web shell CSP compatibility and test the real server"
+  ],
+  "stages": [
+    {
+      "stage": "01-web-push",
+      "status": "passed",
+      "passed": 185,
+      "by_package": {
+        "sticktalk": 42,
+        "sticktalk-media": 5,
+        "sticktalk-proto": 20,
+        "sticktalk-server": 103,
+        "sticktalk-sfu": 15
+      },
+      "runners": [
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 24,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\live.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\browser.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\launch.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\operations.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\wire.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 88,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-release.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\integration.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\driver.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\peers.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "stage": "02-client-core",
+      "status": "passed",
+      "passed": 189,
+      "by_package": {
+        "sticktalk": 25,
+        "sticktalk-client-core": 21,
+        "sticktalk-media": 5,
+        "sticktalk-proto": 20,
+        "sticktalk-server": 103,
+        "sticktalk-sfu": 15
+      },
+      "runners": [
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 7,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\live.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 21,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\browser.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\launch.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\operations.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\wire.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 88,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-release.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\integration.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\driver.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\peers.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "stage": "03-desktop-platform",
+      "status": "passed",
+      "passed": 209,
+      "by_package": {
+        "sticktalk": 25,
+        "sticktalk-client-core": 21,
+        "sticktalk-desktop-platform": 20,
+        "sticktalk-media": 5,
+        "sticktalk-proto": 20,
+        "sticktalk-server": 103,
+        "sticktalk-sfu": 15
+      },
+      "runners": [
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 7,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\live.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 21,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-maintenance.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\instance.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\native_data.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\updater.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 11,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\browser.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\launch.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\operations.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\wire.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 88,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-release.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\integration.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\driver.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\peers.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "stage": "04-emoji",
+      "status": "passed",
+      "passed": 215,
+      "by_package": {
+        "sticktalk": 25,
+        "sticktalk-client-core": 21,
+        "sticktalk-desktop-platform": 20,
+        "sticktalk-emoji": 6,
+        "sticktalk-media": 5,
+        "sticktalk-proto": 20,
+        "sticktalk-server": 103,
+        "sticktalk-sfu": 15
+      },
+      "runners": [
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 7,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\live.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 21,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-maintenance.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\instance.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\native_data.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\updater.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 11,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-emoji",
+          "status": "ok",
+          "passed": 6,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\browser.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\launch.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\operations.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\wire.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 88,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-release.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\integration.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\driver.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\peers.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-emoji",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "stage": "05-web-shell",
+      "status": "passed",
+      "passed": 218,
+      "by_package": {
+        "sticktalk": 25,
+        "sticktalk-client-core": 21,
+        "sticktalk-desktop-platform": 20,
+        "sticktalk-emoji": 6,
+        "sticktalk-media": 5,
+        "sticktalk-proto": 20,
+        "sticktalk-server": 103,
+        "sticktalk-sfu": 15,
+        "sticktalk-web": 3
+      },
+      "runners": [
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 7,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\live.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 21,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-maintenance.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\instance.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\native_data.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\updater.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 11,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-emoji",
+          "status": "ok",
+          "passed": 6,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\browser.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\launch.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\operations.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\wire.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 88,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-release.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\integration.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\driver.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\peers.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk-web",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-emoji",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    {
+      "stage": "06-csp-compatibility",
+      "status": "passed",
+      "passed": 218,
+      "by_package": {
+        "sticktalk": 25,
+        "sticktalk-client-core": 21,
+        "sticktalk-desktop-platform": 20,
+        "sticktalk-emoji": 6,
+        "sticktalk-media": 5,
+        "sticktalk-proto": 20,
+        "sticktalk-server": 103,
+        "sticktalk-sfu": 15,
+        "sticktalk-web": 3
+      },
+      "runners": [
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 7,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\live.rs",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 21,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-maintenance.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\instance.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\native_data.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\updater.rs",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 11,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-emoji",
+          "status": "ok",
+          "passed": 6,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\browser.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\launch.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\operations.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\wire.rs",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 88,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\bin\\sticktalk-release.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\integration.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\voice.rs",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\lib.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\driver.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "tests\\peers.rs",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "unittests src\\main.rs",
+          "package": "sticktalk-web",
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-client-core",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-desktop-platform",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-emoji",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-media",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-proto",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-server",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "target": "doc-tests",
+          "package": "sticktalk-sfu",
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    }
+  ],
+  "passed_commands": [
+    "cargo build --workspace",
+    "cargo test --workspace",
+    "cargo clippy --workspace --all-targets -- -D warnings",
+    "cargo fmt --all -- --check",
+    "cargo check -p sticktalk-client-core --target wasm32-unknown-unknown --features web",
+    "cargo check -p sticktalk-emoji --target wasm32-unknown-unknown",
+    "cargo check -p sticktalk-web --target wasm32-unknown-unknown",
+    "wasm clippy --all-targets -D warnings for core (web), emoji and web",
+    "trunk build --release --cargo-profile web-release",
+    "node tests/browser.mjs (out-of-tree, headless)",
+    "node tests/server-smoke.mjs (actual native server, headless, loopback)",
+    "cargo build -p sticktalk --release",
+    "sticktalk --mock --screenshots crates/client/screenshots (STICKTALK_TEST_UNIX_MS=1794513600000)"
+  ],
+  "conflicts_resolved": {
+    "web_push": [
+      "Retained launch/voice authorization, projection filtering and in-process notifications alongside browser and external push support.",
+      "Browser migration renumbered 202611120003 to avoid the existing 202611120001 launch version; launch/voice migration checksums unchanged.",
+      "Shared launch notification preference evaluator now rechecked by external push, with regression coverage for channel overrides, mutes, broadcasts, Invisible and edited mentions.",
+      "Added browser defaults and unfocused state to explicit test constructors; retained both protocol documentation sections."
+    ],
+    "client_core": [
+      "Desktop facade conflicts resolved to shared core, not duplicated legacy implementations.",
+      "Reapplied 2160ae0 Identify/Ready/Member defaults and unsupported command/event fallbacks inside core; retained voice and browser Config defaults in live tests."
+    ],
+    "desktop_platform": [
+      "Union of workspace members; Cargo re-resolved only missing lockfile entries."
+    ],
+    "emoji": [
+      "Union of workspace members; Cargo re-resolved only missing lockfile entries."
+    ],
+    "web": [
+      "Moved isolated web shell into root workspace/lockfile and retained its full dependency size optimization in the dedicated web-release profile.",
+      "Test server and transfer-budget check respect TRUNK_BUILD_DIST, allowing out-of-OneDrive build outputs.",
+      "Fixed an actual integration regression: strict server CSP blocked Trunk bootstrap and Leptos token styles. Packager now externalizes inline scripts/styles; only dynamic style attributes are allowed, and real-server smoke verifies application loading plus blocked inline injection probes."
+    ]
+  },
+  "desktop_screenshots": {
+    "total": 100,
+    "unchanged": 100,
+    "changed": [],
+    "baseline_commit": "9c0f00780ab531421da69cae0e6c87be4b797cb2",
+    "frozen_unix_ms": 1794513600000,
+    "baseline_provenance": "Committed pre-extraction frozen-clock hashes. Task-start client differs only by 2160ae0 additive compatibility defaults; no visual code/data changes."
+  },
+  "desktop_idle": {
+    "gpu": {
+      "renderer": "wgpu/dx12",
+      "window_mode": "secondary-noactivate",
+      "arguments": "--mock --size 2560x1440 --agent-window-report \"C:\\Users\\dwhee\\OneDrive\\Desktop\\discord clone\\crates\\client\\perf-integration-placement-gpu.json\"",
+      "timestamp": "2026-11-12T17:50:33.5264150-05:00",
+      "warmup_seconds": 10,
+      "seconds": 60.5961124,
+      "cpu_seconds": 0.078125,
+      "one_core_cpu_percent": 0.12892741284175188,
+      "working_set_mean": 148500548.26666668,
+      "working_set_max": 148520960.0,
+      "private_bytes_mean": 168253371.73333332,
+      "binary_bytes": 16869376,
+      "sha256": "A9FF78531ADC7ED49332D3851B739243CAA2D3E4D4B154353DB1F9551D7239B5"
+    },
+    "tiny": {
+      "renderer": "tiny-skia",
+      "window_mode": "secondary-noactivate",
+      "arguments": "--mock --size 2560x1440 --agent-window-report \"C:\\Users\\dwhee\\OneDrive\\Desktop\\discord clone\\crates\\client\\perf-integration-placement-tiny.json\"",
+      "timestamp": "2026-11-12T17:51:44.4266321-05:00",
+      "warmup_seconds": 10,
+      "seconds": 60.683151,
+      "cpu_seconds": 0.0,
+      "one_core_cpu_percent": 0.0,
+      "working_set_mean": 44002508.8,
+      "working_set_max": 44367872.0,
+      "private_bytes_mean": 26156851.2,
+      "binary_bytes": 16869376,
+      "sha256": "A9FF78531ADC7ED49332D3851B739243CAA2D3E4D4B154353DB1F9551D7239B5"
+    }
+  },
+  "web_browser": {
+    "browser": "158.0.8127.18",
+    "headless": true,
+    "firstLoad": {
+      "transferBytes": 765630,
+      "requestCount": 54
+    },
+    "checks": [
+      "Responsive screen captures",
+      "mobile panels",
+      "CDP long-press",
+      "CDP swipe",
+      "emulated visualViewport keyboard",
+      "virtual history bounds",
+      "local send",
+      "quick switcher",
+      "role toggle/save",
+      "destructive confirmation",
+      "auth errors",
+      "offline reload",
+      "hashed service worker",
+      "no console exceptions",
+      "payload budgets"
+    ],
+    "screenshots": [
+      {
+        "name": "login",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/login-1440x900.png"
+      },
+      {
+        "name": "register",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/register-1440x900.png"
+      },
+      {
+        "name": "home",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/home-1440x900.png"
+      },
+      {
+        "name": "dm",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/dm-1440x900.png"
+      },
+      {
+        "name": "chat",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/chat-1440x900.png"
+      },
+      {
+        "name": "user-settings",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/user-settings-1440x900.png"
+      },
+      {
+        "name": "server-settings",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/server-settings-1440x900.png"
+      },
+      {
+        "name": "roles",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/roles-1440x900.png"
+      },
+      {
+        "name": "role-editor",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/role-editor-1440x900.png"
+      },
+      {
+        "name": "role-permissions",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/role-permissions-1440x900.png"
+      },
+      {
+        "name": "role-members",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/role-members-1440x900.png"
+      },
+      {
+        "name": "user-profile",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/user-profile-1440x900.png"
+      },
+      {
+        "name": "devices",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/devices-1440x900.png"
+      },
+      {
+        "name": "server-members",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/server-members-1440x900.png"
+      },
+      {
+        "name": "voice",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/voice-1440x900.png"
+      },
+      {
+        "name": "stream",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/stream-1440x900.png"
+      },
+      {
+        "name": "profile",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/profile-1440x900.png"
+      },
+      {
+        "name": "create-server-choice",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/create-server-choice-1440x900.png"
+      },
+      {
+        "name": "create-server",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/create-server-1440x900.png"
+      },
+      {
+        "name": "join-server",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/join-server-1440x900.png"
+      },
+      {
+        "name": "invite",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/invite-1440x900.png"
+      },
+      {
+        "name": "notifications",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/notifications-1440x900.png"
+      },
+      {
+        "name": "notification-settings",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/notification-settings-1440x900.png"
+      },
+      {
+        "name": "quick-switcher",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/quick-switcher-1440x900.png"
+      },
+      {
+        "name": "share-screen",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/share-screen-1440x900.png"
+      },
+      {
+        "name": "image-viewer",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/image-viewer-1440x900.png"
+      },
+      {
+        "name": "emoji-picker",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/emoji-picker-1440x900.png"
+      },
+      {
+        "name": "channel-settings",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/channel-settings-1440x900.png"
+      },
+      {
+        "name": "disconnected",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/disconnected-1440x900.png"
+      },
+      {
+        "name": "empty-channel",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/empty-channel-1440x900.png"
+      },
+      {
+        "name": "loading",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/loading-1440x900.png"
+      },
+      {
+        "name": "server-menu",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/server-menu-1440x900.png"
+      },
+      {
+        "name": "message-context-menu",
+        "width": 1440,
+        "height": 900,
+        "path": "screenshots/message-context-menu-1440x900.png"
+      },
+      {
+        "name": "login",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/login-390x844.png"
+      },
+      {
+        "name": "register",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/register-390x844.png"
+      },
+      {
+        "name": "home",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/home-390x844.png"
+      },
+      {
+        "name": "dm",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/dm-390x844.png"
+      },
+      {
+        "name": "chat",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/chat-390x844.png"
+      },
+      {
+        "name": "user-settings",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/user-settings-390x844.png"
+      },
+      {
+        "name": "server-settings",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/server-settings-390x844.png"
+      },
+      {
+        "name": "roles",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/roles-390x844.png"
+      },
+      {
+        "name": "role-editor",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/role-editor-390x844.png"
+      },
+      {
+        "name": "role-permissions",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/role-permissions-390x844.png"
+      },
+      {
+        "name": "role-members",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/role-members-390x844.png"
+      },
+      {
+        "name": "user-profile",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/user-profile-390x844.png"
+      },
+      {
+        "name": "devices",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/devices-390x844.png"
+      },
+      {
+        "name": "server-members",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/server-members-390x844.png"
+      },
+      {
+        "name": "voice",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/voice-390x844.png"
+      },
+      {
+        "name": "stream",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/stream-390x844.png"
+      },
+      {
+        "name": "profile",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/profile-390x844.png"
+      },
+      {
+        "name": "create-server-choice",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/create-server-choice-390x844.png"
+      },
+      {
+        "name": "create-server",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/create-server-390x844.png"
+      },
+      {
+        "name": "join-server",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/join-server-390x844.png"
+      },
+      {
+        "name": "invite",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/invite-390x844.png"
+      },
+      {
+        "name": "notifications",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/notifications-390x844.png"
+      },
+      {
+        "name": "notification-settings",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/notification-settings-390x844.png"
+      },
+      {
+        "name": "quick-switcher",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/quick-switcher-390x844.png"
+      },
+      {
+        "name": "share-screen",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/share-screen-390x844.png"
+      },
+      {
+        "name": "image-viewer",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/image-viewer-390x844.png"
+      },
+      {
+        "name": "emoji-picker",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/emoji-picker-390x844.png"
+      },
+      {
+        "name": "channel-settings",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/channel-settings-390x844.png"
+      },
+      {
+        "name": "disconnected",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/disconnected-390x844.png"
+      },
+      {
+        "name": "empty-channel",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/empty-channel-390x844.png"
+      },
+      {
+        "name": "loading",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/loading-390x844.png"
+      },
+      {
+        "name": "server-menu",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/server-menu-390x844.png"
+      },
+      {
+        "name": "message-context-menu",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/message-context-menu-390x844.png"
+      },
+      {
+        "name": "phone-left-panel",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/phone-left-panel-390x844.png"
+      },
+      {
+        "name": "phone-right-panel",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/phone-right-panel-390x844.png"
+      },
+      {
+        "name": "phone-long-press",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/phone-long-press-390x844.png"
+      },
+      {
+        "name": "phone-keyboard-open",
+        "width": 390,
+        "height": 844,
+        "path": "screenshots/phone-keyboard-open-390x844.png"
+      },
+      {
+        "name": "login",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/login-412x915.png"
+      },
+      {
+        "name": "register",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/register-412x915.png"
+      },
+      {
+        "name": "home",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/home-412x915.png"
+      },
+      {
+        "name": "dm",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/dm-412x915.png"
+      },
+      {
+        "name": "chat",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/chat-412x915.png"
+      },
+      {
+        "name": "user-settings",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/user-settings-412x915.png"
+      },
+      {
+        "name": "server-settings",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/server-settings-412x915.png"
+      },
+      {
+        "name": "roles",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/roles-412x915.png"
+      },
+      {
+        "name": "role-editor",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/role-editor-412x915.png"
+      },
+      {
+        "name": "role-permissions",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/role-permissions-412x915.png"
+      },
+      {
+        "name": "role-members",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/role-members-412x915.png"
+      },
+      {
+        "name": "user-profile",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/user-profile-412x915.png"
+      },
+      {
+        "name": "devices",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/devices-412x915.png"
+      },
+      {
+        "name": "server-members",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/server-members-412x915.png"
+      },
+      {
+        "name": "voice",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/voice-412x915.png"
+      },
+      {
+        "name": "stream",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/stream-412x915.png"
+      },
+      {
+        "name": "profile",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/profile-412x915.png"
+      },
+      {
+        "name": "create-server-choice",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/create-server-choice-412x915.png"
+      },
+      {
+        "name": "create-server",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/create-server-412x915.png"
+      },
+      {
+        "name": "join-server",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/join-server-412x915.png"
+      },
+      {
+        "name": "invite",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/invite-412x915.png"
+      },
+      {
+        "name": "notifications",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/notifications-412x915.png"
+      },
+      {
+        "name": "notification-settings",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/notification-settings-412x915.png"
+      },
+      {
+        "name": "quick-switcher",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/quick-switcher-412x915.png"
+      },
+      {
+        "name": "share-screen",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/share-screen-412x915.png"
+      },
+      {
+        "name": "image-viewer",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/image-viewer-412x915.png"
+      },
+      {
+        "name": "emoji-picker",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/emoji-picker-412x915.png"
+      },
+      {
+        "name": "channel-settings",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/channel-settings-412x915.png"
+      },
+      {
+        "name": "disconnected",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/disconnected-412x915.png"
+      },
+      {
+        "name": "empty-channel",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/empty-channel-412x915.png"
+      },
+      {
+        "name": "loading",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/loading-412x915.png"
+      },
+      {
+        "name": "server-menu",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/server-menu-412x915.png"
+      },
+      {
+        "name": "message-context-menu",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/message-context-menu-412x915.png"
+      },
+      {
+        "name": "phone-left-panel",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/phone-left-panel-412x915.png"
+      },
+      {
+        "name": "phone-right-panel",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/phone-right-panel-412x915.png"
+      },
+      {
+        "name": "phone-long-press",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/phone-long-press-412x915.png"
+      },
+      {
+        "name": "phone-keyboard-open",
+        "width": 412,
+        "height": 915,
+        "path": "screenshots/phone-keyboard-open-412x915.png"
+      },
+      {
+        "name": "login",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/login-820x1180.png"
+      },
+      {
+        "name": "register",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/register-820x1180.png"
+      },
+      {
+        "name": "home",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/home-820x1180.png"
+      },
+      {
+        "name": "dm",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/dm-820x1180.png"
+      },
+      {
+        "name": "chat",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/chat-820x1180.png"
+      },
+      {
+        "name": "user-settings",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/user-settings-820x1180.png"
+      },
+      {
+        "name": "server-settings",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/server-settings-820x1180.png"
+      },
+      {
+        "name": "roles",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/roles-820x1180.png"
+      },
+      {
+        "name": "role-editor",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/role-editor-820x1180.png"
+      },
+      {
+        "name": "role-permissions",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/role-permissions-820x1180.png"
+      },
+      {
+        "name": "role-members",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/role-members-820x1180.png"
+      },
+      {
+        "name": "user-profile",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/user-profile-820x1180.png"
+      },
+      {
+        "name": "devices",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/devices-820x1180.png"
+      },
+      {
+        "name": "server-members",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/server-members-820x1180.png"
+      },
+      {
+        "name": "voice",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/voice-820x1180.png"
+      },
+      {
+        "name": "stream",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/stream-820x1180.png"
+      },
+      {
+        "name": "profile",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/profile-820x1180.png"
+      },
+      {
+        "name": "create-server-choice",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/create-server-choice-820x1180.png"
+      },
+      {
+        "name": "create-server",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/create-server-820x1180.png"
+      },
+      {
+        "name": "join-server",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/join-server-820x1180.png"
+      },
+      {
+        "name": "invite",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/invite-820x1180.png"
+      },
+      {
+        "name": "notifications",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/notifications-820x1180.png"
+      },
+      {
+        "name": "notification-settings",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/notification-settings-820x1180.png"
+      },
+      {
+        "name": "quick-switcher",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/quick-switcher-820x1180.png"
+      },
+      {
+        "name": "share-screen",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/share-screen-820x1180.png"
+      },
+      {
+        "name": "image-viewer",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/image-viewer-820x1180.png"
+      },
+      {
+        "name": "emoji-picker",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/emoji-picker-820x1180.png"
+      },
+      {
+        "name": "channel-settings",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/channel-settings-820x1180.png"
+      },
+      {
+        "name": "disconnected",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/disconnected-820x1180.png"
+      },
+      {
+        "name": "empty-channel",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/empty-channel-820x1180.png"
+      },
+      {
+        "name": "loading",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/loading-820x1180.png"
+      },
+      {
+        "name": "server-menu",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/server-menu-820x1180.png"
+      },
+      {
+        "name": "message-context-menu",
+        "width": 820,
+        "height": 1180,
+        "path": "screenshots/message-context-menu-820x1180.png"
+      }
+    ],
+    "errors": [],
+    "sizes": {
+      "revision": "46a475c424d0d7931587",
+      "raw": 987040,
+      "compressed": 403737,
+      "firstLoadBytes": 418234,
+      "assets": [
+        {
+          "file": "boot-cee7d2f48ea06c476a38.css",
+          "bytes": 125,
+          "brotli": 96
+        },
+        {
+          "file": "bootstrap-ecb5259ca7c87b97e98a.js",
+          "bytes": 272,
+          "brotli": 196
+        },
+        {
+          "file": "index.html",
+          "bytes": 1852,
+          "brotli": 717
+        },
+        {
+          "file": "public/emoji/1f331.png",
+          "bytes": 470,
+          "brotli": 474
+        },
+        {
+          "file": "public/emoji/1f389.png",
+          "bytes": 1376,
+          "brotli": 1356
+        },
+        {
+          "file": "public/emoji/1f3a8.png",
+          "bytes": 809,
+          "brotli": 813
+        },
+        {
+          "file": "public/emoji/1f440.png",
+          "bytes": 1024,
+          "brotli": 1006
+        },
+        {
+          "file": "public/emoji/1f44b.png",
+          "bytes": 1285,
+          "brotli": 1224
+        },
+        {
+          "file": "public/emoji/1f44d.png",
+          "bytes": 778,
+          "brotli": 743
+        },
+        {
+          "file": "public/emoji/1f4a1.png",
+          "bytes": 687,
+          "brotli": 652
+        },
+        {
+          "file": "public/emoji/1f525.png",
+          "bytes": 928,
+          "brotli": 875
+        },
+        {
+          "file": "public/emoji/1f602.png",
+          "bytes": 1095,
+          "brotli": 1086
+        },
+        {
+          "file": "public/emoji/1f604.png",
+          "bytes": 809,
+          "brotli": 813
+        },
+        {
+          "file": "public/emoji/1f60a.png",
+          "bytes": 796,
+          "brotli": 800
+        },
+        {
+          "file": "public/emoji/1f64c.png",
+          "bytes": 1006,
+          "brotli": 953
+        },
+        {
+          "file": "public/emoji/1f680.png",
+          "bytes": 1064,
+          "brotli": 1025
+        },
+        {
+          "file": "public/emoji/2705.png",
+          "bytes": 525,
+          "brotli": 526
+        },
+        {
+          "file": "public/emoji/2728.png",
+          "bytes": 752,
+          "brotli": 700
+        },
+        {
+          "file": "public/emoji/2764.png",
+          "bytes": 498,
+          "brotli": 470
+        },
+        {
+          "file": "public/emoji/LICENSE-CC-BY-4.0",
+          "bytes": 18524,
+          "brotli": 4631
+        },
+        {
+          "file": "public/fonts/Inter-Medium.woff2",
+          "bytes": 18568,
+          "brotli": 18563
+        },
+        {
+          "file": "public/fonts/Inter-OFL.txt",
+          "bytes": 4380,
+          "brotli": 1419
+        },
+        {
+          "file": "public/fonts/Inter-Regular.woff2",
+          "bytes": 18264,
+          "brotli": 18250
+        },
+        {
+          "file": "public/fonts/Inter-SemiBold.woff2",
+          "bytes": 18656,
+          "brotli": 18660
+        },
+        {
+          "file": "public/fonts/JetBrainsMono-OFL.txt",
+          "bytes": 4399,
+          "brotli": 1413
+        },
+        {
+          "file": "public/fonts/JetBrainsMono-Regular.woff2",
+          "bytes": 28656,
+          "brotli": 28660
+        },
+        {
+          "file": "public/google-g.svg",
+          "bytes": 7483,
+          "brotli": 5621
+        },
+        {
+          "file": "public/icons/apple-touch-icon.png",
+          "bytes": 4779,
+          "brotli": 4689
+        },
+        {
+          "file": "public/icons/icon-192.png",
+          "bytes": 5072,
+          "brotli": 4947
+        },
+        {
+          "file": "public/icons/icon-512.png",
+          "bytes": 12256,
+          "brotli": 11357
+        },
+        {
+          "file": "public/icons/LICENSE",
+          "bytes": 3208,
+          "brotli": 1146
+        },
+        {
+          "file": "public/icons/maskable-512.png",
+          "bytes": 12256,
+          "brotli": 11357
+        },
+        {
+          "file": "public/icons/sprite.svg",
+          "bytes": 14068,
+          "brotli": 2999
+        },
+        {
+          "file": "public/manifest.webmanifest",
+          "bytes": 638,
+          "brotli": 239
+        },
+        {
+          "file": "public/mock-workspace.jpg",
+          "bytes": 6969,
+          "brotli": 6765
+        },
+        {
+          "file": "public/platform.js",
+          "bytes": 16874,
+          "brotli": 4263
+        },
+        {
+          "file": "sticktalk-web-1bd1b6da35ae5e7e_bg.wasm",
+          "bytes": 667437,
+          "brotli": 227632
+        },
+        {
+          "file": "sticktalk-web-ddf37a57a85d9c0.js",
+          "bytes": 30700,
+          "brotli": 5347
+        },
+        {
+          "file": "style-adc283fc6d33b433.css",
+          "bytes": 76996,
+          "brotli": 10936
+        },
+        {
+          "file": "ui-tokens-b285f7b3eff066f0eacd.css",
+          "bytes": 706,
+          "brotli": 318
+        }
+      ]
+    }
+  },
+  "real_server_csp_smoke": {
+    "realServer": true,
+    "headless": true,
+    "loopback": true,
+    "applicationErrors": [],
+    "applicationCspViolations": 0,
+    "blockedInlineProbes": [
+      "script-src-elem",
+      "style-src-elem"
+    ],
+    "csp": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; font-src 'self'; img-src 'self'; media-src 'self'; connect-src 'self' ws://127.0.0.1:65126; worker-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'"
+  },
+  "npm_dev_tool_advisories": {
+    "info": 0,
+    "low": 1,
+    "moderate": 20,
+    "high": 10,
+    "critical": 0,
+    "total": 31
+  },
+  "limitations": [
+    "Web remains the delivered fixture UI shell, not a server-connected client.",
+    "Media-call pipeline branch deliberately not merged or removed.",
+    "GPU idle working set remains above the approximate 100 MB goal; no controlled before/after residency claim.",
+    "Pinned npm development-only audit/QA tooling reports 31 advisories (10 high); no automatic dependency upgrades were made."
+  ],
+  "cleanup": {
+    "merged_worktrees_and_branches_removed": [
+      "t3/web-push-pwa-support",
+      "t3/extract-client-core",
+      "t3/desktop-platform-integration",
+      "t3/add-emoji-search-library",
+      "t3/build-leptos-web-shell",
+      "t3/server-role-profile-launch",
+      "t3/embed-sfu-voice-server"
+    ],
+    "task_target_removed": false,
+    "remaining_task_target": "C:/Users/dwhee/.cargo-target/sticktalk-integration",
+    "target_cleanup_blocker": "Execution safety policy rejected recursive deletion, including a separately verified literal-path PowerShell command. No extra target directories were created."
+  }
+}

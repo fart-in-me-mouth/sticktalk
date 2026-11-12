@@ -1,0 +1,716 @@
+{
+  "task_start_commit": "2b26086",
+  "baseline_commit": "9c0f00780ab531421da69cae0e6c87be4b797cb2",
+  "baseline_source": "Committed pre-extraction frozen-clock hashes. Task-start client differs only by 2160ae0 additive compatibility defaults; no visual code/data changes.",
+  "frozen_unix_ms": 1794513600000,
+  "merged_commit": "78b43bdc3b6189a6c205adff4081e1a12e1f69c1",
+  "renderer": "iced-tiny-skia",
+  "window_backend": "none",
+  "total": 100,
+  "unchanged": 100,
+  "changed": [],
+  "before_sha256": {
+    "add-friend-1280x800.png": "64450aade500748e1c11cbda69f62f0f7028e7a2f9a047d6973f329ccfc22d35",
+    "add-friend-1920x1080.png": "77462d677bb53d061f1b779e8636d50a3d7aad009921930cc8d2886a40fe88b1",
+    "change-server-1280x800.png": "665a89b2733cc1a59ffb4553d5cd2e80f0dc40e0765501990834a38602e921d9",
+    "change-server-1920x1080.png": "a189bb247ba9499fbe30311c97f1ed934bde3f15efd94d6fcb8b422b93ce85fb",
+    "channel-top-1280x800.png": "3883a2dd4d1648e9e9145322018bedb466d5f2140bd42e1d3ae19337540ac6d8",
+    "channel-top-1920x1080.png": "45c50f02300c52a6d0b76841927d4a24dc6d33db4b7bf9b79e18bc922ca6d2af",
+    "community-picker-1280x800.png": "11676931058eccf29e43ed4e7994c75f589ccfca9d6e113264426ef49ea7aacf",
+    "community-picker-1920x1080.png": "da0b82642b97881bbdc6173d678f56391110ee59f5e502a9a1490909b105a388",
+    "context-1280x800.png": "eab0feee125405bff684752fa6ca4cf567fc3936c1141285f503e589708e89d1",
+    "context-1920x1080.png": "315c4f4123b4dd3923efd4c1a5642841e17ac188de87d62c1de6ed8250fcca91",
+    "context-own-message-1280x800.png": "03e37f73452c5627346fead02f447c2221d920e057e3bc88c870abe2ccbdcbd0",
+    "context-own-message-1920x1080.png": "64ed8fbde85a46896411ce8edcedaa4b6fd63c5a833064e0e628861eea601016",
+    "create-guild-form-1280x800.png": "99f52f663b8c6c6a87ba75515be6ee9c18f0a3df790eae12e974816bbcf5d558",
+    "create-guild-form-1920x1080.png": "075af5291db667259c597c31d20f1588da56d15dc744fe5149a4f57ebdd059cc",
+    "disconnected-1280x800.png": "7a2f3c2aaad53013e3b6bbbd6debfad909739ab769b3b60393d438292e97203a",
+    "disconnected-1920x1080.png": "033654976ba22dd8b087303188650eb3d8bc9f35ddb044a816e71f20fb3eae46",
+    "dm-chat-1280x800.png": "ba141348742996337e050f92d3bb4c59c5722c512d84738c54c4c0e930883f56",
+    "dm-chat-1920x1080.png": "f170521ca2e7a087aace40fe95ab6a604b30243dcf1366cd42eb68cd8bc5cef7",
+    "edit-message-1280x800.png": "9a7073f775f90f5aeedd246430b7e1e5ee04062109990269f854dc66214db482",
+    "edit-message-1920x1080.png": "a4a89f3b06741a0fa26c89f4003bb1a22762e3554dff44d367fb540dabeb58ba",
+    "empty-channel-1280x800.png": "cb15eafd2a41382c588d6e74041c476fc0b8d61add4b4bd75bcb3891dd3a398a",
+    "empty-channel-1920x1080.png": "f491de3622ec87236c98b1e0f3cc6e76b1e9d977cc89c577099affafa8769660",
+    "empty-home-1280x800.png": "aadff2f6a2a111535a292cd37098c76e9bffe8bd73b9a77c82c3e9ccfebea463",
+    "empty-home-1920x1080.png": "3c35f974b045a70f4759a452eeaa0845ddcd92a208fbde5528bd094f2c59edf8",
+    "google-login-1280x800.png": "5db958736ffba4be4fea6cd385537050570cbc4905aa5af51e46a4c4199fd515",
+    "google-login-1920x1080.png": "202c3168a2494e1c96a7e1d4cac6cb825205843f863c99d5a794340a5275be4e",
+    "group-chat-1280x800.png": "9dde40615d837eeab1368586a4c7f638b29bf9ad04fd847c40458654f2a926f2",
+    "group-chat-1920x1080.png": "39e921eede64e22348fb94c9f0b01c5a763a8d929502743a294d4550e6069bf3",
+    "guild-chat-1280x800.png": "cab4b14d69900fc0782e4906ef67594877a5820409ea893594a44ae8ddb806d9",
+    "guild-chat-1920x1080.png": "91614bc64f8d82c753d9d1816e5c1b883078f7fb8ef3de958965c78fc77c174b",
+    "guild-settings-bans-1280x800.png": "4dba14253fe9ebea62a7d2b68b939be7bd14b0fb0b9b04e827a29f8f01f1c4c2",
+    "guild-settings-bans-1920x1080.png": "0a2a57f414e439e427ecdbeb3e51ae0ccbd137e14e013e633b38c561f9c5f97b",
+    "guild-settings-channels-1280x800.png": "eceee974d587f54f9904803e9106ac09658664bb4650437d1fa579ba06c5415c",
+    "guild-settings-channels-1920x1080.png": "594e972f33ada6d79d33cf704134eead3fa198fa0ff63fc57fca7f4cfab260b9",
+    "guild-settings-invites-1280x800.png": "48412df0c1111b7acaacb9100dc6a5cda166222af31a65e146f16d0f2bba47ed",
+    "guild-settings-invites-1920x1080.png": "1fc2a5e927d3afe56b37ad0be07203d64eecc17b461d9415861a5bd134d1a6bb",
+    "guild-settings-members-1280x800.png": "64be3fbc0fde62afdeddffe4dfcf2247e2015a1b9e020b3ec458f76b9677638f",
+    "guild-settings-members-1920x1080.png": "27ab82f056863a9230a6f9e339051a3c894b2d2a30085a495d579b8c33795990",
+    "guild-settings-overview-1280x800.png": "77b305bee0c10b35f3e1ba9a2c2b884f017bf065286ea368ce3b368ccb732e57",
+    "guild-settings-overview-1920x1080.png": "0ef3284791ca8c33e1862b98fcacd2a2ce193b8611eae49afd3a54f4d3fd5fca",
+    "history-jump-1280x800.png": "93bcc1890bc411c69c6e9bd2a2c51b9e5fc583826e6b58530126656beb0e2754",
+    "history-jump-1920x1080.png": "bb6b06d5c2489fb5e74b6f93b08f2a6ed802f90fdfc56455a12b0f56cfd18eec",
+    "home-all-1280x800.png": "6fe732aa1ef317921bf46c7b758bbef0802c2d9f9a6009d55130819fd0b2fdb8",
+    "home-all-1920x1080.png": "a61f3c3a40a2b404141190e880bb01eb7f6001cc7e90a61adc4251d06220490f",
+    "home-blocked-1280x800.png": "32a7b4cfa6fbfc39dfe27a0326db8a91ed4030b3462cbd46067d173419a86ace",
+    "home-blocked-1920x1080.png": "0e9893ee45b39337926e7883d128e2ab54ccc67742aa7388627b2b08f6b41a7e",
+    "home-online-1280x800.png": "c3eae97b67dc2cdc095d8c80819da61bab4c51353966c828d2f216eeeb0e107c",
+    "home-online-1920x1080.png": "dea72707d23f9944cb266d7f9a269b388e05972f791f83c3db0a727761788e29",
+    "home-pending-1280x800.png": "0512dff899a33460bf01f97f61da69a21aa3ad68f7a2506713705de57d3d0703",
+    "home-pending-1920x1080.png": "e8b54e86992e302b18159f993feac3de01cea60ce015fe06aebf45eba0785487",
+    "invite-1280x800.png": "7e4c4b771d3ef7482d0776ab2490ae6a47de62ae59693bedccf9c7def3fac8c5",
+    "invite-1920x1080.png": "02f97ec5bab5c5812f421c77b614a0785e4444e6dde91853fcc2532c9e80aadd",
+    "join-guild-1280x800.png": "fb6b711d3ee566bccb32cb4ef79ba5a5e1c84063b03bda694ac2177b92eab9cd",
+    "join-guild-1920x1080.png": "2a199cf0526afdaa22082901ab604ec2c945da59fe058c651ef8ad67101c614b",
+    "loading-1280x800.png": "23eb9897c643f22f2003fc97fe410081de2ad88ee18b3db3357654374b466ce3",
+    "loading-1920x1080.png": "242fc0d77851e72cd6b5d7318a8df43c5d319b33a9c76e4316867b19797e85b1",
+    "login-1280x800.png": "16b9aba3d029394cad37005495f59438b5d299d8a49dc40213cba457e0fc6917",
+    "login-1920x1080.png": "4e71f63964dcf450c1f4c6791a9261722c90fe214a325ba74f555768ee68ae34",
+    "markdown-1280x800.png": "03f8077c691818d0a67faf5dd535d49cc5c7f7eb263563afa1b968f5a2e33008",
+    "markdown-1920x1080.png": "10df62b729435cd11b509c592dfd323f6919f239ededc1c588003d578bcef6b4",
+    "markdown-revealed-1280x800.png": "bf79052cbfdb016891f8a031b2344cefd5852db9dd639d3393e512b50c3c41f7",
+    "markdown-revealed-1920x1080.png": "6945b993ed1e67b0b8a894e4b9b407aa1c7f94503ae2dd4140449d27381450d7",
+    "masked-link-confirm-1280x800.png": "8d998e659b08c45b1e31e5d3d05aad9fbe2cca27643e69fd89148de5617527b2",
+    "masked-link-confirm-1920x1080.png": "1d33fe54d8efc27ff2bcd9ab95a3e31db8cd4f06b34b6358eaea9a86abd5f613",
+    "member-menu-1280x800.png": "e0dd506eb9e3e140a7292012eece8eb9961a241b7d095c0c7b78e22a9a7df1f4",
+    "member-menu-1920x1080.png": "1119ec3406b322c2c62b18e576eb1baa539bf1df47c3d894f553bc14045c95f8",
+    "mention-autocomplete-1280x800.png": "4a9fb6d4f3e49b6d2769653e2a39026ead39fe28a7c26ed162ebc687c1e4f8f0",
+    "mention-autocomplete-1920x1080.png": "7816ff0112ec35976e6153f85035de7adc07a8ff92e5e7530cc9c6de5ab9a0c9",
+    "message-hover-1280x800.png": "41a3c7d00e86fa4489635d6232639b473cceb4076ccff570c4f120c3dfe48b55",
+    "message-hover-1920x1080.png": "5482452ff1d7cdfa1a80886d540c8bf56e6a4f81f13b1be16352cf426b5013cc",
+    "message-hover-grouped-1280x800.png": "904840db8db243c9301a99f8512265a26b98e2dd1f9656583852345d8e03c6c5",
+    "message-hover-grouped-1920x1080.png": "138bce6eb69152f57b4470d23d2edc2053c79dd9a3b9bd75f20453a898a54cc3",
+    "message-hover-own-1280x800.png": "20d6000659df02a02c3a974109b7a5864a97da6fb059c145d8fd526232e3e011",
+    "message-hover-own-1920x1080.png": "e40614efee6f2a3afda82bf10f56870e5c34f1ea97f2b2fb3e9a36c9e68f6721",
+    "password-settings-1280x800.png": "3a41f34f751b8e3a9f0244205fa5d65123b7c2d66a464365994a7b60cb2e69e8",
+    "password-settings-1920x1080.png": "f17d8725f02dd545e97f4a678a293096bbdc734a804489f40b6df2cde104a51a",
+    "pick-username-1280x800.png": "82a29ca726a3cea1cdfdc9e1a0f593bb6c8dd09d11de10f12b9ff6b6b4309364",
+    "pick-username-1920x1080.png": "8e9369508ce81a145c3fb2a3fa4fa0a46122a07813d49b308a4b483f44473d74",
+    "register-1280x800.png": "796632aac2f9cda95ef96ded1365962ed8a940deb82329272cd708274c0c67b1",
+    "register-1920x1080.png": "8982ceeb8ba69055ce286dc4ecbd41b7dee2d12e28d858deeb77dbba53d28f44",
+    "reply-preview-1280x800.png": "564721d7250e74f86b805b7a594f5274d445c00915b0f77d1203669bba5051b9",
+    "reply-preview-1920x1080.png": "7575ddd5da33c958571f8a0e29152b1db4e82850765cb09b700b7e44e7d002ae",
+    "scroll-5000-1280x800.png": "df93afa2dc3cc85ba03292bc100958a3da471eaa0396efa2b2eb010f72990fe1",
+    "scroll-5000-1920x1080.png": "9835839217da23eb44c6ec28ed98ee8dc98f3c810d13d91af8fc16e7c8d97f34",
+    "scroll-skeleton-1280x800.png": "c48e1e0317681f501ca3cbd9647c1d78cd5cfdab4def4c58ff56026124d344cd",
+    "scroll-skeleton-1920x1080.png": "90ac6ab2111a48aa423a041d2f265ad7e88b0cc33f000b67a88dff0a5a2b2102",
+    "sign-in-methods-1280x800.png": "f23ed00ac7a9b741acb22361c6b9c5fb6862f6bcc35b56835b090559dad6a4d2",
+    "sign-in-methods-1920x1080.png": "8dee59c14b6e94718eee134affdc6b43dd50ad13938262147576c58cd6bcd3e5",
+    "sign-in-methods-google-only-1280x800.png": "15b346d98f76de838a53e1f9dd6a70bc9f2e61ffeedffacdf8bc0c36c05cf9a7",
+    "sign-in-methods-google-only-1920x1080.png": "4a18c24183bc149dd3cbce1b124a5bf6656c03d41aeab6dfb62b7739e3971ae4",
+    "sign-in-methods-unlinked-1280x800.png": "6c14d9816d0efa509df93dac160454e1192cba73c96a786ad5220229259678f0",
+    "sign-in-methods-unlinked-1920x1080.png": "0de77ecae0e17620526325b339104ef3654333d65eddd6004d2cd883f6a88d0f",
+    "toast-1280x800.png": "e8c5e08b05ec1222027b1209af34d9cb9497a79a3baada2df0845678cd1863c7",
+    "toast-1920x1080.png": "c0268a41b7d706f623c15c79a4c2815566fe46a4f81ca28b19fe1e6b7ba6173d",
+    "user-settings-account-1280x800.png": "f23ed00ac7a9b741acb22361c6b9c5fb6862f6bcc35b56835b090559dad6a4d2",
+    "user-settings-account-1920x1080.png": "8dee59c14b6e94718eee134affdc6b43dd50ad13938262147576c58cd6bcd3e5",
+    "user-settings-appearance-1280x800.png": "9f02f939aa083a577a8667a7f1fcb6bfb945ff4dde41ee3592179d36d9bd7d15",
+    "user-settings-appearance-1920x1080.png": "d96f5df574cb30dbe76d38b6a6a6aa1127b65c0e063d770b08e2629ac93e2ede",
+    "user-settings-profile-1280x800.png": "a6bd5fdefe8283248a9816928450ff8b2f19b808dce19734de028de5300367e6",
+    "user-settings-profile-1920x1080.png": "4398b5252c39dbec03506ee50ba0e160b3f12dfb115f991b94806eca5a936daa"
+  },
+  "after": [
+    {
+      "file": "login-1280x800.png",
+      "height": 800,
+      "sha256": "16b9aba3d029394cad37005495f59438b5d299d8a49dc40213cba457e0fc6917",
+      "width": 1280
+    },
+    {
+      "file": "register-1280x800.png",
+      "height": 800,
+      "sha256": "796632aac2f9cda95ef96ded1365962ed8a940deb82329272cd708274c0c67b1",
+      "width": 1280
+    },
+    {
+      "file": "home-online-1280x800.png",
+      "height": 800,
+      "sha256": "c3eae97b67dc2cdc095d8c80819da61bab4c51353966c828d2f216eeeb0e107c",
+      "width": 1280
+    },
+    {
+      "file": "home-all-1280x800.png",
+      "height": 800,
+      "sha256": "6fe732aa1ef317921bf46c7b758bbef0802c2d9f9a6009d55130819fd0b2fdb8",
+      "width": 1280
+    },
+    {
+      "file": "home-pending-1280x800.png",
+      "height": 800,
+      "sha256": "0512dff899a33460bf01f97f61da69a21aa3ad68f7a2506713705de57d3d0703",
+      "width": 1280
+    },
+    {
+      "file": "home-blocked-1280x800.png",
+      "height": 800,
+      "sha256": "32a7b4cfa6fbfc39dfe27a0326db8a91ed4030b3462cbd46067d173419a86ace",
+      "width": 1280
+    },
+    {
+      "file": "dm-chat-1280x800.png",
+      "height": 800,
+      "sha256": "ba141348742996337e050f92d3bb4c59c5722c512d84738c54c4c0e930883f56",
+      "width": 1280
+    },
+    {
+      "file": "guild-chat-1280x800.png",
+      "height": 800,
+      "sha256": "cab4b14d69900fc0782e4906ef67594877a5820409ea893594a44ae8ddb806d9",
+      "width": 1280
+    },
+    {
+      "file": "group-chat-1280x800.png",
+      "height": 800,
+      "sha256": "9dde40615d837eeab1368586a4c7f638b29bf9ad04fd847c40458654f2a926f2",
+      "width": 1280
+    },
+    {
+      "file": "community-picker-1280x800.png",
+      "height": 800,
+      "sha256": "11676931058eccf29e43ed4e7994c75f589ccfca9d6e113264426ef49ea7aacf",
+      "width": 1280
+    },
+    {
+      "file": "create-guild-form-1280x800.png",
+      "height": 800,
+      "sha256": "99f52f663b8c6c6a87ba75515be6ee9c18f0a3df790eae12e974816bbcf5d558",
+      "width": 1280
+    },
+    {
+      "file": "join-guild-1280x800.png",
+      "height": 800,
+      "sha256": "fb6b711d3ee566bccb32cb4ef79ba5a5e1c84063b03bda694ac2177b92eab9cd",
+      "width": 1280
+    },
+    {
+      "file": "invite-1280x800.png",
+      "height": 800,
+      "sha256": "7e4c4b771d3ef7482d0776ab2490ae6a47de62ae59693bedccf9c7def3fac8c5",
+      "width": 1280
+    },
+    {
+      "file": "guild-settings-overview-1280x800.png",
+      "height": 800,
+      "sha256": "77b305bee0c10b35f3e1ba9a2c2b884f017bf065286ea368ce3b368ccb732e57",
+      "width": 1280
+    },
+    {
+      "file": "guild-settings-channels-1280x800.png",
+      "height": 800,
+      "sha256": "eceee974d587f54f9904803e9106ac09658664bb4650437d1fa579ba06c5415c",
+      "width": 1280
+    },
+    {
+      "file": "guild-settings-members-1280x800.png",
+      "height": 800,
+      "sha256": "64be3fbc0fde62afdeddffe4dfcf2247e2015a1b9e020b3ec458f76b9677638f",
+      "width": 1280
+    },
+    {
+      "file": "guild-settings-invites-1280x800.png",
+      "height": 800,
+      "sha256": "48412df0c1111b7acaacb9100dc6a5cda166222af31a65e146f16d0f2bba47ed",
+      "width": 1280
+    },
+    {
+      "file": "guild-settings-bans-1280x800.png",
+      "height": 800,
+      "sha256": "4dba14253fe9ebea62a7d2b68b939be7bd14b0fb0b9b04e827a29f8f01f1c4c2",
+      "width": 1280
+    },
+    {
+      "file": "user-settings-account-1280x800.png",
+      "height": 800,
+      "sha256": "f23ed00ac7a9b741acb22361c6b9c5fb6862f6bcc35b56835b090559dad6a4d2",
+      "width": 1280
+    },
+    {
+      "file": "user-settings-profile-1280x800.png",
+      "height": 800,
+      "sha256": "a6bd5fdefe8283248a9816928450ff8b2f19b808dce19734de028de5300367e6",
+      "width": 1280
+    },
+    {
+      "file": "user-settings-appearance-1280x800.png",
+      "height": 800,
+      "sha256": "9f02f939aa083a577a8667a7f1fcb6bfb945ff4dde41ee3592179d36d9bd7d15",
+      "width": 1280
+    },
+    {
+      "file": "context-1280x800.png",
+      "height": 800,
+      "sha256": "eab0feee125405bff684752fa6ca4cf567fc3936c1141285f503e589708e89d1",
+      "width": 1280
+    },
+    {
+      "file": "toast-1280x800.png",
+      "height": 800,
+      "sha256": "e8c5e08b05ec1222027b1209af34d9cb9497a79a3baada2df0845678cd1863c7",
+      "width": 1280
+    },
+    {
+      "file": "empty-home-1280x800.png",
+      "height": 800,
+      "sha256": "aadff2f6a2a111535a292cd37098c76e9bffe8bd73b9a77c82c3e9ccfebea463",
+      "width": 1280
+    },
+    {
+      "file": "empty-channel-1280x800.png",
+      "height": 800,
+      "sha256": "cb15eafd2a41382c588d6e74041c476fc0b8d61add4b4bd75bcb3891dd3a398a",
+      "width": 1280
+    },
+    {
+      "file": "loading-1280x800.png",
+      "height": 800,
+      "sha256": "23eb9897c643f22f2003fc97fe410081de2ad88ee18b3db3357654374b466ce3",
+      "width": 1280
+    },
+    {
+      "file": "disconnected-1280x800.png",
+      "height": 800,
+      "sha256": "7a2f3c2aaad53013e3b6bbbd6debfad909739ab769b3b60393d438292e97203a",
+      "width": 1280
+    },
+    {
+      "file": "mention-autocomplete-1280x800.png",
+      "height": 800,
+      "sha256": "4a9fb6d4f3e49b6d2769653e2a39026ead39fe28a7c26ed162ebc687c1e4f8f0",
+      "width": 1280
+    },
+    {
+      "file": "edit-message-1280x800.png",
+      "height": 800,
+      "sha256": "9a7073f775f90f5aeedd246430b7e1e5ee04062109990269f854dc66214db482",
+      "width": 1280
+    },
+    {
+      "file": "message-hover-1280x800.png",
+      "height": 800,
+      "sha256": "41a3c7d00e86fa4489635d6232639b473cceb4076ccff570c4f120c3dfe48b55",
+      "width": 1280
+    },
+    {
+      "file": "message-hover-own-1280x800.png",
+      "height": 800,
+      "sha256": "20d6000659df02a02c3a974109b7a5864a97da6fb059c145d8fd526232e3e011",
+      "width": 1280
+    },
+    {
+      "file": "message-hover-grouped-1280x800.png",
+      "height": 800,
+      "sha256": "904840db8db243c9301a99f8512265a26b98e2dd1f9656583852345d8e03c6c5",
+      "width": 1280
+    },
+    {
+      "file": "add-friend-1280x800.png",
+      "height": 800,
+      "sha256": "64450aade500748e1c11cbda69f62f0f7028e7a2f9a047d6973f329ccfc22d35",
+      "width": 1280
+    },
+    {
+      "file": "google-login-1280x800.png",
+      "height": 800,
+      "sha256": "5db958736ffba4be4fea6cd385537050570cbc4905aa5af51e46a4c4199fd515",
+      "width": 1280
+    },
+    {
+      "file": "pick-username-1280x800.png",
+      "height": 800,
+      "sha256": "82a29ca726a3cea1cdfdc9e1a0f593bb6c8dd09d11de10f12b9ff6b6b4309364",
+      "width": 1280
+    },
+    {
+      "file": "sign-in-methods-1280x800.png",
+      "height": 800,
+      "sha256": "f23ed00ac7a9b741acb22361c6b9c5fb6862f6bcc35b56835b090559dad6a4d2",
+      "width": 1280
+    },
+    {
+      "file": "markdown-1280x800.png",
+      "height": 800,
+      "sha256": "03f8077c691818d0a67faf5dd535d49cc5c7f7eb263563afa1b968f5a2e33008",
+      "width": 1280
+    },
+    {
+      "file": "masked-link-confirm-1280x800.png",
+      "height": 800,
+      "sha256": "8d998e659b08c45b1e31e5d3d05aad9fbe2cca27643e69fd89148de5617527b2",
+      "width": 1280
+    },
+    {
+      "file": "context-own-message-1280x800.png",
+      "height": 800,
+      "sha256": "03e37f73452c5627346fead02f447c2221d920e057e3bc88c870abe2ccbdcbd0",
+      "width": 1280
+    },
+    {
+      "file": "change-server-1280x800.png",
+      "height": 800,
+      "sha256": "665a89b2733cc1a59ffb4553d5cd2e80f0dc40e0765501990834a38602e921d9",
+      "width": 1280
+    },
+    {
+      "file": "channel-top-1280x800.png",
+      "height": 800,
+      "sha256": "3883a2dd4d1648e9e9145322018bedb466d5f2140bd42e1d3ae19337540ac6d8",
+      "width": 1280
+    },
+    {
+      "file": "markdown-revealed-1280x800.png",
+      "height": 800,
+      "sha256": "bf79052cbfdb016891f8a031b2344cefd5852db9dd639d3393e512b50c3c41f7",
+      "width": 1280
+    },
+    {
+      "file": "member-menu-1280x800.png",
+      "height": 800,
+      "sha256": "e0dd506eb9e3e140a7292012eece8eb9961a241b7d095c0c7b78e22a9a7df1f4",
+      "width": 1280
+    },
+    {
+      "file": "password-settings-1280x800.png",
+      "height": 800,
+      "sha256": "3a41f34f751b8e3a9f0244205fa5d65123b7c2d66a464365994a7b60cb2e69e8",
+      "width": 1280
+    },
+    {
+      "file": "sign-in-methods-unlinked-1280x800.png",
+      "height": 800,
+      "sha256": "6c14d9816d0efa509df93dac160454e1192cba73c96a786ad5220229259678f0",
+      "width": 1280
+    },
+    {
+      "file": "sign-in-methods-google-only-1280x800.png",
+      "height": 800,
+      "sha256": "15b346d98f76de838a53e1f9dd6a70bc9f2e61ffeedffacdf8bc0c36c05cf9a7",
+      "width": 1280
+    },
+    {
+      "file": "scroll-5000-1280x800.png",
+      "height": 800,
+      "sha256": "df93afa2dc3cc85ba03292bc100958a3da471eaa0396efa2b2eb010f72990fe1",
+      "width": 1280
+    },
+    {
+      "file": "scroll-skeleton-1280x800.png",
+      "height": 800,
+      "sha256": "c48e1e0317681f501ca3cbd9647c1d78cd5cfdab4def4c58ff56026124d344cd",
+      "width": 1280
+    },
+    {
+      "file": "history-jump-1280x800.png",
+      "height": 800,
+      "sha256": "93bcc1890bc411c69c6e9bd2a2c51b9e5fc583826e6b58530126656beb0e2754",
+      "width": 1280
+    },
+    {
+      "file": "reply-preview-1280x800.png",
+      "height": 800,
+      "sha256": "564721d7250e74f86b805b7a594f5274d445c00915b0f77d1203669bba5051b9",
+      "width": 1280
+    },
+    {
+      "file": "login-1920x1080.png",
+      "height": 1080,
+      "sha256": "4e71f63964dcf450c1f4c6791a9261722c90fe214a325ba74f555768ee68ae34",
+      "width": 1920
+    },
+    {
+      "file": "register-1920x1080.png",
+      "height": 1080,
+      "sha256": "8982ceeb8ba69055ce286dc4ecbd41b7dee2d12e28d858deeb77dbba53d28f44",
+      "width": 1920
+    },
+    {
+      "file": "home-online-1920x1080.png",
+      "height": 1080,
+      "sha256": "dea72707d23f9944cb266d7f9a269b388e05972f791f83c3db0a727761788e29",
+      "width": 1920
+    },
+    {
+      "file": "home-all-1920x1080.png",
+      "height": 1080,
+      "sha256": "a61f3c3a40a2b404141190e880bb01eb7f6001cc7e90a61adc4251d06220490f",
+      "width": 1920
+    },
+    {
+      "file": "home-pending-1920x1080.png",
+      "height": 1080,
+      "sha256": "e8b54e86992e302b18159f993feac3de01cea60ce015fe06aebf45eba0785487",
+      "width": 1920
+    },
+    {
+      "file": "home-blocked-1920x1080.png",
+      "height": 1080,
+      "sha256": "0e9893ee45b39337926e7883d128e2ab54ccc67742aa7388627b2b08f6b41a7e",
+      "width": 1920
+    },
+    {
+      "file": "dm-chat-1920x1080.png",
+      "height": 1080,
+      "sha256": "f170521ca2e7a087aace40fe95ab6a604b30243dcf1366cd42eb68cd8bc5cef7",
+      "width": 1920
+    },
+    {
+      "file": "guild-chat-1920x1080.png",
+      "height": 1080,
+      "sha256": "91614bc64f8d82c753d9d1816e5c1b883078f7fb8ef3de958965c78fc77c174b",
+      "width": 1920
+    },
+    {
+      "file": "group-chat-1920x1080.png",
+      "height": 1080,
+      "sha256": "39e921eede64e22348fb94c9f0b01c5a763a8d929502743a294d4550e6069bf3",
+      "width": 1920
+    },
+    {
+      "file": "community-picker-1920x1080.png",
+      "height": 1080,
+      "sha256": "da0b82642b97881bbdc6173d678f56391110ee59f5e502a9a1490909b105a388",
+      "width": 1920
+    },
+    {
+      "file": "create-guild-form-1920x1080.png",
+      "height": 1080,
+      "sha256": "075af5291db667259c597c31d20f1588da56d15dc744fe5149a4f57ebdd059cc",
+      "width": 1920
+    },
+    {
+      "file": "join-guild-1920x1080.png",
+      "height": 1080,
+      "sha256": "2a199cf0526afdaa22082901ab604ec2c945da59fe058c651ef8ad67101c614b",
+      "width": 1920
+    },
+    {
+      "file": "invite-1920x1080.png",
+      "height": 1080,
+      "sha256": "02f97ec5bab5c5812f421c77b614a0785e4444e6dde91853fcc2532c9e80aadd",
+      "width": 1920
+    },
+    {
+      "file": "guild-settings-overview-1920x1080.png",
+      "height": 1080,
+      "sha256": "0ef3284791ca8c33e1862b98fcacd2a2ce193b8611eae49afd3a54f4d3fd5fca",
+      "width": 1920
+    },
+    {
+      "file": "guild-settings-channels-1920x1080.png",
+      "height": 1080,
+      "sha256": "594e972f33ada6d79d33cf704134eead3fa198fa0ff63fc57fca7f4cfab260b9",
+      "width": 1920
+    },
+    {
+      "file": "guild-settings-members-1920x1080.png",
+      "height": 1080,
+      "sha256": "27ab82f056863a9230a6f9e339051a3c894b2d2a30085a495d579b8c33795990",
+      "width": 1920
+    },
+    {
+      "file": "guild-settings-invites-1920x1080.png",
+      "height": 1080,
+      "sha256": "1fc2a5e927d3afe56b37ad0be07203d64eecc17b461d9415861a5bd134d1a6bb",
+      "width": 1920
+    },
+    {
+      "file": "guild-settings-bans-1920x1080.png",
+      "height": 1080,
+      "sha256": "0a2a57f414e439e427ecdbeb3e51ae0ccbd137e14e013e633b38c561f9c5f97b",
+      "width": 1920
+    },
+    {
+      "file": "user-settings-account-1920x1080.png",
+      "height": 1080,
+      "sha256": "8dee59c14b6e94718eee134affdc6b43dd50ad13938262147576c58cd6bcd3e5",
+      "width": 1920
+    },
+    {
+      "file": "user-settings-profile-1920x1080.png",
+      "height": 1080,
+      "sha256": "4398b5252c39dbec03506ee50ba0e160b3f12dfb115f991b94806eca5a936daa",
+      "width": 1920
+    },
+    {
+      "file": "user-settings-appearance-1920x1080.png",
+      "height": 1080,
+      "sha256": "d96f5df574cb30dbe76d38b6a6a6aa1127b65c0e063d770b08e2629ac93e2ede",
+      "width": 1920
+    },
+    {
+      "file": "context-1920x1080.png",
+      "height": 1080,
+      "sha256": "315c4f4123b4dd3923efd4c1a5642841e17ac188de87d62c1de6ed8250fcca91",
+      "width": 1920
+    },
+    {
+      "file": "toast-1920x1080.png",
+      "height": 1080,
+      "sha256": "c0268a41b7d706f623c15c79a4c2815566fe46a4f81ca28b19fe1e6b7ba6173d",
+      "width": 1920
+    },
+    {
+      "file": "empty-home-1920x1080.png",
+      "height": 1080,
+      "sha256": "3c35f974b045a70f4759a452eeaa0845ddcd92a208fbde5528bd094f2c59edf8",
+      "width": 1920
+    },
+    {
+      "file": "empty-channel-1920x1080.png",
+      "height": 1080,
+      "sha256": "f491de3622ec87236c98b1e0f3cc6e76b1e9d977cc89c577099affafa8769660",
+      "width": 1920
+    },
+    {
+      "file": "loading-1920x1080.png",
+      "height": 1080,
+      "sha256": "242fc0d77851e72cd6b5d7318a8df43c5d319b33a9c76e4316867b19797e85b1",
+      "width": 1920
+    },
+    {
+      "file": "disconnected-1920x1080.png",
+      "height": 1080,
+      "sha256": "033654976ba22dd8b087303188650eb3d8bc9f35ddb044a816e71f20fb3eae46",
+      "width": 1920
+    },
+    {
+      "file": "mention-autocomplete-1920x1080.png",
+      "height": 1080,
+      "sha256": "7816ff0112ec35976e6153f85035de7adc07a8ff92e5e7530cc9c6de5ab9a0c9",
+      "width": 1920
+    },
+    {
+      "file": "edit-message-1920x1080.png",
+      "height": 1080,
+      "sha256": "a4a89f3b06741a0fa26c89f4003bb1a22762e3554dff44d367fb540dabeb58ba",
+      "width": 1920
+    },
+    {
+      "file": "message-hover-1920x1080.png",
+      "height": 1080,
+      "sha256": "5482452ff1d7cdfa1a80886d540c8bf56e6a4f81f13b1be16352cf426b5013cc",
+      "width": 1920
+    },
+    {
+      "file": "message-hover-own-1920x1080.png",
+      "height": 1080,
+      "sha256": "e40614efee6f2a3afda82bf10f56870e5c34f1ea97f2b2fb3e9a36c9e68f6721",
+      "width": 1920
+    },
+    {
+      "file": "message-hover-grouped-1920x1080.png",
+      "height": 1080,
+      "sha256": "138bce6eb69152f57b4470d23d2edc2053c79dd9a3b9bd75f20453a898a54cc3",
+      "width": 1920
+    },
+    {
+      "file": "add-friend-1920x1080.png",
+      "height": 1080,
+      "sha256": "77462d677bb53d061f1b779e8636d50a3d7aad009921930cc8d2886a40fe88b1",
+      "width": 1920
+    },
+    {
+      "file": "google-login-1920x1080.png",
+      "height": 1080,
+      "sha256": "202c3168a2494e1c96a7e1d4cac6cb825205843f863c99d5a794340a5275be4e",
+      "width": 1920
+    },
+    {
+      "file": "pick-username-1920x1080.png",
+      "height": 1080,
+      "sha256": "8e9369508ce81a145c3fb2a3fa4fa0a46122a07813d49b308a4b483f44473d74",
+      "width": 1920
+    },
+    {
+      "file": "sign-in-methods-1920x1080.png",
+      "height": 1080,
+      "sha256": "8dee59c14b6e94718eee134affdc6b43dd50ad13938262147576c58cd6bcd3e5",
+      "width": 1920
+    },
+    {
+      "file": "markdown-1920x1080.png",
+      "height": 1080,
+      "sha256": "10df62b729435cd11b509c592dfd323f6919f239ededc1c588003d578bcef6b4",
+      "width": 1920
+    },
+    {
+      "file": "masked-link-confirm-1920x1080.png",
+      "height": 1080,
+      "sha256": "1d33fe54d8efc27ff2bcd9ab95a3e31db8cd4f06b34b6358eaea9a86abd5f613",
+      "width": 1920
+    },
+    {
+      "file": "context-own-message-1920x1080.png",
+      "height": 1080,
+      "sha256": "64ed8fbde85a46896411ce8edcedaa4b6fd63c5a833064e0e628861eea601016",
+      "width": 1920
+    },
+    {
+      "file": "change-server-1920x1080.png",
+      "height": 1080,
+      "sha256": "a189bb247ba9499fbe30311c97f1ed934bde3f15efd94d6fcb8b422b93ce85fb",
+      "width": 1920
+    },
+    {
+      "file": "channel-top-1920x1080.png",
+      "height": 1080,
+      "sha256": "45c50f02300c52a6d0b76841927d4a24dc6d33db4b7bf9b79e18bc922ca6d2af",
+      "width": 1920
+    },
+    {
+      "file": "markdown-revealed-1920x1080.png",
+      "height": 1080,
+      "sha256": "6945b993ed1e67b0b8a894e4b9b407aa1c7f94503ae2dd4140449d27381450d7",
+      "width": 1920
+    },
+    {
+      "file": "member-menu-1920x1080.png",
+      "height": 1080,
+      "sha256": "1119ec3406b322c2c62b18e576eb1baa539bf1df47c3d894f553bc14045c95f8",
+      "width": 1920
+    },
+    {
+      "file": "password-settings-1920x1080.png",
+      "height": 1080,
+      "sha256": "f17d8725f02dd545e97f4a678a293096bbdc734a804489f40b6df2cde104a51a",
+      "width": 1920
+    },
+    {
+      "file": "sign-in-methods-unlinked-1920x1080.png",
+      "height": 1080,
+      "sha256": "0de77ecae0e17620526325b339104ef3654333d65eddd6004d2cd883f6a88d0f",
+      "width": 1920
+    },
+    {
+      "file": "sign-in-methods-google-only-1920x1080.png",
+      "height": 1080,
+      "sha256": "4a18c24183bc149dd3cbce1b124a5bf6656c03d41aeab6dfb62b7739e3971ae4",
+      "width": 1920
+    },
+    {
+      "file": "scroll-5000-1920x1080.png",
+      "height": 1080,
+      "sha256": "9835839217da23eb44c6ec28ed98ee8dc98f3c810d13d91af8fc16e7c8d97f34",
+      "width": 1920
+    },
+    {
+      "file": "scroll-skeleton-1920x1080.png",
+      "height": 1080,
+      "sha256": "90ac6ab2111a48aa423a041d2f265ad7e88b0cc33f000b67a88dff0a5a2b2102",
+      "width": 1920
+    },
+    {
+      "file": "history-jump-1920x1080.png",
+      "height": 1080,
+      "sha256": "bb6b06d5c2489fb5e74b6f93b08f2a6ed802f90fdfc56455a12b0f56cfd18eec",
+      "width": 1920
+    },
+    {
+      "file": "reply-preview-1920x1080.png",
+      "height": 1080,
+      "sha256": "7575ddd5da33c958571f8a0e29152b1db4e82850765cb09b700b7e44e7d002ae",
+      "width": 1920
+    }
+  ]
+}
