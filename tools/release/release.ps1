@@ -30,9 +30,13 @@ try {
     if ($clientVersion -ne $Version) { throw "Client Cargo version is $clientVersion, not $Version. Ask the lead to bump the workspace version first." }
     & cargo build --release -p sticktalk --bin sticktalk
     CheckExit 'Windows client build'
+    & cargo build --release -p sticktalk-desktop-platform --bin sticktalk-maintenance
+    CheckExit 'Windows maintenance helper build'
     & cargo build --release -p sticktalk-server --bin sticktalk-release
     CheckExit 'Signing helper build'
-    & $nsisCommand "/DCLIENT=$env:CARGO_TARGET_DIR/release/sticktalk.exe" "/DOUTPUT=$installer" "/DVERSION=$Version" "$PSScriptRoot/installer.nsi"
+    # NSIS File requires native backslashes, not Rust's forward-slash paths.
+    $target = (Resolve-Path -LiteralPath $env:CARGO_TARGET_DIR).Path
+    & $nsisCommand "/DCLIENT=$target\release\sticktalk.exe" "/DMAINTENANCE=$target\release\sticktalk-maintenance.exe" "/DOUTPUT=$installer" "/DVERSION=$Version" "$PSScriptRoot/installer.nsi"
     CheckExit 'NSIS installer build'
     & "$env:CARGO_TARGET_DIR/release/sticktalk-release.exe" sign --key $keyPath --artifact $installer --version $Version --server $Server --output $manifest
     CheckExit 'Manifest signing'

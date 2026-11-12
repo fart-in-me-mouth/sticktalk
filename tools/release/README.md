@@ -25,8 +25,9 @@ Copy the printed **public** key to `STICKTALK_UPDATE_PUBLIC_KEY` on the server
 and in the release shell. The client engineer must embed the same key using
 `option_env!("STICKTALK_UPDATE_PUBLIC_KEY")` and verify the raw manifest string
 before trusting its fields, and verify the installer size/SHA-256 before running it.
-The tooling does not modify client source or assert that client-side verification
-has been implemented. Do not ship the updater until that integration is tested.
+The verification/download/restart API is now in `crates/desktop-platform` (see its
+README). The tooling builds its maintenance helper but does not modify or wire
+the client source. Do not ship the updater until that host integration is tested.
 Key rotation requires a trusted client release, not just changing server config.
 
 Set a separate random publishing token (at least 32 characters) in
