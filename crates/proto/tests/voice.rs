@@ -75,7 +75,25 @@ fn voice_contract_shapes_and_legacy_envelope() {
         deafened: true,
         tracks: vec![track],
     };
+    let state = GuildVoiceState {
+        guild_id: Id(10),
+        channel_id: Id(11),
+        participant: participant.clone(),
+    };
+    roundtrip(Command::SetVoicePermission {
+        channel_id: Id(11),
+        user_id: Id(100),
+        connect: false,
+    });
     for event in [
+        VoiceEvent::GuildState(state.clone()),
+        VoiceEvent::GuildSnapshot {
+            states: vec![state],
+        },
+        VoiceEvent::GuildLeft {
+            guild_id: Id(10),
+            session: session(),
+        },
         VoiceEvent::Joined {
             channel_id: Id(1),
             participants: vec![participant.clone()],
@@ -158,4 +176,11 @@ fn voice_contract_shapes_and_legacy_envelope() {
     let legacy = serde_json::json!({"type":"voice","data":{"nonce":13,"version":0,"kind":"reserved","payload":[0,127,255]}});
     let decoded: ClientMsg = serde_json::from_value(legacy.clone()).unwrap();
     assert_eq!(serde_json::to_value(decoded).unwrap(), legacy);
+}
+
+#[test]
+fn pre_voice_ready_defaults_to_empty_voice_projection() {
+    let ready = serde_json::json!({"cursor":{"stream_id":"old","seq":0},"me":{"user":{"id":1,"username":"alice","display_name":null,"avatar_id":null,"status_text":null},"desired_presence":"online"},"guilds":[],"channels":[],"relationships":[],"users":[],"read_states":[],"presences":[]});
+    let decoded: Ready = rmp_serde::from_slice(&rmp_serde::to_vec_named(&ready).unwrap()).unwrap();
+    assert!(decoded.voice_states.is_empty());
 }

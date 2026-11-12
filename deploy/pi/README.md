@@ -25,7 +25,7 @@ Run `sudo tailscale up --ssh` after installation. Use the Tailscale admin consol
 to share this **one device** with each friend. Each friend installs Tailscale,
 uses their own account and accepts the share. They do not need your account
 password. Keep SSH access restricted to the owner/deployer in your tailnet policy;
-friends only need TCP 443 for chat. Node sharing does not grant administrative SSH
+friends need TCP 443 for chat and UDP 50000–50100 for media. Node sharing does not grant administrative SSH
 access. Test the exact policy with a friend's separate account.
 
 Do **not** enable Funnel or add router port forwarding. Caddy below binds only to
@@ -190,16 +190,57 @@ at the next housekeeping tick (at most 60 seconds); mutations reject revoked
 sessions immediately. Re-enabling does not restore sessions. Never paste a code
 or publishing token into a public channel.
 
-## Voice integration handoff (separate SFU work)
+## Voice, video, screen share and remote control
 
-Chat works with just TCP 443. The separate SFU must bind and advertise the actual
-`tailscale ip -4`, use configurable UDP ports (allow only these and 443 in the
-tailnet policy), keep RTP packets <=1200 bytes for the WireGuard MTU, and implement
-the total outgoing video bitrate cap with sender feedback. This kit deliberately
-does not invent unsupported SFU flags. Add its actual flags/unit once merged.
-Test both direct and **DERP-relayed** paths using `tailscale ping`/`tailscale status`;
-the call UI must expose relay status. A home uplink needs roughly 8 Mbps per viewer
-at 1080p60, so 20 Mbps upstream is not enough for many simultaneous viewers.
-No Pi/DERP/media performance is claimed by a successful cross-link.
+The server embeds the str0m SFU; no separate daemon or Caddy UDP proxy is needed.
+The installer binds media to `tailscale ip -4`. Existing installations must add
+these settings to `/etc/sticktalk/server.env` and restart `sticktalk`:
+
+```sh
+STICKTALK_VOICE_BIND_IP=100.64.0.2 # replace with this Pi's actual address
+STICKTALK_VOICE_UDP_PORT_START=50000
+STICKTALK_VOICE_UDP_PORT_END=50100
+STICKTALK_VOICE_EGRESS_BPS=32000000
+STICKTALK_VOICE_MAX_DATAGRAM_BYTES=1232
+```
+
+Allow **UDP 50000–50100** from authorized friends to this Pi in the Tailscale
+policy, alongside TCP 443. For example, the media grant's `ip` entry is
+`["udp:50000-50100"]`; use your existing approved source/destination selectors.
+If a host firewall is enabled, permit that UDP range on `tailscale0` only
+(e.g. `ufw allow in on tailscale0 proto udp to any port 50000:50100`). Do not
+open it on the public interface or router. One UDP socket multiplexes all calls
+and chooses the first available port in the range; do not allow only the first
+port unless the configured range is also one port.
+
+`--voice-advertised-ip` / `STICKTALK_VOICE_ADVERTISED_IP` can pin the ICE address.
+Without it the server discovers an assigned IPv4 **100.64/10** interface address,
+then falls back to the HTTP bind IP. An unspecified advertised IP fails startup;
+set it explicitly on non-Tailscale/wildcard HTTP hosts. IPv6 is supported with
+explicit matching `--voice-bind-ip` and advertised IP. No STUN/TURN or router
+forwarding is needed when every participant can reach the Pi through Tailscale.
+Caddy carries HTTPS/WS only; WebRTC's DTLS/SRTP protects the media UDP hop.
+
+The default UDP ceiling is **1232 bytes**, allowing IPv6 UDP on a 1280-byte
+Tailscale MTU (IPv4 permits 1252). Standard browser-sized ~1200-byte RTP packets
+now pass; the old 1060-byte compressed-payload rejection is removed. The limit
+includes RTP extensions, SRTP authentication and RTX. Native packetizers should
+leave headroom (<=1180 compressed bytes for the tested profile). Larger or
+unusual extension sets still hit the final wire-size guard; there is no codec
+repacketization or IP fragmentation. Do not raise the ceiling above your path's
+allowance. The configurable range is 1200–1472 bytes.
+
+The default aggregate outgoing video cap is **32 Mbps**, including headers,
+SRTP, retransmissions and probes. Audio/control/handshakes are separate. The SFU
+requests sender bitrate reductions and hard-limits final video egress. A home
+uplink needs more than 8 Mbps per 8 Mbps viewer after transport overhead; tune
+the cap below the available upload bandwidth, not the Pi's nominal Ethernet rate.
+
+Test direct and **DERP-relayed** paths with `tailscale ping` / `tailscale status`.
+Automatic trusted DERP telemetry is not wired in: protocol path remains `unknown`,
+never guessed `direct` from an ICE host candidate. Physical Pi performance,
+real-browser playback and the 10-minute 1080p60 capture/display acceptance still
+need hardware validation. Remote-control consent/grant/input enforcement is on
+the server; capture, playback and OS input injection remain client duties.
 
 Build tool reference: [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild).

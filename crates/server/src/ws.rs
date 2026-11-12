@@ -171,14 +171,17 @@ async fn run(app: App, mut socket: WebSocket) {
         let mut core=app.0.core.lock().await;let mut c=app.0.pool.acquire().await?;let (key,u)=db::auth(&mut c,&identify.token).await?;
         let expires:i64=sqlx::query_scalar("SELECT expires_at FROM sessions WHERE token_hash=?").bind(&key).fetch_one(&mut *c).await?;
         let was_online=core.streams.values().any(|s|s.user==u&&(s.connection.is_some()||(s.ever_connected&&state::now().saturating_sub(s.touched)<5000)));
+        crate::voice::disconnect(&app,&mut core,&mut c,&key,None).await?;
+        crate::voice::reconcile(&app,&mut core,&mut c).await?;
         core.trim();core.cursor(&key,u);let s=core.streams.get_mut(&key).ok_or_else(||Error::new(ErrorCode::Internal))?;
         if let Some(old)=s.connection.take(){let _=old.close.send(Some(4009));}
         let reason=if let Some(cursor)=&identify.resume {if cursor.stream_id!=s.id {Some(ResyncReason::StreamExpired)}else if cursor.seq>s.seq{Some(ResyncReason::CursorAhead)}else if cursor.seq<s.floor||s.ring.front().is_some_and(|e|state::now().saturating_sub(e.1)>600_000){Some(ResyncReason::CursorTooOld)}else{None}}else{None};
         let mut initial=vec![];
         let resume_ok=identify.resume.is_some()&&reason.is_none();
         if resume_ok {let cursor=identify.resume.as_ref().expect("checked");let mut count=0;for (seq,_,b) in &s.ring{if *seq>cursor.seq{let decoded:ServerMsg=rmp_serde::from_slice(b).map_err(|_|Error::new(ErrorCode::Internal))?;if matches!(decoded,ServerMsg::Event(ref e) if matches!(e.event,Event::Typing{expires_at,..} if expires_at<state::now())){continue;}initial.push(b.clone());count+=1;}}initial.push(encode(&ServerMsg::Resumed(Resumed{cursor:s.cursor(),replayed:count}))?);}else{if let Some(reason)=reason{initial.push(encode(&ServerMsg::ResyncRequired(ResyncRequired{reason}))?);}s.guild=None;s.interests.clear();}
-        s.connection=Some(Connection{id:connection_id.clone(),tx,budget:Arc::new(Semaphore::new(2*1024*1024)),close:close.clone()});s.touched=state::now();s.ever_connected=true;
+        s.connection=Some(Connection{id:connection_id.clone(),alive:Arc::new(std::sync::atomic::AtomicBool::new(true)),tx,budget:Arc::new(Semaphore::new(2*1024*1024)),close:close.clone()});s.touched=state::now();s.ever_connected=true;
         let ready=if !resume_ok{Some(Box::new(db::ready(&mut c,&mut core,&key,u).await?))}else{None};
+        if resume_ok { crate::voice::snapshot(&mut core,&mut c,&key,u).await?; }
         if !was_online {commands::broadcast_presence(&mut c,&mut core,u).await?;}Ok::<_,Error>((key,u,expires,initial,ready))
     }.await;
     drop(identify);
@@ -376,29 +379,7 @@ async fn run(app: App, mut socket: WebSocket) {
                 }
             }
             ClientMsg::Voice(v) => {
-                if v.payload.len() > 16384 {
-                    let _ = core.send(
-                        &key,
-                        &ServerMsg::Error(Error::new(ErrorCode::PayloadTooLarge).0),
-                    );
-                    let _ = close.send(Some(1009));
-                    break;
-                }
-                let cursor = core.cursor(&key, u);
-                let e = if v.nonce == 0 || v.nonce > i64::MAX as u64 || v.payload.len() > 16384 {
-                    ErrorCode::InvalidRequest
-                } else {
-                    ErrorCode::UnsupportedFeature
-                };
-                let _ = core.send(
-                    &key,
-                    &ServerMsg::Response(Box::new(CommandResponse {
-                        nonce: v.nonce,
-                        cursor,
-                        replayed: false,
-                        outcome: CommandOutcome::Err(Error::new(e).0),
-                    })),
-                );
+                let _ = crate::voice::signal(&app, &mut core, &key, u, &connection_id, v).await;
             }
             ClientMsg::Identify(_) => {
                 let _ = close.send(Some(1002));
@@ -409,10 +390,11 @@ async fn run(app: App, mut socket: WebSocket) {
     if close.borrow().is_none() {
         let _ = close.send(Some(1000));
     }
+    // Revoke media before waiting on a potentially blocked WS close writer.
+    disconnect(&app, &key, &connection_id, u).await;
     if !writer_done {
         let _ = writer.await;
     }
-    disconnect(&app, &key, &connection_id, u).await;
 }
 fn invalid_command_nonce(bytes: &[u8]) -> Option<u64> {
     #[derive(serde::Deserialize)]
@@ -461,6 +443,7 @@ fn invalid_command_nonce(bytes: &[u8]) -> Option<u64> {
             | "unban_member"
             | "create_invite"
             | "revoke_invite"
+            | "set_voice_permission"
             | "create_channel"
             | "update_channel"
             | "reorder_channels"
@@ -479,6 +462,10 @@ fn invalid_command_nonce(bytes: &[u8]) -> Option<u64> {
 async fn disconnect(app: &App, key: &[u8], connection_id: &str, u: Id) {
     {
         let mut core = app.0.core.lock().await;
+        if let Ok(mut c) = app.0.pool.acquire().await {
+            let _ =
+                crate::voice::disconnect(app, &mut core, &mut c, key, Some(connection_id)).await;
+        }
         if let Some(s) = core.streams.get_mut(key) {
             if s.connection.as_ref().is_none_or(|c| c.id == connection_id) {
                 s.connection = None;
@@ -581,7 +568,7 @@ fn named_shapes(v: &serde_json::Value) -> Result<()> {
     }
     Ok(())
 }
-fn scan(b: &[u8], p: &mut usize, depth: u8) -> Result<()> {
+pub(crate) fn scan(b: &[u8], p: &mut usize, depth: u8) -> Result<()> {
     require(depth <= 32, ErrorCode::PayloadTooLarge)?;
     let tag = *b
         .get(*p)
@@ -606,7 +593,7 @@ fn scan(b: &[u8], p: &mut usize, depth: u8) -> Result<()> {
         _ => return Err(Error::new(ErrorCode::InvalidRequest)),
     };
     require(
-        children <= 32768 && len <= b.len().saturating_sub(*p),
+        children <= MAX_WS_FRAME_BYTES as usize && len <= b.len().saturating_sub(*p),
         ErrorCode::PayloadTooLarge,
     )?;
     *p += len;

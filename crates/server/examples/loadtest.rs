@@ -63,6 +63,7 @@ async fn main() -> Result<(), AnyError> {
         mock_google_jwks: None,
         mock_google_issuer: None,
         gifs: Default::default(),
+        voice: Default::default(),
     })
     .await
     .map_err(|_| "fixture initialization failed")?;

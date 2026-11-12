@@ -109,6 +109,7 @@ impl Fixture {
                 mock_google_jwks: None,
                 mock_google_issuer: None,
                 gifs: Default::default(),
+                voice: Default::default(),
             },
             Verifier::with_url(jwks_url).unwrap(),
         )

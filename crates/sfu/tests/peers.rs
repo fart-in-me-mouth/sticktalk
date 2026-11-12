@@ -245,8 +245,8 @@ fn global_cap_feedback_mtu_and_overlay_stats() {
         .signals
         .iter()
         .any(|(_, e)| matches!(e,VoiceEvent::Stats(s) if s.path==MediaPath::Relayed)));
-    // Payload within upstream MTU but outside safe SFU forwarding allowance.
-    let payload = vec![0x65; 1100];
+    // Oversized UDP packets are still rejected at the real path-MTU boundary.
+    let payload = vec![0x65; 1400];
     n.send(a, TrackKind::Camera, 601, 999999, &payload, true);
     n.signal(a, VoiceSignal::Stats).unwrap();
     assert!(n
@@ -717,4 +717,55 @@ fn stopping_share_invalidates_control_and_releases_held_input() {
     let count = n.peers[a].control.len();
     n.data(b, input(sharer, id, 2));
     assert_eq!(n.peers[a].control.len(), count);
+}
+
+#[test]
+fn browser_sized_rtp_passes_and_custom_path_mtu_is_enforced() {
+    let mut n = Network::new(40_000_000);
+    let a = n.add(true);
+    let b = n.add(false);
+    n.subscribe(b, a, TrackKind::Screen);
+    let mut payload = vec![9; 1180];
+    payload[0] = 0x65;
+    n.send(a, TrackKind::Screen, 1, 1500, &payload, true);
+    n.advance(Duration::from_millis(100));
+    assert!(n.peers[b]
+        .events
+        .iter()
+        .any(|e| matches!(e,Event::RtpPacket(p) if p.payload.as_ref()==payload)));
+    assert!(n.max_rtp > 1200 && n.max_rtp <= 1232, "{}", n.max_rtp);
+    n.signal(a, VoiceSignal::Stats).unwrap();
+    assert!(n
+        .signals
+        .iter()
+        .any(|(_, e)| matches!(e,VoiceEvent::Stats(s) if s.mtu_dropped_packets==0)));
+    let mut ipv4 = Network::with_mtu(
+        40_000_000,
+        std::sync::Arc::new(|_: VoiceSession, _: Id| true),
+        1252,
+    );
+    let sender = ipv4.add(true);
+    let receiver = ipv4.add(false);
+    ipv4.subscribe(receiver, sender, TrackKind::Screen);
+    let mut payload = vec![8; 1200];
+    payload[0] = 0x65;
+    ipv4.send(sender, TrackKind::Screen, 1, 1500, &payload, true);
+    ipv4.advance(Duration::from_millis(100));
+    assert!(ipv4.peers[receiver]
+        .events
+        .iter()
+        .any(|e| matches!(e,Event::RtpPacket(p) if p.payload.as_ref()==payload)));
+    assert!(ipv4.max_rtp > 1232 && ipv4.max_rtp <= 1252);
+    n.clear();
+    n.send(a, TrackKind::Screen, 2, 3000, &payload, true);
+    n.advance(Duration::from_millis(100));
+    assert!(!n.peers[b]
+        .events
+        .iter()
+        .any(|e| matches!(e,Event::RtpPacket(p) if p.payload.as_ref()==payload)));
+    n.signal(a, VoiceSignal::Stats).unwrap();
+    assert!(n
+        .signals
+        .iter()
+        .any(|(_, e)| matches!(e,VoiceEvent::Stats(s) if s.mtu_dropped_packets>0)));
 }

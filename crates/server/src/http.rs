@@ -335,6 +335,7 @@ async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiResponse> {
     let mut c = app.0.pool.acquire().await?;
     let (key, u) = auth(&mut c, token).await?;
     if path == "auth/logout" && method == "POST" {
+        crate::voice::disconnect(&app, &mut core, &mut c, &key, None).await?;
         // Close first: cancellation while SQLite finishes its autocommit must
         // not leave a revoked token's socket receiving live private events.
         if let Some(s) = core.streams.remove(&key) {

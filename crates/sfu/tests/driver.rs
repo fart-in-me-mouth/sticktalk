@@ -50,3 +50,41 @@ async fn udp_driver_correlates_bad_schema_and_shuts_down_without_polling() {
         .unwrap()
         .unwrap();
 }
+
+#[tokio::test]
+async fn lost_host_notifications_fail_actor_closed() {
+    let sfu = Sfu::new(
+        Config {
+            bind_ip: "127.0.0.1".parse().unwrap(),
+            advertised_ip: "127.0.0.1".parse().unwrap(),
+            ports: 53000..=53099,
+            ..Default::default()
+        },
+        Arc::new(|_: VoiceSession, _: Id| true),
+    )
+    .unwrap();
+    let (tx, rx) = tokio::sync::mpsc::channel(8);
+    let (out, _unread) = tokio::sync::mpsc::channel(1);
+    let task = tokio::spawn(sfu.run(rx, out));
+    for nonce in [1, 2] {
+        tx.send(Command::Signal {
+            session: VoiceSession {
+                user_id: Id(1),
+                connection_id: Id(10),
+            },
+            envelope: VoicePayload {
+                nonce,
+                version: 0,
+                kind: "reserved".into(),
+                payload: vec![],
+            },
+        })
+        .await
+        .unwrap();
+    }
+    let result = tokio::time::timeout(Duration::from_secs(2), task)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(result, Err(sticktalk_sfu::Error::Backpressure)));
+}

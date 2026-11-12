@@ -20,7 +20,7 @@ mv /usr/local/bin/sticktalk-server.new /usr/local/bin/sticktalk-server
 kit=$(cd -- "$(dirname -- "$0")" && pwd)
 if [[ ! -e /etc/sticktalk/server.env ]]; then
   install -m 0600 "$kit/server.env.example" /etc/sticktalk/server.env
-  sed -i "s|https://REPLACE.your-tailnet.ts.net|https://$host|" /etc/sticktalk/server.env
+  sed -i -e "s|https://REPLACE.your-tailnet.ts.net|https://$host|" -e "s|REPLACE_TAILSCALE_IP|$ip|" /etc/sticktalk/server.env
 fi
 printf 'STICKTALK_HOST=%s\nSTICKTALK_TAILSCALE_IP=%s\n' "$host" "$ip" >/etc/sticktalk/tailscale.env
 chmod 0600 /etc/sticktalk/tailscale.env

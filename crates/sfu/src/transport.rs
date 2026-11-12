@@ -54,7 +54,9 @@ impl Sfu {
                             })
                             .is_err()
                         {
-                            self.disconnect(to)?;
+                            // The host must not retain a live ACL/Ready entry
+                            // after losing its only cleanup notification.
+                            return Err(Error::Backpressure);
                         }
                     }
                 }

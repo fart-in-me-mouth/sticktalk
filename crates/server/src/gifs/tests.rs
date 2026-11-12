@@ -107,6 +107,7 @@ impl Fixture {
             mock_google_jwks: None,
             mock_google_issuer: None,
             gifs: options,
+            voice: Default::default(),
         })
         .await
         .unwrap();

@@ -104,7 +104,7 @@ are the Rust widths. Every struct has snake_case keys.
 | `ReadState` | `channel_id:ChannelId`, `last_read_id:?MessageId`, `latest_message_id:?MessageId`, `unread_count:u32`, `mention_count:u32` |
 | `ReactionUpdate` | `channel_id:ChannelId`, `message_id:MessageId`, `user_id:UserId` (actor), `added:bool`, `reaction:ReactionSummary` (absolute post-operation count/me, including count=0) |
 | `GuildDetail` | `summary:GuildSummary`, `channels:[ChannelSummary]` (all guild channels, no member/history bodies) |
-| `VoicePayload` | `nonce:Nonce`, `version:u16`, `kind:String`, `payload:[u8]`; legacy reserved body <=16 KiB, Phase 1 refuses all kinds/versions; opt-in Phase 2 typed body <=72 KiB, see section 10 |
+| `VoicePayload` | `nonce:Nonce`, `version:u16`, `kind:String`, `payload:[u8]`; legacy reserved bodies still decode; enabled typed body <=72 KiB, see section 10 |
 
 Enums: `PresenceStatus` = online, idle, dnd, invisible, offline;
 `RelationshipKind` = friend, incoming_request, outgoing_request, blocked;
@@ -145,14 +145,15 @@ The client may reorder DM display by latest_message_id without mutating position
 | 11 | manage_members | Reserved general role-management capability; Phase 1 owner-only assignment policy still applies |
 | 12 | administrator | All currently defined guild action bits, not ownership/hierarchy bypass |
 | 13 | owner | Transfer/delete guild, assign admin/member |
-| 14..63 | reserved | Never grant unknown permissions; bit 63 not stored in SQLite |
+| 14 | connect | Join guild voice channels (subject to per-member denial) |
+| 15..63 | reserved | Never grant unknown permissions; bit 63 not stored in SQLite |
 
-Member=bits 0,1,2,3,4,8 (287); Admin=bits 0..12 (8191); Owner=0..13
-(16383). Owner-only and hierarchy restrictions always take precedence over
+Member=bits 0,1,2,3,4,8,14 (16671); Admin=bits 0..12 plus 14 (24575);
+Owner=0..14 (32767). Owner-only and hierarchy restrictions always take precedence over
 individual bits. Clients must preserve unknown bits and not use them to grant
 access. DMs authorize by participant status; group owner alone manages group
 metadata/recipients. Any participant may delete **their own** messages, no group
-moderator deletion of others' messages. Roles/overwrites are not configurable.
+moderator deletion of others' messages. General roles/overwrites are not configurable; section 10 adds Connect-only denials.
 
 ## 3. REST endpoint contract
 
@@ -449,12 +450,12 @@ attribution references and key setup are in `deploy/README.md`.
 
 `Ready {cursor,me:SelfUser,guilds:[GuildSummary],channels:[ChannelSummary],
 relationships:[Relationship],users:[UserSummary],read_states:[ReadState],
-presences:[Presence]}` is complete at the cursor. Guilds are joined guilds only;
+presences:[Presence],voice_states:[GuildVoiceState]}` is complete at the cursor. Guilds are joined guilds only;
 channels are all guild channels plus visible direct/group channels; relationships
 are all own friend/pending/blocked rows. Users provides deduplicated other users
 of direct channels needed for unnamed sidebar labels (self and relationship
 profiles need not be repeated). Named groups need not preload all participants.
-Read states includes every listed non-category channel, zero counts included.
+Read states includes every listed text/DM channel, zero counts included.
 Presences includes effective self + allowed friends/open-DM participants;
 missing presence defaults offline. No guild-wide member arrays, message bodies,
 topics, original files, reaction history or password/session secrets. Sort
@@ -614,6 +615,7 @@ ones. No operation returns partial success. Ack means unit `{"type":"ack"}`.
 | create_invite | `guild_id:GuildId,ttl_seconds:u32,max_uses:u32` | invite(Invite) | create_invites; max 100 active invites/guild, 10/creator/guild |
 | revoke_invite | `guild_id:GuildId,code:String` | ack | Creator or manage_guild; no-op if already absent but same guild authority required |
 | create_channel | `guild_id:GuildId,kind:ChannelKind,name:String,parent_id:?ChannelId,topic:?String` | channel(Channel) | manage_channels; kind category/text only; append to sibling list |
+| set_voice_permission | `channel_id,user_id,connect:bool` | ack | Voice only; Manage Channels and strict target role hierarchy; section 10 |
 | update_channel | `channel_id:ChannelId,patch:ChannelPatch` | channel(Channel) | Guild manage_channels; group owner can change name only; direct rename/topic invalid; category topic cannot set |
 | reorder_channels | `guild_id:GuildId,placements:[ChannelPlacement]` | ack | manage_channels; complete permutation of **all** guild channels; unique dense sibling positions, valid parents; atomic |
 | delete_channel | `channel_id:ChannelId` | ack | Guild manage_channels only; deleting category moves children to end of root preserving order; deleting text deletes its history; no group/DM deletion through this command |
@@ -714,7 +716,7 @@ On removal from a guild clear optional interests in that stream. Interest
 changes use the current stream; replay can include events from the former
 interest set, which the reducer should ignore if no longer relevant.
 
-## 7. Error codes, transport errors, reserved voice
+## 7. Error codes, transport errors and voice signaling
 
 `ApiError {code:ErrorCode,message:String,field:?String,retry_after_ms:?u32}`.
 message is safe diagnostic text, not a string for branching/localization; field
@@ -747,10 +749,10 @@ v1 ErrorCode values and default HTTP mappings:
 | payload_too_large | 413 | HTTP/WS payload or file over size bound |
 | unsupported_media_type | 415 | Wrong encoding/MIME or image decoder policy failure |
 | invalid_attachment | 400 | File missing/expired, wrong purpose/channel/owner, already consumed |
-| version_mismatch | 426 | Unsupported protocol/voice schema version (voice is unsupported_feature in Phase 1) |
+| version_mismatch | 426 | Unsupported protocol/voice schema version |
 | invalid_sequence | 400 | Heartbeat sequence ahead/invalid stream control |
 | resync_required | 409 | State cannot be safely incrementally recovered; normally use typed resync_required server message |
-| unsupported_feature | 501 | Reserved/unimplemented feature (all voice messages now) |
+| unsupported_feature | 501 | Reserved/unimplemented feature |
 | internal | 500 | Unexpected server failure; report generic diagnostic |
 | feature_disabled | 404 | Optional Google authentication is not configured |
 | invalid_signup_ticket | 401 | Google signup ticket is invalid, expired, superseded or consumed |
@@ -779,13 +781,12 @@ mutation is a normal correlated failure and does not close the socket.
 | 4009 | This token connected elsewhere; stop automatic reconnect to avoid socket duel |
 | 4010 | Slow consumer/resync needed; drop backlog, reconnect under bounded policy |
 
-In the Phase 1 server, `ClientMsg::Voice(VoicePayload)` still returns a
-CommandResponse using payload.nonce and Err(unsupported_feature), and never
-allocates media resources or emits ServerMsg::Voice. Section 10 defines the
-additive Phase 2 schema implemented by the standalone SFU library; enabling it
-requires explicit server integration. The original four-field outer envelope
-and variants remain unchanged, but a reserved version-0 body is not a valid
-Phase 2 request.
+`ClientMsg::Voice(VoicePayload)` now routes to the embedded SFU. Voice failures
+are correlated `ServerMsg::Voice` / `VoiceEvent::Error` using payload.nonce,
+not CommandResponse/receipts. Unsupported version/kind returns version_mismatch;
+invalid signaling does not allocate media. Section 10 defines the enabled schema.
+The original four-field outer envelope remains unchanged; old reserved version-0
+bodies still deserialize, but are not valid Phase 2 requests.
 
 ## 8. Example flows (JSON notation, actual WS uses MessagePack)
 
@@ -995,14 +996,45 @@ Local integration tests can explicitly configure loopback Google issuer/JWKS
 and GIF HTTP upstreams; see `tools/e2e/README.md`. Public metadata never returns
 these operator-only mock endpoints or the GIF server key.
 
-## 10. Phase 2 voice schema (library contract; not enabled in the Phase 1 server)
+## 10. Phase 2 voice (embedded server SFU)
 
-The independent `sticktalk-sfu` crate implements this schema. **Server wiring is
-not included**: an unmodified Phase 1 server still rejects Voice with
-`unsupported_feature`. Do not infer voice support from protocol version 1.
-`ChannelKind` additively includes `voice` for a guild voice channel, parented to
-an optional category with the same placement rules as text. Creating/listing
-these channels requires host persistence/permission integration separately.
+`sticktalk-server` embeds `sticktalk-sfu` on its existing Tokio runtime, with one
+multiplexed UDP socket and bounded signaling queues. Voice channels use the
+existing CreateChannel/UpdateChannel/DeleteChannel commands, including category
+placement and Manage Channels authorization. Voice channels cannot contain chat
+messages/history/attachments/read states. Text and DM behavior is unchanged.
+
+`CONNECT = 1 << 14` is an additive permission bit, included in Member/Admin/Owner
+presets. Join requires a live authenticated WS/login session, current guild
+membership, View Channel, Connect, and a real voice channel. There are no separate
+Speak/Stream bits in this implementation. A bounded per-member channel denial is
+managed with the additive durable command
+`set_voice_permission {channel_id,user_id,connect:bool}` (Ack result). False denies
+Connect; true clears the denial. Requires Manage Channels and strict role
+hierarchy over the target (cannot target self/equal role/owner). The guild owner
+always retains Connect, including after an ownership transfer. Denials persist
+across reconnect, are cleared on guild leave/kick, and cascade on channel deletion.
+These are Connect-only denials, not a general role/channel override system.
+
+Ready additively includes `voice_states:[GuildVoiceState]` (default [] when absent).
+`GuildVoiceState {guild_id,channel_id,participant:VoiceParticipant}` is keyed by
+participant.session. All current guild members, not just selected-guild subscribers
+or call participants, receive `VoiceEvent::GuildState` full replacements and
+`GuildLeft {guild_id,session}` removals. Streaming/video are derived from the
+participant's Screen/Camera tracks; muted/deafened are explicit. These carry no
+SDP, input or control grant. Late guild joins and WS Resumed receive a complete
+`GuildSnapshot {states}`; replace the entire previous voice projection. On guild
+removal discard all its states. These events are ephemeral, not EventSeq/replay.
+Ready is a full replacement including voice; resume does not restore media.
+
+Connect denial, kick/ban/leave, channel/guild deletion, logout, socket replacement,
+disconnect, slow consumer, login expiry and SFU handshake/session timeout remove
+media access and broadcast removal. The synchronous ACL projection is revoked
+before returning the mutation response; queued signals cannot resurrect access.
+The SFU checks that projection on signaling, source/recipient media and control
+input. Login expiry is also checked against wall clock in the fast ACL. Externally
+issued local-admin session revocation is discovered by the existing <=60-second
+maintenance tick; mutations/signaling reject removed sessions immediately.
 
 ### Envelope and negotiation
 
@@ -1024,7 +1056,7 @@ The runtime-free proto crate defines the types; SFU `encode_signal` and
 Reconnect creates a new voice session and fresh ICE/DTLS connection/grants;
 never replay an old voice grant. A trusted host binds
 `VoiceSession {user_id:UserId,connection_id:Id}` to the authenticated WS
-connection; a client cannot choose its own identity. Other-session references
+connection and fresh Join lifetime (including same-socket leave/rejoin); a client cannot choose its own identity. Other-session references
 are checked against the live same-channel membership. The host must authorize
 access to an actual voice channel and disconnect the SFU session on WS loss,
 logout, kick, channel deletion, or permission revocation. ACLs are checked by the
@@ -1109,6 +1141,7 @@ Sequence numbers are remapped with source ordering preserved and start at ROC 0.
 | ack | no data |
 | error | `code:ErrorCode,message:String` (safe diagnostics, no SDP/input contents) |
 
+The additional guild events above reach current guild members. Existing
 Participant, Left, Speaking and grant/revoke announcements go only to authorized
 current channel participants. Answers/errors/stats/bitrate/prompt/denial go to
 the relevant session, not the whole guild. Clients must render the persistent
@@ -1120,20 +1153,33 @@ Bind the SFU's configurable UDP range and advertised IP to the Pi's Tailscale
 address. One socket multiplexes sessions, using the first available port in the
 range. ICE host candidates advertise that address/port. No STUN/TURN server or
 external port-forwarding is required for the Tailscale host path.
-All forwarded SRTP **UDP payloads**, including RTX, are <=1200 bytes. Native
-packetizers must limit compressed RTP payloads to **1060 bytes** to leave room
-for rewritten MID/extensions/authentication/RTX. **Stock-browser packet-size
-interoperability remains incomplete:** there is no implemented repacketizer;
-browser RTP above this admission limit is dropped. A verified browser-specific
-size workaround or codec-aware SFU repacketization is still required before
-claiming drop-in browser media support. Oversized media is rejected, never IP-fragmented or silently
-repacketized. str0m's MTU is set to 1200, with a final size guard at egress.
+The server flags/env are `--voice-bind-ip` / `STICKTALK_VOICE_BIND_IP`,
+`--voice-advertised-ip` / `STICKTALK_VOICE_ADVERTISED_IP`,
+`--voice-udp-port-start` / `STICKTALK_VOICE_UDP_PORT_START` (50000),
+`--voice-udp-port-end` / `STICKTALK_VOICE_UDP_PORT_END` (50100),
+`--voice-egress-bps` / `STICKTALK_VOICE_EGRESS_BPS` (32000000), and
+`--voice-max-datagram-bytes` / `STICKTALK_VOICE_MAX_DATAGRAM_BYTES` (1232).
+The advertised IP defaults to an assigned Tailscale IPv4 address in 100.64/10,
+else the HTTP bind IP. Wildcard/multicast advertised addresses are rejected;
+IPv6 requires matching explicit bind/advertised addresses. One address is
+advertised per server instance. No interface/Tailscale subprocess is polled.
+
+All forwarded SRTP **UDP payloads**, including RTX, are bounded by the configured
+1232-byte default. This is the IPv6 allowance at a 1280-byte Tailscale MTU;
+IPv4 permits 1252. Admission checks actual incoming UDP bytes, not the old
+1060-byte compressed-RTP limit. Standard ~1200-byte browser packets now pass.
+str0m's MTU and the final encrypted egress guard use the same configured limit
+(1200–1472). Rewritten extensions/authentication/RTX must also fit; packets that
+exceed that ceiling are dropped/counted, never IP-fragmented or repacketized.
+Native senders should leave headroom (<=1180 compressed bytes for the tested
+negotiation). Real browser handshake/playback testing remains separate from the
+real-str0m browser-sized packet coverage; arbitrary large RTP is not promised.
 
 `video_egress_bps` caps aggregate outgoing **video UDP bytes ×8**, including
 headers, authentication, retransmissions and BWE probes. Default 32 Mbps.
 Audio/ICE/DTLS/SCTP/RTCP are not charged against this video budget. A byte token
-bucket permits a 100 ms burst (minimum one 1200-byte datagram); over an interval
-T, transmitted video <= `cap*T/8 + max(cap/80,1200)` bytes. There is no growing
+bucket permits a 100 ms burst (minimum one configured-max-size datagram); over an interval
+T, transmitted video <= `cap*T/8 + max(cap/80,max_datagram_bytes)` bytes. There is no growing
 media queue to hide congestion. Per-stream pacer queue admission is bounded to 128 packets/128 KiB and rejects an oldest queued age over 250 ms; overflow discards the stale queue and requests a keyframe with a fresh SSRC. Each active video subscription receives a fair
 share of the cap, reduced by its receiver's BWE estimate; the minimum receiver
 budget (with 10% RTP/SRTP/RTX headroom) is requested from the publisher through REMB and Bitrate. Noncompliant

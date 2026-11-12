@@ -34,6 +34,8 @@ pub struct Config {
     pub ports: RangeInclusive<u16>,
     /// Global VIDEO egress budget, including RTX and probing, in UDP bytes/sec *8.
     pub video_egress_bps: u64,
+    /// Maximum incoming and outgoing SRTP UDP payload, including RTX/auth tags.
+    pub max_datagram_bytes: u16,
     pub max_sessions: usize,
     pub max_channel_sessions: usize,
 }
@@ -44,6 +46,7 @@ impl Default for Config {
             advertised_ip: "127.0.0.1".parse().unwrap(),
             ports: 50000..=50100,
             video_egress_bps: 32_000_000,
+            max_datagram_bytes: DEFAULT_VOICE_UDP_BYTES,
             max_sessions: 64,
             max_channel_sessions: 16,
         }
@@ -166,7 +169,7 @@ pub fn rtc_config() -> str0m::RtcConfig {
     let mut config = Rtc::builder()
         .set_crypto_provider(Arc::new(str0m::crypto::from_feature_flags()))
         .set_rtp_mode(true)
-        .set_mtu(1200..=1200)
+        .set_mtu(usize::from(DEFAULT_VOICE_UDP_BYTES)..=usize::from(DEFAULT_VOICE_UDP_BYTES))
         .set_stats_interval(Some(Duration::from_secs(1)))
         .set_send_buffer_video(256)
         .set_send_buffer_audio(32)
@@ -193,6 +196,7 @@ impl Sfu {
             || config.advertised_ip.is_unspecified()
             || config.advertised_ip.is_multicast()
             || config.video_egress_bps < 96_000
+            || !(1200..=1472).contains(&config.max_datagram_bytes)
             || config.max_sessions == 0
             || config.max_sessions > 256
             || config.max_channel_sessions == 0
@@ -225,7 +229,7 @@ impl Sfu {
         let now = Instant::now();
         Ok(Self {
             socket: Some(socket),
-            budget: Budget::new(config.video_egress_bps, now),
+            budget: Budget::new(config.video_egress_bps, config.max_datagram_bytes, now),
             config,
             acl,
             local,
@@ -497,7 +501,13 @@ impl Sfu {
             .filter(|(_, p)| p.channel == channel)
             .map(|(s, p)| p.participant(*s))
             .collect();
-        let rtc = rtc_config().set_ice_lite(true).build(self.now);
+        let rtc = rtc_config()
+            .set_mtu(
+                usize::from(self.config.max_datagram_bytes)
+                    ..=usize::from(self.config.max_datagram_bytes),
+            )
+            .set_ice_lite(true)
+            .build(self.now);
         let p = Peer {
             rtc,
             channel,
@@ -549,7 +559,7 @@ impl Sfu {
             VoiceEvent::Joined {
                 channel_id: channel,
                 participants,
-                max_rtp_bytes: 1200,
+                max_rtp_bytes: self.config.max_datagram_bytes,
             },
         )?;
         self.broadcast(
@@ -1018,7 +1028,7 @@ impl Sfu {
                 return Ok(());
             }
             // Never accept fragmented/oversized media into forwarding queues.
-            if is_rtp(bytes) && bytes.len() > 1200 {
+            if is_rtp(bytes) && bytes.len() > usize::from(self.config.max_datagram_bytes) {
                 self.peers.get_mut(&key).unwrap().stats.mtu_dropped_packets += 1;
                 return Ok(());
             }
@@ -1087,7 +1097,7 @@ impl Sfu {
                 Output::Transmit(tx) => {
                     let bytes: &[u8] = tx.contents.as_ref();
                     if is_rtp(bytes) {
-                        if bytes.len() > 1200 {
+                        if bytes.len() > usize::from(self.config.max_datagram_bytes) {
                             peer.stats.mtu_dropped_packets += 1;
                             continue;
                         }
@@ -1216,11 +1226,9 @@ impl Sfu {
         if source_param.spec().codec != codec_of(&track) {
             return Ok(());
         }
-        // Conservative room for rewritten MID, TWCC, SRTP and RTX overhead.
-        if packet.payload.len() > 1060 {
-            self.peers.get_mut(&key).unwrap().stats.mtu_dropped_packets += 1;
-            return Ok(());
-        }
+        // Admission is based on the actual authenticated UDP datagram, not an
+        // arbitrary compressed-payload cutoff. Rewritten RTP/RTX is checked again
+        // at the final encrypted egress boundary.
         if video && packet.header.marker {
             self.peers.get_mut(&key).unwrap().rx_frames += 1;
         }

@@ -444,11 +444,19 @@ run before listening. Downgrading across schema changes requires the matching
 backup. Keep Ubuntu/Caddy patched with `sudo apt-get update && sudo apt-get
 upgrade`; reboot when requested.
 
-## Phase 2 voice: NOT enabled
+## Phase 2 voice: embedded SFU
 
-**TODO:** document the str0m SFU's explicit UDP port or bounded range, public
-advertised IP, NAT/ICE behavior and TURN requirements. Add matching **UDP** rules
-to BOTH Oracle security lists/NSGs and Ubuntu iptables only when voice is
-implemented. Caddy proxies HTTP/WebSocket, not media UDP. Do not open all UDP
-ports now. Phase 1 voice commands return `unsupported_feature`.
+The server now handles the v1 voice signaling schema over the existing WS.
+Configure `STICKTALK_VOICE_BIND_IP`, `STICKTALK_VOICE_ADVERTISED_IP`,
+`STICKTALK_VOICE_UDP_PORT_START=50000`, `STICKTALK_VOICE_UDP_PORT_END=50100`,
+`STICKTALK_VOICE_EGRESS_BPS=32000000` and
+`STICKTALK_VOICE_MAX_DATAGRAM_BYTES=1232`. The server uses one multiplexed UDP
+socket in that range. Caddy proxies signaling, **not media UDP**.
 
+Primary deployment is [Pi plus Tailscale](pi/README.md#voice-video-screen-share-and-remote-control):
+allow UDP 50000–50100 through Tailscale and any host firewall on `tailscale0`.
+No router forwarding or TURN is needed on that reachable private path. If the
+Oracle fallback is used outside Tailscale, pin its reachable advertised IP and
+allow matching UDP rules in BOTH Oracle NSGs/security lists and Ubuntu's
+firewall; private-client reachability/NAT/TURN is a separate deployment concern.
+No automatic TURN service is bundled. Never open all UDP ports.

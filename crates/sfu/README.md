@@ -1,6 +1,6 @@
 # sticktalk-sfu
 
-Standalone Phase 2 library; **nothing is wired into `crates/server`**.
+Embeddable Phase 2 library, now hosted by `crates/server` (see its `voice` module).
 Uses pinned str0m 0.25.0 RTP mode with ICE/DTLS/SRTP/SCTP, Opus passthrough,
 independent camera/screen publications, receiver subscriptions/RID selection,
 per-hop TWCC/REMB/NACK/RTX and upstream PLI/FIR. No codec/capture/device/UI work.
@@ -46,13 +46,13 @@ let (signals, received_signals) = tokio::sync::mpsc::channel::<SignalOut>(128);
 - `run(self, Receiver<Command>, Sender<SignalOut>)` consumes the engine and
   integrates UDP + signaling + exact str0m deadlines with `tokio::select!`.
   Commands: Signal, Disconnect, trusted Path telemetry, Shutdown. The UDP socket has fixed 256 KiB send/receive buffers. No empty-call
-  ticker or media work. Output backpressure disconnects affected sessions rather
-  than accumulating unbounded signaling/media. Internal queues cap at 4096 items;
+  ticker or media work. Output backpressure fails the actor closed so the host can revoke its ACL and
+  restart, rather than losing cleanup notifications or accumulating unbounded signaling/media. Internal queues cap at 4096 items;
   callers must treat Backpressure as overload and fail closed/restart the actor.
 - `disconnect(session)` is idempotent. The host **must call it** on WS loss,
   logout, kick, channel deletion or revoked access. It removes routes, RTP caches,
   ICE/crypto state and control grants. It also invalidates requests/grants held
-  by other peers for that connection. IDs must be unique for each WS lifetime.
+  by other peers for that connection. IDs must be unique for each call lifetime, including same-WS leave/rejoin.
 - `set_path(session, MediaPath)` is trusted telemetry, not a client assertion.
   Tailscale DERP is below UDP/ICE and cannot be inferred from ICE host candidates.
 - `encode_signal` / `encode_event` build the original four-field VoicePayload
@@ -69,7 +69,7 @@ are full replacement events. Reconnect starts fresh; voice/grants are not replay
 Advanced codecs require every call participant's explicit support **and hardware
 decode**; an incompatible join stops those packets and requests H.264 fallback.
 Profiles/formats are matched exactly, never transcoded. Native `sticktalk-media`
-Annex-B output still needs client-side RTP packetization to <=1060-byte payloads,
+Annex-B output still needs client-side RTP packetization to <=1180-byte payloads for the tested RTP extension profile,
 ICE/signaling integration, and receiver depacketization/hardware decode.
 
 RTP payloads use shared Arc slices, with per-receiver MID/PT/SSRC/sequence
@@ -83,11 +83,15 @@ SVC extraction or automatic RID ladder algorithm: receiver policy picks a RID.
 ### Resource/network policy
 
 - Final video UDP egress (including RTX, SSRC-zero probes, headers and SRTP tags)
-  obeys the global byte bucket. 100 ms burst, minimum one 1200-byte datagram.
+  obeys the global byte bucket. 100 ms burst, minimum one max-size datagram.
   Fair per-subscription budgets + minimum receiver BWE (10% overhead headroom) are signaled upstream via
   REMB and Bitrate; hard dropping is the safety net for noncompliant senders.
-- **All SRTP datagrams <=1200 bytes**, including RTX; payload admission <=1060
-  bytes. Oversized media is dropped/counted, not fragmented/repacketized.
+- **All SRTP UDP payloads <=`max_datagram_bytes`** (default 1232), including RTX.
+  Actual incoming and rewritten encrypted outgoing datagrams are checked; there
+  is no fixed 1060-byte compressed-payload cutoff. Standard browser-sized RTP
+  passes. Oversized media is dropped/counted, not fragmented/repacketized.
+  Configure 1200–1472 bytes according to the actual path (Tailscale MTU 1280:
+  IPv6 UDP <=1232, IPv4 <=1252).
 - Audio/control/RTCP/ICE are outside the video cap. Host connection/datagram rate
   controls remain necessary for non-video abuse. Unpaced audio is not sacrificed
   to a congested screen share. Pacer queue admission is bounded to 128 packets/128 KiB and rejects an oldest queued age over 250 ms; overflow discards the queue and restarts on a keyframe with a fresh SSRC;
@@ -124,12 +128,13 @@ cargo fmt --all -- --check
 cargo run -p sticktalk-sfu --release --example loopback -- --seconds 30
 ```
 
-Nine in-process tests connect two/three **real str0m peers** over a deterministic
+Ten in-process tests connect two/three **real str0m peers** over a deterministic
 packet harness. They cover actual ICE/DTLS/SRTP/SCTP, audio/camera/screen receive,
 mute/deafen/speaking, leave/cache cleanup, PLI/FIR, induced loss recovered by RTX,
 MTU/cap and measured stats, consent/timeout/revoke/controller identity, the 1000
 input limit/replay, layer selection/switch gating, HEVC/AV1 and H.264 fallback.
-A separate Tokio driver test covers schema errors and clean shutdown. Proto tests cover legacy envelopes and all added JSON/MessagePack shapes.
+Two Tokio driver tests cover schema errors, clean shutdown and fail-closed
+output backpressure. Full-server HTTP/WS/UDP peer tests live in `crates/server/tests/voice.rs`. Proto tests cover legacy envelopes and all added JSON/MessagePack shapes.
 
 `loopback` is headless. A **separate child process** runs the SFU and real UDP
 socket; one sender + four receivers run in the parent. The child is explicitly
@@ -142,14 +147,13 @@ Windows uses GetProcessTimes/GetProcessMemoryInfo; Linux uses /proc (USER_HZ=100
 Measurement follows a 3-second streaming warmup for BWE. The benchmark uses a 64 Mbps video cap so 4 x 8 Mbps payload + headers/probes fits.
 See BENCH.md for the measured run and acceptance gaps.
 
-**Browser media interoperability is incomplete:** stock browser RTP may exceed
-the current 1060-byte payload admission limit. This crate rejects rather than
-repacketizes those packets; do not claim a drop-in browser media path yet.
-The standard [WebRTC encoding parameters](https://www.w3.org/TR/webrtc/#dom-rtcrtpencodingparameters)
-do not expose an MTU setting. Browser compatibility needs a verified packet-size
-workaround or server-side codec-aware repacketization, plus real-browser tests.
+**Browser packet-size admission fixed:** real-str0m tests forward 1180-byte
+compressed RTP payloads (~1226 bytes encrypted UDP), including through the full
+server. The incoming datagram and final rewritten SRTP/RTX must fit the configured
+ceiling. There is no codec-aware repacketizer; unusual extension sets/large RTP
+still drop at that boundary. Real-browser SDP/playback remains unvalidated.
 
 Not yet validated: physical Pi 4/ARM performance, real native/browser endpoints,
 real H.264 hardware stream playback, Tailscale direct/DERP network conditions,
-and the 10-minute capture/display acceptance. No server migrations/endpoints,
-channel persistence/ACL adapter or client OS-control features are implemented here.
+and the 10-minute capture/display acceptance. Server migrations, channel ACL projection, WS routing and guild-wide state are
+implemented in `crates/server`; client OS-control features remain separate.

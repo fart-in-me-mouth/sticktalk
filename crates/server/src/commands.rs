@@ -168,7 +168,7 @@ async fn joined(c: &mut SqliteConnection, out: &mut Deliveries, g: Id, u: Id) ->
     let detail = detail(c, u, g).await?;
     let mut reads = vec![];
     for ch in &detail.channels {
-        if ch.kind != ChannelKind::Category {
+        if ch.kind == ChannelKind::Text {
             init_read(c, u, ch.id, true).await?;
             reads.push(read(c, u, ch.id).await?);
         }
@@ -333,6 +333,7 @@ async fn remove_member(
     u: Id,
     reason: RemovalReason,
 ) -> Result<()> {
+    sqlx::query("DELETE FROM voice_connect_denials WHERE user_id=? AND channel_id IN (SELECT id FROM channels WHERE guild_id=?)").bind(id(u)?).bind(id(g)?).execute(&mut *c).await?;
     sqlx::query("DELETE FROM guild_members WHERE guild_id=? AND user_id=?")
         .bind(id(g)?)
         .bind(id(u)?)
@@ -432,6 +433,8 @@ pub(crate) async fn execute(
         let presence_changed=matches!(req.command,Command::SetPresence{..});
         let needs_file_gc=matches!(req.command,Command::DeleteGuild{..}|Command::DeleteChannel{..}|Command::LeaveGroupDm{..});
         let block_pair=if let Command::BlockUser{user_id}=req.command {Some(user_id)}else{None};
+        let voice_acl_changed=matches!(req.command,Command::SetVoicePermission{..}|Command::SetMemberRole{..}|Command::TransferGuildOwnership{..}|Command::KickMember{..}|Command::BanMember{..}|Command::LeaveGuild{..}|Command::DeleteGuild{..}|Command::DeleteChannel{..});
+        let voice_snapshot=matches!(req.command,Command::JoinGuild{..});
         let role_target=if let Command::SetMemberRole{user_id,..}=req.command {Some(user_id)}else{None};
         let result=mutate(&mut tx,core,key,u,req.command,&mut out).await?;
         if durable {let result_bytes=rmp_serde::to_vec_named(&result).map_err(|_|Error::new(ErrorCode::Internal))?;sqlx::query("INSERT INTO command_receipts(session_hash,nonce,request_hash,result_msgpack,created_at,expires_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_hash,nonce) DO UPDATE SET request_hash=excluded.request_hash,result_msgpack=excluded.result_msgpack,created_at=excluded.created_at,expires_at=excluded.expires_at") .bind(key).bind(req.nonce as i64).bind(request_hash).bind(result_bytes).bind(now() as i64).bind((now()+600_000) as i64).execute(&mut *tx).await?;}
@@ -439,6 +442,7 @@ pub(crate) async fn execute(
         let orphaned=gc_uploads(&mut tx).await?;
         core.persist_id(&mut tx).await?;
         tx.commit().await?;
+        if voice_acl_changed { crate::voice::reconcile(app, core, &mut c).await?; }
         if let Some(v)=block_pair {core.invalidate(&[u,v]);}
         if let Some(v)=role_target {core.invalidate(&[v]);}
         if needs_file_gc || !orphaned.is_empty() {let app=app.clone();tokio::spawn(async move{let _=app.collect_orphan_files().await;});}
@@ -459,6 +463,7 @@ pub(crate) async fn execute(
                 core.emit_filtered(&[viewer], Event::PresenceUpdated(Presence { user_id: target, status: PresenceStatus::Offline }), |s| !was_base && s.interests.contains(&target))?;
             }
         }
+        if voice_snapshot { crate::voice::snapshot(core, &mut c, key, u).await?; }
         sync_base_presence(&mut c, core, previous_base).await?;
         if subscription_changed {
             let base = base_presence(&mut c, u).await?;
@@ -1419,7 +1424,10 @@ async fn mutate(
         } => {
             guild_perm(c, u, g, Permissions::MANAGE_CHANNELS).await?;
             require(
-                matches!(kind, ChannelKind::Category | ChannelKind::Text),
+                matches!(
+                    kind,
+                    ChannelKind::Category | ChannelKind::Text | ChannelKind::Voice
+                ),
                 ErrorCode::InvalidRequest,
             )?;
             require(
@@ -1447,6 +1455,43 @@ async fn mutate(
                 reads_event(c, out, ch.summary.id).await?;
             }
             Ok(CommandResult::Channel(ch))
+        }
+        SetVoicePermission {
+            channel_id,
+            user_id,
+            connect,
+        } => {
+            let ch = access(c, u, channel_id, Permissions::MANAGE_CHANNELS).await?;
+            require(
+                ch.summary.kind == ChannelKind::Voice,
+                ErrorCode::InvalidRequest,
+            )?;
+            let g = ch
+                .summary
+                .guild_id
+                .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
+            let actor = role(c, u, g).await?;
+            let target = role(c, user_id, g).await?;
+            require(
+                permissions(actor).bits() > permissions(target).bits(),
+                ErrorCode::Forbidden,
+            )?;
+            if connect {
+                sqlx::query("DELETE FROM voice_connect_denials WHERE channel_id=? AND user_id=?")
+                    .bind(id(channel_id)?)
+                    .bind(id(user_id)?)
+                    .execute(&mut *c)
+                    .await?;
+            } else {
+                sqlx::query(
+                    "INSERT OR IGNORE INTO voice_connect_denials(channel_id,user_id) VALUES(?,?)",
+                )
+                .bind(id(channel_id)?)
+                .bind(id(user_id)?)
+                .execute(&mut *c)
+                .await?;
+            }
+            Ok(CommandResult::Ack)
         }
         UpdateChannel {
             channel_id: ch,

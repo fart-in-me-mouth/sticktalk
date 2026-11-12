@@ -67,6 +67,12 @@ stale queues restart on a keyframe instead of growing indefinitely.
 
 ## Validation and remaining acceptance
 
+Integration update: the server now embeds the SFU with channel persistence/ACLs
+and real-UDP, full HTTP/WS peer tests. The old 1060-byte admission limit has been
+removed; `max_datagram_bytes` defaults to 1232 and standard browser-sized packets
+are covered. The measurements above predate that integration and have **not**
+been re-benchmarked; no new performance claim is implied.
+
 Passed:
 
 ```text
@@ -84,17 +90,15 @@ The low-cap test verifies the token-bucket byte inequality including probes/RTX.
 
 Not done here:
 - Real Pi 4/ARM or Tailscale direct/DERP runs; no performance extrapolation.
-- Real browser/native endpoints and browser packet-size interoperability. The
-  current RTP forwarding contract admits <=1060-byte payloads and rejects
-  oversized packets; senders must respect that contract. No server-side
-  arbitrary-codec RTP repacketizer is provided. This is a functional browser
-  interoperability gap, not just missing browser test coverage; see README.md.
+- Real browser/native endpoint playback. Browser-sized packet admission is fixed
+  and tested with real str0m peers, not with a physical browser. There is still no
+  arbitrary-codec RTP repacketizer for packets over the configured path ceiling.
 - Native Annex-B -> RTP integration, real hardware decode/render and the owner's
   ten-minute 1080p60 game/video acceptance. These numbers do not satisfy that
   capture/display acceptance by themselves, or measure end-to-end latency.
 - Automatic RID ladder selection/SVC extraction. Receivers explicitly pick a
   sender-provided RID. AV1 switches conservatively require a new coded sequence.
-- Server wiring, persistence/ACL adapter and client remote-control OS injection,
+- Client remote-control OS injection,
   bounds, local takeback/hotkey/banner, held-key cleanup on transport loss.
 
 Tailscale relaying cannot be inferred from an ICE host candidate; the trusted

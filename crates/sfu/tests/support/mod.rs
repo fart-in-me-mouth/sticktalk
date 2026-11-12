@@ -54,11 +54,15 @@ impl Network {
         Self::with_acl(cap, Arc::new(|_: VoiceSession, c: Id| c == Id(1)))
     }
     pub fn with_acl(cap: u64, acl: Arc<dyn sticktalk_sfu::Authorizer>) -> Self {
+        Self::with_mtu(cap, acl, DEFAULT_VOICE_UDP_BYTES)
+    }
+    pub fn with_mtu(cap: u64, acl: Arc<dyn sticktalk_sfu::Authorizer>, mtu: u16) -> Self {
         let config = Config {
             bind_ip: "127.0.0.1".parse().unwrap(),
             advertised_ip: "127.0.0.1".parse().unwrap(),
             ports: 52000..=52999,
             video_egress_bps: cap,
+            max_datagram_bytes: mtu,
             ..Config::default()
         };
         Self {

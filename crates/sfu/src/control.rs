@@ -65,8 +65,8 @@ pub(crate) struct Budget {
     last: Instant,
 }
 impl Budget {
-    pub fn new(bps: u64, now: Instant) -> Self {
-        let capacity = ((bps as f64 / 8.0) * 0.1).max(1200.0);
+    pub fn new(bps: u64, max_datagram_bytes: u16, now: Instant) -> Self {
+        let capacity = ((bps as f64 / 8.0) * 0.1).max(f64::from(max_datagram_bytes));
         Self {
             bps,
             tokens: capacity,

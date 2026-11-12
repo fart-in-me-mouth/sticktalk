@@ -78,10 +78,7 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
             .busy_timeout(std::time::Duration::from_secs(5)),
     )
     .await?;
-    sqlx::migrate!()
-        .run(&mut c)
-        .await
-        .map_err(|_| Error::new(ErrorCode::Unavailable))?;
+    crate::db::migrate(&mut c).await?;
     if matches!(command, AdminCommand::ListUsers) {
         let mut after = 0;
         loop {

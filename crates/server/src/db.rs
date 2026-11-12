@@ -7,6 +7,21 @@ use sqlx::{sqlite::SqliteRow, Row, SqliteConnection};
 use std::collections::HashSet;
 use sticktalk_proto::*;
 use subtle::ConstantTimeEq;
+/// Run schema upgrades on a dedicated connection before accepting requests.
+/// SQLite table rebuilds must not cascade-delete referencing rows. Always restore
+/// FK enforcement, even on a migration error, before returning to a pool.
+pub(crate) async fn migrate(c: &mut SqliteConnection) -> Result<()> {
+    sqlx::query("PRAGMA foreign_keys=OFF")
+        .execute(&mut *c)
+        .await?;
+    let result = sqlx::migrate!().run(&mut *c).await;
+    sqlx::query("PRAGMA foreign_keys=ON")
+        .execute(&mut *c)
+        .await?;
+    result.map_err(|_| Error::new(ErrorCode::Unavailable))?;
+    let violations = sqlx::query("PRAGMA foreign_key_check").fetch_all(c).await?;
+    require(violations.is_empty(), ErrorCode::Unavailable)
+}
 pub fn id(v: Id) -> Result<i64> {
     require(v.0 > 0 && v.0 <= i64::MAX as u64, ErrorCode::InvalidRequest)?;
     Ok(v.0 as i64)
@@ -231,7 +246,10 @@ pub async fn access(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> 
 pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Result<Channel> {
     let channel = access(c, u, ch, p).await?;
     require(
-        channel.summary.kind != ChannelKind::Category,
+        matches!(
+            channel.summary.kind,
+            ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm
+        ),
         ErrorCode::InvalidRequest,
     )?;
     Ok(channel)
@@ -436,7 +454,10 @@ pub async fn recount(c: &mut SqliteConnection, ch: Id) -> Result<()> {
 pub async fn read_states(c: &mut SqliteConnection, u: Id) -> Result<Vec<ReadState>> {
     let mut out = vec![];
     for ch in channels(c, u, None).await? {
-        if ch.kind != ChannelKind::Category {
+        if matches!(
+            ch.kind,
+            ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm
+        ) {
             out.push(read(c, u, ch.id).await?);
         }
     }
@@ -501,6 +522,7 @@ pub async fn ready(c: &mut SqliteConnection, core: &mut Core, key: &[u8], u: Id)
     for v in ids {
         presences.push(presence(c, core, u, v).await?);
     }
+    let guilds_ids: Vec<_> = guilds.iter().map(|g| g.guild.id).collect();
     Ok(Ready {
         cursor: core.cursor(key, u),
         me: me(c, u).await?,
@@ -510,6 +532,13 @@ pub async fn ready(c: &mut SqliteConnection, core: &mut Core, key: &[u8], u: Id)
         users,
         read_states: read_states(c, u).await?,
         presences,
+        voice_states: core
+            .voice
+            .values()
+            .filter(|v| guilds_ids.contains(&v.state.guild_id))
+            .filter(|v| v.joined)
+            .map(|v| v.state.clone())
+            .collect(),
     })
 }
 pub async fn invite(c: &mut SqliteConnection, i: Id) -> Result<Invite> {

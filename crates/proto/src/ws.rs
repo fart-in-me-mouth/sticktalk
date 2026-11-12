@@ -47,6 +47,8 @@ pub struct Ready {
     pub users: Vec<UserSummary>,
     pub read_states: Vec<ReadState>,
     pub presences: Vec<Presence>,
+    #[serde(default)]
+    pub voice_states: Vec<GuildVoiceState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -218,6 +220,12 @@ pub enum Command {
     DeleteChannel {
         channel_id: ChannelId,
     },
+    /// Per-member Connect denial; true clears the denial. Requires Manage Channels.
+    SetVoicePermission {
+        channel_id: ChannelId,
+        user_id: UserId,
+        connect: bool,
+    },
     SendMessage(MessageDraft),
     EditMessage(MessageEdit),
     DeleteMessage {
@@ -374,7 +382,10 @@ pub struct VoicePayload {
 
 pub const VOICE_VERSION: u16 = 1;
 pub const CONTROL_CHANNEL_LABEL: &str = "sticktalk-control-v1";
+/// Legacy native packetization hint; the configured SFU ceiling is independent.
 pub const MAX_RTP_DATAGRAM_BYTES: usize = 1200;
+/// Safe UDP payload ceiling on a 1280-byte IPv6 Tailscale path.
+pub const DEFAULT_VOICE_UDP_BYTES: u16 = 1232;
 
 /// Supplied by the authenticated host, never taken from a client's signal body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -479,6 +490,13 @@ pub struct VoiceParticipant {
     pub tracks: Vec<PublishedTrack>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GuildVoiceState {
+    pub guild_id: GuildId,
+    pub channel_id: ChannelId,
+    pub participant: VoiceParticipant,
+}
+
 /// Tailscale DERP is invisible to ICE; only the trusted host can report that path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -506,6 +524,16 @@ pub struct VoiceStats {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum VoiceEvent {
+    /// Ephemeral full replacement, broadcast to all current guild members.
+    GuildState(GuildVoiceState),
+    GuildLeft {
+        guild_id: GuildId,
+        session: VoiceSession,
+    },
+    /// Sent after Resumed; voice state is never replayed.
+    GuildSnapshot {
+        states: Vec<GuildVoiceState>,
+    },
     Joined {
         channel_id: ChannelId,
         participants: Vec<VoiceParticipant>,

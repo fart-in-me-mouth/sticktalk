@@ -431,6 +431,7 @@ fn handshake_reconnect_and_all_result_shapes_round_trip() {
         relationships: vec![relationship()],
         users: vec![user()],
         read_states: vec![read_state()],
+        voice_states: vec![],
         presences: vec![Presence {
             user_id: Id(7),
             status: PresenceStatus::Offline,
@@ -543,9 +544,9 @@ fn rest_models_and_numeric_masks_round_trip() {
     let mask = Permissions::MEMBER | Permissions::from_bits_retain(1 << 60);
     round_trip(mask);
     assert!(serde_json::to_value(mask).unwrap().is_u64());
-    assert_eq!(Permissions::MEMBER.bits(), 287);
-    assert_eq!(Permissions::ADMIN.bits(), 8191);
-    assert_eq!(Permissions::GUILD_OWNER.bits(), 16383);
+    assert_eq!(Permissions::MEMBER.bits(), 16671);
+    assert_eq!(Permissions::ADMIN.bits(), 24575);
+    assert_eq!(Permissions::GUILD_OWNER.bits(), 32767);
 }
 
 #[test]
@@ -600,6 +601,7 @@ fn maximum_bootstrap_metadata_fits_the_frame_budget() {
         users: vec![],
         read_states: vec![],
         presences: vec![],
+        voice_states: vec![],
     };
     for g in 0..MAX_GUILDS_PER_USER {
         let mut detail = guild();

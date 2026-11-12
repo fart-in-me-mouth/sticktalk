@@ -14,10 +14,12 @@ mod operations_tests;
 mod resumable;
 mod state;
 pub mod updates;
+pub mod voice;
 mod ws;
 pub use admin::OperationsConfig;
 pub use error::{Error, Result};
 pub use state::{App, Config};
 pub fn router(app: App) -> axum::Router {
+    voice::spawn(&app);
     http::router(app)
 }

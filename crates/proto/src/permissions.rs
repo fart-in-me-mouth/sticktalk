@@ -18,6 +18,7 @@ bitflags::bitflags! {
         const MANAGE_MEMBERS = 1 << 11;
         const ADMINISTRATOR = 1 << 12;
         const OWNER = 1 << 13;
+        const CONNECT = 1 << 14;
     }
 }
 
@@ -28,7 +29,8 @@ impl Permissions {
             | Self::READ_HISTORY.bits()
             | Self::ATTACH_FILES.bits()
             | Self::ADD_REACTIONS.bits()
-            | Self::CREATE_INVITES.bits(),
+            | Self::CREATE_INVITES.bits()
+            | Self::CONNECT.bits(),
     );
 
     pub const ADMIN: Self = Self::from_bits_retain(

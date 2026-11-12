@@ -7,6 +7,8 @@ license.workspace = true
 
 [dependencies]
 sticktalk-proto.workspace = true
+sticktalk-sfu = { path = "../sfu" }
+if-addrs = "0.13"
 axum.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util"] }
 sqlx.workspace = true
@@ -33,6 +35,7 @@ ring = "0.17"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [dev-dependencies]
+str0m = { version = "=0.25.0", default-features = false, features = ["rust-crypto"] }
 tempfile = "3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 rsa = "0.9"

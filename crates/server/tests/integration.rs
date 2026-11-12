@@ -30,6 +30,7 @@ impl TestServer {
             mock_google_jwks: None,
             mock_google_issuer: None,
             gifs: Default::default(),
+            voice: Default::default(),
         })
         .await
         .unwrap();
@@ -154,7 +155,7 @@ impl Peer {
                     assert_eq!(r.nonce, nonce);
                     return *r;
                 }
-                ServerMsg::Event(_) => {}
+                ServerMsg::Event(_) | ServerMsg::Voice(_) => {}
                 m => panic!("unexpected {m:?}"),
             }
         }
@@ -549,13 +550,14 @@ async fn authorization_and_protocol_boundaries() {
         .await
         .unwrap();
     loop {
-        if let ServerMsg::Response(r) = pa.recv().await {
+        if let ServerMsg::Voice(v) = pa.recv().await {
+            assert_eq!(v.nonce, 3);
             assert!(matches!(
-                r.outcome,
-                CommandOutcome::Err(ApiError {
-                    code: ErrorCode::UnsupportedFeature,
+                rmp_serde::from_slice::<VoiceEvent>(&v.payload).unwrap(),
+                VoiceEvent::Error {
+                    code: ErrorCode::VersionMismatch,
                     ..
-                })
+                }
             ));
             break;
         }
@@ -928,6 +930,7 @@ async fn receipts_survive_restart_and_streams_do_not() {
         mock_google_jwks: None,
         mock_google_issuer: None,
         gifs: Default::default(),
+        voice: Default::default(),
     })
     .await
     .unwrap();

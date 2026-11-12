@@ -53,6 +53,8 @@ pub struct Config {
     pub mock_google_issuer: Option<String>,
     #[command(flatten)]
     pub gifs: crate::gifs::GifOptions,
+    #[command(flatten)]
+    pub voice: crate::voice::VoiceOptions,
 }
 pub fn now() -> u64 {
     SystemTime::now()
@@ -86,6 +88,7 @@ pub fn encode(msg: &ServerMsg) -> Result<Bytes> {
 pub struct App(pub(crate) Arc<Inner>);
 pub(crate) struct Inner {
     pub config: Config,
+    pub voice: crate::voice::Voice,
     pub pool: SqlitePool,
     pub core: Mutex<Core>,
     pub passwords: Arc<Semaphore>,
@@ -102,6 +105,7 @@ pub(crate) struct Inner {
 }
 pub(crate) struct Core {
     pub streams: HashMap<Vec<u8>, Stream>,
+    pub voice: HashMap<VoiceSession, crate::voice::Entry>,
     pub limits: HashMap<String, Bucket>,
     last_id: u64,
     worker: u16,
@@ -116,6 +120,7 @@ pub(crate) struct Packet {
 }
 pub(crate) struct Connection {
     pub id: String,
+    pub alive: Arc<std::sync::atomic::AtomicBool>,
     pub tx: mpsc::Sender<Packet>,
     pub budget: Arc<Semaphore>,
     pub close: watch::Sender<Option<u16>>,
@@ -132,6 +137,12 @@ pub(crate) struct Stream {
     pub connection: Option<Connection>,
     pub guild: Option<Id>,
     pub interests: Vec<Id>,
+}
+impl Drop for Connection {
+    fn drop(&mut self) {
+        self.alive
+            .store(false, std::sync::atomic::Ordering::Release);
+    }
 }
 impl Stream {
     pub fn new(user: Id) -> Self {
@@ -379,10 +390,9 @@ impl App {
             .min_connections(1)
             .connect_with(options)
             .await?;
-        sqlx::migrate!()
-            .run(&pool)
-            .await
-            .map_err(|_| Error::new(ErrorCode::Unavailable))?;
+        let mut migration = pool.acquire().await?;
+        db::migrate(&mut migration).await?;
+        drop(migration);
         let row = sqlx::query("SELECT MAX(id) AS id FROM (SELECT id FROM users UNION ALL SELECT id FROM guilds UNION ALL SELECT id FROM channels UNION ALL SELECT id FROM messages UNION ALL SELECT id FROM invites UNION ALL SELECT id FROM uploads UNION ALL SELECT value AS id FROM id_highwater)").fetch_one(&pool).await?;
         let last_id = row.try_get::<Option<i64>, _>("id")?.unwrap_or(0) as u64;
         let dummy_hash = tokio::task::spawn_blocking(|| {
@@ -392,11 +402,14 @@ impl App {
         .map_err(|_| Error::new(ErrorCode::Internal))??;
         let worker = config.worker_id;
         let gifs = crate::gifs::GifService::new(&config.gifs)?;
+        let voice = crate::voice::Voice::new(&config.voice, config.bind)?;
         let app = Self(Arc::new(Inner {
+            voice,
             config,
             pool,
             core: Mutex::new(Core {
                 streams: HashMap::new(),
+                voice: HashMap::new(),
                 limits: HashMap::new(),
                 last_id,
                 worker,
@@ -439,6 +452,7 @@ impl App {
         crate::resumable::gc(self).await?;
         let mut core = self.0.core.lock().await;
         let mut conn = self.0.pool.acquire().await?;
+        crate::voice::reconcile(self, &mut core, &mut conn).await?;
         crate::commands::expire_invites(&mut conn, &mut core).await?;
         let mut expired_users = vec![];
         let active: Vec<Vec<u8>> = core.streams.keys().cloned().collect();
@@ -499,7 +513,12 @@ impl App {
         }
         Ok(())
     }
+    /// Advertised ICE endpoint (one UDP socket in the configured range).
+    pub fn voice_addr(&self) -> SocketAddr {
+        self.0.voice.address
+    }
     pub fn shutdown(&self) {
+        self.0.voice.clear();
         self.0.shutdown.cancel();
     }
     pub async fn collect_orphan_files(&self) -> Result<()> {
@@ -571,6 +590,7 @@ mod tests {
     fn core() -> Core {
         Core {
             streams: HashMap::new(),
+            voice: HashMap::new(),
             limits: HashMap::new(),
             last_id: 0,
             worker: 0,
@@ -611,6 +631,7 @@ mod tests {
         let (close, rx) = watch::channel(None);
         let s = c.streams.get_mut(&vec![1]).unwrap();
         s.connection = Some(Connection {
+            alive: Arc::new(std::sync::atomic::AtomicBool::new(true)),
             id: "test".into(),
             tx,
             budget: Arc::new(Semaphore::new(1)),
@@ -665,6 +686,7 @@ mod tests {
             users: vec![],
             read_states: vec![],
             presences: vec![],
+            voice_states: vec![],
         };
         for g in 1..=10 {
             ready.guilds.push(GuildSummary {
@@ -730,6 +752,37 @@ mod tests {
                 status: PresenceStatus::Online,
             });
         }
+        // Include the global maximum call population and maximal publication metadata.
+        for n in 0..64 {
+            ready.voice_states.push(GuildVoiceState {
+                guild_id: Id(1),
+                channel_id: Id(100),
+                participant: VoiceParticipant {
+                    session: VoiceSession {
+                        user_id: Id(3000 + n),
+                        connection_id: Id(4000 + n),
+                    },
+                    muted: false,
+                    deafened: false,
+                    tracks: [
+                        TrackKind::Audio,
+                        TrackKind::Camera,
+                        TrackKind::Screen,
+                        TrackKind::SystemAudio,
+                    ]
+                    .into_iter()
+                    .map(|kind| PublishedTrack {
+                        mid: "m".repeat(16),
+                        kind,
+                        codec: matches!(kind, TrackKind::Camera | TrackKind::Screen)
+                            .then_some(VideoCodec::H264),
+                        layers: vec!["r".repeat(16); 3],
+                        surface: (kind == TrackKind::Screen).then_some(ShareSurface::Monitor),
+                    })
+                    .collect(),
+                },
+            });
+        }
         assert!(encode(&ServerMsg::Ready(Box::new(ready))).unwrap().len() < 512 * 1024);
     }
 }
@@ -780,5 +833,12 @@ mod mock_configuration_tests {
             Config::try_parse_from(["server", "--mock-google-jwks", "http://127.0.0.1:1234/jwks"])
                 .unwrap();
         assert!(crate::google::Verifier::configured(&config).is_err());
+    }
+}
+
+impl Drop for Inner {
+    fn drop(&mut self) {
+        self.voice.clear();
+        self.shutdown.cancel();
     }
 }

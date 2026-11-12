@@ -19,6 +19,7 @@ pub(crate) async fn fixture() -> (tempfile::TempDir, App) {
         mock_google_jwks: None,
         mock_google_issuer: None,
         gifs: Default::default(),
+        voice: Default::default(),
     })
     .await
     .unwrap();
