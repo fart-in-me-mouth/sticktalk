@@ -186,6 +186,7 @@ impl Mock {
                     status: PresenceStatus::Online,
                 },
             ],
+            ..Default::default()
         };
         let mut model = Model::default();
         model.ready(ready);
@@ -207,6 +208,7 @@ impl Mock {
                         Permissions::MEMBER
                     },
                     joined_at: now() - 86400000,
+                    ..Default::default()
                 },
             );
         }
@@ -408,6 +410,7 @@ impl Mock {
                 .iter()
                 .map(|(&user_id, &status)| Presence { user_id, status })
                 .collect(),
+            ..Default::default()
         }
     }
     pub fn cursor(&self) -> ResumeCursor {
@@ -1187,6 +1190,7 @@ impl Mock {
                 });
                 Ok(ack)
             }
+            _ => Err(error("Unsupported feature in mock mode")),
         }
     }
     fn message(&self, c: Id, m: Id) -> Result<Message, ApiError> {

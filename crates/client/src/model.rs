@@ -214,6 +214,7 @@ impl Model {
             Event::ReadStateUpdated(v) => {
                 self.reads.insert(v.channel_id, v);
             }
+            _ => {}
         }
     }
 

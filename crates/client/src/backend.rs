@@ -760,7 +760,7 @@ pub fn subscription(config: &Config) -> impl Stream<Item = Delivery> {
                                                            if identified||v.version!=PROTOCOL_VERSION {close=Some(4002);break;}
                                                            beat=Duration::from_millis(v.heartbeat_interval_ms.max(1000) as u64);
                                                            timeout=Duration::from_millis(v.heartbeat_timeout_ms.max(1000) as u64);
-                                                           let id=ClientMsg::Identify(Identify{version:PROTOCOL_VERSION,token:config.token.clone(),resume:recovery.cursor.clone()});
+                                                           let id=ClientMsg::Identify(Identify{version:PROTOCOL_VERSION,token:config.token.clone(),resume:recovery.cursor.clone(),..Default::default()});
                                                            if send(&mut socket,&id).await.is_err(){break;}
                                                            identified=true;
                                                        }
