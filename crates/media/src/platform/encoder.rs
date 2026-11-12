@@ -160,8 +160,19 @@ pub(super) struct Hardware {
 impl Hardware {
     pub fn new(gpu: &Gpu, size: Size, options: &ShareOptions) -> Result<Self> {
         let mut failures = Vec::new();
-        for activate in enumerate(MFVideoFormat_H264)? {
-            let encoder_name = name(&activate)?;
+        let activations = enumerate(MFVideoFormat_H264)?;
+        let candidates: Vec<_> = activations
+            .iter()
+            .map(|a| {
+                Ok(EncoderAvailability {
+                    codec: Codec::H264,
+                    name: name(a)?,
+                })
+            })
+            .collect::<Result<_>>()?;
+        for index in crate::encoder_order(&candidates, &gpu.name) {
+            let activate = &activations[index];
+            let encoder_name = candidates[index].name.clone();
             match Self::activate(gpu, size, options, activate.clone(), encoder_name.clone()) {
                 Ok(encoder) => return Ok(encoder),
                 Err(e) => {

@@ -1,0 +1,22 @@
+AUTO probe: NoiseCpuProbe { recommended: HighQuality, mean_frame: 313.687µs, p95_frame: 425.4µs, failure: None }
+mode=Off, studio=false, talking=true, bitrate=59.284 kbit/s: seconds=10.000, CPU machine=0.3223% / one-core=5.1562%, RSS=49.49 MiB
+playout: Some((20, OperationCounters { normal_per_sec: 0.0, expand_per_sec: 0.0, accelerate_per_sec: 0.0, fast_accelerate_per_sec: 0.0, preemptive_expand_per_sec: 33.672504, merge_per_sec: 0.0, comfort_noise_per_sec: 0.0, dtmf_per_sec: 0.0, undefined_per_sec: 66.35464 }))
+mode=Off, studio=false, talking=false, bitrate=20.062 kbit/s: seconds=10.000, CPU machine=0.2734% / one-core=4.3748%, RSS=59.02 MiB
+playout: Some((20, OperationCounters { normal_per_sec: 99.99615, expand_per_sec: 0.0, accelerate_per_sec: 0.0, fast_accelerate_per_sec: 0.0, preemptive_expand_per_sec: 0.0, merge_per_sec: 0.0, comfort_noise_per_sec: 0.0, dtmf_per_sec: 0.0, undefined_per_sec: 0.0 }))
+mode=Standard, studio=false, talking=true, bitrate=54.334 kbit/s: seconds=10.000, CPU machine=0.3223% / one-core=5.1562%, RSS=58.89 MiB
+playout: Some((20, OperationCounters { normal_per_sec: 0.0, expand_per_sec: 0.0, accelerate_per_sec: 0.0, fast_accelerate_per_sec: 0.0, preemptive_expand_per_sec: 33.9928, merge_per_sec: 0.0, comfort_noise_per_sec: 0.0, dtmf_per_sec: 0.0, undefined_per_sec: 65.98603 }))
+mode=Standard, studio=false, talking=false, bitrate=20.101 kbit/s: seconds=10.000, CPU machine=0.1758% / one-core=2.8124%, RSS=59.00 MiB
+playout: Some((20, OperationCounters { normal_per_sec: 100.00648, expand_per_sec: 0.0, accelerate_per_sec: 0.0, fast_accelerate_per_sec: 0.0, preemptive_expand_per_sec: 0.0, merge_per_sec: 0.0, comfort_noise_per_sec: 0.0, dtmf_per_sec: 0.0, undefined_per_sec: 0.0 }))
+mode=HighQuality, studio=false, talking=true, bitrate=8.408 kbit/s: seconds=10.000, CPU machine=0.9961% / one-core=15.9372%, RSS=99.16 MiB
+playout: Some((20, OperationCounters { normal_per_sec: 0.0, expand_per_sec: 0.0, accelerate_per_sec: 0.0, fast_accelerate_per_sec: 0.0, preemptive_expand_per_sec: 33.996048, merge_per_sec: 0.0, comfort_noise_per_sec: 0.0, dtmf_per_sec: 0.0, undefined_per_sec: 65.99233 }))
+mode=HighQuality, studio=false, talking=false, bitrate=20.064 kbit/s: seconds=10.001, CPU machine=2.4510% / one-core=39.2166%, RSS=99.34 MiB
+playout: Some((40, OperationCounters { normal_per_sec: 100.00333, expand_per_sec: 0.0, accelerate_per_sec: 0.0, fast_accelerate_per_sec: 0.0, preemptive_expand_per_sec: 0.0, merge_per_sec: 0.0, comfort_noise_per_sec: 0.0, dtmf_per_sec: 0.0, undefined_per_sec: 0.0 }))
+mode=Off, studio=true, talking=true, bitrate=136.822 kbit/s: seconds=10.000, CPU machine=0.2441% / one-core=3.9061%, RSS=58.77 MiB
+playout: Some((20, OperationCounters { normal_per_sec: 0.0, expand_per_sec: 0.0, accelerate_per_sec: 0.0, fast_accelerate_per_sec: 0.0, preemptive_expand_per_sec: 12.875582, merge_per_sec: 0.0, comfort_noise_per_sec: 2.9712882, dtmf_per_sec: 0.0, undefined_per_sec: 84.1865 }))
+Digital PCM->Opus->adaptive playout->PCM: mode=Off, correlation delay=99.542 ms; EXCLUDES WASAPI/acoustics/network
+Digital PCM->Opus->adaptive playout->PCM: mode=Standard, correlation delay=109.229 ms; EXCLUDES WASAPI/acoustics/network
+Digital PCM->Opus->adaptive playout->PCM: mode=HighQuality, correlation delay=115.667 ms; EXCLUDES WASAPI/acoustics/network
+File enhancement SI-SDR: mode=Off, aligned delay=0.958 ms, score=-0.775 dB; deterministic approximately 0dB additive noise, NOT DNSMOS or a Discord comparison
+File enhancement SI-SDR: mode=Standard, aligned delay=10.958 ms, score=4.427 dB; deterministic approximately 0dB additive noise, NOT DNSMOS or a Discord comparison
+File enhancement SI-SDR: mode=HighQuality, aligned delay=10.958 ms, score=7.240 dB; deterministic approximately 0dB additive noise, NOT DNSMOS or a Discord comparison
+all processors dropped: seconds=5.000, CPU machine=0.0000% / one-core=0.0000%, RSS=57.55 MiB

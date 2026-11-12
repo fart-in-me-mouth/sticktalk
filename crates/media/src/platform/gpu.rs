@@ -13,6 +13,7 @@ use windows::{
     },
 };
 
+#[derive(Clone)]
 pub(super) struct Gpu {
     pub device: ID3D11Device,
     pub context: ID3D11DeviceContext,
@@ -123,11 +124,25 @@ impl Converter {
                 &view_desc,
                 Some(&mut view),
             )?;
+            // Source odd-size policy: crop the last row/column, never distort
+            // a native window by stretching it down to the next even size.
+            let crop_native = input.width.saturating_sub(output.width) <= 1
+                && input.height.saturating_sub(output.height) <= 1
+                && output.width <= input.width
+                && output.height <= input.height;
             let src = RECT {
                 left: 0,
                 top: 0,
-                right: input.width as i32,
-                bottom: input.height as i32,
+                right: if crop_native {
+                    output.width
+                } else {
+                    input.width
+                } as i32,
+                bottom: if crop_native {
+                    output.height
+                } else {
+                    input.height
+                } as i32,
             };
             let dst = RECT {
                 left: 0,
@@ -195,6 +210,96 @@ impl Converter {
             ManuallyDrop::drop(&mut stream.pInputSurface);
             result?;
             Ok(())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    #[ignore = "explicit headless GPU diagnostic; requires a hardware H.264 encoder"]
+    fn odd_nv12_source_crops_last_row_column_through_real_encoder() {
+        use crate::{
+            platform::{encoder::Encoder, runtime::Runtime, Decoder},
+            EncodedFrame, FrameRate, Quality, Resolution, ShareOptions,
+        };
+        let _runtime = Runtime::new().unwrap();
+        let gpu = Gpu::new().unwrap();
+        let input = Size {
+            width: 801,
+            height: 601,
+        };
+        let quality = Quality {
+            fps: FrameRate::Fps30,
+            resolution: Resolution::Source,
+        };
+        let output = quality.output_size(input).unwrap();
+        assert_eq!(
+            output,
+            Size {
+                width: 800,
+                height: 600
+            }
+        );
+        let source = gpu
+            .texture(
+                input,
+                DXGI_FORMAT_B8G8R8A8_UNORM,
+                D3D11_BIND_RENDER_TARGET.0 as u32,
+            )
+            .unwrap();
+        let mut pixels = vec![0u8; 801 * 601 * 4];
+        for y in 0..601 {
+            for x in 0..801 {
+                let pixel = if x == 800 || y == 600 {
+                    [0, 255, 0, 255]
+                } else {
+                    [255, 0, 0, 255]
+                };
+                pixels[(y * 801 + x) * 4..(y * 801 + x + 1) * 4].copy_from_slice(&pixel);
+            }
+        }
+        unsafe {
+            gpu.context
+                .UpdateSubresource(&source, 0, None, pixels.as_ptr().cast(), 801 * 4, 0);
+        }
+        let converter = Converter::new(&gpu, input, output, 30).unwrap();
+        converter.convert(&source).unwrap();
+        let mut encoder = Encoder::new(
+            &gpu,
+            output,
+            &ShareOptions {
+                quality,
+                bitrate: 2_000_000,
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap();
+        encoder.keyframe().unwrap();
+        let data = encoder.encode(&converter.texture, 0, 333333).unwrap();
+        let mut decoder = Decoder::new().unwrap();
+        let mut decoded = decoder
+            .decode(EncodedFrame {
+                data,
+                timestamp: 0,
+                duration: 333333,
+                keyframe: true,
+                size: output,
+                generation: 0,
+                encode_latency: std::time::Duration::ZERO,
+            })
+            .unwrap();
+        let frame = decoded.pop().expect("GPU decoded texture");
+        assert_eq!(frame.size, output);
+        let rgba = decoder.readback_rgba_for_test(&frame).unwrap();
+        for (x, y) in [(0, 0), (799, 0), (0, 599), (799, 599)] {
+            let px = &rgba[(y * 800 + x) * 4..(y * 800 + x + 1) * 4];
+            assert!(
+                px[2] > 150 && px[1] < 60,
+                "cropped green border leaked into {x},{y}: {px:?}"
+            );
         }
     }
 }

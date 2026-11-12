@@ -1,0 +1,22 @@
+Source: \\.\DISPLAY2 (2560x1440), cursor=true
+Detected hardware encoders: [
+    EncoderAvailability {
+        codec: H264,
+        name: "NVIDIA H.264 Encoder MFT",
+    },
+    EncoderAvailability {
+        codec: Hevc,
+        name: "NVIDIA HEVC Encoder MFT",
+    },
+]
+Starting P1080@60, target 8087040 bps, decode=true
+GPU: NVIDIA GeForce RTX 3060 Ti; encoder: Hardware { name: "NVIDIA H.264 Encoder MFT" }; actual size: Size { width: 1920, height: 1080 }; quality: Quality { fps: Fps60, resolution: P1080 }
+Generation 1: IDR size=Size { width: 1280, height: 720 }, PTS gap=13.438 ms
+Generation 2: IDR size=Size { width: 1920, height: 1080 }, PTS gap=33.958 ms
+Completed P1080@60: 9.016s, unique capture 26.07 fps, encode 49.91 fps, decode 49.91 fps, latency mean=3.436 p99=4.994ms, drops=0, repeats=228, 6.448 Mbps
+CPU 0.303% machine / 4.853% one-core (16 logical CPUs); RSS 110.70MiB, sampled peak 110.70MiB, lifetime peak 110.73MiB; generation changes 2
+Max media PTS gap=33.958 ms; switch-only PTS gap=33.958 ms; max receive gap=39.057 ms
+
+| Quality | Size | Seconds | Capture fps (unique WGC) | Encode fps | Decode fps | Mean/p99 encode ms | Drops | Repeats | Actual Mbps | CPU total % / one-core % | RSS / peak MiB | Encoder |
+|---|---|---:|---:|---:|---:|---|---:|---:|---:|---|---|---|
+| P1080@60 | 1920x1080 | 9.016 | 26.07 | 49.91 | 49.91 | 3.436/4.994 | 0 | 228 | 6.448 | 0.303/4.853 | 110.70/110.70 | Hardware { name: "NVIDIA H.264 Encoder MFT" } |

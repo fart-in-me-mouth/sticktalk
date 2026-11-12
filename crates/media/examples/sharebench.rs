@@ -257,11 +257,37 @@ mod bench {
         let mut keyframe_requested_at = None;
         let mut keyframe_confirmed = false;
         let mut last_timestamp = -1;
+        let mut previous_generation = None;
+        let mut max_pts_gap_ms = 0.0f64;
+        let mut max_switch_gap_ms = 0.0f64;
+        let mut max_delivery_gap_ms = 0.0f64;
+        let mut last_delivery = None;
         while start.elapsed() < Duration::from_secs(seconds) {
             let frame = session.recv_timeout(Duration::from_secs(3))?;
             if frame.timestamp <= last_timestamp {
                 return Err("non-monotonic encoded timestamps".into());
             }
+            if last_timestamp >= 0 {
+                let gap = (frame.timestamp - last_timestamp) as f64 / 10_000.0;
+                max_pts_gap_ms = max_pts_gap_ms.max(gap);
+                if previous_generation != Some(frame.generation) {
+                    if !frame.keyframe {
+                        return Err("generation switch did not start with IDR".into());
+                    }
+                    max_switch_gap_ms = max_switch_gap_ms.max(gap);
+                    println!(
+                        "Generation {}: IDR size={:?}, PTS gap={gap:.3} ms",
+                        frame.generation, frame.size
+                    );
+                }
+            }
+            let delivery = Instant::now();
+            if let Some(last) = last_delivery {
+                max_delivery_gap_ms =
+                    max_delivery_gap_ms.max(delivery.duration_since(last).as_secs_f64() * 1000.0);
+            }
+            last_delivery = Some(delivery);
+            previous_generation = Some(frame.generation);
             last_timestamp = frame.timestamp;
             if let Some(pts) = keyframe_requested_at {
                 if frame.timestamp > pts && frame.keyframe {
@@ -319,6 +345,7 @@ mod bench {
         let actual = bytes as f64 * 8.0 / elapsed / 1_000_000.0;
         println!("Completed {label}: {elapsed:.3}s, unique capture {capture_fps:.2} fps, encode {encode_fps:.2} fps, decode {decode_fps:.2} fps, latency mean={mean:.3} p99={p99:.3}ms, drops={}, repeats={}, {actual:.3} Mbps", stats.dropped - baseline.dropped, stats.repeated - baseline.repeated);
         println!("CPU {cpu_total:.3}% machine / {cpu_core:.3}% one-core ({} logical CPUs); RSS {:.2}MiB, sampled peak {:.2}MiB, lifetime peak {:.2}MiB; generation changes {}", usage1.logical_cpus, usage1.rss_bytes as f64 / 1048576.0, peak as f64 / 1048576.0, usage1.peak_rss_bytes as f64 / 1048576.0, stats.reconfigurations - baseline.reconfigurations);
+        println!("Max media PTS gap={max_pts_gap_ms:.3} ms; switch-only PTS gap={max_switch_gap_ms:.3} ms; max receive gap={max_delivery_gap_ms:.3} ms");
         if reconfigure
             && (!keyframe_confirmed || stats.reconfigurations - baseline.reconfigurations < 2)
         {

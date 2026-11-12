@@ -1,0 +1,29 @@
+Microsoft (R) COFF/PE Dumper Version 14.44.35222.0
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+
+Dump of file C:\mhq\release\examples\voice_quality_bench.exe
+
+File Type: EXECUTABLE IMAGE
+
+  Image has the following dependencies:
+
+    kernel32.dll
+    ntdll.dll
+    api-ms-win-core-synch-l1-2-0.dll
+    psapi.dll
+    bcryptprimitives.dll
+    bcrypt.dll
+    ADVAPI32.dll
+    WINMM.dll
+    KERNEL32.dll
+
+  Summary
+
+        5000 .data
+        1000 .fptable
+       20000 .pdata
+     23A3000 .rdata
+        E000 .reloc
+      D73000 .text
+        1000 _RDATA

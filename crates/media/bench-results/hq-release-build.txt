@@ -1,0 +1,5 @@
+   Compiling bindgen v0.72.1
+   Compiling pocketstation-webrtc-audio-processing-sys v2.1.1
+   Compiling webrtc-audio-processing v2.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-55ab00d4-ed83701f1332d64a\crates\media\vendor\webrtc-audio-processing)
+   Compiling sticktalk-media v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-55ab00d4-ed83701f1332d64a\crates\media)
+    Finished `release` profile [optimized] target(s) in 4m 18s

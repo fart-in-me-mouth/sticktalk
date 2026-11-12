@@ -1,0 +1,7 @@
+Synthetic talk DSP + 1 remote loopback (AEC3/AGC2/RNNoise): seconds=10.000, CPU machine=0.2344% / one-core=3.7499%, RSS=12.47 MiB, delivered=500, rate=50.00/s
+Opus bytes=36288, rate=29.030 kbit/s
+Silent DSP + 1 remote loopback (AEC3/AGC2/RNNoise): seconds=10.000, CPU machine=0.1855% / one-core=2.9686%, RSS=12.60 MiB, delivered=500, rate=50.00/s
+Opus bytes=1152, rate=0.922 kbit/s
+Digital PCM->20ms Opus->40ms jitter->PCM correlation: RNNoise=false, delay=51.188 ms (2457 samples); NO WASAPI/acoustics/network, not physical mouth-to-ear
+Digital PCM->20ms Opus->40ms jitter->PCM correlation: RNNoise=true, delay=61.042 ms (2930 samples); NO WASAPI/acoustics/network, not physical mouth-to-ear
+Outside call (all engines dropped): seconds=10.000, CPU machine=0.0000% / one-core=0.0000%, RSS=12.00 MiB, delivered=0, rate=0.00/s

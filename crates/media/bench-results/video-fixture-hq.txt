@@ -1,0 +1,1 @@
+Synthetic NV12 720p30 upload + HW encode/decode (NOT camera capture): seconds=10.000, CPU machine=0.2051% / one-core=3.2811%, RSS=78.40 MiB, delivered=300, rate=30.00/s

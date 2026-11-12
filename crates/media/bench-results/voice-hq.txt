@@ -1,0 +1,22 @@
+AUTO probe: NoiseCpuProbe { recommended: HighQuality, mean_frame: 265.412µs, p95_frame: 385.7µs, failure: None }
+mode=Off, studio=false, talking=true, bitrate=59.284 kbit/s: seconds=10.000, CPU machine=0.2539% / one-core=4.0625%, RSS=49.25 MiB
+playout: Some((20, 84, 2))
+mode=Off, studio=false, talking=false, bitrate=20.065 kbit/s: seconds=10.000, CPU machine=0.2148% / one-core=3.4374%, RSS=58.54 MiB
+playout: Some((20, 26, 1))
+mode=Standard, studio=false, talking=true, bitrate=54.333 kbit/s: seconds=10.000, CPU machine=0.2832% / one-core=4.5311%, RSS=58.45 MiB
+playout: Some((20, 84, 2))
+mode=Standard, studio=false, talking=false, bitrate=20.101 kbit/s: seconds=10.001, CPU machine=0.2930% / one-core=4.6872%, RSS=58.61 MiB
+playout: Some((20, 26, 1))
+mode=HighQuality, studio=false, talking=true, bitrate=8.408 kbit/s: seconds=10.000, CPU machine=0.8886% / one-core=14.2183%, RSS=98.63 MiB
+playout: Some((20, 84, 2))
+mode=HighQuality, studio=false, talking=false, bitrate=20.047 kbit/s: seconds=10.000, CPU machine=1.4355% / one-core=22.9678%, RSS=98.49 MiB
+playout: Some((20, 26, 1))
+mode=Off, studio=true, talking=true, bitrate=136.823 kbit/s: seconds=10.000, CPU machine=0.1855% / one-core=2.9687%, RSS=58.04 MiB
+playout: Some((20, 83, 1))
+Digital PCM->Opus->adaptive playout->PCM: mode=Off, correlation delay=99.542 ms; EXCLUDES WASAPI/acoustics/network
+Digital PCM->Opus->adaptive playout->PCM: mode=Standard, correlation delay=109.229 ms; EXCLUDES WASAPI/acoustics/network
+Digital PCM->Opus->adaptive playout->PCM: mode=HighQuality, correlation delay=115.667 ms; EXCLUDES WASAPI/acoustics/network
+File enhancement SI-SDR: mode=Off, aligned delay=0.958 ms, score=-0.775 dB; deterministic approximately 0dB additive noise, NOT DNSMOS or a Discord comparison
+File enhancement SI-SDR: mode=Standard, aligned delay=10.958 ms, score=4.427 dB; deterministic approximately 0dB additive noise, NOT DNSMOS or a Discord comparison
+File enhancement SI-SDR: mode=HighQuality, aligned delay=10.958 ms, score=7.240 dB; deterministic approximately 0dB additive noise, NOT DNSMOS or a Discord comparison
+all processors dropped: seconds=5.000, CPU machine=0.0000% / one-core=0.0000%, RSS=56.70 MiB
