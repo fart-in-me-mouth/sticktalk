@@ -1,0 +1,1061 @@
+{
+  "browser": "158.0.8127.18",
+  "headless": true,
+  "firstLoad": {
+    "transferBytes": 764695,
+    "requestCount": 48
+  },
+  "checks": [
+    "Responsive screen captures",
+    "mobile panels",
+    "CDP long-press",
+    "CDP swipe",
+    "emulated visualViewport keyboard",
+    "virtual history bounds",
+    "local send",
+    "quick switcher",
+    "role toggle/save",
+    "destructive confirmation",
+    "auth errors",
+    "offline reload",
+    "hashed service worker",
+    "no console exceptions",
+    "payload budgets"
+  ],
+  "screenshots": [
+    {
+      "name": "login",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/login-1440x900.png"
+    },
+    {
+      "name": "register",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/register-1440x900.png"
+    },
+    {
+      "name": "home",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/home-1440x900.png"
+    },
+    {
+      "name": "dm",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/dm-1440x900.png"
+    },
+    {
+      "name": "chat",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/chat-1440x900.png"
+    },
+    {
+      "name": "user-settings",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/user-settings-1440x900.png"
+    },
+    {
+      "name": "server-settings",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/server-settings-1440x900.png"
+    },
+    {
+      "name": "roles",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/roles-1440x900.png"
+    },
+    {
+      "name": "role-editor",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/role-editor-1440x900.png"
+    },
+    {
+      "name": "role-permissions",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/role-permissions-1440x900.png"
+    },
+    {
+      "name": "role-members",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/role-members-1440x900.png"
+    },
+    {
+      "name": "user-profile",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/user-profile-1440x900.png"
+    },
+    {
+      "name": "devices",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/devices-1440x900.png"
+    },
+    {
+      "name": "server-members",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/server-members-1440x900.png"
+    },
+    {
+      "name": "voice",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/voice-1440x900.png"
+    },
+    {
+      "name": "stream",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/stream-1440x900.png"
+    },
+    {
+      "name": "profile",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/profile-1440x900.png"
+    },
+    {
+      "name": "create-server-choice",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/create-server-choice-1440x900.png"
+    },
+    {
+      "name": "create-server",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/create-server-1440x900.png"
+    },
+    {
+      "name": "join-server",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/join-server-1440x900.png"
+    },
+    {
+      "name": "invite",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/invite-1440x900.png"
+    },
+    {
+      "name": "notifications",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/notifications-1440x900.png"
+    },
+    {
+      "name": "notification-settings",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/notification-settings-1440x900.png"
+    },
+    {
+      "name": "quick-switcher",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/quick-switcher-1440x900.png"
+    },
+    {
+      "name": "share-screen",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/share-screen-1440x900.png"
+    },
+    {
+      "name": "image-viewer",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/image-viewer-1440x900.png"
+    },
+    {
+      "name": "emoji-picker",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/emoji-picker-1440x900.png"
+    },
+    {
+      "name": "channel-settings",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/channel-settings-1440x900.png"
+    },
+    {
+      "name": "disconnected",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/disconnected-1440x900.png"
+    },
+    {
+      "name": "empty-channel",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/empty-channel-1440x900.png"
+    },
+    {
+      "name": "loading",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/loading-1440x900.png"
+    },
+    {
+      "name": "server-menu",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/server-menu-1440x900.png"
+    },
+    {
+      "name": "message-context-menu",
+      "width": 1440,
+      "height": 900,
+      "path": "screenshots/message-context-menu-1440x900.png"
+    },
+    {
+      "name": "login",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/login-390x844.png"
+    },
+    {
+      "name": "register",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/register-390x844.png"
+    },
+    {
+      "name": "home",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/home-390x844.png"
+    },
+    {
+      "name": "dm",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/dm-390x844.png"
+    },
+    {
+      "name": "chat",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/chat-390x844.png"
+    },
+    {
+      "name": "user-settings",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/user-settings-390x844.png"
+    },
+    {
+      "name": "server-settings",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/server-settings-390x844.png"
+    },
+    {
+      "name": "roles",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/roles-390x844.png"
+    },
+    {
+      "name": "role-editor",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/role-editor-390x844.png"
+    },
+    {
+      "name": "role-permissions",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/role-permissions-390x844.png"
+    },
+    {
+      "name": "role-members",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/role-members-390x844.png"
+    },
+    {
+      "name": "user-profile",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/user-profile-390x844.png"
+    },
+    {
+      "name": "devices",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/devices-390x844.png"
+    },
+    {
+      "name": "server-members",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/server-members-390x844.png"
+    },
+    {
+      "name": "voice",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/voice-390x844.png"
+    },
+    {
+      "name": "stream",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/stream-390x844.png"
+    },
+    {
+      "name": "profile",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/profile-390x844.png"
+    },
+    {
+      "name": "create-server-choice",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/create-server-choice-390x844.png"
+    },
+    {
+      "name": "create-server",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/create-server-390x844.png"
+    },
+    {
+      "name": "join-server",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/join-server-390x844.png"
+    },
+    {
+      "name": "invite",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/invite-390x844.png"
+    },
+    {
+      "name": "notifications",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/notifications-390x844.png"
+    },
+    {
+      "name": "notification-settings",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/notification-settings-390x844.png"
+    },
+    {
+      "name": "quick-switcher",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/quick-switcher-390x844.png"
+    },
+    {
+      "name": "share-screen",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/share-screen-390x844.png"
+    },
+    {
+      "name": "image-viewer",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/image-viewer-390x844.png"
+    },
+    {
+      "name": "emoji-picker",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/emoji-picker-390x844.png"
+    },
+    {
+      "name": "channel-settings",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/channel-settings-390x844.png"
+    },
+    {
+      "name": "disconnected",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/disconnected-390x844.png"
+    },
+    {
+      "name": "empty-channel",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/empty-channel-390x844.png"
+    },
+    {
+      "name": "loading",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/loading-390x844.png"
+    },
+    {
+      "name": "server-menu",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/server-menu-390x844.png"
+    },
+    {
+      "name": "message-context-menu",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/message-context-menu-390x844.png"
+    },
+    {
+      "name": "phone-left-panel",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/phone-left-panel-390x844.png"
+    },
+    {
+      "name": "phone-right-panel",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/phone-right-panel-390x844.png"
+    },
+    {
+      "name": "phone-long-press",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/phone-long-press-390x844.png"
+    },
+    {
+      "name": "phone-keyboard-open",
+      "width": 390,
+      "height": 844,
+      "path": "screenshots/phone-keyboard-open-390x844.png"
+    },
+    {
+      "name": "login",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/login-412x915.png"
+    },
+    {
+      "name": "register",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/register-412x915.png"
+    },
+    {
+      "name": "home",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/home-412x915.png"
+    },
+    {
+      "name": "dm",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/dm-412x915.png"
+    },
+    {
+      "name": "chat",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/chat-412x915.png"
+    },
+    {
+      "name": "user-settings",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/user-settings-412x915.png"
+    },
+    {
+      "name": "server-settings",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/server-settings-412x915.png"
+    },
+    {
+      "name": "roles",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/roles-412x915.png"
+    },
+    {
+      "name": "role-editor",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/role-editor-412x915.png"
+    },
+    {
+      "name": "role-permissions",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/role-permissions-412x915.png"
+    },
+    {
+      "name": "role-members",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/role-members-412x915.png"
+    },
+    {
+      "name": "user-profile",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/user-profile-412x915.png"
+    },
+    {
+      "name": "devices",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/devices-412x915.png"
+    },
+    {
+      "name": "server-members",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/server-members-412x915.png"
+    },
+    {
+      "name": "voice",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/voice-412x915.png"
+    },
+    {
+      "name": "stream",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/stream-412x915.png"
+    },
+    {
+      "name": "profile",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/profile-412x915.png"
+    },
+    {
+      "name": "create-server-choice",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/create-server-choice-412x915.png"
+    },
+    {
+      "name": "create-server",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/create-server-412x915.png"
+    },
+    {
+      "name": "join-server",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/join-server-412x915.png"
+    },
+    {
+      "name": "invite",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/invite-412x915.png"
+    },
+    {
+      "name": "notifications",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/notifications-412x915.png"
+    },
+    {
+      "name": "notification-settings",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/notification-settings-412x915.png"
+    },
+    {
+      "name": "quick-switcher",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/quick-switcher-412x915.png"
+    },
+    {
+      "name": "share-screen",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/share-screen-412x915.png"
+    },
+    {
+      "name": "image-viewer",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/image-viewer-412x915.png"
+    },
+    {
+      "name": "emoji-picker",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/emoji-picker-412x915.png"
+    },
+    {
+      "name": "channel-settings",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/channel-settings-412x915.png"
+    },
+    {
+      "name": "disconnected",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/disconnected-412x915.png"
+    },
+    {
+      "name": "empty-channel",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/empty-channel-412x915.png"
+    },
+    {
+      "name": "loading",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/loading-412x915.png"
+    },
+    {
+      "name": "server-menu",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/server-menu-412x915.png"
+    },
+    {
+      "name": "message-context-menu",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/message-context-menu-412x915.png"
+    },
+    {
+      "name": "phone-left-panel",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/phone-left-panel-412x915.png"
+    },
+    {
+      "name": "phone-right-panel",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/phone-right-panel-412x915.png"
+    },
+    {
+      "name": "phone-long-press",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/phone-long-press-412x915.png"
+    },
+    {
+      "name": "phone-keyboard-open",
+      "width": 412,
+      "height": 915,
+      "path": "screenshots/phone-keyboard-open-412x915.png"
+    },
+    {
+      "name": "login",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/login-820x1180.png"
+    },
+    {
+      "name": "register",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/register-820x1180.png"
+    },
+    {
+      "name": "home",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/home-820x1180.png"
+    },
+    {
+      "name": "dm",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/dm-820x1180.png"
+    },
+    {
+      "name": "chat",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/chat-820x1180.png"
+    },
+    {
+      "name": "user-settings",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/user-settings-820x1180.png"
+    },
+    {
+      "name": "server-settings",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/server-settings-820x1180.png"
+    },
+    {
+      "name": "roles",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/roles-820x1180.png"
+    },
+    {
+      "name": "role-editor",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/role-editor-820x1180.png"
+    },
+    {
+      "name": "role-permissions",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/role-permissions-820x1180.png"
+    },
+    {
+      "name": "role-members",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/role-members-820x1180.png"
+    },
+    {
+      "name": "user-profile",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/user-profile-820x1180.png"
+    },
+    {
+      "name": "devices",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/devices-820x1180.png"
+    },
+    {
+      "name": "server-members",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/server-members-820x1180.png"
+    },
+    {
+      "name": "voice",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/voice-820x1180.png"
+    },
+    {
+      "name": "stream",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/stream-820x1180.png"
+    },
+    {
+      "name": "profile",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/profile-820x1180.png"
+    },
+    {
+      "name": "create-server-choice",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/create-server-choice-820x1180.png"
+    },
+    {
+      "name": "create-server",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/create-server-820x1180.png"
+    },
+    {
+      "name": "join-server",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/join-server-820x1180.png"
+    },
+    {
+      "name": "invite",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/invite-820x1180.png"
+    },
+    {
+      "name": "notifications",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/notifications-820x1180.png"
+    },
+    {
+      "name": "notification-settings",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/notification-settings-820x1180.png"
+    },
+    {
+      "name": "quick-switcher",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/quick-switcher-820x1180.png"
+    },
+    {
+      "name": "share-screen",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/share-screen-820x1180.png"
+    },
+    {
+      "name": "image-viewer",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/image-viewer-820x1180.png"
+    },
+    {
+      "name": "emoji-picker",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/emoji-picker-820x1180.png"
+    },
+    {
+      "name": "channel-settings",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/channel-settings-820x1180.png"
+    },
+    {
+      "name": "disconnected",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/disconnected-820x1180.png"
+    },
+    {
+      "name": "empty-channel",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/empty-channel-820x1180.png"
+    },
+    {
+      "name": "loading",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/loading-820x1180.png"
+    },
+    {
+      "name": "server-menu",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/server-menu-820x1180.png"
+    },
+    {
+      "name": "message-context-menu",
+      "width": 820,
+      "height": 1180,
+      "path": "screenshots/message-context-menu-820x1180.png"
+    }
+  ],
+  "errors": [],
+  "sizes": {
+    "revision": "99d22dbe7ae1ce3bee7a",
+    "raw": 985601,
+    "compressed": 403322,
+    "firstLoadBytes": 417712,
+    "assets": [
+      {
+        "file": "index.html",
+        "bytes": 2098,
+        "brotli": 827
+      },
+      {
+        "file": "public/emoji/1f331.png",
+        "bytes": 470,
+        "brotli": 474
+      },
+      {
+        "file": "public/emoji/1f389.png",
+        "bytes": 1376,
+        "brotli": 1356
+      },
+      {
+        "file": "public/emoji/1f3a8.png",
+        "bytes": 809,
+        "brotli": 813
+      },
+      {
+        "file": "public/emoji/1f440.png",
+        "bytes": 1024,
+        "brotli": 1006
+      },
+      {
+        "file": "public/emoji/1f44b.png",
+        "bytes": 1285,
+        "brotli": 1224
+      },
+      {
+        "file": "public/emoji/1f44d.png",
+        "bytes": 778,
+        "brotli": 743
+      },
+      {
+        "file": "public/emoji/1f4a1.png",
+        "bytes": 687,
+        "brotli": 652
+      },
+      {
+        "file": "public/emoji/1f525.png",
+        "bytes": 928,
+        "brotli": 875
+      },
+      {
+        "file": "public/emoji/1f602.png",
+        "bytes": 1095,
+        "brotli": 1086
+      },
+      {
+        "file": "public/emoji/1f604.png",
+        "bytes": 809,
+        "brotli": 813
+      },
+      {
+        "file": "public/emoji/1f60a.png",
+        "bytes": 796,
+        "brotli": 800
+      },
+      {
+        "file": "public/emoji/1f64c.png",
+        "bytes": 1006,
+        "brotli": 953
+      },
+      {
+        "file": "public/emoji/1f680.png",
+        "bytes": 1064,
+        "brotli": 1025
+      },
+      {
+        "file": "public/emoji/2705.png",
+        "bytes": 525,
+        "brotli": 526
+      },
+      {
+        "file": "public/emoji/2728.png",
+        "bytes": 752,
+        "brotli": 700
+      },
+      {
+        "file": "public/emoji/2764.png",
+        "bytes": 498,
+        "brotli": 470
+      },
+      {
+        "file": "public/emoji/LICENSE-CC-BY-4.0",
+        "bytes": 18524,
+        "brotli": 4631
+      },
+      {
+        "file": "public/fonts/Inter-Medium.woff2",
+        "bytes": 18568,
+        "brotli": 18563
+      },
+      {
+        "file": "public/fonts/Inter-OFL.txt",
+        "bytes": 4380,
+        "brotli": 1419
+      },
+      {
+        "file": "public/fonts/Inter-Regular.woff2",
+        "bytes": 18264,
+        "brotli": 18250
+      },
+      {
+        "file": "public/fonts/Inter-SemiBold.woff2",
+        "bytes": 18656,
+        "brotli": 18660
+      },
+      {
+        "file": "public/fonts/JetBrainsMono-OFL.txt",
+        "bytes": 4399,
+        "brotli": 1413
+      },
+      {
+        "file": "public/fonts/JetBrainsMono-Regular.woff2",
+        "bytes": 28656,
+        "brotli": 28660
+      },
+      {
+        "file": "public/google-g.svg",
+        "bytes": 7483,
+        "brotli": 5621
+      },
+      {
+        "file": "public/icons/apple-touch-icon.png",
+        "bytes": 4779,
+        "brotli": 4689
+      },
+      {
+        "file": "public/icons/icon-192.png",
+        "bytes": 5072,
+        "brotli": 4947
+      },
+      {
+        "file": "public/icons/icon-512.png",
+        "bytes": 12256,
+        "brotli": 11357
+      },
+      {
+        "file": "public/icons/LICENSE",
+        "bytes": 3208,
+        "brotli": 1146
+      },
+      {
+        "file": "public/icons/maskable-512.png",
+        "bytes": 12256,
+        "brotli": 11357
+      },
+      {
+        "file": "public/icons/sprite.svg",
+        "bytes": 14263,
+        "brotli": 2997
+      },
+      {
+        "file": "public/manifest.webmanifest",
+        "bytes": 638,
+        "brotli": 239
+      },
+      {
+        "file": "public/mock-workspace.jpg",
+        "bytes": 6969,
+        "brotli": 6765
+      },
+      {
+        "file": "public/platform.js",
+        "bytes": 16874,
+        "brotli": 4263
+      },
+      {
+        "file": "sticktalk-web-f7bdac88dafc4df5_bg.wasm",
+        "bytes": 666660,
+        "brotli": 227714
+      },
+      {
+        "file": "sticktalk-web-fcf9a6e482431efe.js",
+        "bytes": 30700,
+        "brotli": 5352
+      },
+      {
+        "file": "style-adc283fc6d33b433.css",
+        "bytes": 76996,
+        "brotli": 10936
+      }
+    ]
+  }
+}

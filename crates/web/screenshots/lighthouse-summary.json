@@ -1,0 +1,2991 @@
+{
+  "headless": true,
+  "origin": "http://127.0.0.1:4173",
+  "mobile": {
+    "version": "12.8.2",
+    "categories": {
+      "performance": 87,
+      "accessibility": 96,
+      "best-practices": 100
+    },
+    "metrics": {
+      "first-contentful-paint": "2.9 s",
+      "largest-contentful-paint": "3.2 s",
+      "total-blocking-time": "130 ms",
+      "cumulative-layout-shift": "0.004",
+      "interactive": "3.2 s"
+    },
+    "failures": [
+      {
+        "id": "first-contentful-paint",
+        "title": "First Contentful Paint",
+        "score": 0.53
+      },
+      {
+        "id": "largest-contentful-paint",
+        "title": "Largest Contentful Paint",
+        "score": 0.73
+      },
+      {
+        "id": "max-potential-fid",
+        "title": "Max Potential First Input Delay",
+        "score": 0.75
+      },
+      {
+        "id": "largest-contentful-paint-element",
+        "title": "Largest Contentful Paint element",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "node",
+                  "valueType": "node",
+                  "label": "Element"
+                }
+              ],
+              "items": [
+                {
+                  "node": {
+                    "type": "node",
+                    "lhId": "page-0-IMG",
+                    "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,6,ARTICLE,3,DIV,6,BUTTON,0,IMG",
+                    "selector": "article.message > div.message-content > button.attachment-image > img",
+                    "boundingRect": {
+                      "top": 0,
+                      "bottom": 229,
+                      "left": 56,
+                      "right": 400,
+                      "width": 344,
+                      "height": 228
+                    },
+                    "snippet": "<img style=\"aspect-ratio:256/170\" src=\"public/mock-workspace.jpg\" srcset=\"public/mock-workspace.jpg 1x, public/mock-workspace.jpg 2x\" loading=\"lazy\" width=\"256\" height=\"170\" alt=\"A clean desk with a plant, notebook and warm light\">",
+                    "nodeLabel": "A clean desk with a plant, notebook and warm light"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "phase",
+                  "valueType": "text",
+                  "label": "Phase"
+                },
+                {
+                  "key": "percent",
+                  "valueType": "text",
+                  "label": "% of LCP"
+                },
+                {
+                  "key": "timing",
+                  "valueType": "ms",
+                  "label": "Timing"
+                }
+              ],
+              "items": [
+                {
+                  "phase": "TTFB",
+                  "timing": 454.879,
+                  "percent": "14%"
+                },
+                {
+                  "phase": "Load Delay",
+                  "timing": 756.7526351286766,
+                  "percent": "24%"
+                },
+                {
+                  "phase": "Load Time",
+                  "timing": 107.3540694478479,
+                  "percent": "3%"
+                },
+                {
+                  "phase": "Render Delay",
+                  "timing": 1866.7722954234757,
+                  "percent": "59%"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "lcp-lazy-loaded",
+        "title": "Largest Contentful Paint image was lazily loaded",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "label": "Element"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-19-IMG",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,6,ARTICLE,3,DIV,6,BUTTON,0,IMG",
+                "selector": "article.message > div.message-content > button.attachment-image > img",
+                "boundingRect": {
+                  "top": 0,
+                  "bottom": 229,
+                  "left": 56,
+                  "right": 400,
+                  "width": 344,
+                  "height": 228
+                },
+                "snippet": "<img style=\"aspect-ratio:256/170\" src=\"public/mock-workspace.jpg\" srcset=\"public/mock-workspace.jpg 1x, public/mock-workspace.jpg 2x\" loading=\"lazy\" width=\"256\" height=\"170\" alt=\"A clean desk with a plant, notebook and warm light\">",
+                "nodeLabel": "A clean desk with a plant, notebook and warm light"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "valid-source-maps",
+        "title": "Missing source maps for large first-party JavaScript",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "scriptUrl",
+              "valueType": "url",
+              "subItemsHeading": {
+                "key": "error"
+              },
+              "label": "URL"
+            },
+            {
+              "key": "sourceMapUrl",
+              "valueType": "url",
+              "label": "Map URL"
+            }
+          ],
+          "items": [
+            {
+              "scriptUrl": "http://127.0.0.1:4173/sticktalk-web-f7bdac88dafc4df5_bg.wasm",
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "error": "Large JavaScript file is missing a source map"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "color-contrast",
+        "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "subItemsHeading": {
+                "key": "relatedNode",
+                "valueType": "node"
+              },
+              "label": "Failing Elements"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-0-SPAN",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,7,ARTICLE,3,DIV,0,BUTTON,3,SPAN",
+                "selector": "article.message > div.message-content > button.reply-preview > span",
+                "boundingRect": {
+                  "top": 293,
+                  "bottom": 309,
+                  "left": 132,
+                  "right": 272,
+                  "width": 140,
+                  "height": 17
+                },
+                "snippet": "<span>",
+                "nodeLabel": "Also, finally cleaned up my desk…",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #74747c, background color: #1c1c20, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 759,
+                        "left": 0,
+                        "right": 412,
+                        "width": 412,
+                        "height": 759
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nR\nRiley\nYesterday at 7:12 PM\n\nI'll be around later tonight.\n\nAC\nAlex Ch…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-2-TIME",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,7,ARTICLE,3,DIV,1,DIV,1,TIME",
+                "selector": "article.message > div.message-content > div.message-meta > time",
+                "boundingRect": {
+                  "top": 314,
+                  "bottom": 334,
+                  "left": 114,
+                  "right": 212,
+                  "width": 97,
+                  "height": 20
+                },
+                "snippet": "<time>",
+                "nodeLabel": "Today at 4:18 PM",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #74747c, background color: #1c1c20, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 759,
+                        "left": 0,
+                        "right": 412,
+                        "width": 412,
+                        "height": 759
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nR\nRiley\nYesterday at 7:12 PM\n\nI'll be around later tonight.\n\nAC\nAlex Ch…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-3-SPAN",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,0,DIV,0,SPAN",
+                "selector": "div#messages > article.message > div.new-divider > span",
+                "boundingRect": {
+                  "top": 379,
+                  "bottom": 396,
+                  "left": 360,
+                  "right": 396,
+                  "width": 36,
+                  "height": 17
+                },
+                "snippet": "<span>",
+                "nodeLabel": "NEW",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.19 (foreground color: #ffffff, background color: #f25f5c, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-4-TIME",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,2,DIV,2,DIV,1,TIME",
+                "selector": "article.message > div.message-content > div.message-meta > time",
+                "boundingRect": {
+                  "top": 396,
+                  "bottom": 416,
+                  "left": 144,
+                  "right": 245,
+                  "width": 100,
+                  "height": 20
+                },
+                "snippet": "<time>",
+                "nodeLabel": "Today at 4:20 PM",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.14 (foreground color: #74747c, background color: #2d2823, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-5-ARTICLE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE",
+                      "selector": "main.main-pane > div.chat-body > div#messages > article.message",
+                      "boundingRect": {
+                        "top": 395,
+                        "bottom": 556,
+                        "left": 0,
+                        "right": 412,
+                        "width": 412,
+                        "height": 160
+                      },
+                      "snippet": "<article class=\"message  mentioned\" data-message=\"6\" data-context=\"message\">",
+                      "nodeLabel": "NEW\nSR\nSam Rivera\nToday at 4:20 PM\n\n@Alex Chen I put the notes here for later.\n…"
+                    }
+                  },
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 759,
+                        "left": 0,
+                        "right": 412,
+                        "width": 412,
+                        "height": 759
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nR\nRiley\nYesterday at 7:12 PM\n\nI'll be around later tonight.\n\nAC\nAlex Ch…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-6-SPAN",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,2,DIV,4,SPAN",
+                "selector": "div#messages > article.message > div.message-content > span.edited",
+                "boundingRect": {
+                  "top": 470,
+                  "bottom": 485,
+                  "left": 60,
+                  "right": 104,
+                  "width": 44,
+                  "height": 15
+                },
+                "snippet": "<span class=\"edited\">",
+                "nodeLabel": "(edited)",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.14 (foreground color: #74747c, background color: #2d2823, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-5-ARTICLE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE",
+                      "selector": "main.main-pane > div.chat-body > div#messages > article.message",
+                      "boundingRect": {
+                        "top": 395,
+                        "bottom": 556,
+                        "left": 0,
+                        "right": 412,
+                        "width": 412,
+                        "height": 160
+                      },
+                      "snippet": "<article class=\"message  mentioned\" data-message=\"6\" data-context=\"message\">",
+                      "nodeLabel": "NEW\nSR\nSam Rivera\nToday at 4:20 PM\n\n@Alex Chen I put the notes here for later.\n…"
+                    }
+                  },
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 759,
+                        "left": 0,
+                        "right": 412,
+                        "width": 412,
+                        "height": 759
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nR\nRiley\nYesterday at 7:12 PM\n\nI'll be around later tonight.\n\nAC\nAlex Ch…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-7-SMALL",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,2,DIV,5,DIV,1,SPAN,1,SMALL",
+                "selector": "div.message-content > div.file-card > span > small",
+                "boundingRect": {
+                  "top": 526,
+                  "bottom": 542,
+                  "left": 96,
+                  "right": 340,
+                  "width": 244,
+                  "height": 17
+                },
+                "snippet": "<small>",
+                "nodeLabel": "2.4 KB",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.24 (foreground color: #74747c, background color: #26262b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-8-DIV",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,2,DIV,5,DIV",
+                      "selector": "div#messages > article.message > div.message-content > div.file-card",
+                      "boundingRect": {
+                        "top": 496,
+                        "bottom": 556,
+                        "left": 56,
+                        "right": 400,
+                        "width": 344,
+                        "height": 60
+                      },
+                      "snippet": "<div class=\"file-card\">",
+                      "nodeLabel": "game-night-notes.md\n2.4 KB"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-9-TIME",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,10,ARTICLE,3,DIV,2,DIV,1,TIME",
+                "selector": "article.message > div.message-content > div.message-meta > time",
+                "boundingRect": {
+                  "top": 573,
+                  "bottom": 593,
+                  "left": 137,
+                  "right": 237,
+                  "width": 100,
+                  "height": 20
+                },
+                "snippet": "<time>",
+                "nodeLabel": "Today at 4:22 PM",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #74747c, background color: #1c1c20, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 759,
+                        "left": 0,
+                        "right": 412,
+                        "width": 412,
+                        "height": 759
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nR\nRiley\nYesterday at 7:12 PM\n\nI'll be around later tonight.\n\nAC\nAlex Ch…"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "impact": "serious",
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        }
+      },
+      {
+        "id": "offscreen-images",
+        "title": "Defer offscreen images",
+        "score": 0,
+        "details": {
+          "type": "opportunity",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "label": ""
+            },
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Resource Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "label": "Est Savings"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-18-IMG",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,0,NAV,0,BUTTON,0,IMG",
+                "selector": "div.left-panel > nav.server-rail > button.server-icon > img",
+                "boundingRect": {
+                  "top": 12,
+                  "bottom": 60,
+                  "left": -328,
+                  "right": -280,
+                  "width": 48,
+                  "height": 48
+                },
+                "snippet": "<img src=\"public/icons/icon-192.png\" alt=\"\" width=\"48\" height=\"48\">",
+                "nodeLabel": "div.left-panel > nav.server-rail > button.server-icon > img"
+              },
+              "url": "http://127.0.0.1:4173/public/icons/icon-192.png",
+              "requestStartTime": 10126016.831,
+              "totalBytes": 5072,
+              "wastedBytes": 5072,
+              "wastedPercent": 100
+            }
+          ],
+          "overallSavingsMs": 150,
+          "overallSavingsBytes": 5072,
+          "sortedBy": [
+            "wastedBytes"
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "metricSavings": {
+              "FCP": 0,
+              "LCP": 150
+            }
+          }
+        }
+      },
+      {
+        "id": "render-blocking-resources",
+        "title": "Eliminate render-blocking resources",
+        "score": 0,
+        "details": {
+          "type": "opportunity",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:4173/style-adc283fc6d33b433.css",
+              "totalBytes": 11174,
+              "wastedMs": 305
+            }
+          ],
+          "overallSavingsMs": 600
+        }
+      },
+      {
+        "id": "unminified-css",
+        "title": "Minify CSS",
+        "score": 0.5,
+        "details": {
+          "type": "opportunity",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "label": "Est Savings"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:4173/style-adc283fc6d33b433.css",
+              "totalBytes": 11174,
+              "wastedBytes": 2320,
+              "wastedPercent": 20.766013818899687
+            }
+          ],
+          "overallSavingsMs": 0,
+          "overallSavingsBytes": 2320,
+          "sortedBy": [
+            "wastedBytes"
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "metricSavings": {
+              "FCP": 0,
+              "LCP": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "uses-responsive-images",
+        "title": "Properly size images",
+        "score": 0,
+        "details": {
+          "type": "opportunity",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "label": ""
+            },
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Resource Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "label": "Est Savings"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-18-IMG",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,0,NAV,0,BUTTON,0,IMG",
+                "selector": "div.left-panel > nav.server-rail > button.server-icon > img",
+                "boundingRect": {
+                  "top": 12,
+                  "bottom": 60,
+                  "left": -328,
+                  "right": -280,
+                  "width": 48,
+                  "height": 48
+                },
+                "snippet": "<img src=\"public/icons/icon-192.png\" alt=\"\" width=\"48\" height=\"48\">",
+                "nodeLabel": "div.left-panel > nav.server-rail > button.server-icon > img"
+              },
+              "url": "http://127.0.0.1:4173/public/icons/icon-192.png",
+              "totalBytes": 5072,
+              "wastedBytes": 4101,
+              "wastedPercent": 80.859375
+            }
+          ],
+          "overallSavingsMs": 150,
+          "overallSavingsBytes": 4101,
+          "sortedBy": [
+            "wastedBytes"
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "metricSavings": {
+              "FCP": 0,
+              "LCP": 150
+            }
+          }
+        }
+      },
+      {
+        "id": "dom-size",
+        "title": "Avoid an excessive DOM size",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "statistic",
+              "valueType": "text",
+              "label": "Statistic"
+            },
+            {
+              "key": "node",
+              "valueType": "node",
+              "label": "Element"
+            },
+            {
+              "key": "value",
+              "valueType": "numeric",
+              "label": "Value"
+            }
+          ],
+          "items": [
+            {
+              "statistic": "Total DOM Elements",
+              "value": {
+                "type": "numeric",
+                "granularity": 1,
+                "value": 875
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-12-use",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,1,NAV,0,DIV,1,DIV,0,BUTTON,0,svg,0,use",
+                "selector": "div.channel-actions > button.icon-button > svg.icon > use",
+                "boundingRect": {
+                  "top": 0,
+                  "bottom": 0,
+                  "left": 0,
+                  "right": 0,
+                  "width": 0,
+                  "height": 0
+                },
+                "snippet": "<use href=\"#i-user-plus\">",
+                "nodeLabel": "div.channel-actions > button.icon-button > svg.icon > use"
+              },
+              "statistic": "Maximum DOM Depth",
+              "value": {
+                "type": "numeric",
+                "granularity": 1,
+                "value": 12
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-13-defs",
+                "path": "1,HTML,1,BODY,2,DIV,0,DIV,0,svg,0,defs",
+                "selector": "div#sticktalk > div > svg.svg-sprite > defs",
+                "boundingRect": {
+                  "top": 0,
+                  "bottom": 0,
+                  "left": 0,
+                  "right": 0,
+                  "width": 0,
+                  "height": 0
+                },
+                "snippet": "<defs>",
+                "nodeLabel": "div#sticktalk > div > svg.svg-sprite > defs"
+              },
+              "statistic": "Maximum Child Elements",
+              "value": {
+                "type": "numeric",
+                "granularity": 1,
+                "value": 72
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "forced-reflow-insight",
+        "title": "Forced reflow",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "source",
+                  "valueType": "source-location",
+                  "label": "Top function call"
+                },
+                {
+                  "key": "reflowTime",
+                  "valueType": "ms",
+                  "granularity": 1,
+                  "label": "Total reflow time"
+                }
+              ],
+              "items": [
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:4173/public/platform.js",
+                    "urlProvider": "network",
+                    "line": 457,
+                    "column": 20
+                  },
+                  "reflowTime": 46.19
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "source",
+                  "valueType": "source-location",
+                  "label": "Source"
+                },
+                {
+                  "key": "reflowTime",
+                  "valueType": "ms",
+                  "granularity": 1,
+                  "label": "Total reflow time"
+                }
+              ],
+              "items": [
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:4173/public/platform.js",
+                    "urlProvider": "network",
+                    "line": 483,
+                    "column": 12
+                  },
+                  "reflowTime": 46.19
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "lcp-discovery-insight",
+        "title": "LCP request discovery",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "checklist",
+              "items": {
+                "priorityHinted": {
+                  "label": "fetchpriority=high should be applied",
+                  "value": false
+                },
+                "requestDiscoverable": {
+                  "label": "Request is discoverable in initial document",
+                  "value": true
+                },
+                "eagerlyLoaded": {
+                  "label": "lazy load not applied",
+                  "value": false
+                }
+              }
+            },
+            {
+              "type": "node",
+              "lhId": "page-0-IMG",
+              "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,6,ARTICLE,3,DIV,6,BUTTON,0,IMG",
+              "selector": "article.message > div.message-content > button.attachment-image > img",
+              "boundingRect": {
+                "top": 0,
+                "bottom": 229,
+                "left": 56,
+                "right": 400,
+                "width": 344,
+                "height": 228
+              },
+              "snippet": "<img style=\"aspect-ratio:256/170\" src=\"public/mock-workspace.jpg\" srcset=\"public/mock-workspace.jpg 1x, public/mock-workspace.jpg 2x\" loading=\"lazy\" width=\"256\" height=\"170\" alt=\"A clean desk with a plant, notebook and warm light\">",
+              "nodeLabel": "A clean desk with a plant, notebook and warm light"
+            }
+          ]
+        }
+      },
+      {
+        "id": "network-dependency-tree-insight",
+        "title": "Network dependency tree",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "list-section",
+              "value": {
+                "type": "network-tree",
+                "chains": {
+                  "8746C9E661A8B40191C8560F0A742273": {
+                    "url": "http://127.0.0.1:4173/",
+                    "navStartToEndTime": 73,
+                    "transferSize": 1065,
+                    "isLongest": true,
+                    "children": {
+                      "18616.2": {
+                        "url": "http://127.0.0.1:4173/style-adc283fc6d33b433.css",
+                        "navStartToEndTime": 82,
+                        "transferSize": 11174,
+                        "isLongest": true,
+                        "children": {
+                          "18616.17": {
+                            "url": "http://127.0.0.1:4173/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 200,
+                            "transferSize": 18874,
+                            "isLongest": true,
+                            "children": {}
+                          },
+                          "18616.18": {
+                            "url": "http://127.0.0.1:4173/public/fonts/JetBrainsMono-Regular.woff2",
+                            "navStartToEndTime": 199,
+                            "transferSize": 28874,
+                            "children": {}
+                          },
+                          "18616.16": {
+                            "url": "http://127.0.0.1:4173/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 198,
+                            "transferSize": 18786,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "18616.5": {
+                        "url": "http://127.0.0.1:4173/public/platform.js",
+                        "navStartToEndTime": 83,
+                        "transferSize": 4508,
+                        "children": {}
+                      }
+                    }
+                  }
+                },
+                "longestChain": {
+                  "duration": 200
+                }
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnected origins",
+              "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.",
+              "value": {
+                "type": "text",
+                "value": "no origins were preconnected"
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnect candidates",
+              "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4.",
+              "value": {
+                "type": "text",
+                "value": "No additional origins are good candidates for preconnecting"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "render-blocking-insight",
+        "title": "Render blocking requests",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:4173/style-adc283fc6d33b433.css",
+              "totalBytes": 11174,
+              "wastedMs": 302
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "desktop": {
+    "version": "12.8.2",
+    "categories": {
+      "performance": 100,
+      "accessibility": 91,
+      "best-practices": 100
+    },
+    "metrics": {
+      "first-contentful-paint": "0.6 s",
+      "largest-contentful-paint": "0.7 s",
+      "total-blocking-time": "0 ms",
+      "cumulative-layout-shift": "0",
+      "interactive": "0.7 s"
+    },
+    "failures": [
+      {
+        "id": "lcp-lazy-loaded",
+        "title": "Largest Contentful Paint image was lazily loaded",
+        "score": 0.5,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "label": "Element"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-50-IMG",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,6,ARTICLE,3,DIV,6,BUTTON,0,IMG",
+                "selector": "article.message > div.message-content > button.attachment-image > img",
+                "boundingRect": {
+                  "top": 147,
+                  "bottom": 413,
+                  "left": 384,
+                  "right": 784,
+                  "width": 400,
+                  "height": 266
+                },
+                "snippet": "<img style=\"aspect-ratio:256/170\" src=\"public/mock-workspace.jpg\" srcset=\"public/mock-workspace.jpg 1x, public/mock-workspace.jpg 2x\" loading=\"lazy\" width=\"256\" height=\"170\" alt=\"A clean desk with a plant, notebook and warm light\">",
+                "nodeLabel": "A clean desk with a plant, notebook and warm light"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "valid-source-maps",
+        "title": "Missing source maps for large first-party JavaScript",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "scriptUrl",
+              "valueType": "url",
+              "subItemsHeading": {
+                "key": "error"
+              },
+              "label": "URL"
+            },
+            {
+              "key": "sourceMapUrl",
+              "valueType": "url",
+              "label": "Map URL"
+            }
+          ],
+          "items": [
+            {
+              "scriptUrl": "http://127.0.0.1:4173/sticktalk-web-f7bdac88dafc4df5_bg.wasm",
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "error": "Large JavaScript file is missing a source map"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "color-contrast",
+        "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "subItemsHeading": {
+                "key": "relatedNode",
+                "valueType": "node"
+              },
+              "label": "Failing Elements"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-0-BUTTON",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,0,DIV,0,BUTTON",
+                "selector": "aside.channel-sidebar > div.channel-scroll > div.category > button",
+                "boundingRect": {
+                  "top": 68,
+                  "bottom": 84,
+                  "left": 84,
+                  "right": 183,
+                  "width": 99,
+                  "height": 17
+                },
+                "snippet": "<button data-collapse=\"text-channels\">",
+                "nodeLabel": "Text Channels",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE",
+                      "selector": "div#sticktalk > div.app-shell > div.left-panel > aside.channel-sidebar",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 72,
+                        "right": 312,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"channel-sidebar\">",
+                      "nodeLabel": "The Den\nText Channels\ngeneral\nintroductions\nannouncements\n3\nprojects\nscreenshot…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-2-BUTTON",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,2,DIV,0,BUTTON",
+                "selector": "aside.channel-sidebar > div.channel-scroll > div.category > button",
+                "boundingRect": {
+                  "top": 302,
+                  "bottom": 318,
+                  "left": 84,
+                  "right": 190,
+                  "width": 106,
+                  "height": 17
+                },
+                "snippet": "<button data-collapse=\"voice-channels\">",
+                "nodeLabel": "Voice Channels",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE",
+                      "selector": "div#sticktalk > div.app-shell > div.left-panel > aside.channel-sidebar",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 72,
+                        "right": 312,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"channel-sidebar\">",
+                      "nodeLabel": "The Den\nText Channels\ngeneral\nintroductions\nannouncements\n3\nprojects\nscreenshot…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-3-SPAN",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,3,NAV,1,DIV,1,BUTTON,2,SPAN",
+                "selector": "nav#voice-channels > div.voice-users > button.voice-user > span.badge",
+                "boundingRect": {
+                  "top": 396,
+                  "bottom": 412,
+                  "left": 265,
+                  "right": 299,
+                  "width": 34,
+                  "height": 16
+                },
+                "snippet": "<span class=\"badge live\">",
+                "nodeLabel": "LIVE",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.19 (foreground color: #ffffff, background color: #f25f5c, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-4-SPAN",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,3,NAV,3,DIV,0,BUTTON,1,SPAN",
+                "selector": "nav#voice-channels > div.channel-row > button.channel-main > span",
+                "boundingRect": {
+                  "top": 488,
+                  "bottom": 510,
+                  "left": 116,
+                  "right": 205,
+                  "width": 89,
+                  "height": 22
+                },
+                "snippet": "<span>",
+                "nodeLabel": "Quiet Room",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 2.26 (foreground color: #515156, background color: #17171a, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE",
+                      "selector": "div#sticktalk > div.app-shell > div.left-panel > aside.channel-sidebar",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 72,
+                        "right": 312,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"channel-sidebar\">",
+                      "nodeLabel": "The Den\nText Channels\ngeneral\nintroductions\nannouncements\n3\nprojects\nscreenshot…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-5-SMALL",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,2,SECTION,0,DIV,0,BUTTON,1,SPAN,1,SMALL",
+                "selector": "div.voice-connection-line > button.voice-status > span > small",
+                "boundingRect": {
+                  "top": 768,
+                  "bottom": 784,
+                  "left": 108,
+                  "right": 224,
+                  "width": 116,
+                  "height": 17
+                },
+                "snippet": "<small>",
+                "nodeLabel": "Lounge / The Den",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-1-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE",
+                      "selector": "div#sticktalk > div.app-shell > div.left-panel > aside.channel-sidebar",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 72,
+                        "right": 312,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"channel-sidebar\">",
+                      "nodeLabel": "The Den\nText Channels\ngeneral\nintroductions\nannouncements\n3\nprojects\nscreenshot…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-6-SMALL",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,3,SECTION,1,BUTTON,1,SMALL",
+                "selector": "aside.channel-sidebar > section.user-panel > button.self-label > small.status-copy",
+                "boundingRect": {
+                  "top": 867,
+                  "bottom": 884,
+                  "left": 120,
+                  "right": 159,
+                  "width": 39,
+                  "height": 17
+                },
+                "snippet": "<small class=\"status-copy\">",
+                "nodeLabel": "Online",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.96 (foreground color: #74747c, background color: #141417, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-7-SECTION",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,3,SECTION",
+                      "selector": "div.app-shell > div.left-panel > aside.channel-sidebar > section.user-panel",
+                      "boundingRect": {
+                        "top": 840,
+                        "bottom": 892,
+                        "left": 80,
+                        "right": 303,
+                        "width": 223,
+                        "height": 52
+                      },
+                      "snippet": "<section class=\"user-panel\">",
+                      "nodeLabel": "AC\nAlex Chen\nOnline"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-8-BUTTON",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,0,HEADER,4,BUTTON",
+                "selector": "div.app-shell > main.main-pane > header.channel-header > button.channel-topic",
+                "boundingRect": {
+                  "top": 14,
+                  "bottom": 33,
+                  "left": 439,
+                  "right": 808,
+                  "width": 369,
+                  "height": 19
+                },
+                "snippet": "<button class=\"channel-topic\" data-action=\"modal:topic\">",
+                "nodeLabel": "A place for the everyday stuff.",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #74747c, background color: #1c1c20, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-9-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 900
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nA place for the everyday stuff.\nSearch The Den\nJ\nJordan\nYesterday at 7:…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-10-TIME",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,5,ARTICLE,3,DIV,2,DIV,1,TIME",
+                "selector": "article.message > div.message-content > div.message-meta > time",
+                "boundingRect": {
+                  "top": 36,
+                  "bottom": 56,
+                  "left": 470,
+                  "right": 568,
+                  "width": 98,
+                  "height": 20
+                },
+                "snippet": "<time>",
+                "nodeLabel": "Today at 4:14 PM",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #74747c, background color: #1c1c20, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-9-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 900
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nA place for the everyday stuff.\nSearch The Den\nJ\nJordan\nYesterday at 7:…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-11-TIME",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,6,ARTICLE,3,DIV,2,DIV,1,TIME",
+                "selector": "article.message > div.message-content > div.message-meta > time",
+                "boundingRect": {
+                  "top": 97,
+                  "bottom": 117,
+                  "left": 434,
+                  "right": 531,
+                  "width": 97,
+                  "height": 20
+                },
+                "snippet": "<time>",
+                "nodeLabel": "Today at 4:16 PM",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #74747c, background color: #1c1c20, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-9-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 900
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nA place for the everyday stuff.\nSearch The Den\nJ\nJordan\nYesterday at 7:…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-12-SPAN",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,7,ARTICLE,3,DIV,0,BUTTON,3,SPAN",
+                "selector": "article.message > div.message-content > button.reply-preview > span",
+                "boundingRect": {
+                  "top": 459,
+                  "bottom": 476,
+                  "left": 460,
+                  "right": 653,
+                  "width": 193,
+                  "height": 17
+                },
+                "snippet": "<span>",
+                "nodeLabel": "Also, finally cleaned up my desk…",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #74747c, background color: #1c1c20, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-9-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 900
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nA place for the everyday stuff.\nSearch The Den\nJ\nJordan\nYesterday at 7:…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-13-TIME",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,7,ARTICLE,3,DIV,1,DIV,1,TIME",
+                "selector": "article.message > div.message-content > div.message-meta > time",
+                "boundingRect": {
+                  "top": 482,
+                  "bottom": 502,
+                  "left": 445,
+                  "right": 543,
+                  "width": 97,
+                  "height": 20
+                },
+                "snippet": "<time>",
+                "nodeLabel": "Today at 4:18 PM",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #74747c, background color: #1c1c20, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-9-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 900
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nA place for the everyday stuff.\nSearch The Den\nJ\nJordan\nYesterday at 7:…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-14-SPAN",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,0,DIV,0,SPAN",
+                "selector": "div#messages > article.message > div.new-divider > span",
+                "boundingRect": {
+                  "top": 547,
+                  "bottom": 564,
+                  "left": 1148,
+                  "right": 1184,
+                  "width": 36,
+                  "height": 17
+                },
+                "snippet": "<span>",
+                "nodeLabel": "NEW",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.19 (foreground color: #ffffff, background color: #f25f5c, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-15-TIME",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,2,DIV,2,DIV,1,TIME",
+                "selector": "article.message > div.message-content > div.message-meta > time",
+                "boundingRect": {
+                  "top": 565,
+                  "bottom": 585,
+                  "left": 478,
+                  "right": 578,
+                  "width": 100,
+                  "height": 20
+                },
+                "snippet": "<time>",
+                "nodeLabel": "Today at 4:20 PM",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.14 (foreground color: #74747c, background color: #2d2823, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-16-ARTICLE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE",
+                      "selector": "main.main-pane > div.chat-body > div#messages > article.message",
+                      "boundingRect": {
+                        "top": 563,
+                        "bottom": 721,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 158
+                      },
+                      "snippet": "<article class=\"message  mentioned\" data-message=\"6\" data-context=\"message\">",
+                      "nodeLabel": "NEW\nSR\nSam Rivera\nToday at 4:20 PM\n\n@Alex Chen I put the notes here for later.\n…"
+                    }
+                  },
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-9-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 900
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nA place for the everyday stuff.\nSearch The Den\nJ\nJordan\nYesterday at 7:…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-17-SPAN",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,2,DIV,4,SPAN",
+                "selector": "div#messages > article.message > div.message-content > span.edited",
+                "boundingRect": {
+                  "top": 635,
+                  "bottom": 650,
+                  "left": 388,
+                  "right": 432,
+                  "width": 44,
+                  "height": 15
+                },
+                "snippet": "<span class=\"edited\">",
+                "nodeLabel": "(edited)",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.14 (foreground color: #74747c, background color: #2d2823, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-16-ARTICLE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE",
+                      "selector": "main.main-pane > div.chat-body > div#messages > article.message",
+                      "boundingRect": {
+                        "top": 563,
+                        "bottom": 721,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 158
+                      },
+                      "snippet": "<article class=\"message  mentioned\" data-message=\"6\" data-context=\"message\">",
+                      "nodeLabel": "NEW\nSR\nSam Rivera\nToday at 4:20 PM\n\n@Alex Chen I put the notes here for later.\n…"
+                    }
+                  },
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-9-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 900
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nA place for the everyday stuff.\nSearch The Den\nJ\nJordan\nYesterday at 7:…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-18-SMALL",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,2,DIV,5,DIV,1,SPAN,1,SMALL",
+                "selector": "div.message-content > div.file-card > span > small",
+                "boundingRect": {
+                  "top": 692,
+                  "bottom": 709,
+                  "left": 440,
+                  "right": 728,
+                  "width": 288,
+                  "height": 17
+                },
+                "snippet": "<small>",
+                "nodeLabel": "2.4 KB",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.24 (foreground color: #74747c, background color: #26262b, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-19-DIV",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,9,ARTICLE,2,DIV,5,DIV",
+                      "selector": "div#messages > article.message > div.message-content > div.file-card",
+                      "boundingRect": {
+                        "top": 661,
+                        "bottom": 721,
+                        "left": 384,
+                        "right": 784,
+                        "width": 400,
+                        "height": 60
+                      },
+                      "snippet": "<div class=\"file-card\">",
+                      "nodeLabel": "game-night-notes.md\n2.4 KB"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-20-TIME",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,10,ARTICLE,3,DIV,2,DIV,1,TIME",
+                "selector": "article.message > div.message-content > div.message-meta > time",
+                "boundingRect": {
+                  "top": 739,
+                  "bottom": 759,
+                  "left": 470,
+                  "right": 570,
+                  "width": 100,
+                  "height": 20
+                },
+                "snippet": "<time>",
+                "nodeLabel": "Today at 4:22 PM",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.66 (foreground color: #74747c, background color: #1c1c20, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-9-MAIN",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN",
+                      "selector": "body > div#sticktalk > div.app-shell > main.main-pane",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 312,
+                        "right": 1200,
+                        "width": 888,
+                        "height": 900
+                      },
+                      "snippet": "<main class=\"main-pane\" aria-label=\"Conversation\">",
+                      "nodeLabel": "general\nA place for the everyday stuff.\nSearch The Den\nJ\nJordan\nYesterday at 7:…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-21-H2",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,1,SECTION,0,H2",
+                "selector": "div.app-shell > aside.member-list > section.member-group > h2",
+                "boundingRect": {
+                  "top": 24,
+                  "bottom": 40,
+                  "left": 1217,
+                  "right": 1424,
+                  "width": 207,
+                  "height": 16
+                },
+                "snippet": "<h2>",
+                "nodeLabel": "Owner — 1",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-23-SMALL",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,1,SECTION,1,BUTTON,1,SPAN,1,SMALL",
+                "selector": "section.member-group > button.member-row > span > small",
+                "boundingRect": {
+                  "top": 71,
+                  "bottom": 88,
+                  "left": 1261,
+                  "right": 1424,
+                  "width": 163,
+                  "height": 17
+                },
+                "snippet": "<small>",
+                "nodeLabel": "Around for a game",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-24-H2",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,2,SECTION,0,H2",
+                "selector": "div.app-shell > aside.member-list > section.member-group > h2",
+                "boundingRect": {
+                  "top": 114,
+                  "bottom": 129,
+                  "left": 1217,
+                  "right": 1424,
+                  "width": 207,
+                  "height": 16
+                },
+                "snippet": "<h2>",
+                "nodeLabel": "Moderators — 2",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-25-SMALL",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,2,SECTION,1,BUTTON,1,SPAN,1,SMALL",
+                "selector": "section.member-group > button.member-row > span > small",
+                "boundingRect": {
+                  "top": 161,
+                  "bottom": 177,
+                  "left": 1261,
+                  "right": 1424,
+                  "width": 163,
+                  "height": 17
+                },
+                "snippet": "<small>",
+                "nodeLabel": "Working on something",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-26-SMALL",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,2,SECTION,2,BUTTON,1,SPAN,1,SMALL",
+                "selector": "section.member-group > button.member-row > span > small",
+                "boundingRect": {
+                  "top": 203,
+                  "bottom": 219,
+                  "left": 1261,
+                  "right": 1424,
+                  "width": 163,
+                  "height": 17
+                },
+                "snippet": "<small>",
+                "nodeLabel": "Back in a bit",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-27-H2",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,3,SECTION,0,H2",
+                "selector": "div.app-shell > aside.member-list > section.member-group > h2",
+                "boundingRect": {
+                  "top": 245,
+                  "bottom": 261,
+                  "left": 1217,
+                  "right": 1424,
+                  "width": 207,
+                  "height": 16
+                },
+                "snippet": "<h2>",
+                "nodeLabel": "Online — 2",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-28-SMALL",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,3,SECTION,2,BUTTON,1,SPAN,1,SMALL",
+                "selector": "section.member-group > button.member-row > span > small",
+                "boundingRect": {
+                  "top": 335,
+                  "bottom": 351,
+                  "left": 1261,
+                  "right": 1424,
+                  "width": 163,
+                  "height": 17
+                },
+                "snippet": "<small>",
+                "nodeLabel": "Finishing a project",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-29-H2",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,4,SECTION,0,H2",
+                "selector": "div.app-shell > aside.member-list > section.member-group > h2",
+                "boundingRect": {
+                  "top": 377,
+                  "bottom": 392,
+                  "left": 1217,
+                  "right": 1424,
+                  "width": 207,
+                  "height": 16
+                },
+                "snippet": "<h2>",
+                "nodeLabel": "Offline — 3",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.86 (foreground color: #74747c, background color: #17171a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-30-STRONG",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,4,SECTION,1,BUTTON,1,SPAN,0,STRONG",
+                "selector": "section.member-group > button.member-row > span > strong",
+                "boundingRect": {
+                  "top": 410,
+                  "bottom": 432,
+                  "left": 1261,
+                  "right": 1424,
+                  "width": 163,
+                  "height": 22
+                },
+                "snippet": "<strong style=\"color:#E8EAED\">",
+                "nodeLabel": "Taylor",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 2.44 (foreground color: #565659, background color: #17171a, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-31-SPAN",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,4,SECTION,2,BUTTON,0,SPAN,0,SPAN",
+                "selector": "section.member-group > button.member-row > span.avatar > span.avatar-face",
+                "boundingRect": {
+                  "top": 447,
+                  "bottom": 479,
+                  "left": 1217,
+                  "right": 1249,
+                  "width": 32,
+                  "height": 32
+                },
+                "snippet": "<span class=\"avatar-face\" aria-hidden=\"true\">",
+                "nodeLabel": "MA",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 1.98 (foreground color: #5d5d5f, background color: #372e36, font size: 8.2pt (10.88px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-32-STRONG",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,4,SECTION,2,BUTTON,1,SPAN,0,STRONG",
+                "selector": "section.member-group > button.member-row > span > strong",
+                "boundingRect": {
+                  "top": 452,
+                  "bottom": 474,
+                  "left": 1261,
+                  "right": 1424,
+                  "width": 163,
+                  "height": 22
+                },
+                "snippet": "<strong style=\"color:#E8EAED\">",
+                "nodeLabel": "Morgan Alexander",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 2.44 (foreground color: #565659, background color: #17171a, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-33-STRONG",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE,4,SECTION,3,BUTTON,1,SPAN,0,STRONG",
+                "selector": "section.member-group > button.member-row > span > strong",
+                "boundingRect": {
+                  "top": 494,
+                  "bottom": 516,
+                  "left": 1261,
+                  "right": 1424,
+                  "width": 163,
+                  "height": 22
+                },
+                "snippet": "<strong style=\"color:#E8EAED\">",
+                "nodeLabel": "Casey",
+                "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 2.44 (foreground color: #565659, background color: #17171a, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-22-ASIDE",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,3,ASIDE",
+                      "selector": "body > div#sticktalk > div.app-shell > aside.member-list",
+                      "boundingRect": {
+                        "top": 0,
+                        "bottom": 900,
+                        "left": 1200,
+                        "right": 1440,
+                        "width": 240,
+                        "height": 900
+                      },
+                      "snippet": "<aside class=\"member-list \" aria-label=\"Members\">",
+                      "nodeLabel": "Owner — 1\nAC\nAlex Chen\nAround for a game\nModerators — 2\nM\nMaya\nWorking on somet…"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "impact": "serious",
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        }
+      },
+      {
+        "id": "target-size",
+        "title": "Touch targets do not have sufficient size or spacing.",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "subItemsHeading": {
+                "key": "relatedNode",
+                "valueType": "node"
+              },
+              "label": "Failing Elements"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-34-BUTTON",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,1,NAV,0,DIV,1,DIV,0,BUTTON",
+                "selector": "nav#text-channels > div.channel-row > div.channel-actions > button.icon-button",
+                "boundingRect": {
+                  "top": 97,
+                  "bottom": 121,
+                  "left": 255,
+                  "right": 275,
+                  "width": 20,
+                  "height": 24
+                },
+                "snippet": "<button class=\"icon-button\" type=\"button\" aria-label=\"Create Invite\" data-tooltip=\"Create Invite\" data-action=\"modal:invite\">",
+                "nodeLabel": "Create Invite",
+                "explanation": "Fix any of the following:\n  Target has insufficient size (20px by 24px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 16px instead of at least 24px."
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-35-BUTTON",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,1,NAV,0,DIV,1,DIV,1,BUTTON",
+                      "selector": "nav#text-channels > div.channel-row > div.channel-actions > button.icon-button",
+                      "boundingRect": {
+                        "top": 97,
+                        "bottom": 121,
+                        "left": 275,
+                        "right": 295,
+                        "width": 20,
+                        "height": 24
+                      },
+                      "snippet": "<button class=\"icon-button\" type=\"button\" aria-label=\"Edit Channel\" data-tooltip=\"Edit Channel\" data-action=\"modal:channel\">",
+                      "nodeLabel": "Edit Channel"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-35-BUTTON",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,1,NAV,0,DIV,1,DIV,1,BUTTON",
+                "selector": "nav#text-channels > div.channel-row > div.channel-actions > button.icon-button",
+                "boundingRect": {
+                  "top": 97,
+                  "bottom": 121,
+                  "left": 275,
+                  "right": 295,
+                  "width": 20,
+                  "height": 24
+                },
+                "snippet": "<button class=\"icon-button\" type=\"button\" aria-label=\"Edit Channel\" data-tooltip=\"Edit Channel\" data-action=\"modal:channel\">",
+                "nodeLabel": "Edit Channel",
+                "explanation": "Fix any of the following:\n  Target has insufficient size (20px by 24px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 16px instead of at least 24px."
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-34-BUTTON",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,1,NAV,0,DIV,1,DIV,0,BUTTON",
+                      "selector": "nav#text-channels > div.channel-row > div.channel-actions > button.icon-button",
+                      "boundingRect": {
+                        "top": 97,
+                        "bottom": 121,
+                        "left": 255,
+                        "right": 275,
+                        "width": 20,
+                        "height": 24
+                      },
+                      "snippet": "<button class=\"icon-button\" type=\"button\" aria-label=\"Create Invite\" data-tooltip=\"Create Invite\" data-action=\"modal:invite\">",
+                      "nodeLabel": "Create Invite"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-36-BUTTON",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,3,SECTION,2,DIV,1,BUTTON",
+                "selector": "aside.channel-sidebar > section.user-panel > div.split-control > button.split-chevron",
+                "boundingRect": {
+                  "top": 850,
+                  "bottom": 882,
+                  "left": 195,
+                  "right": 211,
+                  "width": 16,
+                  "height": 32
+                },
+                "snippet": "<button class=\"split-chevron\" aria-label=\"Input Devices\" data-tooltip=\"Input Devices\" data-action=\"menu:devices\">",
+                "nodeLabel": "Input Devices",
+                "explanation": "Fix any of the following:\n  Target has insufficient size (16px by 32px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 16px instead of at least 24px."
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-37-BUTTON",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,3,SECTION,2,DIV,0,BUTTON",
+                      "selector": "aside.channel-sidebar > section.user-panel > div.split-control > button.icon-button",
+                      "boundingRect": {
+                        "top": 850,
+                        "bottom": 882,
+                        "left": 163,
+                        "right": 195,
+                        "width": 32,
+                        "height": 32
+                      },
+                      "snippet": "<button class=\"icon-button\" type=\"button\" aria-label=\"Mute\" data-tooltip=\"Mute\" data-action=\"mute\">",
+                      "nodeLabel": "Mute"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-38-BUTTON",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,3,SECTION,3,DIV,1,BUTTON",
+                "selector": "aside.channel-sidebar > section.user-panel > div.split-control > button.split-chevron",
+                "boundingRect": {
+                  "top": 850,
+                  "bottom": 882,
+                  "left": 247,
+                  "right": 263,
+                  "width": 16,
+                  "height": 32
+                },
+                "snippet": "<button class=\"split-chevron\" aria-label=\"Output Devices\" data-tooltip=\"Output Devices\" data-action=\"menu:devices\">",
+                "nodeLabel": "Output Devices",
+                "explanation": "Fix any of the following:\n  Target has insufficient size (16px by 32px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 16px instead of at least 24px."
+              },
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "relatedNode": {
+                      "type": "node",
+                      "lhId": "1-39-BUTTON",
+                      "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,3,SECTION,3,DIV,0,BUTTON",
+                      "selector": "aside.channel-sidebar > section.user-panel > div.split-control > button.icon-button",
+                      "boundingRect": {
+                        "top": 850,
+                        "bottom": 882,
+                        "left": 215,
+                        "right": 247,
+                        "width": 32,
+                        "height": 32
+                      },
+                      "snippet": "<button class=\"icon-button\" type=\"button\" aria-label=\"Deafen\" data-tooltip=\"Deafen\" data-action=\"deafen\">",
+                      "nodeLabel": "Deafen"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "impact": "serious",
+            "tags": [
+              "cat.sensory-and-visual-cues",
+              "wcag22aa",
+              "wcag258",
+              "EN-301-549v4",
+              "EN-9.2.5.8"
+            ]
+          }
+        }
+      },
+      {
+        "id": "unminified-css",
+        "title": "Minify CSS",
+        "score": 0.5,
+        "details": {
+          "type": "opportunity",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "label": "Est Savings"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:4173/style-adc283fc6d33b433.css",
+              "totalBytes": 11174,
+              "wastedBytes": 2320,
+              "wastedPercent": 20.766013818899687
+            }
+          ],
+          "overallSavingsMs": 0,
+          "overallSavingsBytes": 2320,
+          "sortedBy": [
+            "wastedBytes"
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "metricSavings": {
+              "FCP": 0,
+              "LCP": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "uses-responsive-images",
+        "title": "Properly size images",
+        "score": 0.5,
+        "details": {
+          "type": "opportunity",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "label": ""
+            },
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Resource Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "label": "Est Savings"
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-49-IMG",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,0,NAV,0,BUTTON,0,IMG",
+                "selector": "div.left-panel > nav.server-rail > button.server-icon > img",
+                "boundingRect": {
+                  "top": 12,
+                  "bottom": 60,
+                  "left": 12,
+                  "right": 60,
+                  "width": 48,
+                  "height": 48
+                },
+                "snippet": "<img src=\"public/icons/icon-192.png\" alt=\"\" width=\"48\" height=\"48\">",
+                "nodeLabel": "div.left-panel > nav.server-rail > button.server-icon > img"
+              },
+              "url": "http://127.0.0.1:4173/public/icons/icon-192.png",
+              "totalBytes": 5072,
+              "wastedBytes": 4755,
+              "wastedPercent": 93.75
+            }
+          ],
+          "overallSavingsMs": 0,
+          "overallSavingsBytes": 4755,
+          "sortedBy": [
+            "wastedBytes"
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "metricSavings": {
+              "FCP": 0,
+              "LCP": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "dom-size",
+        "title": "Avoid an excessive DOM size",
+        "score": 0.5,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "statistic",
+              "valueType": "text",
+              "label": "Statistic"
+            },
+            {
+              "key": "node",
+              "valueType": "node",
+              "label": "Element"
+            },
+            {
+              "key": "value",
+              "valueType": "numeric",
+              "label": "Value"
+            }
+          ],
+          "items": [
+            {
+              "statistic": "Total DOM Elements",
+              "value": {
+                "type": "numeric",
+                "granularity": 1,
+                "value": 897
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-43-use",
+                "path": "1,HTML,1,BODY,2,DIV,1,DIV,0,DIV,1,ASIDE,1,DIV,1,NAV,0,DIV,1,DIV,0,BUTTON,0,svg,0,use",
+                "selector": "div.channel-actions > button.icon-button > svg.icon > use",
+                "boundingRect": {
+                  "top": 104,
+                  "bottom": 114,
+                  "left": 259,
+                  "right": 271,
+                  "width": 12,
+                  "height": 11
+                },
+                "snippet": "<use href=\"#i-user-plus\">",
+                "nodeLabel": "div.channel-actions > button.icon-button > svg.icon > use"
+              },
+              "statistic": "Maximum DOM Depth",
+              "value": {
+                "type": "numeric",
+                "granularity": 1,
+                "value": 12
+              }
+            },
+            {
+              "node": {
+                "type": "node",
+                "lhId": "1-44-defs",
+                "path": "1,HTML,1,BODY,2,DIV,0,DIV,0,svg,0,defs",
+                "selector": "div#sticktalk > div > svg.svg-sprite > defs",
+                "boundingRect": {
+                  "top": 0,
+                  "bottom": 0,
+                  "left": 0,
+                  "right": 0,
+                  "width": 0,
+                  "height": 0
+                },
+                "snippet": "<defs>",
+                "nodeLabel": "div#sticktalk > div > svg.svg-sprite > defs"
+              },
+              "statistic": "Maximum Child Elements",
+              "value": {
+                "type": "numeric",
+                "granularity": 1,
+                "value": 72
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "forced-reflow-insight",
+        "title": "Forced reflow",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "source",
+                  "valueType": "source-location",
+                  "label": "Top function call"
+                },
+                {
+                  "key": "reflowTime",
+                  "valueType": "ms",
+                  "granularity": 1,
+                  "label": "Total reflow time"
+                }
+              ],
+              "items": [
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:4173/public/platform.js",
+                    "urlProvider": "network",
+                    "line": 457,
+                    "column": 20
+                  },
+                  "reflowTime": 38.916
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "source",
+                  "valueType": "source-location",
+                  "label": "Source"
+                },
+                {
+                  "key": "reflowTime",
+                  "valueType": "ms",
+                  "granularity": 1,
+                  "label": "Total reflow time"
+                }
+              ],
+              "items": [
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:4173/public/platform.js",
+                    "urlProvider": "network",
+                    "line": 483,
+                    "column": 12
+                  },
+                  "reflowTime": 38.916
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "image-delivery-insight",
+        "title": "Improve image delivery",
+        "score": 0.5,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL",
+              "subItemsHeading": {
+                "key": "reason",
+                "valueType": "text"
+              }
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Resource Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "label": "Est Savings",
+              "subItemsHeading": {
+                "key": "wastedBytes",
+                "valueType": "bytes"
+              }
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:4173/public/icons/icon-192.png",
+              "totalBytes": 5072,
+              "wastedBytes": 4755,
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "reason": "This image file is larger than it needs to be (192x192) for its displayed dimensions (48x48). Use responsive images to reduce the image download size.",
+                    "wastedBytes": 4755
+                  }
+                ]
+              }
+            }
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "wastedBytes": 4755
+          }
+        }
+      },
+      {
+        "id": "lcp-discovery-insight",
+        "title": "LCP request discovery",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "checklist",
+              "items": {
+                "priorityHinted": {
+                  "label": "fetchpriority=high should be applied",
+                  "value": false
+                },
+                "requestDiscoverable": {
+                  "label": "Request is discoverable in initial document",
+                  "value": true
+                },
+                "eagerlyLoaded": {
+                  "label": "lazy load not applied",
+                  "value": false
+                }
+              }
+            },
+            {
+              "type": "node",
+              "lhId": "page-0-IMG",
+              "path": "1,HTML,1,BODY,2,DIV,1,DIV,2,MAIN,3,DIV,0,DIV,6,ARTICLE,3,DIV,6,BUTTON,0,IMG",
+              "selector": "article.message > div.message-content > button.attachment-image > img",
+              "boundingRect": {
+                "top": 147,
+                "bottom": 413,
+                "left": 384,
+                "right": 784,
+                "width": 400,
+                "height": 266
+              },
+              "snippet": "<img style=\"aspect-ratio:256/170\" src=\"public/mock-workspace.jpg\" srcset=\"public/mock-workspace.jpg 1x, public/mock-workspace.jpg 2x\" loading=\"lazy\" width=\"256\" height=\"170\" alt=\"A clean desk with a plant, notebook and warm light\">",
+              "nodeLabel": "A clean desk with a plant, notebook and warm light"
+            }
+          ]
+        }
+      },
+      {
+        "id": "network-dependency-tree-insight",
+        "title": "Network dependency tree",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "list-section",
+              "value": {
+                "type": "network-tree",
+                "chains": {
+                  "01BF1EB611CEA7B328FB9299A43D6881": {
+                    "url": "http://127.0.0.1:4173/",
+                    "navStartToEndTime": 14,
+                    "transferSize": 1065,
+                    "isLongest": true,
+                    "children": {
+                      "7120.2": {
+                        "url": "http://127.0.0.1:4173/style-adc283fc6d33b433.css",
+                        "navStartToEndTime": 17,
+                        "transferSize": 11174,
+                        "isLongest": true,
+                        "children": {
+                          "7120.17": {
+                            "url": "http://127.0.0.1:4173/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 131,
+                            "transferSize": 18874,
+                            "isLongest": true,
+                            "children": {}
+                          },
+                          "7120.18": {
+                            "url": "http://127.0.0.1:4173/public/fonts/JetBrainsMono-Regular.woff2",
+                            "navStartToEndTime": 129,
+                            "transferSize": 28874,
+                            "children": {}
+                          },
+                          "7120.16": {
+                            "url": "http://127.0.0.1:4173/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 129,
+                            "transferSize": 18786,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "7120.5": {
+                        "url": "http://127.0.0.1:4173/public/platform.js",
+                        "navStartToEndTime": 18,
+                        "transferSize": 4508,
+                        "children": {}
+                      }
+                    }
+                  }
+                },
+                "longestChain": {
+                  "duration": 131
+                }
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnected origins",
+              "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.",
+              "value": {
+                "type": "text",
+                "value": "no origins were preconnected"
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnect candidates",
+              "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4.",
+              "value": {
+                "type": "text",
+                "value": "No additional origins are good candidates for preconnecting"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "render-blocking-insight",
+        "title": "Render blocking requests",
+        "score": 0.5,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:4173/style-adc283fc6d33b433.css",
+              "totalBytes": 11174
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "pwaLegacy": {
+    "version": "11.7.1",
+    "categories": {
+      "pwa": 100
+    },
+    "metrics": {},
+    "failures": []
+  }
+}
