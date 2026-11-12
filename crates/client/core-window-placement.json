@@ -1,0 +1,142 @@
+{
+  "placement-after-gpu.json": {
+    "client_foreground": false,
+    "client_size": [
+      1280,
+      800
+    ],
+    "foreground_unchanged": true,
+    "mode": "secondary-noactivate",
+    "non_primary_work_area": [
+      2560,
+      0,
+      4480,
+      1032
+    ],
+    "shown": true,
+    "window_position": [
+      2592,
+      32
+    ]
+  },
+  "placement-after-tiny.json": {
+    "client_foreground": false,
+    "client_size": [
+      1280,
+      800
+    ],
+    "foreground_unchanged": true,
+    "mode": "secondary-noactivate",
+    "non_primary_work_area": [
+      2560,
+      0,
+      4480,
+      1032
+    ],
+    "shown": true,
+    "window_position": [
+      2592,
+      32
+    ]
+  },
+  "placement-before-gpu.json": {
+    "client_foreground": false,
+    "client_size": [
+      1280,
+      800
+    ],
+    "foreground_unchanged": true,
+    "mode": "secondary-noactivate",
+    "non_primary_work_area": [
+      2560,
+      0,
+      4480,
+      1032
+    ],
+    "shown": true,
+    "window_position": [
+      2592,
+      32
+    ]
+  },
+  "placement-before-tiny-default.json": {
+    "client_foreground": false,
+    "client_size": [
+      1280,
+      800
+    ],
+    "foreground_unchanged": true,
+    "mode": "secondary-noactivate",
+    "non_primary_work_area": [
+      2560,
+      0,
+      4480,
+      1032
+    ],
+    "shown": true,
+    "window_position": [
+      2592,
+      32
+    ]
+  },
+  "placement-before.json": {
+    "client_foreground": false,
+    "client_size": [
+      1280,
+      800
+    ],
+    "foreground_unchanged": true,
+    "mode": "secondary-noactivate",
+    "non_primary_work_area": [
+      2560,
+      0,
+      4480,
+      1032
+    ],
+    "shown": true,
+    "window_position": [
+      2592,
+      32
+    ]
+  },
+  "placement-repeat-after-gpu.json": {
+    "client_foreground": false,
+    "client_size": [
+      1280,
+      800
+    ],
+    "foreground_unchanged": true,
+    "mode": "secondary-noactivate",
+    "non_primary_work_area": [
+      2560,
+      0,
+      4480,
+      1032
+    ],
+    "shown": true,
+    "window_position": [
+      2592,
+      32
+    ]
+  },
+  "placement-repeat-before-gpu.json": {
+    "client_foreground": false,
+    "client_size": [
+      1280,
+      800
+    ],
+    "foreground_unchanged": true,
+    "mode": "secondary-noactivate",
+    "non_primary_work_area": [
+      2560,
+      0,
+      4480,
+      1032
+    ],
+    "shown": true,
+    "window_position": [
+      2592,
+      32
+    ]
+  }
+}

@@ -1,17 +1,4 @@
-//! Local calendar labels through Win32, without a timezone database or a timer.
-#[derive(Clone, Copy)]
-pub struct Parts {
-    pub year: u16,
-    pub month: u16,
-    pub day: u16,
-    pub hour: u16,
-    pub minute: u16,
-}
-impl Parts {
-    pub fn date(self) -> (u16, u16, u16) {
-        (self.year, self.month, self.day)
-    }
-}
+pub use sticktalk_client_core::datetime::Parts;
 #[cfg(windows)]
 pub fn local(ms: u64) -> Parts {
     use windows_sys::Win32::{
@@ -52,27 +39,11 @@ pub fn local(ms: u64) -> Parts {
     }
 }
 pub fn label(ms: u64, short: bool) -> String {
-    let value = local(ms);
-    let time = format!(
-        "{}:{:02} {}",
-        if value.hour.is_multiple_of(12) {
-            12
-        } else {
-            value.hour % 12
-        },
-        value.minute,
-        if value.hour < 12 { "AM" } else { "PM" }
-    );
-    if short {
-        return time;
-    }
     let now = crate::mock::now();
-    let date = if value.date() == local(now).date() {
-        "Today".into()
-    } else if value.date() == local(now.saturating_sub(crate::theme::DAY_MS)).date() {
-        "Yesterday".into()
-    } else {
-        format!("{:02}/{:02}/{}", value.month, value.day, value.year)
-    };
-    format!("{date} at {time}")
+    sticktalk_client_core::datetime::label(
+        local(ms),
+        local(now),
+        local(now.saturating_sub(crate::theme::DAY_MS)),
+        short,
+    )
 }

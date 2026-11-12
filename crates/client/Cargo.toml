@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 sticktalk-proto.workspace = true
+sticktalk-client-core = { path = "../client-core" }
 iced_tiny_skia = { version = "0.14.1", default-features = false, features = ["image", "svg"] }
 iced_runtime = "0.14"
 iced_wgpu = { version = "0.14", optional = true, features = ["image", "svg"] }
