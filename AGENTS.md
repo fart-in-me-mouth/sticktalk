@@ -18,6 +18,7 @@ Project: StickTalk, a Discord-like chat app in Rust. Contracts:
 ## Build hygiene
 - Build output must stay out of OneDrive. Use your own target dir per task, for example `$env:CARGO_TARGET_DIR = "C:/Users/dwhee/.cargo-target/sticktalk-<task>"`.
 - Git: if you were given your own worktree/branch, commit your work there with clear messages when done (never push, never rewrite history). In the shared main checkout, do not commit; the lead does.
+- **Disk space is limited.** Use exactly ONE target dir for your whole task, `C:/Users/dwhee/.cargo-target/sticktalk-<task>`, for all crates. **Delete it when your task is finished**, after the final validation; the lead's merges rebuild anyway. Never leave per-crate target dirs behind.
 - Updating `Cargo.lock` and the workspace `members` list for your crates is always allowed — include them in your commit, don't ask.
 - Edit only the crates your task names. `crates/proto` changes must be additive and wire-compatible.
 - Before reporting done, run `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --all -- --check` for the crates you touched.
