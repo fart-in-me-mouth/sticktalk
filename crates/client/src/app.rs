@@ -253,12 +253,18 @@ impl App {
         };
         let capture = flag("--capture").map(PathBuf::from);
         let initial_screen = flag("--screen").unwrap_or_default();
-        let server = storage::server();
-        let session = if mock
+        let qa_session = crate::agent_window::qa_session();
+        let server = qa_session
+            .as_ref()
+            .map_or_else(storage::server, |s| s.config.server.clone());
+        let session = if qa_session.is_some() {
+            qa_session
+        } else if mock
             && !matches!(
                 initial_screen.as_str(),
                 "login" | "register" | "google-login" | "pick-username"
-            ) {
+            )
+        {
             Some(Session {
                 config: Config {
                     server: "http://127.0.0.1:8080".into(),
@@ -365,7 +371,7 @@ impl App {
             resolving: BTreeSet::new(),
             preview: None,
         };
-        let task = if !mock {
+        let task = if !mock && state.state.session.is_none() {
             Task::perform(
                 async move {
                     tokio::task::spawn_blocking(move || {
@@ -2390,6 +2396,44 @@ impl App {
                         _ => {}
                     }
                     self.initial_screen.clear();
+                    if crate::agent_window::qa_session().is_some() {
+                        if let Ok(value) = std::env::var("STICKTALK_QA_PREFERENCES") {
+                            if let Ok(mut preferences) = serde_json::from_str::<
+                                sticktalk_client_core::settings::Preferences,
+                            >(&value)
+                            {
+                                preferences.validate();
+                                self.settings.preferences = preferences;
+                                self.settings.preference_revision =
+                                    self.settings.preference_revision.wrapping_add(1);
+                                tasks
+                                    .push(self.settings_persist(self.settings.preference_revision));
+                            }
+                        }
+                        if let Ok(path) = std::env::var("STICKTALK_QA_PREFERENCES_REPORT") {
+                            let bytes = serde_json::to_vec(&self.settings.preferences)
+                                .expect("validated QA preferences");
+                            tasks.push(Task::perform(
+                                async move {
+                                    tokio::fs::write(path, bytes)
+                                        .await
+                                        .map_err(|error| error.to_string())
+                                },
+                                Msg::SettingsStored,
+                            ));
+                        }
+                        if let Ok(channel) = std::env::var("STICKTALK_QA_CHANNEL") {
+                            if let Ok(channel) = channel.parse::<u64>() {
+                                if self.state.model.channels.contains_key(&Id(channel)) {
+                                    tasks.push(self.navigate(Id(channel)));
+                                }
+                            }
+                        }
+                        if let Ok(content) = std::env::var("STICKTALK_QA_SEND") {
+                            replace_editor(&mut self.editor, &content);
+                            tasks.push(Task::done(Msg::Send));
+                        }
+                    }
                     if self.capture.is_some() {
                         tasks.push(Task::perform(
                             async {

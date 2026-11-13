@@ -2,6 +2,30 @@
 pub fn enabled() -> bool {
     std::env::var("STICKTALK_AGENT_WINDOW").is_ok_and(|v| v == "secondary")
 }
+/// Explicit debug-only live QA session. Does not read/write a real account's
+/// credentials, and cannot point the test hooks off loopback. The native QA
+/// harness also supplies an isolated LOCALAPPDATA settings home.
+pub fn qa_session() -> Option<crate::backend::Session> {
+    if !cfg!(debug_assertions) || !enabled() {
+        return None;
+    }
+    let server = std::env::var("STICKTALK_QA_SERVER").ok()?;
+    let token = std::env::var("STICKTALK_QA_TOKEN").ok()?;
+    let server = sticktalk_client_core::http::validate_server(&server).ok()?;
+    let local = reqwest::Url::parse(&server).ok()?;
+    if local.host_str() != Some("127.0.0.1") || token.is_empty() {
+        return None;
+    }
+    Some(crate::backend::Session {
+        config: crate::backend::Config {
+            server,
+            token,
+            mock: false,
+            generation: crate::backend::nonce(),
+            scenario: String::new(),
+        },
+    })
+}
 pub fn show_secondary(window: &dyn iced_runtime::window::Window) -> bool {
     #[cfg(windows)]
     {

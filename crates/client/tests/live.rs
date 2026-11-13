@@ -1,5 +1,11 @@
-//! Real client transport + projection against a real TCP/SQLite server. No windows,
-//! keyring writes, external services, browser launches, sounds, or notifications.
+//! Real desktop transport/client-core projection against a TCP/SQLite/blob server.
+//! Normal tests never open windows; the explicit ignored desktop gate opens two
+//! secondary/no-activate windows using synthetic loopback accounts and isolated
+//! settings homes. No keyring writes, external services, browsers, or OS effects.
+//! Expensive gates are opt-in: 2 GiB upload, native decoder, native desktop, and
+//! 2,048-message production-rate soak (about 34 minutes). Run them individually
+//! with `cargo test -p sticktalk --test live <name> -- --ignored --exact`.
+//! Use CARGO_INCREMENTAL=0 and the single task target directory from AGENTS.md.
 use axum::{
     extract::{Query, State},
     response::Redirect,
@@ -32,6 +38,24 @@ async fn post_retry<T: serde::de::DeserializeOwned>(
 ) -> Result<T, String> {
     loop {
         match http.post(path, body).await {
+            Err(error) if error.starts_with("RateLimited") => {
+                tokio::time::sleep(Duration::from_secs(6)).await
+            }
+            result => return result,
+        }
+    }
+}
+async fn account_retry(
+    http: &Http,
+    action: backend::AccountAction,
+    proof: &str,
+) -> Result<AccountUpdateResponse, String> {
+    loop {
+        match http
+            .core()
+            .account_authorized(action.clone(), Some(proof))
+            .await
+        {
             Err(error) if error.starts_with("RateLimited") => {
                 tokio::time::sleep(Duration::from_secs(6)).await
             }
@@ -194,6 +218,35 @@ impl Fixture {
             .await
             .unwrap()
     }
+    async fn fresh_google_token(&self, http: &Http, operation: AccountOperation) -> String {
+        let challenge: GoogleChallengeResponse = post_retry(
+            http,
+            "/auth/google/challenge",
+            &GoogleChallengeRequest { operation },
+        )
+        .await
+        .unwrap();
+        *self.mock.nonce.lock().unwrap() = challenge.nonce;
+        self.mock
+            .token(CLIENT_ID, sticktalk::mock::now() / 1000 + 3600, true)
+    }
+    async fn proof(
+        &self,
+        http: &Http,
+        operation: AccountOperation,
+        google: bool,
+    ) -> ReauthResponse {
+        let request = ReauthRequest {
+            operation,
+            current_password: (!google).then(|| PASSWORD.into()),
+            id_token: if google {
+                Some(self.fresh_google_token(http, operation).await)
+            } else {
+                None
+            },
+        };
+        post_retry(http, "/auth/reauth", &request).await.unwrap()
+    }
     async fn google(&self) -> AuthResponse {
         // The opener is an HTTP script, never open::that/system browser.
         let challenge = Http::new(&self.url, "")
@@ -274,6 +327,17 @@ impl Fixture {
                 .await
                 .is_err()
         );
+        // Sign-in nonces are single-use: a new login requires a fresh challenge.
+        assert!(post_retry::<GoogleAuthResponse>(
+            &http,
+            "/auth/google",
+            &GoogleAuthRequest { id_token }
+        )
+        .await
+        .is_err());
+        let id_token = self
+            .fresh_google_token(&http, AccountOperation::SignIn)
+            .await;
         let result: GoogleAuthResponse =
             post_retry(&http, "/auth/google", &GoogleAuthRequest { id_token })
                 .await
@@ -795,49 +859,71 @@ async fn phase_one() {
     gifs(&mut alice, &bob).await;
     let methods: AuthMethodsResponse = carol.http.json("/auth/methods").await.unwrap();
     assert!(!methods.has_password && methods.google_linked);
-    assert!(post_retry::<AuthMethodsResponse>(
-        &carol.http,
-        "/auth/google/unlink",
-        &GoogleUnlinkRequest {}
-    )
-    .await
-    .unwrap_err()
-    .contains("only sign-in method"));
-    let token = fixture
-        .mock
-        .token(CLIENT_ID, sticktalk::mock::now() / 1000 + 3600, true);
-    assert!(post_retry::<AuthMethodsResponse>(
-        &alice.http,
-        "/auth/google/link",
-        &GoogleLinkRequest {
-            id_token: token.clone()
-        }
-    )
-    .await
-    .unwrap_err()
-    .starts_with("IdentityAlreadyLinked"));
-    let _: AuthMethodsResponse = post_retry(
-        &carol.http,
-        "/auth/password",
-        &SetPasswordRequest {
-            current_password: None,
-            new_password: PASSWORD.into(),
-        },
-    )
-    .await
-    .unwrap();
-    let methods: AuthMethodsResponse =
-        post_retry(&carol.http, "/auth/google/unlink", &GoogleUnlinkRequest {})
+    let proof = fixture
+        .proof(&carol.http, AccountOperation::Unlink, true)
+        .await;
+    assert!(
+        account_retry(&carol.http, backend::AccountAction::Unlink, &proof.proof)
             .await
-            .unwrap();
-    assert!(methods.has_password && !methods.google_linked);
-    let methods: AuthMethodsResponse = post_retry(
+            .err()
+            .unwrap()
+            .contains("only sign-in method")
+    );
+    let proof = fixture
+        .proof(&alice.http, AccountOperation::Link, false)
+        .await;
+    let token = fixture
+        .fresh_google_token(&alice.http, AccountOperation::Link)
+        .await;
+    assert!(account_retry(
+        &alice.http,
+        backend::AccountAction::Link(token),
+        &proof.proof
+    )
+    .await
+    .err()
+    .unwrap()
+    .starts_with("IdentityAlreadyLinked"));
+    let proof = fixture
+        .proof(&carol.http, AccountOperation::Password, true)
+        .await;
+    let changed = account_retry(
         &carol.http,
-        "/auth/google/link",
-        &GoogleLinkRequest { id_token: token },
+        backend::AccountAction::Password {
+            current: None,
+            new: PASSWORD.into(),
+        },
+        &proof.proof,
     )
     .await
     .unwrap();
+    let rotated = changed
+        .session
+        .expect("password creation rotates the login");
+    drop(carol);
+    let mut carol = Peer::connect(&fixture.url, &rotated).await;
+    let proof = fixture
+        .proof(&carol.http, AccountOperation::Unlink, false)
+        .await;
+    let methods = account_retry(&carol.http, backend::AccountAction::Unlink, &proof.proof)
+        .await
+        .unwrap()
+        .methods;
+    assert!(methods.has_password && !methods.google_linked);
+    let proof = fixture
+        .proof(&carol.http, AccountOperation::Link, false)
+        .await;
+    let token = fixture
+        .fresh_google_token(&carol.http, AccountOperation::Link)
+        .await;
+    let methods = account_retry(
+        &carol.http,
+        backend::AccountAction::Link(token),
+        &proof.proof,
+    )
+    .await
+    .unwrap()
+    .methods;
     assert!(methods.google_linked);
 
     // Server-side socket disappearance: receive the real client's Backoff, send
@@ -2067,4 +2153,1464 @@ async fn settings_roles_overwrites_profiles_devices_and_notification_sync() {
     owner
         .projection(|m| !m.settings.roles.contains_key(&other.id))
         .await;
+}
+
+/// A deterministic virtual source: hashing and upload use 64 KiB chunks, without
+/// needing a multi-gigabyte input allocation or an extra on-disk source copy.
+struct GeneratedFile(u64);
+impl sticktalk_client_core::upload::UploadSource for GeneratedFile {
+    fn filename(&self) -> String {
+        "large-qa.bin".into()
+    }
+    fn byte_size(&self) -> sticktalk_client_core::io::Task<'_, Result<u64, String>> {
+        Box::pin(async { Ok(self.0) })
+    }
+    fn chunks(
+        &self,
+        offset: u64,
+        count: u64,
+    ) -> sticktalk_client_core::io::Task<'_, Result<sticktalk_client_core::http::ByteStream, String>>
+    {
+        assert!(offset + count <= self.0);
+        Box::pin(async move {
+            Ok(Box::pin(futures_util::stream::unfold(
+                count,
+                |remaining| async move {
+                    if remaining == 0 {
+                        return None;
+                    }
+                    let n = remaining.min(64 * 1024);
+                    Some((Ok(vec![0x5a_u8; n as usize]), remaining - n))
+                },
+            )) as sticktalk_client_core::http::ByteStream)
+        })
+    }
+}
+
+async fn large_attachment_round_trip(size: u64) {
+    let fixture = Fixture::start().await;
+    let auth = fixture.register("large_owner").await;
+    let member_auth = fixture.register("large_member").await;
+    let outsider_auth = fixture.register("large_outsider").await;
+    let mut owner = Peer::connect(&fixture.url, &auth).await;
+    let mut member = Peer::connect(&fixture.url, &member_auth).await;
+    let outsider = Peer::connect(&fixture.url, &outsider_auth).await;
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "Large-file QA".into(),
+            icon_id: None,
+        })
+        .await
+    else {
+        panic!("guild")
+    };
+    let channel = detail.channels[0].id;
+    let guild = detail.summary.guild.id;
+    let CommandResult::Invite(invite) = owner
+        .command(Command::CreateInvite {
+            guild_id: guild,
+            ttl_seconds: 60,
+            max_uses: 1,
+        })
+        .await
+    else {
+        panic!("invite")
+    };
+    member
+        .command(Command::JoinGuild {
+            invite_code: invite.code,
+        })
+        .await;
+    let started = std::time::Instant::now();
+    let uploaded = owner
+        .http
+        .core()
+        .upload_resumable(&GeneratedFile(size), UploadPurpose::Message, Some(channel))
+        .await
+        .unwrap();
+    assert_eq!(uploaded.attachment.byte_size, size);
+    let CommandResult::Message(message) = owner
+        .command(Command::SendMessage(MessageDraft {
+            channel_id: channel,
+            content: "Stream me without caching the whole file".into(),
+            reply_to: None,
+            attachment_ids: vec![uploaded.attachment.id],
+            mention_ids: vec![],
+        }))
+        .await
+    else {
+        panic!("message")
+    };
+    member
+        .projection(|m| {
+            m.reads
+                .get(&channel)
+                .is_some_and(|r| r.latest_message_id == Some(message.id))
+        })
+        .await;
+    assert_eq!(
+        outsider
+            .http
+            .get(&format!("/files/{}", uploaded.attachment.id.0))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    // This is the exact source now passed to Media Foundation for inline video.
+    // Its construction performs no full-file download, regardless of size.
+    let source = sticktalk::video_stream::Source::attachment(
+        &fixture.url,
+        &member_auth.token,
+        uploaded.attachment.id,
+    )
+    .await
+    .unwrap();
+    let url = source.path.to_str().unwrap().to_owned();
+    assert!(url.starts_with("http://127.0.0.1:"));
+    assert!(!url.contains(&member_auth.token));
+    let client = reqwest::Client::new();
+    let tail = client
+        .get(&url)
+        .header("Range", "bytes=-33")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(tail.status(), 206);
+    assert_eq!(
+        tail.headers()["content-range"],
+        format!("bytes {}-{}/{size}", size - 33, size - 1)
+    );
+    assert_eq!(tail.bytes().await.unwrap().as_ref(), &[0x5a; 33]);
+    let invalid = client
+        .get(&url)
+        .header("Range", format!("bytes={size}-"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(invalid.status(), 416);
+    assert_eq!(
+        invalid.headers()["content-range"],
+        format!("bytes */{size}")
+    );
+    // Permission changes affect subsequent range requests even though the local
+    // URL has not changed. Revoked clips cannot keep playing from a disk cache.
+    owner
+        .command(Command::KickMember {
+            guild_id: guild,
+            user_id: member_auth.user.user.id,
+        })
+        .await;
+    let denied = client
+        .get(&url)
+        .header("Range", "bytes=0-32")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), 404);
+    drop(source);
+    eprintln!(
+        "QA: uploaded and range-verified {size} bytes in {:?}",
+        started.elapsed()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn attachments_over_128_mib_stream_ranges_and_recheck_access() {
+    tokio::time::timeout(
+        Duration::from_secs(180),
+        large_attachment_round_trip(129 * 1024 * 1024),
+    )
+    .await
+    .expect("large attachment deadline");
+}
+
+/// Explicit launch gate; intentionally opt-in because it writes >2 GiB to the
+/// temporary real server. Run with --ignored --exact and no other large test.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "launch gate: streams a real 2 GiB + 1 byte upload to temporary disk"]
+async fn files_above_two_gib_have_no_size_ceiling() {
+    tokio::time::timeout(
+        Duration::from_secs(900),
+        large_attachment_round_trip(2 * 1024 * 1024 * 1024 + 1),
+    )
+    .await
+    .expect("2 GiB upload deadline");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn accounts_profiles_presence_rotation_and_erasure_real_clients() {
+    let fixture = Fixture::start().await;
+    let auth = fixture.register("account_owner").await;
+    let member_auth = fixture.register("account_member").await;
+    let outsider_auth = fixture.register("account_outsider").await;
+    let mut owner = Peer::connect(&fixture.url, &auth).await;
+    let mut member = Peer::connect(&fixture.url, &member_auth).await;
+    let mut outsider = Peer::connect(&fixture.url, &outsider_auth).await;
+    let second_auth = password_auth(&fixture.url, "account_owner", PASSWORD, false)
+        .await
+        .unwrap();
+    let mut second = Peer::connect(&fixture.url, &second_auth).await;
+    owner
+        .command(Command::SendFriendRequest {
+            username: "account_member".into(),
+        })
+        .await;
+    member
+        .command(Command::AcceptFriendRequest {
+            user_id: auth.user.user.id,
+        })
+        .await;
+    outsider
+        .command(Command::SendFriendRequest {
+            username: "account_member".into(),
+        })
+        .await;
+    member
+        .command(Command::DeclineFriendRequest {
+            user_id: outsider_auth.user.user.id,
+        })
+        .await;
+    outsider
+        .projection(|m| !m.relationships.contains_key(&member_auth.user.user.id))
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    let avatar_path = dir.path().join("avatar.jpg");
+    tokio::fs::write(&avatar_path, sticktalk_client_core::mock::IMAGE)
+        .await
+        .unwrap();
+    let avatar = owner
+        .http
+        .upload_resumable(&avatar_path, UploadPurpose::Avatar, None)
+        .await
+        .unwrap();
+    owner
+        .command(Command::UpdateProfile(ProfilePatch {
+            display_name: Patch::Set("A long but valid QA display name".into()),
+            avatar_id: Patch::Set(avatar.attachment.id),
+            status_text: Patch::Set("Custom status persists".into()),
+            ..Default::default()
+        }))
+        .await;
+    owner
+        .command(Command::Launch(LaunchCommand::UpdateUserProfile {
+            banner_color: 0x3ddc97,
+            pronouns: "they/them".into(),
+            about_me: "A profile from the real server".into(),
+        }))
+        .await;
+    member
+        .projection(|m| {
+            m.users.get(&auth.user.user.id).is_some_and(|u| {
+                u.avatar_id == Some(avatar.attachment.id)
+                    && u.status_text.as_deref() == Some("Custom status persists")
+            })
+        })
+        .await;
+    for status in [
+        PresenceStatus::Online,
+        PresenceStatus::Idle,
+        PresenceStatus::Dnd,
+        PresenceStatus::Invisible,
+    ] {
+        owner.command(Command::SetPresence { status }).await;
+        let observed = if status == PresenceStatus::Invisible {
+            PresenceStatus::Offline
+        } else {
+            status
+        };
+        member
+            .projection(|m| m.presences.get(&auth.user.user.id) == Some(&observed))
+            .await;
+        second
+            .projection(|m| m.me.as_ref().is_some_and(|u| u.desired_presence == status))
+            .await;
+    }
+    let sessions: Snapshot<Vec<DeviceSession>> = owner.http.json("/me/sessions").await.unwrap();
+    assert_eq!(sessions.data.len(), 2);
+    let own_session = sessions.data.iter().find(|s| s.current).unwrap();
+    assert!(matches!(
+        outsider
+            .outcome(Command::Launch(LaunchCommand::LogoutSession {
+                session_id: own_session.id.clone()
+            }))
+            .await,
+        CommandOutcome::Err(_)
+    ));
+    assert!(owner
+        .http
+        .core()
+        .reauthenticate(&ReauthRequest {
+            operation: AccountOperation::Password,
+            current_password: Some("wrong password".into()),
+            id_token: None
+        })
+        .await
+        .is_err());
+    let proof: ReauthResponse = post_retry(
+        &owner.http,
+        "/auth/reauth",
+        &ReauthRequest {
+            operation: AccountOperation::Password,
+            current_password: Some(PASSWORD.into()),
+            id_token: None,
+        },
+    )
+    .await
+    .unwrap();
+    let changed = account_retry(
+        &owner.http,
+        backend::AccountAction::Password {
+            current: Some(PASSWORD.into()),
+            new: "a fresh correct password".into(),
+        },
+        &proof.proof,
+    )
+    .await
+    .unwrap();
+    let rotated = changed
+        .session
+        .expect("password changes rotate the caller, too");
+    assert!(owner.http.json::<Snapshot<SelfUser>>("/me").await.is_err());
+    assert!(second.http.json::<Snapshot<SelfUser>>("/me").await.is_err());
+    second
+        .until(|d| {
+            matches!(
+                d,
+                Data::State(sticktalk::model::ConnectionState::Stopped(_))
+            )
+        })
+        .await;
+    assert!(member.http.json::<Snapshot<SelfUser>>("/me").await.is_ok());
+    let mut owner = Peer::connect(&fixture.url, &rotated).await;
+    assert_eq!(
+        owner
+            .model
+            .lock()
+            .await
+            .me
+            .as_ref()
+            .unwrap()
+            .user
+            .status_text
+            .as_deref(),
+        Some("Custom status persists")
+    );
+    let profile: Snapshot<ProfileDetail> = owner
+        .http
+        .json(&format!("/users/{}/profile", auth.user.user.id.0))
+        .await
+        .unwrap();
+    assert_eq!(profile.data.profile.pronouns, "they/them");
+    assert_eq!(profile.data.profile.banner_color, 0x3ddc97);
+    assert!(owner.http.core().delete_account("no-proof").await.is_err());
+    let proof: ReauthResponse = post_retry(
+        &owner.http,
+        "/auth/reauth",
+        &ReauthRequest {
+            operation: AccountOperation::DeleteAccount,
+            current_password: Some("a fresh correct password".into()),
+            id_token: None,
+        },
+    )
+    .await
+    .unwrap();
+    owner
+        .http
+        .core()
+        .delete_account(&proof.proof)
+        .await
+        .unwrap();
+    owner
+        .until(|d| {
+            matches!(
+                d,
+                Data::State(sticktalk::model::ConnectionState::Stopped(_))
+            )
+        })
+        .await;
+    assert!(owner.http.json::<Snapshot<SelfUser>>("/me").await.is_err());
+    member
+        .until(|d| matches!(d, Data::Frame(ServerMsg::Ready(_))))
+        .await;
+    member
+        .projection(|m| !m.relationships.contains_key(&auth.user.user.id))
+        .await;
+    assert!(
+        member.http.json::<Snapshot<SelfUser>>("/me").await.is_ok(),
+        "erasure must not revoke other accounts"
+    );
+    assert!(password_auth(
+        &fixture.url,
+        "account_owner",
+        "a fresh correct password",
+        false
+    )
+    .await
+    .is_err());
+}
+
+/// Opt-in OS-window gate. Uses the real executable and real server, never --mock.
+/// Each process has isolated preferences and an ephemeral loopback test token;
+/// the existing agent window mode disables tray/notifications/focus activation.
+#[cfg(windows)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "opens two real desktop windows on a secondary monitor"]
+async fn desktop_two_real_clients_render_and_send() {
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::start().await;
+    let a = fixture.register("desktop_owner").await;
+    let b = fixture.register("desktop_member").await;
+    let mut owner = Peer::connect(&fixture.url, &a).await;
+    let mut member = Peer::connect(&fixture.url, &b).await;
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "Real-data launch QA with a long server name".into(),
+            icon_id: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let channel = detail.channels[0].id;
+    let CommandResult::Invite(invite) = owner
+        .command(Command::CreateInvite {
+            guild_id: detail.summary.guild.id,
+            ttl_seconds: 3600,
+            max_uses: 3,
+        })
+        .await
+    else {
+        panic!()
+    };
+    member
+        .command(Command::JoinGuild {
+            invite_code: invite.code,
+        })
+        .await;
+    owner
+        .command(Command::UpdateProfile(ProfilePatch {
+            display_name: Patch::Set("A deliberately long display name for visual QA".into()),
+            ..Default::default()
+        }))
+        .await;
+    let first = owner.message(channel, "**Real server data** — messages here came through the production transport.\n> Reply, reactions, markdown, and long names").await;
+    member
+        .command(Command::SendMessage(MessageDraft {
+            channel_id: channel,
+            content: format!(
+                "Hello <@{}> — ||a spoiler|| and `inline code`",
+                a.user.user.id.0
+            ),
+            reply_to: Some(first.id),
+            attachment_ids: vec![],
+            mention_ids: vec![a.user.user.id],
+        }))
+        .await;
+    owner
+        .command(Command::AddReaction {
+            channel_id: channel,
+            message_id: first.id,
+            emoji: "👍".into(),
+        })
+        .await;
+    let image_dir = tempfile::tempdir().unwrap();
+    let path = image_dir.path().join("real-photo.jpg");
+    tokio::fs::write(&path, sticktalk_client_core::mock::IMAGE)
+        .await
+        .unwrap();
+    let image = owner
+        .http
+        .upload_resumable(&path, UploadPurpose::Message, Some(channel))
+        .await
+        .unwrap();
+    owner
+        .command(Command::SendMessage(MessageDraft {
+            channel_id: channel,
+            content: "Image loaded from the real blob directory".into(),
+            reply_to: None,
+            attachment_ids: vec![image.attachment.id],
+            mention_ids: vec![],
+        }))
+        .await;
+    let output = std::env::var_os("STICKTALK_QA_ARTIFACTS")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("screenshots/qa-live")
+        });
+    std::fs::create_dir_all(&output).unwrap();
+    struct Child(std::process::Child);
+    impl Drop for Child {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let mut children = Vec::new();
+    let mut homes = Vec::new();
+    for (name, auth, send) in [
+        (
+            "owner",
+            &a,
+            "Sent through the owner's real desktop composer",
+        ),
+        (
+            "member",
+            &b,
+            "Sent through the member's real desktop composer",
+        ),
+    ] {
+        let home = tempfile::tempdir().unwrap();
+        for path in [
+            output.join(format!("{name}-1280x800.png")),
+            output.join(format!("{name}-window.json")),
+        ] {
+            if path.is_file() {
+                std::fs::remove_file(path).unwrap();
+            }
+        }
+        let child = std::process::Command::new(env!("CARGO_BIN_EXE_sticktalk"))
+            .creation_flags(0x08000000) // no debug console window
+            .args(["--size", "1280x800", "--capture"])
+            .arg(output.join(format!("{name}-1280x800.png")))
+            .arg("--agent-window-report")
+            .arg(output.join(format!("{name}-window.json")))
+            .env("LOCALAPPDATA", home.path())
+            .env("STICKTALK_AGENT_WINDOW", "secondary")
+            .env("STICKTALK_QA_SERVER", &fixture.url)
+            .env("STICKTALK_QA_TOKEN", &auth.token)
+            .env("STICKTALK_QA_CHANNEL", channel.0.to_string())
+            .env("STICKTALK_QA_SEND", send)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::fs::File::create(output.join(format!("{name}.log"))).unwrap())
+            .spawn()
+            .unwrap();
+        children.push(Child(child));
+        homes.push(home);
+    }
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        let mut done = true;
+        for child in &mut children {
+            match child.0.try_wait().unwrap() {
+                Some(status) => assert!(status.success(), "desktop process failed: {status}"),
+                None => done = false,
+            }
+        }
+        if done {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "desktop screenshot deadline"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let history: Page<Message> = owner
+        .http
+        .json(&format!("/channels/{}/messages", channel.0))
+        .await
+        .unwrap();
+    for name in ["owner", "member"] {
+        assert!(output.join(format!("{name}-1280x800.png")).is_file());
+        let report: Value = serde_json::from_slice(
+            &std::fs::read(output.join(format!("{name}-window.json"))).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report["shown"], true, "a secondary monitor is required");
+        assert_eq!(report["foreground_unchanged"], true);
+        assert_eq!(report["client_foreground"], false);
+        assert!(history
+            .items
+            .iter()
+            .any(|m| m.content == format!("Sent through the {name}'s real desktop composer")));
+    }
+    // Reconnect the test driver after its token was deliberately handed to the
+    // native process. Additional captures exercise permissions and real empties.
+    drop(owner);
+    let mut control = Peer::connect(&fixture.url, &a).await;
+    let CommandResult::Channel(empty) = control
+        .command(Command::CreateChannel {
+            guild_id: detail.summary.guild.id,
+            kind: ChannelKind::Text,
+            name: "empty-real-channel".into(),
+            parent_id: None,
+            topic: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    control
+        .command(Command::Launch(LaunchCommand::SetOverwrites {
+            channel_id: channel,
+            overwrites: vec![PermissionOverwrite {
+                kind: OverwriteKind::Role,
+                target_id: detail.summary.guild.id,
+                allow: Permissions::empty(),
+                deny: Permissions::SEND_MESSAGES | Permissions::ADD_REACTIONS,
+            }],
+        }))
+        .await;
+    for (label, channel_id) in [("read-only", channel), ("empty", empty.summary.id)] {
+        for size in ["1280x800", "1920x1080"] {
+            let home = tempfile::tempdir().unwrap();
+            let capture = output.join(format!("{label}-{size}.png"));
+            if capture.is_file() {
+                std::fs::remove_file(&capture).unwrap();
+            }
+            let child = std::process::Command::new(env!("CARGO_BIN_EXE_sticktalk"))
+                .creation_flags(0x08000000)
+                .args(["--size", size, "--capture"])
+                .arg(output.join(format!("{label}-{size}.png")))
+                .env("LOCALAPPDATA", home.path())
+                .env("STICKTALK_AGENT_WINDOW", "secondary")
+                .env("STICKTALK_QA_SERVER", &fixture.url)
+                .env("STICKTALK_QA_TOKEN", &b.token)
+                .env("STICKTALK_QA_CHANNEL", channel_id.0.to_string())
+                .env_remove("STICKTALK_QA_SEND")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::fs::File::create(output.join(format!("{label}-{size}.log"))).unwrap())
+                .spawn()
+                .unwrap();
+            let mut child = Child(child);
+            let deadline = std::time::Instant::now() + Duration::from_secs(30);
+            loop {
+                if let Some(status) = child.0.try_wait().unwrap() {
+                    assert!(status.success());
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "{label} desktop capture deadline"
+                );
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            assert!(output.join(format!("{label}-{size}.png")).is_file());
+        }
+    }
+}
+
+#[cfg(windows)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "launch gate: opens the native hardware decoder, muted and windowless"]
+async fn native_decoder_plays_video_above_128_mib_before_full_download() {
+    use sticktalk_client_core::{http::ByteStream, io::Task, upload::UploadSource};
+    struct Video {
+        prefix: Arc<Vec<u8>>,
+        size: u64,
+    }
+    impl UploadSource for Video {
+        fn filename(&self) -> String {
+            "padded-real-clip.mp4".into()
+        }
+        fn byte_size(&self) -> Task<'_, Result<u64, String>> {
+            Box::pin(async { Ok(self.size) })
+        }
+        fn chunks(&self, offset: u64, count: u64) -> Task<'_, Result<ByteStream, String>> {
+            let prefix = self.prefix.clone();
+            Box::pin(async move {
+                Ok(Box::pin(futures_util::stream::unfold(
+                    (offset, count, prefix),
+                    |(offset, remaining, prefix)| async move {
+                        if remaining == 0 {
+                            return None;
+                        }
+                        let n = remaining.min(64 * 1024);
+                        let mut bytes = vec![0_u8; n as usize];
+                        if offset < prefix.len() as u64 {
+                            let copy = n.min(prefix.len() as u64 - offset) as usize;
+                            bytes[..copy]
+                                .copy_from_slice(&prefix[offset as usize..offset as usize + copy]);
+                        }
+                        Some((Ok(bytes), (offset + n, remaining - n, prefix)))
+                    },
+                )) as ByteStream)
+            })
+        }
+    }
+    let fixture = Fixture::start().await;
+    let auth = fixture.register("video_owner").await;
+    let mut owner = Peer::connect(&fixture.url, &auth).await;
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "Native video QA".into(),
+            icon_id: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let channel = detail.channels[0].id;
+    let size = 129 * 1024 * 1024;
+    let mut prefix = include_bytes!("../../server/tests/fixtures/clip.mp4").to_vec();
+    // A legitimate trailing free atom makes a tiny deterministic clip >128 MiB
+    // without spending test time encoding a huge movie or shipping a large asset.
+    prefix.extend_from_slice(&((size - prefix.len() as u64) as u32).to_be_bytes());
+    prefix.extend_from_slice(b"free");
+    let upload = owner
+        .http
+        .core()
+        .upload_resumable(
+            &Video {
+                prefix: Arc::new(prefix),
+                size,
+            },
+            UploadPurpose::Message,
+            Some(channel),
+        )
+        .await
+        .unwrap();
+    assert_eq!(upload.attachment.content_type, "video/mp4");
+    owner
+        .command(Command::SendMessage(MessageDraft {
+            channel_id: channel,
+            content: "Playable video".into(),
+            reply_to: None,
+            attachment_ids: vec![upload.attachment.id],
+            mention_ids: vec![],
+        }))
+        .await;
+    let source = sticktalk::video_stream::Source::attachment(
+        &fixture.url,
+        &auth.token,
+        upload.attachment.id,
+    )
+    .await
+    .unwrap();
+    let path = source.path.clone();
+    let frame = tokio::task::spawn_blocking(move || {
+        let player = sticktalk_media::FilePlayer::open(
+            &path,
+            sticktalk_media::Size {
+                width: 160,
+                height: 90,
+            },
+            true,
+            0.,
+            false,
+        )
+        .unwrap();
+        player.play(0.).unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            if let Some(frame) = player.frame().unwrap() {
+                return frame;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "decoder did not produce a frame"
+            );
+            std::thread::sleep(Duration::from_millis(33));
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!((frame.size.width, frame.size.height), (160, 90));
+    assert!(
+        source.bytes_received() < size / 2,
+        "decoder must begin playing before downloading the clip: {} of {size}",
+        source.bytes_received()
+    );
+    eprintln!(
+        "QA: native decoder produced {}x{} frame after {} of {size} bytes",
+        frame.size.width,
+        frame.size.height,
+        source.bytes_received()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn ordinary_member_controls_use_authoritative_effective_channel_permissions() {
+    use sticktalk_client_core::launch::{Read, SnapshotData};
+    async fn permissions(peer: &mut Peer, channel: Id) -> Permissions {
+        peer.handle
+            .try_send(Request::Launch {
+                read: Read::Permissions(channel),
+                generation: 1,
+            })
+            .unwrap();
+        let Data::Launch { data: SnapshotData::Permissions(_, value), .. } = peer.until(|d| matches!(d, Data::Launch { data: SnapshotData::Permissions(id, _), .. } if *id == channel)).await else { panic!() };
+        assert_eq!(
+            sticktalk_client_core::launch::permissions(&*peer.model.lock().await, channel),
+            value.data
+        );
+        value.data
+    }
+    let fixture = Fixture::start().await;
+    let a = fixture.register("acl_owner").await;
+    let b = fixture.register("acl_member").await;
+    let c = fixture.register("acl_outsider").await;
+    let mut owner = Peer::connect(&fixture.url, &a).await;
+    let mut member = Peer::connect(&fixture.url, &b).await;
+    let outsider = Peer::connect(&fixture.url, &c).await;
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "ACL controls QA".into(),
+            icon_id: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let guild = detail.summary.guild.id;
+    let CommandResult::Channel(category) = owner
+        .command(Command::CreateChannel {
+            guild_id: guild,
+            kind: ChannelKind::Category,
+            name: "Read-only category".into(),
+            parent_id: None,
+            topic: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let CommandResult::Channel(channel) = owner
+        .command(Command::CreateChannel {
+            guild_id: guild,
+            kind: ChannelKind::Text,
+            name: "read-only".into(),
+            parent_id: Some(category.summary.id),
+            topic: Some("Permissions come from the server".into()),
+        })
+        .await
+    else {
+        panic!()
+    };
+    let channel = channel.summary.id;
+    let CommandResult::Invite(invite) = owner
+        .command(Command::CreateInvite {
+            guild_id: guild,
+            ttl_seconds: 3600,
+            max_uses: 1,
+        })
+        .await
+    else {
+        panic!()
+    };
+    member
+        .command(Command::JoinGuild {
+            invite_code: invite.code,
+        })
+        .await;
+    assert!(permissions(&mut member, channel)
+        .await
+        .contains(Permissions::SEND_MESSAGES | Permissions::ATTACH_FILES));
+    assert_eq!(
+        outsider
+            .http
+            .get(&format!("/channels/{}/permissions", channel.0))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    // Nobody learns the underlying roles/member ACLs just by reading their mask.
+    assert_eq!(
+        member
+            .http
+            .get(&format!("/channels/{}/overwrites", channel.0))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        403
+    );
+    owner
+        .command(Command::Launch(LaunchCommand::SetOverwrites {
+            channel_id: category.summary.id,
+            overwrites: vec![PermissionOverwrite {
+                kind: OverwriteKind::Role,
+                target_id: guild,
+                allow: Permissions::empty(),
+                deny: Permissions::SEND_MESSAGES,
+            }],
+        }))
+        .await;
+    let denied = permissions(&mut member, channel).await;
+    assert!(denied.contains(
+        Permissions::VIEW_CHANNEL | Permissions::READ_HISTORY | Permissions::ADD_REACTIONS
+    ));
+    assert!(!denied.intersects(
+        Permissions::SEND_MESSAGES
+            | Permissions::ATTACH_FILES
+            | Permissions::EMBED_LINKS
+            | Permissions::MENTION_EVERYONE
+    ));
+    for command in [
+        Command::SendMessage(MessageDraft {
+            channel_id: channel,
+            content: "must fail".into(),
+            reply_to: None,
+            attachment_ids: vec![],
+            mention_ids: vec![],
+        }),
+        Command::Typing {
+            channel_id: channel,
+        },
+    ] {
+        assert!(matches!(
+            member.outcome(command).await,
+            CommandOutcome::Err(ApiError {
+                code: ErrorCode::Forbidden,
+                ..
+            })
+        ));
+    }
+    assert!(member
+        .http
+        .core()
+        .upload_resumable(&GeneratedFile(16), UploadPurpose::Message, Some(channel))
+        .await
+        .is_err());
+    owner
+        .command(Command::Launch(LaunchCommand::SetOverwrites {
+            channel_id: channel,
+            overwrites: vec![PermissionOverwrite {
+                kind: OverwriteKind::Member,
+                target_id: b.user.user.id,
+                allow: Permissions::SEND_MESSAGES,
+                deny: Permissions::empty(),
+            }],
+        }))
+        .await;
+    assert!(permissions(&mut member, channel)
+        .await
+        .contains(Permissions::SEND_MESSAGES | Permissions::ATTACH_FILES));
+    member
+        .message(channel, "Member allow overrides category denial")
+        .await;
+    owner
+        .command(Command::Launch(LaunchCommand::SetOverwrites {
+            channel_id: channel,
+            overwrites: vec![PermissionOverwrite {
+                kind: OverwriteKind::Member,
+                target_id: b.user.user.id,
+                allow: Permissions::empty(),
+                deny: Permissions::VIEW_CHANNEL,
+            }],
+        }))
+        .await;
+    member
+        .projection(|m| !m.channels.contains_key(&channel))
+        .await;
+    assert_eq!(
+        member
+            .http
+            .get(&format!("/channels/{}/permissions", channel.0))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    assert!(
+        sticktalk_client_core::launch::permissions(&*member.model.lock().await, channel).is_empty()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "launch gate: 2048 messages at production 60/min; approximately 34 minutes"]
+async fn thousands_of_messages_paginate_jump_and_keep_unreads_across_client_restart() {
+    let fixture = Fixture::start().await;
+    let a = fixture.register("history_owner").await;
+    let b = fixture.register("history_member").await;
+    let mut owner = Peer::connect(&fixture.url, &a).await;
+    let mut member = Peer::connect(&fixture.url, &b).await;
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "Thousands of messages QA".into(),
+            icon_id: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let channel = detail.channels[0].id;
+    let CommandResult::Invite(invite) = owner
+        .command(Command::CreateInvite {
+            guild_id: detail.summary.guild.id,
+            ttl_seconds: 3600,
+            max_uses: 1,
+        })
+        .await
+    else {
+        panic!()
+    };
+    member
+        .command(Command::JoinGuild {
+            invite_code: invite.code,
+        })
+        .await;
+    member.history(channel, None).await;
+    let mut ids = Vec::new();
+    let started = std::time::Instant::now();
+    for n in 0..2048 {
+        // Receipt quotas are deliberately enforced. Rotate a genuine login after
+        // each 200 commands, just as independent devices/accounts would do.
+        if n > 0 && n % 200 == 0 {
+            owner.http.logout().await;
+            drop(owner);
+            let auth = password_auth(&fixture.url, "history_owner", PASSWORD, false)
+                .await
+                .unwrap();
+            owner = Peer::connect(&fixture.url, &auth).await;
+        }
+        ids.push(
+            owner
+                .message(
+                    channel,
+                    format!("History message {n}: **bold** and `code` with a realistic row length"),
+                )
+                .await
+                .id,
+        );
+    }
+    member
+        .projection(|m| {
+            m.reads.get(&channel).is_some_and(|r| {
+                r.latest_message_id == ids.last().copied() && r.unread_count == 2048
+            })
+        })
+        .await;
+    assert!(member.model.lock().await.retained_count() <= 1000);
+    assert!(member.model.lock().await.retained_bytes() <= 8 * 1024 * 1024);
+    let mut collected = std::collections::BTreeSet::new();
+    let mut before = None;
+    loop {
+        let page = owner.history(channel, before).await;
+        assert!(page.items.len() <= 50);
+        for message in page.items {
+            assert!(collected.insert(message.id), "pagination duplicated an ID");
+        }
+        if !page.has_more {
+            break;
+        }
+        let next = page.next_before.expect("older cursor");
+        assert!(before.is_none_or(|old| next < old));
+        before = Some(next);
+    }
+    assert_eq!(collected, ids.iter().copied().collect());
+    owner
+        .handle
+        .try_send(Request::AroundHistory {
+            channel,
+            anchor: HistoryAnchor::Message(ids[1024]),
+            seek: 1,
+            generation: 1,
+        })
+        .unwrap();
+    let Data::AroundHistory { page, .. } = owner
+        .until(|d| matches!(d, Data::AroundHistory { .. }))
+        .await
+    else {
+        panic!()
+    };
+    assert_eq!(page.items.len(), 50);
+    assert!(page.items.iter().any(|m| m.id == ids[1024]));
+    member
+        .command(Command::MarkRead {
+            channel_id: channel,
+            message_id: ids[1000],
+        })
+        .await;
+    member
+        .projection(|m| m.reads[&channel].unread_count == 1047)
+        .await;
+    drop(member);
+    let member = Peer::connect(&fixture.url, &b).await;
+    assert_eq!(
+        member.model.lock().await.reads[&channel].last_read_id,
+        Some(ids[1000])
+    );
+    assert_eq!(member.model.lock().await.reads[&channel].unread_count, 1047);
+    eprintln!("QA: 2048 real messages, full pagination, jump, bounded reducer and restart unreads in {:?}", started.elapsed());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn server_icons_channels_invites_and_moderation_real_clients() {
+    let fixture = Fixture::start().await;
+    let a = fixture.register("server_owner").await;
+    let b = fixture.register("server_member").await;
+    let c = fixture.register("server_outsider").await;
+    let mut owner = Peer::connect(&fixture.url, &a).await;
+    let mut member = Peer::connect(&fixture.url, &b).await;
+    let mut outsider = Peer::connect(&fixture.url, &c).await;
+    let files = tempfile::tempdir().unwrap();
+    let path = files.path().join("icon.jpg");
+    tokio::fs::write(&path, sticktalk_client_core::mock::IMAGE)
+        .await
+        .unwrap();
+    let icon = owner
+        .http
+        .upload_resumable(&path, UploadPurpose::GuildIcon, None)
+        .await
+        .unwrap();
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "Server lifecycle".into(),
+            icon_id: Some(icon.attachment.id),
+        })
+        .await
+    else {
+        panic!()
+    };
+    let guild = detail.summary.guild.id;
+    let general = detail.channels[0].id;
+    assert_eq!(detail.summary.guild.icon_id, Some(icon.attachment.id));
+    for (ttl_seconds, max_uses) in [(59, 1), (60, 0)] {
+        assert!(matches!(
+            owner
+                .outcome(Command::CreateInvite {
+                    guild_id: guild,
+                    ttl_seconds,
+                    max_uses
+                })
+                .await,
+            CommandOutcome::Err(ApiError {
+                code: ErrorCode::InvalidRequest,
+                ..
+            })
+        ));
+    }
+    let CommandResult::Invite(invite) = owner
+        .command(Command::CreateInvite {
+            guild_id: guild,
+            ttl_seconds: 60,
+            max_uses: 1,
+        })
+        .await
+    else {
+        panic!()
+    };
+    member
+        .command(Command::JoinGuild {
+            invite_code: invite.code.clone(),
+        })
+        .await;
+    assert!(matches!(
+        outsider
+            .outcome(Command::JoinGuild {
+                invite_code: invite.code
+            })
+            .await,
+        CommandOutcome::Err(ApiError {
+            code: ErrorCode::InviteExhausted,
+            ..
+        })
+    ));
+    owner
+        .command(Command::UpdateGuild {
+            guild_id: guild,
+            patch: GuildPatch {
+                name: Patch::Set("Edited real server name".into()),
+                icon_id: Patch::Clear,
+            },
+        })
+        .await;
+    member
+        .projection(|m| {
+            m.guilds.get(&guild).is_some_and(|g| {
+                g.guild.name == "Edited real server name" && g.guild.icon_id.is_none()
+            })
+        })
+        .await;
+    for command in [
+        Command::DeleteGuild { guild_id: guild },
+        Command::UpdateGuild {
+            guild_id: guild,
+            patch: GuildPatch {
+                name: Patch::Set("must fail".into()),
+                icon_id: Patch::Keep,
+            },
+        },
+        Command::KickMember {
+            guild_id: guild,
+            user_id: a.user.user.id,
+        },
+        Command::BanMember {
+            guild_id: guild,
+            user_id: a.user.user.id,
+            reason: None,
+        },
+    ] {
+        assert!(matches!(
+            member.outcome(command).await,
+            CommandOutcome::Err(_)
+        ));
+    }
+    let CommandResult::Channel(category) = owner
+        .command(Command::CreateChannel {
+            guild_id: guild,
+            kind: ChannelKind::Category,
+            name: "Projects".into(),
+            parent_id: None,
+            topic: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let CommandResult::Channel(text) = owner
+        .command(Command::CreateChannel {
+            guild_id: guild,
+            kind: ChannelKind::Text,
+            name: "work".into(),
+            parent_id: Some(category.summary.id),
+            topic: Some("A real topic".into()),
+        })
+        .await
+    else {
+        panic!()
+    };
+    let CommandResult::Channel(voice) = owner
+        .command(Command::CreateChannel {
+            guild_id: guild,
+            kind: ChannelKind::Voice,
+            name: "Voice metadata only".into(),
+            parent_id: None,
+            topic: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    owner
+        .command(Command::UpdateChannel {
+            channel_id: text.summary.id,
+            patch: ChannelPatch {
+                name: Patch::Set("edited-work".into()),
+                topic: Patch::Set("Edited topic".into()),
+            },
+        })
+        .await;
+    member
+        .projection(|m| {
+            m.channels
+                .get(&text.summary.id)
+                .is_some_and(|c| c.name.as_deref() == Some("edited-work"))
+        })
+        .await;
+    let read: Snapshot<Channel> = member
+        .http
+        .json(&format!("/channels/{}", text.summary.id.0))
+        .await
+        .unwrap();
+    assert_eq!(read.data.topic.as_deref(), Some("Edited topic"));
+    owner
+        .command(Command::ReorderChannels {
+            guild_id: guild,
+            placements: vec![
+                ChannelPlacement {
+                    channel_id: category.summary.id,
+                    parent_id: None,
+                    position: 0,
+                },
+                ChannelPlacement {
+                    channel_id: voice.summary.id,
+                    parent_id: None,
+                    position: 1,
+                },
+                ChannelPlacement {
+                    channel_id: general,
+                    parent_id: Some(category.summary.id),
+                    position: 0,
+                },
+                ChannelPlacement {
+                    channel_id: text.summary.id,
+                    parent_id: Some(category.summary.id),
+                    position: 1,
+                },
+            ],
+        })
+        .await;
+    member
+        .projection(|m| {
+            m.channels
+                .get(&general)
+                .is_some_and(|c| c.parent_id == Some(category.summary.id))
+        })
+        .await;
+    owner
+        .command(Command::DeleteChannel {
+            channel_id: category.summary.id,
+        })
+        .await;
+    member
+        .projection(|m| {
+            !m.channels.contains_key(&category.summary.id)
+                && m.channels[&general].parent_id.is_none()
+                && m.channels[&text.summary.id].parent_id.is_none()
+        })
+        .await;
+    owner
+        .command(Command::DeleteChannel {
+            channel_id: voice.summary.id,
+        })
+        .await;
+    member
+        .command(Command::LeaveGuild { guild_id: guild })
+        .await;
+    member
+        .projection(|m| !m.guilds.contains_key(&guild) && !m.channels.contains_key(&general))
+        .await;
+    let CommandResult::Invite(invite) = owner
+        .command(Command::CreateInvite {
+            guild_id: guild,
+            ttl_seconds: 60,
+            max_uses: 10,
+        })
+        .await
+    else {
+        panic!()
+    };
+    member
+        .command(Command::JoinGuild {
+            invite_code: invite.code.clone(),
+        })
+        .await;
+    owner
+        .command(Command::KickMember {
+            guild_id: guild,
+            user_id: b.user.user.id,
+        })
+        .await;
+    member.projection(|m| !m.guilds.contains_key(&guild)).await;
+    owner
+        .command(Command::BanMember {
+            guild_id: guild,
+            user_id: b.user.user.id,
+            reason: Some("QA ban".into()),
+        })
+        .await;
+    assert!(matches!(
+        member
+            .outcome(Command::JoinGuild {
+                invite_code: invite.code.clone()
+            })
+            .await,
+        CommandOutcome::Err(ApiError {
+            code: ErrorCode::Banned,
+            ..
+        })
+    ));
+    owner
+        .command(Command::UnbanMember {
+            guild_id: guild,
+            user_id: b.user.user.id,
+        })
+        .await;
+    member
+        .command(Command::JoinGuild {
+            invite_code: invite.code.clone(),
+        })
+        .await;
+    owner
+        .command(Command::RevokeInvite {
+            guild_id: guild,
+            code: invite.code.clone(),
+        })
+        .await;
+    assert!(matches!(
+        outsider
+            .outcome(Command::JoinGuild {
+                invite_code: invite.code
+            })
+            .await,
+        CommandOutcome::Err(ApiError {
+            code: ErrorCode::InvalidInvite,
+            ..
+        })
+    ));
+    owner
+        .command(Command::DeleteGuild { guild_id: guild })
+        .await;
+    member
+        .projection(|m| !m.guilds.contains_key(&guild) && !m.channels.contains_key(&general))
+        .await;
+    assert_eq!(
+        member
+            .http
+            .get(&format!("/channels/{}", text.summary.id.0))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn invite_expiry_is_enforced_after_real_elapsed_time() {
+    let fixture = Fixture::start().await;
+    let a = fixture.register("expiry_owner").await;
+    let b = fixture.register("expiry_member").await;
+    let mut owner = Peer::connect(&fixture.url, &a).await;
+    let mut member = Peer::connect(&fixture.url, &b).await;
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "Invite expiry".into(),
+            icon_id: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let CommandResult::Invite(invite) = owner
+        .command(Command::CreateInvite {
+            guild_id: detail.summary.guild.id,
+            ttl_seconds: 60,
+            max_uses: 1,
+        })
+        .await
+    else {
+        panic!()
+    };
+    // No private DB clock edits or bypass of the 60-second production minimum.
+    tokio::time::sleep(Duration::from_secs(61)).await;
+    assert!(matches!(
+        member
+            .outcome(Command::JoinGuild {
+                invite_code: invite.code
+            })
+            .await,
+        CommandOutcome::Err(ApiError {
+            code: ErrorCode::InviteExpired,
+            ..
+        })
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn history_reads_back_off_instead_of_failing_at_the_real_rest_bucket() {
+    let fixture = Fixture::start().await;
+    let a = fixture.register("read_throttle_owner").await;
+    let mut owner = Peer::connect(&fixture.url, &a).await;
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "REST backoff QA".into(),
+            icon_id: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let channel = detail.channels[0].id;
+    let message = owner
+        .message(
+            channel,
+            "Read this through more requests than the REST burst",
+        )
+        .await;
+    // The production bucket is 120/minute, burst 30. Forty-five immediate
+    // reads MUST hit it; the native/core adapter waits, rather than emitting Error.
+    let started = std::time::Instant::now();
+    for _ in 0..45 {
+        let page = owner.history(channel, None).await;
+        assert_eq!(page.items[0].id, message.id);
+    }
+    assert!(started.elapsed() >= Duration::from_secs(5));
 }

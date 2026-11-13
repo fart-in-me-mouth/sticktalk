@@ -682,3 +682,54 @@ mod tests {
         assert!(app.features.video.clips["test"].frame.is_none());
     }
 }
+
+#[cfg(all(test, windows))]
+mod qa_native_formats {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "opens the native decoder, muted and without windows"]
+    async fn native_mp4_and_webm_fixtures_produce_video_frames() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, bytes) in [
+            (
+                "clip.mp4",
+                include_bytes!("../../server/tests/fixtures/clip.mp4").as_slice(),
+            ),
+            (
+                "clip.webm",
+                include_bytes!("../../server/tests/fixtures/clip.webm").as_slice(),
+            ),
+        ] {
+            let path = dir.path().join(name);
+            std::fs::write(&path, bytes).unwrap();
+            let dimensions = tokio::task::spawn_blocking(move || {
+                let player = sticktalk_media::FilePlayer::open(
+                    &path,
+                    sticktalk_media::Size {
+                        width: 160,
+                        height: 90,
+                    },
+                    true,
+                    0.,
+                    false,
+                )
+                .unwrap();
+                player.play(0.).unwrap();
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+                loop {
+                    if let Some(frame) = player.frame().unwrap() {
+                        return (frame.size.width, frame.size.height);
+                    }
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "native video frame deadline"
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(33));
+                }
+            })
+            .await
+            .unwrap();
+            assert_eq!(dimensions, (160, 90), "{name}");
+            eprintln!("QA: native {name} frame decoded at {dimensions:?}");
+        }
+    }
+}
