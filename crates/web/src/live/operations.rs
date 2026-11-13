@@ -231,9 +231,27 @@ pub(super) fn action(app: Shared, raw: &str) {
                 }
             }
         }
+        "history-older" | "history-newer" => {
+            let channel = app.borrow().channel;
+            if let Some(c) = channel {
+                load_history(app, c, None, Some(kind == "history-older"), None);
+            }
+        }
+        "seek-message" => {
+            let channel = app.borrow().channel;
+            if let (Some(c), Some(message)) = (channel, id(arg)) {
+                load_history(app, c, None, None, Some(message));
+            }
+        }
+        "present" => {
+            let channel = app.borrow().channel;
+            if let Some(c) = channel {
+                load_channel(app, c, None);
+            }
+        }
         "typing" => {
             let mut a = app.borrow_mut();
-            if Browser.monotonic_ms().saturating_sub(a.typing_sent) > 8000 {
+            if a.typing_sent == 0 || Browser.monotonic_ms().saturating_sub(a.typing_sent) > 8000 {
                 if let Some(c) = a.channel {
                     a.typing_sent = Browser.monotonic_ms();
                     a.command(Command::Typing { channel_id: c });
@@ -444,6 +462,13 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.dialog = format!("role:{arg}");
             a.touch();
         }
+        "role-move" => {
+            let epoch = app.borrow().epoch;
+            let arg = arg.to_owned();
+            spawn_local(async move {
+                move_role(app, arg, epoch).await;
+            });
+        }
         "role-delete" => {
             if let Some(r) = id(arg) {
                 let mut a = app.borrow_mut();
@@ -472,18 +497,23 @@ pub(super) fn action(app: Shared, raw: &str) {
         }
         "media" => media_action(arg),
         "media-error" => fail(&app, arg.into()),
-        "upload" | "avatar-upload" => {
-            let avatar = kind == "avatar-upload";
+        "upload" | "avatar-upload" | "guild-icon-upload" => {
+            let (control, purpose) = match kind {
+                "avatar-upload" => ("live-avatar", UploadPurpose::Avatar),
+                "guild-icon-upload" => ("live-guild-icon", UploadPurpose::GuildIcon),
+                _ => ("live-file", UploadPurpose::Message),
+            };
             let file = document()
-                .get_element_by_id(if avatar { "live-avatar" } else { "live-file" })
+                .get_element_by_id(control)
                 .and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok())
                 .and_then(|e| e.files())
                 .and_then(|f| f.get(0));
             if let Some(file) = file {
                 let epoch = app.borrow().epoch;
                 let channel = app.borrow().channel;
+                let guild = app.borrow().guild;
                 spawn_local(async move {
-                    upload(app, avatar, file, channel, epoch).await;
+                    upload(app, purpose, file, channel, guild, epoch).await;
                 });
             }
         }
@@ -591,6 +621,11 @@ fn send_message(app: Shared, content: String) {
 fn send_prepared(app: Shared, content: String) {
     let mut a = app.borrow_mut();
     let Some(channel_id) = a.channel else { return };
+    if a.uploading {
+        a.error = "Wait for the upload to finish, or pause it before sending.".into();
+        a.touch();
+        return;
+    }
     if content.trim().is_empty() && a.attachments.is_empty() {
         return;
     }
@@ -650,7 +685,14 @@ fn mark_read(app: &Shared) {
 }
 
 pub(super) fn load_channel(app: Shared, c: Id, rank: Option<u64>) {
-    if rank.is_some() && app.borrow().history_busy && app.borrow().channel == Some(c) {
+    load_history(app, c, rank, None, None);
+}
+fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, target: Option<Id>) {
+    if target.is_none()
+        && (rank.is_some() || edge.is_some())
+        && app.borrow().history_busy
+        && app.borrow().channel == Some(c)
+    {
         return;
     }
     if app
@@ -680,6 +722,7 @@ pub(super) fn load_channel(app: Shared, c: Id, rank: Option<u64>) {
         a.history_generation += 1;
         a.history_busy = true;
         if a.channel != Some(c) {
+            a.typing_sent = 0;
             a.reply = None;
             a.editing = None;
             let old = std::mem::take(&mut a.attachments);
@@ -699,11 +742,41 @@ pub(super) fn load_channel(app: Shared, c: Id, rank: Option<u64>) {
         a.screen = "chat".into();
         a.panel.clear();
         a.model.touch(c);
-        let anchor = rank.and_then(|r| {
-            a.extent
-                .as_ref()
-                .and_then(|e| e.anchors.iter().min_by_key(|v| v.rank.abs_diff(r)).cloned())
-        });
+        let anchor = target
+            .map(|message_id| HistoryAnchor {
+                message_id,
+                rank: a
+                    .window_ids
+                    .iter()
+                    .position(|id| *id == message_id)
+                    .map(|i| a.window_rank + i as u64)
+                    .or_else(|| {
+                        a.extent.as_ref().and_then(|e| {
+                            e.anchors
+                                .iter()
+                                .min_by_key(|v| v.message_id.0.abs_diff(message_id.0))
+                                .map(|v| v.rank)
+                        })
+                    })
+                    .unwrap_or(0),
+            })
+            .or_else(|| {
+                edge.and_then(|older| {
+                    crate::wire::adjacent_pivot(a.window_ids.len(), older).map(|index| {
+                        HistoryAnchor {
+                            rank: a.window_rank + index as u64,
+                            message_id: a.window_ids[index],
+                        }
+                    })
+                })
+                .or_else(|| {
+                    rank.and_then(|r| {
+                        a.extent.as_ref().and_then(|e| {
+                            e.anchors.iter().min_by_key(|v| v.rank.abs_diff(r)).cloned()
+                        })
+                    })
+                })
+            });
         a.touch();
         (a.http(), a.history_generation, anchor)
     };
@@ -756,7 +829,18 @@ pub(super) fn load_channel(app: Shared, c: Id, rank: Option<u64>) {
                     crate::wire::page_rank(count, page.items.len(), None)
                 };
                 a.model.merge_page(c, page);
-                if rank.is_none() {
+                if let Some(message) = target {
+                    media_action(&format!("history-jump:{}:{}", c.0, message.0));
+                } else if let Some(rank) = rank {
+                    if let Some(message) = a.window_ids.get(
+                        rank.saturating_sub(a.window_rank)
+                            .min(a.window_ids.len().saturating_sub(1) as u64)
+                            as usize,
+                    ) {
+                        media_action(&format!("history-jump:{}:{}", c.0, message.0));
+                    }
+                }
+                if rank.is_none() && edge.is_none() && target.is_none() {
                     media_action("present");
                 }
                 a.touch();
@@ -843,6 +927,24 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
     spawn_local(async move {
         let result: Result<(), String> = async {
             match name.as_str() {
+                "server" | "server-overview" => {
+                    if let Some(g) = guild {
+                        let p: Snapshot<GuildPreview> =
+                            http.json(&format!("/guilds/{}/preview", g.0)).await?;
+                        let mut a = app.borrow_mut();
+                        if a.epoch == epoch
+                            && a.dialog_generation == generation
+                            && a.privacy_generation == privacy
+                        {
+                            a.model.merge_settings(Snapshot {
+                                cursor: p.cursor,
+                                data: sticktalk_client_core::settings::SnapshotData::GuildProfile(
+                                    p.data,
+                                ),
+                            });
+                        }
+                    }
+                }
                 "profile-edit" | "about" => {
                     let me = app.borrow().model.me.as_ref().map(|me| me.user.id);
                     if let Some(me) = me {
@@ -967,7 +1069,10 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
                         app.borrow_mut().pins = p.data;
                     }
                 }
-                "notifications" | "channel-notifications" => {
+                value
+                    if matches!(value, "notifications" | "channel-notifications")
+                        || value.starts_with("target-notifications:") =>
+                {
                     let p: Snapshot<Vec<NotificationSettings>> =
                         http.json("/me/notifications").await?;
                     if app.borrow().privacy_generation != privacy
@@ -1007,6 +1112,20 @@ fn submit(app: Shared, form: String) {
     let channel = a.channel;
     let guild = a.guild;
     let cmd = match form.as_str() {
+        "server-profile" => guild.map(|guild_id| {
+            Command::Launch(LaunchCommand::UpdateGuildProfile {
+                guild_id,
+                description: value("server-description"),
+                banner_color: value("server-banner").parse().unwrap_or(0),
+            })
+        }),
+        "guild-icon-remove" => guild.map(|guild_id| Command::UpdateGuild {
+            guild_id,
+            patch: GuildPatch {
+                icon_id: Patch::Clear,
+                ..Default::default()
+            },
+        }),
         "server-overview" => guild.map(|guild_id| Command::UpdateGuild {
             guild_id,
             patch: GuildPatch {
@@ -1039,6 +1158,13 @@ fn submit(app: Shared, form: String) {
         }),
         "unban" => guild.and_then(|guild_id| {
             id(&name).map(|user_id| Command::UnbanMember { guild_id, user_id })
+        }),
+        "ban" => guild.and_then(|guild_id| {
+            id(&name).map(|user_id| Command::BanMember {
+                guild_id,
+                user_id,
+                reason: if text.is_empty() { None } else { Some(text) },
+            })
         }),
         "group-add" => channel.and_then(|channel_id| {
             id(&name).map(|user_id| Command::AddGroupRecipient {
@@ -1168,14 +1294,24 @@ fn submit(app: Shared, form: String) {
                 "nothing" => NotificationLevel::Nothing,
                 _ => NotificationLevel::Mentions,
             };
+            let target = value("f-target");
+            let Some((kind, id)) = target
+                .split_once(':')
+                .and_then(|(kind, value)| id(value).map(|id| (kind, id)))
+            else {
+                a.error = "Choose a server or conversation first.".into();
+                a.touch();
+                return;
+            };
+            let (guild_id, channel_id) = if kind == "guild" {
+                (Some(id), None)
+            } else {
+                (a.model.channels.get(&id).and_then(|c| c.guild_id), Some(id))
+            };
             Some(Command::Launch(LaunchCommand::SetNotifications(
                 NotificationSettings {
-                    guild_id: None,
-                    channel_id: if value("f-scope") == "channel" {
-                        channel
-                    } else {
-                        None
-                    },
+                    guild_id,
+                    channel_id,
                     level,
                     muted: checked("f-muted"),
                     mute_until: None,
@@ -1290,6 +1426,18 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
         CommandOutcome::Ok(result) => {
             let operation = pending.map(|(c, _)| c);
             a.error.clear();
+            if matches!(
+                operation,
+                Some(Command::Launch(
+                    LaunchCommand::LogoutSession { .. } | LaunchCommand::LogoutAllOthers
+                ))
+            ) && a.dialog == "devices"
+            {
+                a.touch();
+                drop(a);
+                action(app, "dialog:devices");
+                return;
+            }
             match result {
                 CommandResult::Message(message) => {
                     // Responses identify the committed operation; only events may
@@ -1322,6 +1470,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     return;
                 }
                 CommandResult::Guild(g) => {
+                    if matches!(operation, Some(Command::UpdateGuild { .. })) {
+                        a.touch();
+                        return;
+                    }
                     let id = g.summary.guild.id;
                     if !a.model.guilds.contains_key(&id) {
                         a.touch();
@@ -1350,6 +1502,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                                 | Command::SubscribeGuild { .. }
                                 | Command::UpdateProfile(_)
                                 | Command::Launch(LaunchCommand::UpdateUserProfile { .. })
+                                | Command::Launch(LaunchCommand::UpdateGuildProfile { .. })
+                                | Command::Launch(LaunchCommand::ReorderRoles { .. })
+                                | Command::Launch(LaunchCommand::LogoutSession { .. })
+                                | Command::Launch(LaunchCommand::LogoutAllOthers)
                         )
                     ) {
                         a.dialog.clear();
@@ -1364,6 +1520,41 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
 extern "C" {
     #[wasm_bindgen(js_name = directSearch)]
     fn direct_search(key: &str, query: &str) -> js_sys::Promise;
+}
+#[lazy]
+fn move_role(app: Shared, arg: String, epoch: u64) {
+    let mut a = app.borrow_mut();
+    if a.epoch != epoch {
+        return;
+    }
+    let Some(guild_id) = a.guild else { return };
+    let Some((role, direction)) = arg.split_once(',') else {
+        return;
+    };
+    let Some(role) = id(role) else { return };
+    let mut roles = a
+        .roles
+        .values()
+        .filter(|r| r.guild_id == guild_id)
+        .collect::<Vec<_>>();
+    roles.sort_by_key(|r| (r.position, r.id));
+    let Some(index) = roles.iter().position(|r| r.id == role) else {
+        return;
+    };
+    let next = match direction {
+        "up" if index + 1 < roles.len() => index + 1,
+        "down" if index > 1 => index - 1,
+        _ => return,
+    };
+    if index == 0 {
+        return;
+    }
+    roles.swap(index, next);
+    let role_ids = roles.into_iter().map(|r| r.id).collect();
+    a.command(Command::Launch(LaunchCommand::ReorderRoles {
+        guild_id,
+        role_ids,
+    }));
 }
 #[lazy]
 fn gif_search(app: Shared, query: String, epoch: u64) {
@@ -1424,7 +1615,14 @@ fn gif_search(app: Shared, query: String, epoch: u64) {
     });
 }
 #[lazy]
-fn upload(app: Shared, avatar: bool, file: web_sys::File, channel: Option<Id>, epoch: u64) {
+fn upload(
+    app: Shared,
+    purpose: UploadPurpose,
+    file: web_sys::File,
+    channel: Option<Id>,
+    guild: Option<Id>,
+    epoch: u64,
+) {
     if app.borrow().epoch != epoch {
         return;
     }
@@ -1433,7 +1631,15 @@ fn upload(app: Shared, avatar: bool, file: web_sys::File, channel: Option<Id>, e
         if a.uploading {
             return;
         }
-        let c = if avatar {
+        if purpose == UploadPurpose::Message && a.attachments.len() >= MAX_MESSAGE_ATTACHMENTS {
+            a.error = "You can attach up to 4 files to a message.".into();
+            a.touch();
+            return;
+        }
+        if purpose == UploadPurpose::GuildIcon && guild.is_none() {
+            return;
+        }
+        let c = if purpose != UploadPurpose::Message {
             None
         } else {
             let Some(c) = channel else { return };
@@ -1465,7 +1671,14 @@ fn upload(app: Shared, avatar: bool, file: web_sys::File, channel: Option<Id>, e
             // validates its complete digest before resuming at the server's offset.
             let key = format!(
                 "sticktalk-upload:{channel}:{digest}",
-                channel = channel.map_or("avatar".into(), |c| c.0.to_string())
+                channel = channel.map_or_else(
+                    || if purpose == UploadPurpose::Avatar {
+                        "avatar".into()
+                    } else {
+                        format!("guild-icon:{}", guild.unwrap().0)
+                    },
+                    |c| c.0.to_string()
+                )
             );
             let saved = storage_get(&key);
             let mut upload = if let Some(upload_id) = saved {
@@ -1480,11 +1693,7 @@ fn upload(app: Shared, avatar: bool, file: web_sys::File, channel: Option<Id>, e
                     .post::<ResumableUpload>(
                         "/uploads/resumable",
                         &CreateUploadRequest {
-                            purpose: if avatar {
-                                UploadPurpose::Avatar
-                            } else {
-                                UploadPurpose::Message
-                            },
+                            purpose,
                             channel_id: channel,
                             filename: file.name(),
                             content_type: if file.type_().is_empty() {
@@ -1559,11 +1768,21 @@ fn upload(app: Shared, avatar: bool, file: web_sys::File, channel: Option<Id>, e
         a.uploading = false;
         match result {
             Ok(file) => {
-                if avatar {
+                if purpose == UploadPurpose::Avatar {
                     a.command(Command::UpdateProfile(ProfilePatch {
                         avatar_id: Patch::Set(file.id),
                         ..Default::default()
                     }));
+                } else if purpose == UploadPurpose::GuildIcon {
+                    if let Some(guild_id) = guild.filter(|id| a.model.guilds.contains_key(id)) {
+                        a.command(Command::UpdateGuild {
+                            guild_id,
+                            patch: GuildPatch {
+                                icon_id: Patch::Set(file.id),
+                                ..Default::default()
+                            },
+                        });
+                    }
                 } else if let Some(channel) = channel {
                     if a.channel == Some(channel) {
                         a.attachments.push(file)
@@ -1698,6 +1917,7 @@ fn voice_action(app: Shared, kind: String, arg: String, epoch: u64) {
                     if a.voice_channel.is_some() {
                         a.voice(VoiceSignal::Leave);
                     }
+                    media_action("joining");
                     a.voice_channel = Some(c);
                     a.voice(VoiceSignal::Join {
                         channel_id: c,

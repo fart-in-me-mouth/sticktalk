@@ -9,10 +9,20 @@ let saved,
   composing = false,
   observer,
   seekTimer,
+  pendingSeek,
+  pendingHistoryJump,
   typingTimer,
   lastChannel,
   media;
 let viewer;
+let messageMenu;
+const openMessageMenu=async row=>{
+  const id=typeof row==='string'?row:row.dataset.liveMessage;
+  messageMenu??=await import('/public/message-menu.js');
+  const current=[...document.querySelectorAll('[data-live-message]')].find(row=>row.dataset.liveMessage===id);
+  if(current)messageMenu.openMessageMenu(current);
+};
+let lastSwipe;
 let invite = new URLSearchParams(location.search).get('invite');
 let inviteOpened = false;
 let reauth = new URLSearchParams(location.search).get('reauth');
@@ -25,7 +35,7 @@ function updateJump(list) {
     button.onclick=()=>{
       const current=$('#live-messages');if(!current)return;
       current.scrollTop=current.scrollHeight;
-      if(Number(current.dataset.windowEnd)<Number(current.dataset.total))emit(`seek:${Math.max(0,Number(current.dataset.total)-50)}`);
+      if(Number(current.dataset.windowEnd)<Number(current.dataset.total))emit('present');
     };
     $('.composer-wrap')?.append(button);
   }
@@ -84,7 +94,7 @@ export function beforeRender() {
   const list = $("#live-messages"),
     input = $("#live-input"),
     focus = document.activeElement;
-  if (input && list) remember(list.dataset.channel, input.value);
+  if (input && list) remember(lastChannel ?? list.dataset.channel, input.value);
   const anchor = list && [...list.querySelectorAll('[data-live-message]')].find(row => row.getBoundingClientRect().bottom > list.getBoundingClientRect().top);
   saved = {
     channel: list?.dataset.channel,
@@ -122,7 +132,11 @@ export function mediaEvent(raw) {
   withMedia((m) => m.event(JSON.parse(raw)));
 }
 export function mediaAction(action) {
+  if(action.startsWith('history-jump:')) {
+    const [channel,message]=action.slice(13).split(':');pendingHistoryJump={channel,message};return;
+  }
   if (action.startsWith("purge-channel:")) {
+    messageMenu?.closeMessageMenu();
     completionRequest = ''; completionRange = null;
     const channel = action.slice(14);
     drafts.delete(channel);
@@ -165,14 +179,18 @@ export function mediaAction(action) {
     return;
   }
   if (action === "present") {
-    clearTimeout(seekTimer);
+    clearTimeout(seekTimer);seekTimer=undefined;pendingSeek=undefined;
     const list = $("#live-messages");
     if (list) list.scrollTop = list.scrollHeight;
     if (saved) saved.bottom = true;
     return;
   }
   if (action === "purge") {
+    messageMenu?.closeMessageMenu();
     drafts.clear();
+    lastChannel=undefined;
+    pendingHistoryJump=undefined;
+    clearTimeout(seekTimer);seekTimer=undefined;pendingSeek=undefined;
     // A reactive render snapshots the old DOM before replacing it. Wipe the
     // live composer too, so that snapshot cannot resurrect an account draft.
     const input = $("#live-input");
@@ -198,9 +216,11 @@ function restore() {
   const list = $("#live-messages"),
     input = $("#live-input");
   if (list && input) {
+    const changed=lastChannel!==list.dataset.channel;
+    if(changed)composing=false;
     if (!composing)
-      input.value = drafts.get(list.dataset.channel) ?? input.value;
-    if (lastChannel !== list.dataset.channel) {
+      input.value = drafts.get(list.dataset.channel) ?? (changed?'':input.value);
+    if (changed) {
       list.scrollTop = list.scrollHeight;
       lastChannel = list.dataset.channel;
     } else if (saved?.channel === list.dataset.channel) {
@@ -237,10 +257,17 @@ function restore() {
     }
     saved = null;
   }
+  if(list&&pendingHistoryJump) {
+    if(list.dataset.channel===pendingHistoryJump.channel) {
+      const row=list.querySelector(`[data-live-message="${pendingHistoryJump.message}"]`);
+      if(row){list.scrollTop+=row.getBoundingClientRect().top-list.getBoundingClientRect().top;pendingHistoryJump=undefined;}
+    } else pendingHistoryJump=undefined;
+  }
+  if(list)list.__sticktalkScrollTop=list.scrollTop;
   const modal = $('.live-modal');
   if (modal && !modal.contains(document.activeElement)) modal.focus({preventScroll:true});
   const shell=$('.live-shell');
-  if(shell)shell.inert=!!modal;
+  if(shell)shell.inert=!!modal||!!$('#live-viewer,#live-message-menu');
   const left=$('.left-panel');
   if(left)left.inert=innerWidth<768&&!shell?.classList.contains('panel-left');
   applyPreferences();
@@ -269,14 +296,18 @@ export function installPlatform() {
   installed = true;
   loadPreferences();
   installOverlayHistory(emit);
+  addEventListener('sticktalk-close-surfaces',()=>{messageMenu?.closeMessageMenu(false);closeViewer();});
+  addEventListener('sticktalk-surfaces-changed',()=>{syncOverlayHistory();const shell=$('.live-shell');if(shell)shell.inert=!!$('.live-modal,#live-viewer,#live-message-menu');});
   document.addEventListener("compositionstart", () => (composing = true));
   document.addEventListener("compositionend", () => (composing = false));
   observer = new MutationObserver((records) => {
     if (
       records.some(
         (r) =>
+          (r.type === 'attributes' && (r.target.matches('.live-shell') || r.target.id==='sticktalk')) ||
           r.type === "childList" &&
-          [...r.addedNodes].some(
+          !r.target.closest?.('#live-media-stage,#live-device-settings,#live-viewer') &&
+          [...r.addedNodes,...r.removedNodes].some(
             (n) =>
               n.nodeType === 1 &&
               (!n.closest ||
@@ -288,13 +319,25 @@ export function installPlatform() {
     )
       restore();
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  // Drawer toggles can update only a class (no child nodes). Without this,
+  // the newly visible drawer stays inert and Back never receives its entry.
+  observer.observe(document.body, { childList: true, subtree: true, attributes:true, attributeFilter:['class','data-screen'] });
   document.addEventListener("click", (e) => {
+    if(lastSwipe&&performance.now()<lastSwipe.until&&Math.hypot(e.clientX-lastSwipe.x,e.clientY-lastSwipe.y)<32) {
+      lastSwipe=null;e.preventDefault();return;
+    }
     const completion = e.target.closest('[data-completion]');
     if (completion) { e.preventDefault(); acceptCompletion(completion); return; }
     const target = e.target.closest("[data-live]");
     if (target) {
+        // Chromium may fat-finger-adjust a touch on message text to its nearby
+        // author button. Only an actual hit on that button opens the profile.
+        if(e.pointerType==='touch'&&target.matches('.message .author')) {
+          const r=target.getBoundingClientRect();
+          if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)return;
+        }
       e.preventDefault();
+      if(target.closest('#live-message-menu'))messageMenu?.closeMessageMenu(false);
       const action = target.dataset.live;
       if (action === "pick-file") $("#live-file")?.click();
       else if (action === "send-input") send();
@@ -308,8 +351,8 @@ export function installPlatform() {
     const copy = e.target.closest("[data-copy]");
     if (copy) {
       e.preventDefault();
-      navigator.clipboard?.writeText(copy.dataset.copy).catch(() => {});
-      copy.textContent = 'Copied!';
+      if(!navigator.clipboard){emit('media-error:Clipboard unavailable. Select and copy the text instead.');return;}
+      navigator.clipboard.writeText(copy.dataset.copy).then(()=>copy.textContent='Copied!').catch(()=>emit('media-error:Could not copy. Select and copy the text instead.'));
     }
     if (e.target.closest("[data-spoiler]"))
       e.target.closest("[data-spoiler]").classList.add("revealed");
@@ -372,8 +415,10 @@ export function installPlatform() {
       if(e.target.form)e.target.form.dataset.dirty='true';
     }
     if(e.target.matches('[data-preference]'))setPreference(e.target);
-    if (e.target.id === "live-file") emit("upload");
-    if (e.target.id === 'live-avatar') emit('avatar-upload');
+    if(e.target.matches('[data-notification-target]'))emit(`dialog:target-notifications:${e.target.value}`);
+    if (e.target.id === "live-file") {emit("upload");e.target.value='';}
+    if (e.target.id === 'live-avatar') {emit('avatar-upload');e.target.value='';}
+    if (e.target.id === 'live-guild-icon') {emit('guild-icon-upload');e.target.value='';}
     if (e.target.dataset.groupUser) {
       const selected = [...document.querySelectorAll('[data-group-user]:checked')];
       if (selected.length > 15) { e.target.checked = false; return; }
@@ -392,8 +437,16 @@ export function installPlatform() {
         .map((e) => e.dataset.memberRole)
         .join(",");
     }
+    if(e.target.id==='f-name'&&e.target.form?.dataset.liveForm==='member-role') {
+      const roles=new Set((e.target.selectedOptions[0]?.dataset.roleIds??'').split(','));
+      document.querySelectorAll('[data-member-role]').forEach(box=>box.checked=roles.has(box.dataset.memberRole));
+      $('#f-value').value=[...document.querySelectorAll('[data-member-role]:checked')].map(box=>box.dataset.memberRole).join(',');
+    }
   });
   document.addEventListener("keydown", (e) => {
+    if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')||(e.key==='Enter'&&e.target.matches('.message'))) {
+      const row=e.target.closest('.message');if(row){e.preventDefault();openMessageMenu(row);return;}
+    }
     if (!e.isComposing && e.target.id === 'live-input') {
       const rows = [...document.querySelectorAll('#live-completions [role=option]')];
       if (rows.length && ['ArrowUp','ArrowDown','Tab','Enter','Escape'].includes(e.key)) {
@@ -455,23 +508,32 @@ export function installPlatform() {
       const start = Number(list.dataset.windowStart),
         end = Number(list.dataset.windowEnd),
         total = Number(list.dataset.total);
-      clearTimeout(seekTimer);
-      // Only spacers use estimated heights. Mounted grouped rows are measured;
-      // interpreting their 21px continuation rows as 88px loses the live tail.
-      const rows = list.querySelectorAll('[data-live-message]');
-      const first = rows[0], last = rows[rows.length-1], top = list.getBoundingClientRect().top;
-      let rank;
-      if (first && first.getBoundingClientRect().top > top + 32 && start > 0)
-        rank = Math.min(start-1, Math.max(0, Math.floor(list.scrollTop / 88)));
-      else if (last && last.getBoundingClientRect().bottom < top + list.clientHeight - 32 && end < total)
-        rank = Math.min(total-1, end + Math.floor(Math.max(0, top-last.getBoundingClientRect().bottom) / 88));
-      if (rank !== undefined && total > 50) {
-        const {channel, historyGeneration, windowStart, windowEnd} = list.dataset;
-        seekTimer = setTimeout(() => {
-          const current = $('#live-messages');
-          if (current?.dataset.channel === channel && current.dataset.historyGeneration === historyGeneration && current.dataset.windowStart === windowStart && current.dataset.windowEnd === windowEnd)
-            emit(`seek:${rank}`);
-        }, 120);
+      const previous=list.__sticktalkScrollTop??list.scrollTop;
+      const direction=Math.sign(list.scrollTop-previous);list.__sticktalkScrollTop=list.scrollTop;
+      const rows=[...list.querySelectorAll('[data-live-message]')];
+      const top=list.getBoundingClientRect().top, first=rows[0],last=rows.at(-1);
+      let action;
+      if(first&&first.getBoundingClientRect().top>top+32&&start>0)
+        action=first.getBoundingClientRect().top-top<list.clientHeight*2?'history-older':`seek:${Math.min(start-1,Math.max(0,Math.floor(list.scrollTop/88)))}`;
+      else if(last&&last.getBoundingClientRect().bottom<top+list.clientHeight-32&&end<total)
+        action=top-last.getBoundingClientRect().bottom<list.clientHeight*2?'history-newer':`seek:${Math.min(total-1,end+Math.floor(Math.max(0,top-last.getBoundingClientRect().bottom)/88))}`;
+      else {
+        const firstVisible=rows.findIndex(row=>row.getBoundingClientRect().bottom>top);
+        const lastVisible=rows.findLastIndex(row=>row.getBoundingClientRect().top<top+list.clientHeight);
+        if(direction<0&&firstVisible<10&&start>0)action='history-older';
+        else if(direction>0&&firstVisible>=10&&lastVisible>=rows.length-10&&end<total)action='history-newer';
+      }
+      if(action&&total>50) {
+        const {channel,historyGeneration,windowStart,windowEnd}=list.dataset;
+        pendingSeek={action,channel,historyGeneration,windowStart,windowEnd};
+        // Throttle, do not debounce: continuous momentum scrolling must load
+        // adjacent windows too, not wait for the finger/inertia to stop.
+        if(seekTimer===undefined)seekTimer=setTimeout(()=>{
+          seekTimer=undefined;
+          const request=pendingSeek;pendingSeek=undefined;
+          const current=$('#live-messages');
+          if(request&&current?.dataset.channel===request.channel&&current.dataset.historyGeneration===request.historyGeneration&&current.dataset.windowStart===request.windowStart&&current.dataset.windowEnd===request.windowEnd)emit(request.action);
+        },80);
       }
       if (list.scrollHeight - list.scrollTop - list.clientHeight < 80)
         emit("read");
@@ -509,24 +571,36 @@ export function installPlatform() {
   window.visualViewport?.addEventListener("resize", viewport);
   window.visualViewport?.addEventListener("scroll", viewport);
   viewport();
-  let touch;
+  let touch, press;
+  const cancelPress=()=>{if(press)clearTimeout(press.timer);press=null;};
+  document.addEventListener('contextmenu',e=>{const row=e.target.closest('.message');if(row&&(innerWidth<768||matchMedia('(pointer:coarse)').matches)){e.preventDefault();cancelPress();if(!$('#live-message-menu'))openMessageMenu(row);}});
   document.addEventListener("pointerdown", (e) => {
+    cancelPress();
+    if(e.target.closest('#live-message-menu'))lastSwipe=undefined;
+    const hit=e.pointerType==='touch'?document.elementFromPoint(e.clientX,e.clientY)??e.target:e.target;
+    const row=hit.closest('.message');
+    if(e.pointerType==='touch'&&row&&!hit.closest('button,a,input,textarea,video')) {
+      const messageId=row.dataset.liveMessage;
+      press={x:e.clientX,y:e.clientY,timer:setTimeout(()=>{lastSwipe={x:e.clientX,y:e.clientY,until:performance.now()+750};openMessageMenu(messageId);press=null;},450)};
+    }
     if (
       e.pointerType === "touch" &&
       innerWidth < 768 &&
-      !e.target.closest("input,textarea,[role=dialog]")
+      !e.target.closest("input,textarea,[role=dialog],dialog")
     )
       touch = { x: e.clientX, y: e.clientY, id:e.pointerId };
   });
-  document.addEventListener('pointercancel',()=>touch=null);
+  document.addEventListener('pointermove',e=>{if(press&&Math.hypot(e.clientX-press.x,e.clientY-press.y)>12)cancelPress();});
+  document.addEventListener('pointercancel',()=>{touch=null;cancelPress();});
   document.addEventListener("pointerup", (e) => {
+    cancelPress();
     if (touch && e.pointerId===touch.id) {
       const dx = e.clientX - touch.x,
         dy = e.clientY - touch.y;
       const shell=$('.live-shell');
       const panel=shell?.classList.contains('panel-left')?'left':shell?.classList.contains('panel-right')?'right':'';
       const action=swipeAction(panel,dx,dy);
-      if(action){e.preventDefault();emit(action);}
+      if(action){lastSwipe={x:e.clientX,y:e.clientY,until:performance.now()+500};emit(action);}
       touch = null;
     }
   });

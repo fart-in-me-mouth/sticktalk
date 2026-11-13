@@ -41,10 +41,28 @@ extern "C" {
 struct CookieFetch(String);
 impl HttpTransport for CookieFetch {
     fn execute(&self, mut request: HttpRequest) -> Task<'_, Result<HttpResponse, String>> {
-        if request.method != "GET" && !self.0.is_empty() {
-            request
-                .headers
-                .push(("X-StickTalk-CSRF".into(), self.0.clone()));
+        if request.method != "GET" {
+            // A remotely revoked HttpOnly session cookie can outlive its app
+            // state. Login still needs its readable double-submit CSRF cookie.
+            let csrf = if self.0.is_empty() {
+                js_sys::Reflect::get(document().as_ref(), &"cookie".into())
+                    .ok()
+                    .and_then(|v| v.as_string())
+                    .and_then(|cookies| {
+                        cookies.split(';').find_map(|cookie| {
+                            cookie
+                                .trim()
+                                .strip_prefix("__Host-sticktalk_csrf=")
+                                .map(str::to_owned)
+                        })
+                    })
+                    .unwrap_or_default()
+            } else {
+                self.0.clone()
+            };
+            if !csrf.is_empty() {
+                request.headers.push(("X-StickTalk-CSRF".into(), csrf));
+            }
         }
         Box::pin(async move { Fetch::default().execute(request).await })
     }
@@ -329,6 +347,7 @@ pub fn mount() {
                     let mut a = metadata.borrow_mut();
                     a.google = c.google_redirect;
                     a.push = c.web_push;
+                    a.touch();
                 }
                 if let Ok(meta) = http.json::<MetaResponse>("/meta").await {
                     metadata.borrow_mut().gif_capability = meta.gifs;
@@ -473,6 +492,18 @@ async fn socket(app: Shared, epoch: u64) {
                         }
                         deadline = Browser.monotonic_ms() + heartbeat;
                     }
+                    Wake::Frame(Some(Ok(Frame::Close(Some(4001))))) => {
+                        // Session revocation closes the socket without an error
+                        // payload. Never leave private history visible while
+                        // retrying an already invalid cookie indefinitely.
+                        let mut a = app.borrow_mut();
+                        a.clear_account();
+                        a.error = "Your session ended. Please log in again.".into();
+                        media_action("purge");
+                        media_action("transport-lost");
+                        a.touch();
+                        return;
+                    }
                     Wake::Frame(Some(Ok(Frame::Binary(bytes)))) => {
                         let Ok(frame) = decode(&bytes) else {
                             app.borrow_mut().error = "Invalid server protocol frame".into();
@@ -553,6 +584,20 @@ async fn socket(app: Shared, epoch: u64) {
                             }
                             ServerMsg::Event(event) => {
                                 let mut a = app.borrow_mut();
+                                let admin_access = match &event.event {
+                                    Event::GuildUpsert(g) => {
+                                        Some((g.guild.id, g.my_role, g.my_permissions))
+                                    }
+                                    _ => None,
+                                };
+                                let reduced_access =
+                                    admin_access.is_some_and(|(id, role, permissions)| {
+                                        a.model.guilds.get(&id).is_some_and(|old| {
+                                            !(old.my_permissions & !permissions).is_empty()
+                                                || (old.my_role == MemberRole::Owner
+                                                    && role != MemberRole::Owner)
+                                        })
+                                    });
                                 if a.model.cursor.as_ref().is_some_and(|c| event.seq > c.seq) {
                                     match &event.event {
                                         Event::MessageCreated { message, .. }
@@ -579,6 +624,12 @@ async fn socket(app: Shared, epoch: u64) {
                                             message_id,
                                         } if a.channel == Some(*channel_id) => {
                                             a.window_ids.retain(|id| id != message_id);
+                                            if a.reply == Some(*message_id) {
+                                                a.reply = None;
+                                                a.error =
+                                                    "The message you were replying to was deleted."
+                                                        .into();
+                                            }
                                             if let Some(extent) = a.extent.as_mut() {
                                                 extent.message_count =
                                                     extent.message_count.saturating_sub(1);
@@ -617,6 +668,28 @@ async fn socket(app: Shared, epoch: u64) {
                                     _ => vec![],
                                 };
                                 let applied = a.model.apply(*event);
+                                if let Some((guild, role, permissions)) =
+                                    admin_access.filter(|_| applied)
+                                {
+                                    if reduced_access {
+                                        a.privacy_generation = a.privacy_generation.wrapping_add(1);
+                                    }
+                                    let admin = role == MemberRole::Owner
+                                        || permissions.contains(Permissions::ADMINISTRATOR);
+                                    let all_invites =
+                                        admin || permissions.contains(Permissions::MANAGE_GUILD);
+                                    let own_invites = all_invites
+                                        || permissions.contains(Permissions::CREATE_INVITES);
+                                    let me = a.model.me.as_ref().map(|me| me.user.id);
+                                    a.model.invites.retain(|_, i| {
+                                        i.guild_id != guild
+                                            || (own_invites
+                                                && (all_invites || Some(i.creator_id) == me))
+                                    });
+                                    if !admin && !permissions.contains(Permissions::BAN_MEMBERS) {
+                                        a.model.bans.retain(|_, b| b.guild_id != guild);
+                                    }
+                                }
                                 if applied && revoked {
                                     a.privacy_generation = a.privacy_generation.wrapping_add(1);
                                     a.completions.clear();

@@ -28,6 +28,7 @@ let publications = new Map(),
   queue = Promise.resolve(),
   status = "Disconnected";
 const trace = [];
+let wantCall=false;
 const speaking = new Set();
 export function retainSpeaking(states, sessionKey, active) {
   if (!active) states.delete(sessionKey);
@@ -127,7 +128,7 @@ async function negotiate() {
             : "window"
           : null,
     }));
-  signal("offer", { sdp: current.localDescription.sdp, tracks });
+  signal("offer", { sdp: normalizeOffer(current.localDescription.sdp), tracks });
   const sdp = await answer;
   if (current !== pc) return;
   // The SFU allocates a fresh forwarding SSRC *after* answering Subscribe.
@@ -136,6 +137,12 @@ async function negotiate() {
   const browserSdp = normalizeAnswer(sdp);
   await current.setRemoteDescription({ type: "answer", sdp: browserSdp });
   bindRemote();
+}
+export function normalizeOffer(sdp) {
+  // Chromium also gathers TCP host candidates. StickTalk's SFU is UDP-only
+  // and correctly rejects those at ingress. Advertise only usable candidates;
+  // leave the browser's local description and its DTLS/codec fields unchanged.
+  return sdp.split(/\r?\n/).filter(line=>!line.startsWith('a=candidate:')||line.split(/\s+/)[2]?.toLowerCase()==='udp').join('\r\n');
 }
 export function normalizeAnswer(sdp) {
   return sdp
@@ -257,6 +264,7 @@ async function start(data) {
     mount();
   } catch (e) {
     stop(true);
+    if(e.name==='NotAllowedError')throw new Error('Microphone access was denied. Allow it in your browser’s site settings, then rejoin.');
     throw e;
   }
 }
@@ -361,7 +369,7 @@ export function event(event) {
   record("event", event.type === "answer" ? { type: "answer" } : event);
   switch (event.type) {
     case "joined":
-      enqueue(() => start(data));
+      if(wantCall)enqueue(() => start(data));
       break;
     case "answer":
       pendingAnswer?.resolve(data.sdp);
@@ -405,8 +413,9 @@ export function event(event) {
       break;
     }
     case "error":
+      if(!wantCall&&!joined)break; // Late signaling acknowledgments after Leave.
       report(data.message ?? "The server rejected a media operation.");
-      pendingAnswer?.reject();
+      pendingAnswer?.reject(new Error(data.message ?? 'Media operation failed.'));
       pendingAnswer = null;
       break;
     case "guild_left":
@@ -559,10 +568,11 @@ function showShareOptions() {
   dialog.showModal();
 }
 function stop(notify) {
+  if(notify)wantCall=false;
   ++epoch;
   clearTimeout(levelsTimer);
   levelsTimer = null;
-  pendingAnswer?.reject();
+  pendingAnswer?.reject(new Error('Call ended.'));
   pendingAnswer = null;
   for (const p of publications.values())
     p.stream.getTracks().forEach((t) => t.stop());
@@ -725,6 +735,9 @@ async function setOutput(id) {
 }
 export function action(action) {
   switch (action) {
+    case "joining":
+      wantCall=true;
+      break;
     case "mute":
       muted = !muted;
       if (joined) applyState();
@@ -745,6 +758,7 @@ export function action(action) {
       stop(true);
       break;
     case "transport-lost":
+      wantCall=false;
       stop(false);
       break;
     case "reconnected":
