@@ -1131,6 +1131,9 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         .into();
     }
     let mut body = column![].spacing(t::S8);
+    if let Some(status) = features3::slowmode_composer(app, channel.id) {
+        body = body.push(status);
+    }
     if let Some(cards) = uploads::cards(app) {
         body = body.push(cards);
     }

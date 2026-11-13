@@ -1746,6 +1746,7 @@ async fn mutate(
                 d.attachment_ids.len(),
             )
             .await?;
+            crate::slowmode::check(c, u, d.channel_id).await?;
             let ch = d.channel_id;
             let recipients = audience(c, ch).await?;
             if channel.summary.kind == ChannelKind::Direct {

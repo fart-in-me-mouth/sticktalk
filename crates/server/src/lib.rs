@@ -21,6 +21,7 @@ mod legacy;
 mod mentions;
 mod reauth;
 mod search;
+mod slowmode;
 pub mod storage_node;
 #[cfg(test)]
 mod storage_tests;

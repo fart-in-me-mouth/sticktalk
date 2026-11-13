@@ -10,6 +10,7 @@ pub enum Read {
     Permissions(Id),
     Extent(Id),
     Emoji(Id),
+    Slowmode(Id),
 }
 #[derive(Debug, Clone)]
 pub enum SnapshotData {
@@ -19,6 +20,7 @@ pub enum SnapshotData {
     Permissions(Id, Snapshot<Permissions>),
     Extent(Snapshot<HistoryExtent>),
     Emoji(Id, Snapshot<Vec<GuildEmoji>>),
+    Slowmode(Snapshot<SlowmodeStatus>),
 }
 impl SnapshotData {
     pub fn cursor(&self) -> &ResumeCursor {
@@ -29,11 +31,13 @@ impl SnapshotData {
             Self::Permissions(_, v) => &v.cursor,
             Self::Extent(v) => &v.cursor,
             Self::Emoji(_, v) => &v.cursor,
+            Self::Slowmode(v) => &v.cursor,
         }
     }
 }
 #[derive(Default)]
 pub struct Projection {
+    pub slowmode: BTreeMap<Id, SlowmodeStatus>,
     pub emoji: BTreeMap<Id, Vec<GuildEmoji>>,
     pub roles: BTreeMap<Id, Vec<Role>>,
     pub memberships: BTreeMap<(Id, Id), Member>,
@@ -72,6 +76,17 @@ impl Projection {
     }
     pub fn event(&mut self, e: &Event) {
         match e {
+            Event::SlowmodeUpdated {
+                channel_id,
+                seconds,
+            } => {
+                if let Some(s) = self.slowmode.get_mut(channel_id) {
+                    s.seconds = *seconds;
+                    if *seconds == 0 {
+                        s.retry_after_ms = 0;
+                    }
+                }
+            }
             Event::GuildEmojiUpdated { guild_id, emoji } => {
                 self.emoji.insert(*guild_id, emoji.clone());
             }
@@ -138,6 +153,7 @@ impl Projection {
         }
     }
     pub fn purge_channel(&mut self, id: Id) {
+        self.slowmode.remove(&id);
         self.effective_permissions.remove(&id);
         self.profiles.clear();
         self.pins.remove(&id);
@@ -188,6 +204,9 @@ impl Projection {
     }
     pub fn snapshot(&mut self, data: SnapshotData) {
         match data {
+            SnapshotData::Slowmode(v) => {
+                bounded_insert(&mut self.slowmode, v.data.channel_id, v.data, 320)
+            }
             SnapshotData::Emoji(id, v) => bounded_insert(&mut self.emoji, id, v.data, 10),
             SnapshotData::Profile(v) => {
                 bounded_insert(&mut self.profiles, v.data.profile.user.id, v.data, 32);

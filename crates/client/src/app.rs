@@ -1504,6 +1504,11 @@ impl App {
             }
             Msg::Send => {
                 if let Screen::Channel(channel_id) = self.state.screen {
+                    if self.state.editing.is_none()
+                        && crate::features3::remaining(self, channel_id) > 0
+                    {
+                        return Task::none();
+                    }
                     let content = sticktalk_client_core::features3::prepare_send(
                         &self.editor.text(),
                         crate::features3::entries(self),
@@ -2251,6 +2256,7 @@ impl App {
                 if generation == self.state.generation
                     && self.state.model.snapshot_valid(data.cursor())
                 {
+                    crate::features3::snapshot(self, &data);
                     if let sticktalk_client_core::launch::SnapshotData::Extent(v) = &data {
                         self.extent_snapshot(&v.data);
                     }
@@ -2574,6 +2580,15 @@ impl App {
                             self.history_slots.borrow_mut().remove(message_id);
                         }
                     }
+                    if self
+                        .state
+                        .model
+                        .cursor
+                        .as_ref()
+                        .is_some_and(|c| envelope.seq > c.seq)
+                    {
+                        crate::features3::live_event(self, &envelope.event);
+                    }
                     self.main_live_event(&envelope.event);
                     let sessions_changed = matches!(envelope.event, Event::SessionsUpdated);
                     self.state.model.apply(*envelope);
@@ -2656,6 +2671,15 @@ impl App {
                         .unwrap_or_default();
                     match response.outcome {
                         CommandOutcome::Err(e) => {
+                            if e.field.as_deref() == Some("slowmode") {
+                                if let Some(Command::SendMessage(d)) = &command {
+                                    crate::features3::rejected(
+                                        self,
+                                        d.channel_id,
+                                        e.retry_after_ms.unwrap_or(0),
+                                    );
+                                }
+                            }
                             self.error = format!(
                                 "{}{}",
                                 e.message,

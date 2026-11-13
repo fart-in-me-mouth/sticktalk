@@ -1850,3 +1850,25 @@ Desktop Enter submits the header query to a right-hand results panel. The
 panel retains one page plus at most 64 keyset cursors, highlights literal terms,
 and uses the existing around-message history seek on result activation. No
 background polling; canceled/stale responses cannot replace a newer search.
+
+## Additive text features: slowmode
+
+`LaunchCommand::SetSlowmode { channel_id, seconds }` requires Manage Channels
+and a guild text channel. Valid seconds: `0,5,10,30,60,300,900,3600,21600`.
+Changes persist and emit `SlowmodeUpdated { channel_id, seconds }` only to
+launch-feature channel viewers. `GET /api/v1/channels/{id}/slowmode` returns a
+personalized `Snapshot<SlowmodeStatus>` (interval, bypass flag, server time,
+remaining milliseconds). Read access is checked on every fetch.
+
+SendMessage checks the latest persisted send by that author/channel under the
+serialized mutation transaction; concurrent devices cannot race the interval.
+Manage Messages or Manage Channels bypasses it. Retries of a committed command
+retain normal receipt semantics. Edits do not consume the interval, and deleting
+the previous message does not evade it. Rejections use `rate_limited`,
+`field="slowmode"`, and `retry_after_ms`.
+
+The desktop composer keeps an editable draft during cooldown and ignores sends
+until expiry, showing a seconds countdown. The host uses a monotonic local
+clock mapped from the server snapshot, not local wall time. Countdown timers
+exist only while a restricted channel is focused and the cooldown is nonzero;
+no slowmode timer exists when disabled, exempt, expired, or offscreen.

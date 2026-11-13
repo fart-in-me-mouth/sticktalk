@@ -45,6 +45,10 @@ pub(crate) async fn mutate(
 ) -> Result<CommandResult> {
     use LaunchCommand::*;
     match cmd {
+        SetSlowmode {
+            channel_id,
+            seconds,
+        } => crate::slowmode::set(c, u, channel_id, seconds, out).await,
         RenameEmoji {
             guild_id,
             emoji_id,

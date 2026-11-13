@@ -46,3 +46,13 @@ pub struct MessageSearchPage {
     /// Literal FTS phrases, for client-side highlighting. Never HTML.
     pub terms: Vec<String>,
 }
+
+pub const SLOWMODE_SECONDS: &[u32] = &[0, 5, 10, 30, 60, 300, 900, 3600, 21600];
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SlowmodeStatus {
+    pub channel_id: ChannelId,
+    pub seconds: u32,
+    pub bypassed: bool,
+    pub retry_after_ms: u32,
+    pub server_time: UnixMillis,
+}

@@ -11,6 +11,8 @@ use std::{
 use sticktalk_proto::*;
 #[derive(Default)]
 pub struct State {
+    pub cooldowns: BTreeMap<Id, sticktalk_client_core::features3::Cooldown>,
+    slow_requested: Option<(Id, u64)>,
     pub search: sticktalk_client_core::features3::SearchState,
     search_task: Option<iced::task::Handle>,
     pub emoji_name: String,
@@ -32,6 +34,8 @@ pub struct Asset {
 }
 #[derive(Debug, Clone)]
 pub enum Event {
+    Slowmode(u32),
+    SlowTick,
     SearchSubmit,
     SearchPage(bool),
     SearchClose,
@@ -69,6 +73,21 @@ pub fn candidates(app: &App) -> Vec<&GuildEmoji> {
 }
 pub fn update(app: &mut App, e: Event) -> Task<Msg> {
     match e {
+        Event::SlowTick => {}
+        Event::Slowmode(seconds) => {
+            if let Dialog::ChannelSettings(channel_id) = app.dialog {
+                if SLOWMODE_SECONDS.contains(&seconds)
+                    && app
+                        .channel_permissions(channel_id)
+                        .contains(Permissions::MANAGE_CHANNELS)
+                {
+                    return app.update(Msg::Command(Command::Launch(LaunchCommand::SetSlowmode {
+                        channel_id,
+                        seconds,
+                    })));
+                }
+            }
+        }
         Event::SearchSubmit => {
             app.text_features.search.cursors.clear();
             return search(app, None);
@@ -273,6 +292,11 @@ async fn upload(
     serde_json::from_slice(&bytes).map_err(|_| "Invalid emoji response".into())
 }
 pub fn reconcile(app: &mut App) -> Task<Msg> {
+    // The offscreen harness has no transport. Keep its explicitly seeded assets/results
+    // and never turn fixture geometry measurements into mock network requests.
+    if app.mock_mode && app.tx.is_none() {
+        return Task::none();
+    }
     let account = app
         .state
         .session
@@ -307,6 +331,29 @@ pub fn reconcile(app: &mut App) -> Task<Msg> {
             });
         }
     }
+    let current = match app.dialog {
+        Dialog::ChannelSettings(id) => Some(id),
+        _ => {
+            if let Screen::Channel(id) = app.state.screen {
+                Some(id)
+            } else {
+                None
+            }
+        }
+    };
+    if let Some(id) = current {
+        let key = (id, app.state.generation);
+        if app.text_features.slow_requested != Some(key) {
+            app.text_features.slow_requested = Some(key);
+            app.request(Request::Launch {
+                read: sticktalk_client_core::launch::Read::Slowmode(id),
+                generation: app.state.generation,
+            });
+        }
+    }
+    app.text_features
+        .cooldowns
+        .retain(|id, _| app.state.model.channels.contains_key(id));
     let mut wanted = BTreeSet::new();
     if matches!(app.dialog, Dialog::GuildSettings(GuildTab::Emoji))
         || app.features.picker == crate::features::Picker::Emoji
@@ -399,28 +446,72 @@ async fn load(c: Config, id: Id, full: bool) -> Result<Arc<crate::animated::Fram
     .map_err(|_| "Emoji decoder stopped")?
 }
 pub fn subscription(app: &App) -> Subscription<Msg> {
-    Subscription::batch(app.text_features.assets.iter().filter_map(|(&id, a)| {
-        let f = a.frames.as_ref()?;
-        if !a.active || f.images.len() < 2 {
-            return None;
+    let mut subscriptions: Vec<_> = app
+        .text_features
+        .assets
+        .iter()
+        .filter_map(|(&id, a)| {
+            let f = a.frames.as_ref()?;
+            if !a.active || f.images.len() < 2 {
+                return None;
+            }
+            let delay = f.images[a.index % f.images.len()].1;
+            Some(Subscription::run_with((id, a.index, delay), |v| {
+                let (id, _, delay) = *v;
+                iced::futures::stream::once(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                    msg(Event::Advance(id))
+                })
+            }))
+        })
+        .collect();
+    if app.focused {
+        if let Screen::Channel(id) = app.state.screen {
+            let remaining = remaining(app, id);
+            if remaining > 0 {
+                subscriptions.push(Subscription::run_with(
+                    (id, remaining.div_ceil(1000)),
+                    move |v| {
+                        let (_, seconds) = *v;
+                        iced::futures::stream::once(async move {
+                            let _ = seconds;
+                            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+                            msg(Event::SlowTick)
+                        })
+                    },
+                ));
+            }
         }
-        let delay = f.images[a.index % f.images.len()].1;
-        Some(Subscription::run_with((id, a.index, delay), |v| {
-            let (id, _, delay) = *v;
-            iced::futures::stream::once(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-                msg(Event::Advance(id))
-            })
-        }))
-    }))
+    }
+    Subscription::batch(subscriptions)
 }
 pub fn fixture(app: &mut App, screen: &str) {
+    if screen == "channel-slowmode" || screen == "slowmode-countdown" {
+        let status = SlowmodeStatus {
+            channel_id: Id(12),
+            seconds: 30,
+            bypassed: false,
+            retry_after_ms: 17000,
+            server_time: crate::mock::now(),
+        };
+        let mut clock = sticktalk_client_core::features3::Cooldown::default();
+        clock.receive(&status, time());
+        app.state.model.launch.slowmode.insert(Id(12), status);
+        app.text_features.cooldowns.insert(Id(12), clock);
+        if screen == "channel-slowmode" {
+            app.dialog = Dialog::ChannelSettings(Id(12));
+            app.settings.channel = Some(Id(12));
+            app.settings.channel_name = "general".into();
+            app.settings.channel_topic = "Project updates and discussion.".into();
+        }
+        return;
+    }
     if screen == "server-search" || screen == "server-search-empty" {
         let mut items: Vec<_> = app
             .state
             .model
             .messages
-            .get(&Id(11))
+            .get(&Id(12))
             .into_iter()
             .flat_map(|m| m.values())
             .rev()
@@ -444,7 +535,7 @@ pub fn fixture(app: &mut App, screen: &str) {
             items,
             users: app.state.model.users.values().cloned().collect(),
             next_before: Some(Id(900)),
-            has_more: true,
+            has_more: screen != "server-search-empty",
             terms: vec!["launch".into()],
         });
         app.main.search = s.query.clone();
@@ -491,7 +582,7 @@ pub fn fixture(app: &mut App, screen: &str) {
     app.state.model.launch.emoji.insert(g, list.clone());
     match screen {
         "guild-settings-emoji" => {
-            let _ = app.update(Msg::Open(Dialog::GuildSettings(GuildTab::Emoji)));
+            app.dialog = Dialog::GuildSettings(GuildTab::Emoji);
         }
         "custom-emoji-picker" => app.features.picker = crate::features::Picker::Emoji,
         "custom-emoji-completion" => {
@@ -502,7 +593,7 @@ pub fn fixture(app: &mut App, screen: &str) {
                 .state
                 .model
                 .messages
-                .get_mut(&Id(11))
+                .get_mut(&Id(12))
                 .and_then(|v| v.last_entry())
                 .map(|e| e.into_mut())
             {
@@ -580,4 +671,59 @@ fn search(app: &mut App, before: Option<Id>) -> Task<Msg> {
     .abortable();
     app.text_features.search_task = Some(handle.abort_on_drop());
     task
+}
+/// Milliseconds from a process-local monotonic origin; never the device wall clock.
+pub fn time() -> u64 {
+    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    START
+        .get_or_init(std::time::Instant::now)
+        .elapsed()
+        .as_millis()
+        .min(u128::from(u64::MAX)) as u64
+}
+pub fn remaining(app: &App, id: Id) -> u64 {
+    app.text_features
+        .cooldowns
+        .get(&id)
+        .map_or(0, |c| c.remaining(time()))
+}
+pub fn snapshot(app: &mut App, data: &sticktalk_client_core::launch::SnapshotData) {
+    if let sticktalk_client_core::launch::SnapshotData::Slowmode(s) = data {
+        app.text_features
+            .cooldowns
+            .entry(s.data.channel_id)
+            .or_default()
+            .receive(&s.data, time());
+    }
+}
+pub fn live_event(app: &mut App, event: &sticktalk_proto::Event) {
+    match event {
+        sticktalk_proto::Event::MessageCreated { message, .. }
+            if Some(message.author_id) == app.me() =>
+        {
+            if let Some(c) = app.text_features.cooldowns.get_mut(&message.channel_id) {
+                c.observe_send(message.created_at, time());
+            }
+        }
+        sticktalk_proto::Event::SlowmodeUpdated {
+            channel_id,
+            seconds,
+        } => {
+            if let Some(c) = app.text_features.cooldowns.get_mut(channel_id) {
+                c.seconds = *seconds;
+            }
+            app.text_features.slow_requested = None;
+        }
+        sticktalk_proto::Event::RolesUpdated { .. }
+        | sticktalk_proto::Event::ChannelUpsert(_)
+        | sticktalk_proto::Event::MemberUpsert(_) => app.text_features.slow_requested = None,
+        _ => {}
+    }
+}
+pub fn rejected(app: &mut App, id: Id, retry_ms: u32) {
+    if let Some(c) = app.text_features.cooldowns.get_mut(&id) {
+        c.rejected(retry_ms, time());
+    } else {
+        app.text_features.slow_requested = None;
+    }
 }

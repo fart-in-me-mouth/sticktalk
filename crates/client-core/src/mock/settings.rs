@@ -116,6 +116,29 @@ pub(super) fn command(
 ) -> Result<CommandResult, ApiError> {
     let me = mock.model.me.as_ref().unwrap().user.id;
     match cmd {
+        LaunchCommand::SetSlowmode {
+            channel_id,
+            seconds,
+        } => {
+            if !SLOWMODE_SECONDS.contains(&seconds) {
+                return Err(error("Invalid slowmode interval"));
+            }
+            mock.model.launch.slowmode.insert(
+                channel_id,
+                SlowmodeStatus {
+                    channel_id,
+                    seconds,
+                    bypassed: false,
+                    retry_after_ms: 0,
+                    server_time: mock.clock.unix_ms(),
+                },
+            );
+            events.push(Event::SlowmodeUpdated {
+                channel_id,
+                seconds,
+            });
+            Ok(CommandResult::Ack)
+        }
         LaunchCommand::RenameEmoji {
             guild_id,
             emoji_id,

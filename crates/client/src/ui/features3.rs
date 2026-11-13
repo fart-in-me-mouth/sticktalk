@@ -368,3 +368,93 @@ pub fn search_panel(app: &App) -> Element<'_, Msg> {
         .style(t::sidebar)
         .into()
 }
+fn slowmode_label(seconds: u32) -> &'static str {
+    match seconds {
+        0 => "Off",
+        5 => "5 seconds",
+        10 => "10 seconds",
+        30 => "30 seconds",
+        60 => "1 minute",
+        300 => "5 minutes",
+        900 => "15 minutes",
+        3600 => "1 hour",
+        21600 => "6 hours",
+        _ => "Off",
+    }
+}
+pub fn slowmode_settings(app: &App, id: Id, allowed: bool) -> Element<'_, Msg> {
+    let Some(status) = app.state.model.launch.slowmode.get(&id) else {
+        return hint("Loading slowmode…").into();
+    };
+    let seconds = status.seconds;
+    let control: Element<'_, Msg> = if allowed {
+        let labels: Vec<_> = SLOWMODE_SECONDS
+            .iter()
+            .map(|s| slowmode_label(*s))
+            .collect();
+        widget::pick_list(labels, Some(slowmode_label(seconds)), |label| {
+            f::msg(E::Slowmode(
+                SLOWMODE_SECONDS
+                    .iter()
+                    .copied()
+                    .find(|s| slowmode_label(*s) == label)
+                    .unwrap_or(0),
+            ))
+        })
+        .padding(t::S12)
+        .font(t::regular())
+        .text_size(t::BODY)
+        .style(t::settings::pick_list)
+        .menu_style(t::settings::menu)
+        .into()
+    } else {
+        container(txt(slowmode_label(seconds)).color(t::TEXT_MUTED))
+            .padding(t::S12)
+            .style(t::elevated)
+            .into()
+    };
+    column![control,hint(if allowed{"Limit how often members can send a message. Members with Manage Messages or Manage Channels are exempt. Changes apply immediately."}else{"You need Manage Channels permission to change slowmode."})].spacing(t::S12).into()
+}
+
+pub fn slowmode_composer(app: &App, id: Id) -> Option<Element<'_, Msg>> {
+    let c = app.text_features.cooldowns.get(&id)?;
+    if c.seconds == 0 {
+        return None;
+    }
+    let remaining = f::remaining(app, id).div_ceil(1000);
+    let label = if c.bypassed {
+        "Slowmode is enabled. You are exempt.".into()
+    } else if remaining > 0 {
+        format!(
+            "Slowmode — send again in {}:{:02}",
+            remaining / 60,
+            remaining % 60
+        )
+    } else {
+        format!(
+            "Slowmode is enabled — one message every {}.",
+            slowmode_label(c.seconds)
+        )
+    };
+    Some(
+        row![
+            icon(
+                "clock",
+                t::INLINE_ICON,
+                if remaining > 0 {
+                    t::WARNING
+                } else {
+                    t::TEXT_MUTED
+                }
+            ),
+            hint(label).color(if remaining > 0 {
+                t::WARNING
+            } else {
+                t::TEXT_MUTED
+            })
+        ]
+        .spacing(t::S8)
+        .align_y(Center)
+        .into(),
+    )
+}

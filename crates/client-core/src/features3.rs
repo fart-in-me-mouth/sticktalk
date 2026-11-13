@@ -267,3 +267,75 @@ mod search_tests {
         assert!(!s.apply(new, Err("late".into())));
     }
 }
+
+/// A monotonic-host clock for slowmode. Server timestamps never rely on the device's wall clock.
+#[derive(Default, Debug, Clone)]
+pub struct Cooldown {
+    pub seconds: u32,
+    pub bypassed: bool,
+    until: u64,
+    server_at: u64,
+    local_at: u64,
+}
+impl Cooldown {
+    pub fn receive(&mut self, status: &SlowmodeStatus, local_now: u64) {
+        self.seconds = status.seconds;
+        self.bypassed = status.bypassed;
+        self.server_at = status.server_time;
+        self.local_at = local_now;
+        self.until = local_now
+            .saturating_add(u64::from(status.retry_after_ms).min(u64::from(status.seconds) * 1000));
+    }
+    pub fn remaining(&self, local_now: u64) -> u64 {
+        if self.seconds == 0 || self.bypassed {
+            0
+        } else {
+            self.until.saturating_sub(local_now)
+        }
+    }
+    pub fn observe_send(&mut self, created_at: u64, local_now: u64) {
+        let server_now = self
+            .server_at
+            .saturating_add(local_now.saturating_sub(self.local_at));
+        let remaining = created_at
+            .saturating_add(u64::from(self.seconds) * 1000)
+            .saturating_sub(server_now)
+            .min(u64::from(self.seconds) * 1000);
+        self.until = local_now.saturating_add(remaining);
+    }
+    pub fn rejected(&mut self, retry_ms: u32, local_now: u64) {
+        self.until =
+            local_now.saturating_add(u64::from(retry_ms).min(u64::from(self.seconds) * 1000));
+    }
+}
+#[cfg(test)]
+mod slowmode_tests {
+    use super::*;
+    #[test]
+    fn cooldown_is_monotonic_handles_clock_skew_replay_and_bypass() {
+        let mut c = Cooldown::default();
+        let mut s = SlowmodeStatus {
+            channel_id: Id(1),
+            seconds: 5,
+            bypassed: false,
+            retry_after_ms: 3000,
+            server_time: 1_000_000_000,
+        };
+        c.receive(&s, 10);
+        assert_eq!(c.remaining(10), 3000);
+        assert_eq!(c.remaining(3010), 0);
+        c.observe_send(s.server_time + 5000, 5010);
+        assert_eq!(c.remaining(5010), 5000);
+        c.observe_send(s.server_time - 100000, 5010);
+        assert_eq!(c.remaining(5010), 0);
+        c.rejected(1000, 6000);
+        assert_eq!(c.remaining(6500), 500);
+        s.bypassed = true;
+        c.receive(&s, 7000);
+        assert_eq!(c.remaining(7000), 0);
+        s.bypassed = false;
+        s.seconds = 0;
+        c.receive(&s, 8000);
+        assert_eq!(c.remaining(8000), 0);
+    }
+}

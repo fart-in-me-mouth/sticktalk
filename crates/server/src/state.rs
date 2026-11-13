@@ -305,7 +305,8 @@ impl Core {
             if !s.launch_features
                 && matches!(
                     &event,
-                    Event::GuildEmojiUpdated { .. }
+                    Event::SlowmodeUpdated { .. }
+                        | Event::GuildEmojiUpdated { .. }
                         | Event::RolesUpdated { .. }
                         | Event::ProfileUpdated(_)
                         | Event::GuildProfileUpdated(_)

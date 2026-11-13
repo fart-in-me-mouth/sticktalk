@@ -206,6 +206,21 @@ pub fn seed(model: &mut Model, now: u64) {
 pub fn read(model: &Model, read: Read) -> Option<SnapshotData> {
     let cursor = model.cursor.clone()?;
     Some(match read {
+        Read::Slowmode(id) => SnapshotData::Slowmode(Snapshot {
+            data: model
+                .launch
+                .slowmode
+                .get(&id)
+                .cloned()
+                .unwrap_or(SlowmodeStatus {
+                    channel_id: id,
+                    seconds: 0,
+                    bypassed: false,
+                    retry_after_ms: 0,
+                    server_time: 0,
+                }),
+            cursor,
+        }),
         Read::Emoji(id) => SnapshotData::Emoji(
             id,
             Snapshot {

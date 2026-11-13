@@ -18,3 +18,10 @@ Validation and remaining features are recorded after the final gate.
   permission-filtered keyset paging, and all requested filters.
 - Desktop right-hand results with term highlighting, older/newer paging, and
   around-message jumps through the existing bounded history loader.
+
+## Slowmode
+
+- All requested intervals, persisted channel configuration, serialized send
+  enforcement, Manage Messages/Channels bypass, and typed retry metadata.
+- Desktop settings and monotonic, active-only composer countdown; edits stay
+  available. Deleted messages cannot be used to evade the cooldown.
