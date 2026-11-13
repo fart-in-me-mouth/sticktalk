@@ -166,8 +166,8 @@ fn nav<'a>(name: &str, label: impl Into<String>, message: Msg, selected: bool) -
 fn line<'a>() -> Element<'a, Msg> {
     rule::horizontal(t::HAIRLINE).style(t::divider).into()
 }
-fn scroller<'a>(body: impl Into<Element<'a, Msg>>) -> scrollable::Scrollable<'a, Msg> {
-    scrollable(body)
+fn scroller<'a>(body: impl Into<Element<'a, Msg>>) -> crate::scroll::SmoothScrollable<'a> {
+    crate::scroll::SmoothScrollable::new(body)
         .direction(scrollable::Direction::Vertical(
             scrollable::Scrollbar::new()
                 .width(t::S4)
@@ -645,7 +645,7 @@ fn rail(app: &App) -> Element<'_, Msg> {
         )
         .style(t::tooltip),
     );
-    container(list)
+    container(scroller(list).height(Fill))
         .padding([t::S12, 0.])
         .width(t::RAIL)
         .height(Fill)
@@ -1295,9 +1295,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
             (
                 id,
                 match m {
-                    Some(m) if !app.fast_scrolling || app.laid_out(id) => {
-                        message_row(app, m, height, grouped)
-                    }
+                    Some(m) => message_row(app, m, height, grouped),
                     _ => message_skeleton(height),
                 },
             )
@@ -2133,7 +2131,7 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
                     code_body = code_body.push(hint(language));
                 }
                 code_body = code_body.push(
-                    scrollable(
+                    crate::scroll::SmoothScrollable::new(
                         txt(code)
                             .font(t::mono())
                             .wrapping(widget::text::Wrapping::None),
@@ -2143,7 +2141,8 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
                             .width(t::S4)
                             .scroller_width(t::S4),
                     ))
-                    .style(t::scroll),
+                    .style(t::scroll)
+                    .horizontal(),
                 );
                 container(code_body)
                     .padding(t::S8)

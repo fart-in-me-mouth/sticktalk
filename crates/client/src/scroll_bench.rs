@@ -289,7 +289,10 @@ mod input_tests {
             delta: mouse::ScrollDelta::Pixels { x: 0., y: -0.25 },
         });
         let _ = ui.update(
-            &[event],
+            &[
+                event,
+                iced::Event::Window(iced::window::Event::RedrawRequested(Instant::now())),
+            ],
             mouse::Cursor::Available(geometry.bounds.center()),
             &mut renderer,
             &mut iced::advanced::graphics::core::clipboard::Null,
@@ -328,9 +331,10 @@ mod input_tests {
         );
         let target = Point::new(thumb.x, thumb.y + 120.);
         let _ = ui.update(
-            &[iced::Event::Mouse(mouse::Event::CursorMoved {
-                position: target,
-            })],
+            &[
+                iced::Event::Mouse(mouse::Event::CursorMoved { position: target }),
+                iced::Event::Window(iced::window::Event::RedrawRequested(Instant::now())),
+            ],
             mouse::Cursor::Available(target),
             &mut renderer,
             &mut iced::advanced::graphics::core::clipboard::Null,

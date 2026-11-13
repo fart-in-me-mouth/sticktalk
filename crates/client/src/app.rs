@@ -74,6 +74,9 @@ pub enum Msg {
     CompleteMention,
     DismissSuggestions,
     Scroll(scrollable::Viewport),
+    ScrollInternal,
+    ScrollMonitorQuery,
+    ScrollMonitorRate(u32),
     ScrollSettled,
     Measured {
         message: Id,
@@ -385,12 +388,19 @@ impl App {
         } else {
             Task::none()
         };
-        (state, Task::batch([task, meta_task, agent_task]))
+        let scroll_task = window::oldest()
+            .and_then(|id| window::run(id, crate::scroll::pacing::monitor_rate))
+            .map(Msg::ScrollMonitorRate);
+        (
+            state,
+            Task::batch([task, meta_task, agent_task, scroll_task]),
+        )
     }
     pub fn subscription(&self) -> Subscription<Msg> {
         let mut subs = vec![iced::event::listen_with(
             |event, _status, _id| match event {
                 UiEvent::Window(window::Event::Resized(size)) => Some(Msg::Resize(size)),
+                UiEvent::Window(window::Event::Moved(_)) => Some(Msg::ScrollMonitorQuery),
                 UiEvent::Window(window::Event::Focused) => Some(Msg::Focus(true)),
                 UiEvent::Window(window::Event::Unfocused) => Some(Msg::Focus(false)),
                 UiEvent::Window(window::Event::FileDropped(path)) => Some(Msg::Drop(path)),
@@ -1228,6 +1238,13 @@ impl App {
                         );
                     }
                 }
+            }
+            Msg::ScrollInternal => {}
+            Msg::ScrollMonitorRate(rate) => crate::scroll::pacing::set_refresh_millihertz(rate),
+            Msg::ScrollMonitorQuery => {
+                return window::oldest()
+                    .and_then(|id| window::run(id, crate::scroll::pacing::monitor_rate))
+                    .map(Msg::ScrollMonitorRate)
             }
             Msg::Scroll(v) => {
                 if (self.scroll_y - v.absolute_offset().y).abs() < 0.5
@@ -2460,13 +2477,6 @@ impl App {
             anchor,
             generation: self.state.generation,
         });
-    }
-    pub fn laid_out(&self, id: Id) -> bool {
-        self.message_layouts.contains(id)
-            && self
-                .heights
-                .get(&id)
-                .is_some_and(|(_, w, _, _, _)| *w == self.viewport_w.to_bits())
     }
     fn older(&mut self) -> Task<Msg> {
         if !self.state.loading && self.state.history_more {

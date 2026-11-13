@@ -60,6 +60,14 @@ pub const SCREENS: &[&str] = &[
 ];
 pub fn run_if_requested() -> Option<Result<(), String>> {
     let args: Vec<_> = std::env::args().collect();
+    #[cfg(feature = "wgpu")]
+    if let Some(index) = args.iter().position(|v| v == "--scroll-bench") {
+        return Some(crate::scroll_surface_bench::run(&args, index));
+    }
+    #[cfg(not(feature = "wgpu"))]
+    if args.iter().any(|v| v == "--scroll-bench") {
+        return Some(Err("--scroll-bench requires the wgpu feature".into()));
+    }
     if let Some(index) = args.iter().position(|v| v == "--bench-scroll") {
         return Some(crate::scroll_bench::run(&args, index));
     }

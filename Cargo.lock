@@ -6352,6 +6352,7 @@ dependencies = [
  "tokio-tungstenite 0.28.0",
  "tokio-util",
  "windows-sys 0.61.2",
+ "winit",
 ]
 
 [[package]]

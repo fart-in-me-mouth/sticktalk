@@ -28,9 +28,6 @@ struct Entry {
     layout: Option<(u64, layout::Limits, layout::Node)>,
 }
 impl Cache {
-    pub fn contains(&self, id: Id) -> bool {
-        self.entries.borrow().contains_key(&id)
-    }
     pub fn clear(&self) {
         self.entries.borrow_mut().clear();
         self.lru.borrow_mut().clear();

@@ -12,7 +12,10 @@ mod message_layout;
 use sticktalk::mock;
 use sticktalk::model;
 use sticktalk::oauth;
+mod scroll;
 mod scroll_bench;
+#[cfg(feature = "wgpu")]
+mod scroll_surface_bench;
 use sticktalk::storage;
 mod theme;
 mod ui;
@@ -23,6 +26,14 @@ fn main() -> iced::Result {
     #[cfg(all(windows, feature = "wgpu"))]
     if std::env::var_os("WGPU_BACKEND").is_none() {
         std::env::set_var("WGPU_BACKEND", "dx12");
+    }
+    // DX12 advertises Mailbox on Windows. Combined with monitor-specific scroll
+    // deadlines this avoids FIFO pacing a secondary window at the primary rate.
+    #[cfg(all(windows, feature = "wgpu"))]
+    if std::env::var_os("ICED_PRESENT_MODE").is_none()
+        && std::env::var("WGPU_BACKEND").is_ok_and(|v| v == "dx12")
+    {
+        std::env::set_var("ICED_PRESENT_MODE", "mailbox");
     }
     if let Some(result) = headless::run_if_requested() {
         if let Err(error) = result {
