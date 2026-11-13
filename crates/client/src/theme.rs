@@ -541,7 +541,7 @@ pub const BADGE_RING: f32 = 3.;
 // Media surfaces (B1 and GIFS.md).
 pub const PICKER_W: f32 = 420.;
 pub const VIEWER_MARGIN: f32 = 48.;
-pub const VIEWER_BACKDROP: Color = Color::from_rgba8(0, 0, 0, 0.85);
+pub const VIEWER_BACKDROP: Color = Color::from_rgba8(0, 0, 0, 0.9);
 pub fn popover(theme: &Theme) -> container::Style {
     container::Style {
         border: Border {
@@ -557,3 +557,13 @@ pub const GIF_TILE_W: f32 = (PICKER_W - 2. * S12 - S8) / 2.;
 pub const GIF_CATEGORY_H: f32 = 96.;
 pub const GIF_VIEWPORT_H: f32 = 320.;
 pub const GIF_CATEGORY_OVERLAY: Color = Color::from_rgba8(0, 0, 0, 0.45);
+
+/// Circular friend-list actions share the elevated surface at rest.
+pub fn friend_action(theme: &Theme, status: button_widget::Status) -> button_widget::Style {
+    let mut s = icon(theme, status);
+    s.border.radius = ROUND.into();
+    if matches!(status, button_widget::Status::Active) {
+        s.background = Some(BG_ELEVATED.into());
+    }
+    s
+}

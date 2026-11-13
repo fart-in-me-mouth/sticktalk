@@ -91,12 +91,17 @@ pub fn visible(s: &State) -> Vec<(&str, bool)> {
 }
 fn preview<'a>(app: &'a App, media: &GifMedia, height: f32) -> Element<'a, Msg> {
     if let Some(frame) = frame(app, &media.url) {
-        image(frame.clone())
-            .width(t::GIF_TILE_W)
-            .height(height)
-            .content_fit(iced::ContentFit::Cover)
-            .border_radius(t::S8)
-            .into()
+        container(
+            image(tile_frame(frame, height))
+                .width(t::GIF_TILE_W)
+                .height(height)
+                .content_fit(iced::ContentFit::Cover)
+                .border_radius(t::S4),
+        )
+        .width(t::GIF_TILE_W)
+        .height(height)
+        .clip(true)
+        .into()
     } else {
         container(icon("image", t::S32, t::TEXT_MUTED))
             .center_x(t::GIF_TILE_W)
@@ -104,6 +109,53 @@ fn preview<'a>(app: &'a App, media: &GifMedia, height: f32) -> Element<'a, Msg> 
             .style(t::chat)
             .into()
     }
+}
+// Bake the cover crop and corner alpha once per frame: tiny-skia does not
+// implement image border radii. The bounded cache also covers animated previews.
+fn tile_frame(handle: &image::Handle, height: f32) -> image::Handle {
+    use std::{cell::RefCell, collections::VecDeque};
+    type Entry = (iced::advanced::image::Id, u32, image::Handle);
+    thread_local! { static TILES: RefCell<VecDeque<Entry>> = const { RefCell::new(VecDeque::new()) }; }
+    TILES.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let key = height.to_bits();
+        if let Some((_, _, result)) = cache
+            .iter()
+            .find(|(id, h, _)| *id == handle.id() && *h == key)
+        {
+            return result.clone();
+        }
+        let image::Handle::Rgba {
+            width,
+            height: source_height,
+            pixels,
+            ..
+        } = handle
+        else {
+            return handle.clone();
+        };
+        let Some(source) = ::image::RgbaImage::from_raw(*width, *source_height, pixels.to_vec())
+        else {
+            return handle.clone();
+        };
+        let w = t::GIF_TILE_W.round() as u32;
+        let h = height.round() as u32;
+        let mut tile = ::image::DynamicImage::ImageRgba8(source)
+            .resize_to_fill(w, h, ::image::imageops::FilterType::Triangle)
+            .to_rgba8();
+        for (x, y, pixel) in tile.enumerate_pixels_mut() {
+            let dx = (t::S4 - (x as f32 + 0.5).min(w as f32 - x as f32 - 0.5)).max(0.);
+            let dy = (t::S4 - (y as f32 + 0.5).min(h as f32 - y as f32 - 0.5)).max(0.);
+            let coverage = (t::S4 + 0.5 - dx.hypot(dy)).clamp(0., 1.);
+            pixel.0[3] = (pixel.0[3] as f32 * coverage) as u8;
+        }
+        let result = image::Handle::from_rgba(w, h, tile.into_raw());
+        cache.push_back((handle.id(), key, result.clone()));
+        while cache.len() > 64 {
+            cache.pop_front();
+        }
+        result
+    })
 }
 fn frame<'a>(app: &'a App, url: &str) -> Option<&'a image::Handle> {
     crate::video::frame(app, url)
@@ -133,10 +185,16 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             for c in chunk {
                 let tile = stack![
                     preview(app, &c.preview, t::GIF_CATEGORY_H),
-                    container(txt(&c.title).font(t::semibold()))
+                    container(txt(&c.title).font(t::semibold()).color(Color::WHITE))
                         .center_x(t::GIF_TILE_W)
                         .center_y(t::GIF_CATEGORY_H)
-                        .style(|_| t::surface(t::GIF_CATEGORY_OVERLAY))
+                        .style(|_| container::Style {
+                            border: Border {
+                                radius: t::S4.into(),
+                                ..Default::default()
+                            },
+                            ..t::surface(t::GIF_CATEGORY_OVERLAY)
+                        })
                 ];
                 line = line.push(
                     mouse_area(
@@ -177,8 +235,8 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         } else {
             space().width(t::S32).height(t::S32).into()
         })
-        .align_right(t::GIF_TILE_W)
-        .align_top(p.height)
+        .align_right(t::GIF_TILE_W - 2. * t::S4)
+        .align_top(p.height - 2. * t::S4)
         .padding(t::S4);
         let tile = mouse_area(stack![send, star])
             .on_enter(Msg::feature(Event::GifHover(Some(item.id.clone()))))
@@ -273,6 +331,22 @@ pub fn inline<'a>(app: &'a App, m: &'a Message) -> Option<Element<'a, Msg>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn tiles_are_cropped_and_rounded_before_rendering() {
+        let source = image::Handle::from_rgba(40, 80, vec![255; 40 * 80 * 4]);
+        let image::Handle::Rgba {
+            width,
+            height,
+            pixels,
+            ..
+        } = tile_frame(&source, 96.)
+        else {
+            panic!()
+        };
+        assert_eq!((width, height), (t::GIF_TILE_W as u32, 96));
+        assert_eq!(pixels[3], 0);
+        assert_eq!(pixels[(48 * width as usize + 48) * 4 + 3], 255);
+    }
     #[test]
     fn masonry_uses_metadata_and_only_returns_visible_tiles() {
         let mut app = App::headless("gif-search", iced::Size::new(1280., 800.));
