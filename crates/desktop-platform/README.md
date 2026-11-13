@@ -1,7 +1,7 @@
 # StickTalk desktop platform
 
 Independent Windows integration library, plus the `sticktalk-maintenance` helper.
-**No changes to `crates/client`.** Linking this crate creates no threads, windows,
+The desktop client integrates these APIs. Linking this crate creates no threads, windows,
 tray icons, devices, registry entries, or notifications. The host owns its existing
 Tokio runtime, window/event loop, preferences, authentication, and UI reducer.
 Runtime dependencies are target-gated where appropriate; protocol DTOs are reused.
@@ -114,12 +114,13 @@ path). `pending()` reauthenticates and rehashes disk data on every restart.
 installed helper too. The helper waits on the parent's process handle (no loop),
 reauthenticates staged data, locks the installer against writes/deletes, runs NSIS
 `/S /D=<existing-install-directory>`, checks exit status, clears the pending marker,
-then starts the installed client. Only this explicitly confirmed path launches the
-app; tests **never invoke it**. Failed installs retain the stage for retry. Installer
+then starts the installed client. The client calls this path after explicit Restart confirmation or to finish a
+previously deferred update on an ordinary interactive launch. Watch/download never
+execute installers. Test fixtures exercise restart only against loopback/test keys. Failed installs retain the stage for retry. Installer
 and copied helper files remain in staging for diagnostics; retention cleanup is
 left to the host. Authenticode/SmartScreen and production signing-key provisioning
-are separate release responsibilities. A full real signed-restart test remains
-for integration, without launching anything on the owner's desktop here.
+are separate release responsibilities. The release-engineering integration includes real NSIS apply/restart, failed-startup
+rollback, and recovery tests; see `deploy/windows/VALIDATION.md`.
 
 ## Safe feature demos
 
@@ -135,29 +136,17 @@ cargo run -p sticktalk-desktop-platform --example updater       # offline plan o
 cargo test -p sticktalk-desktop-platform --test updater         # test key + loopback
 ```
 
-## Installer build and silent smoke test
+## Release integration
 
-NSIS 3.13 **portable official zip** was extracted outside the repo. `winget --scope
-user` reported no applicable installer; **no elevation/UAC was requested**. The
-per-user installer uses LocalAppData, current-user shortcuts/registry, installs
-the real current software-rendered client plus maintenance helper, registers both
-shortcut AUMIDs and `sticktalk://`, writes uninstall metadata, and never runs the
-app. Startup stays off. Uninstall removes owned binaries/shortcuts/registrations,
-not application data. The existing owner release script now builds/includes the
-helper and passes native Windows paths to NSIS.
+Current packaging, test commands, signing-key setup, publishing, and rollback
+behavior are documented in [`deploy/RELEASING.md`](../../deploy/RELEASING.md).
+`deploy/windows/build-installer.ps1` uses portable NSIS and includes the x64
+app-local MSVC runtime, client, maintenance helper, icon and artwork licenses.
+The optional `sticktalk-package` CLI is **not installed**; it provides offline
+key generation/signing and the loopback test staging command.
 
-```powershell
-$root = 'C:\Users\dwhee\.cargo-target\sticktalk-desktop-platform'
-$env:CARGO_TARGET_DIR = $root
-cargo build --release -p sticktalk --bin sticktalk --no-default-features
-cargo build --release -p sticktalk-desktop-platform --bin sticktalk-maintenance
-& "$root\tools\nsis-3.13\Bin\makensis.exe" "/DCLIENT=$root\release\sticktalk.exe" "/DMAINTENANCE=$root\release\sticktalk-maintenance.exe" "/DOUTPUT=$root\StickTalk-0.1.0-Setup.exe" /DVERSION=0.1.0 tools/release/installer.nsi
-./tools/release/test-installer.ps1 -Installer "$root/StickTalk-0.1.0-Setup.exe" -Client "$root/release/sticktalk.exe"
-```
-
-The smoke test refuses any existing StickTalk installation/registrations, installs
-**silently into a temporary prefix**, checks the installed client hash, helper,
-Start-menu/desktop shortcuts and their persisted AUMIDs, quoted protocol command,
-uninstaller and startup-off state, then silently uninstalls and checks cleanup.
-It creates no app windows, browser, toast, tray, sound, firewall rule or listener.
-No live-effect acceptance/resource measurements are claimed until host integration.
+The client now wires IPC, tray/autostart, signed startup/six-hour checks, the
+restart pill, a UI-health acknowledgment, local diagnostics, and native window
+placement. `windows::update_install` owns the 15-second startup grace period,
+owned-file backup/restore, failed-release quarantine, and interrupted-setup
+recovery. No update restarts automatically without the user's confirmation.

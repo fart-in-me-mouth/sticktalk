@@ -33,7 +33,6 @@ pub enum Msg {
     Password(String),
     Display(String),
     ToggleRegister,
-    ChangeServer,
     RefreshMeta,
     Meta(String, Result<MetaResponse, String>),
     GoogleStart(bool),
@@ -191,7 +190,8 @@ pub struct App {
     pub password: String,
     pub display: String,
     pub register: bool,
-    pub change_server: bool,
+    pub meta_loading: bool,
+    pub meta_error: String,
     pub google_id: Option<String>,
     pub signup: Option<GoogleSignupRequired>,
     pub methods: Option<AuthMethodsResponse>,
@@ -274,7 +274,11 @@ impl App {
             calls: crate::voice_ui::State::default(),
             main: crate::main_window::State::default(),
             extent: crate::history_extent::Window::default(),
-            features: Default::default(),
+            features: crate::features::State {
+                crash_notice: !mock && sticktalk_desktop_platform::diagnostics::previous_crash(),
+                start_minimized: !mock && storage::start_minimized(),
+                ..Default::default()
+            },
             settings: crate::settings_controller::State {
                 preferences: crate::settings_controller::State::load_preferences(mock),
                 ..Default::default()
@@ -298,7 +302,8 @@ impl App {
             password: String::new(),
             display: String::new(),
             register: initial_screen == "register",
-            change_server: false,
+            meta_loading: !mock,
+            meta_error: String::new(),
             google_id: mock.then(|| "mock-desktop".into()),
             signup: (initial_screen == "pick-username").then(|| GoogleSignupRequired {
                 ticket: "mock-signup-ticket".into(),
@@ -764,16 +769,9 @@ impl App {
                     self.hovered = None;
                 }
             }
-            Msg::ChangeServer => {
-                if self.busy {
-                    return Task::none();
-                }
-                self.change_server = !self.change_server;
-                if !self.change_server {
-                    return self.update(Msg::RefreshMeta);
-                }
-            }
             Msg::RefreshMeta => {
+                self.meta_loading = true;
+                self.meta_error.clear();
                 self.google_id = None;
                 self.features.gifs.capability = GifCapability::Disabled;
                 let server = self.server.trim().trim_end_matches('/').to_owned();
@@ -783,9 +781,21 @@ impl App {
             }
             Msg::Meta(server, result) => {
                 if server.trim_end_matches('/') == self.server.trim().trim_end_matches('/') {
-                    if let Ok(meta) = result {
-                        self.google_id = meta.google_client_id;
-                        self.features.gifs.capability = meta.gifs;
+                    self.meta_loading = false;
+                    match result {
+                        Ok(meta) => {
+                            self.meta_error.clear();
+                            self.google_id = meta.google_client_id;
+                            self.features.gifs.capability = meta.gifs;
+                            if !self.mock_mode {
+                                storage::save_server(server.trim().trim_end_matches('/'));
+                            }
+                        }
+                        Err(error) => {
+                            self.meta_error = format!(
+                                "Could not connect. {error}. Check the address and try again."
+                            )
+                        }
                     }
                 }
             }
@@ -1131,6 +1141,11 @@ impl App {
                 return Task::batch([saved, operation::focus("composer-editor")]);
             }
             Msg::Server(v) => {
+                if self.busy {
+                    return Task::none();
+                }
+                self.meta_loading = false;
+                self.meta_error.clear();
                 self.google_id = None;
                 self.features.gifs.capability = GifCapability::Disabled;
                 self.server = v;
@@ -4208,7 +4223,7 @@ impl App {
                 scenario: screen.into(),
             },
         });
-        app.server = storage::DEFAULT_SERVER.into();
+        app.server = "https://chat.sticktalk.example".into();
         app.dialog = Dialog::None;
         app.typing_armed = false;
         for id in [Id(2), Id(3)] {
@@ -4224,11 +4239,32 @@ impl App {
             rgba: image.into_raw(),
         });
         match screen {
-            "login" | "register" | "google-login" | "pick-username" => {
+            "login"
+            | "register"
+            | "google-login"
+            | "pick-username"
+            | "login-error"
+            | "login-connecting"
+            | "crash-recovery"
+            | "login-update"
+            | "login-update-confirm" => {
                 app.state.session = None;
                 app.register = screen == "register";
-                if screen == "login" {
+                if matches!(
+                    screen,
+                    "login" | "login-error" | "login-connecting" | "crash-recovery"
+                ) {
                     app.google_id = None;
+                }
+                app.meta_loading = screen == "login-connecting";
+                app.features.crash_notice = screen == "crash-recovery";
+                if matches!(screen, "login-update" | "login-update-confirm") {
+                    app.features.update_ready = Some("0.2.0".into());
+                }
+                app.features.confirm_update = screen == "login-update-confirm";
+                if screen == "login-error" {
+                    app.meta_error =
+                        "Could not connect. Check the server address and try again.".into();
                 }
                 if screen == "pick-username" {
                     app.signup = match app.mock_account.lock().unwrap().google("mock-new").unwrap()
@@ -4237,6 +4273,10 @@ impl App {
                         _ => None,
                     };
                 }
+            }
+            "connecting" => {
+                app.state.model.me = None;
+                app.state.connection = ConnectionState::Connecting;
             }
             "home-online" | "empty-home" => {
                 app.state.guild = None;
@@ -4321,7 +4361,6 @@ impl App {
             "message-hover-grouped" => app.hovered = Some(Id(2273)),
             "change-server" => {
                 app.state.session = None;
-                app.change_server = true;
             }
             "channel-top" => {
                 app.state.at_present = false;
@@ -4986,5 +5025,38 @@ mod tests {
         app.state.seek_loading = true;
         let _ = app.network(Data::Error("Server request failed".into()));
         assert!(!app.state.seek_loading);
+    }
+    #[test]
+    fn server_connection_errors_are_visible_and_stale_meta_is_ignored() {
+        let mut app = App::headless("login", iced::Size::new(1280., 800.));
+        let _ = app.update(Msg::Server("https://new.example".into()));
+        let _ = app.update(Msg::RefreshMeta);
+        assert!(app.meta_loading);
+        let _ = app.update(Msg::Meta(
+            "https://old.example".into(),
+            Err("unreachable".into()),
+        ));
+        assert!(app.meta_error.is_empty());
+        assert!(app.meta_loading);
+        let _ = app.update(Msg::Meta(
+            "https://new.example".into(),
+            Err("unreachable".into()),
+        ));
+        assert!(!app.meta_loading);
+        assert!(app.meta_error.contains("Check the address"));
+        let _ = app.update(Msg::Server("https://fixed.example".into()));
+        assert!(app.meta_error.is_empty());
+        assert!(app.google_id.is_none());
+    }
+    #[test]
+    fn invite_before_login_is_retained_without_losing_login_screen() {
+        let mut app = App::headless("login", iced::Size::new(1280., 800.));
+        let activation =
+            sticktalk_desktop_platform::activation::Activation::Invite("valid-code".into());
+        let _ = app.update(Msg::feature(crate::features::Event::Activation(
+            activation.clone(),
+        )));
+        assert_eq!(app.features.desktop.pending_activation, Some(activation));
+        assert!(app.state.session.is_none());
     }
 }

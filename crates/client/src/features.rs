@@ -28,6 +28,7 @@ pub enum Event {
     Update(crate::platform_glue::UpdateEvent),
     Trim(u64),
     ConfirmUpdate,
+    StartMinimized(bool),
     ApplyUpdate,
     Restarted(Result<(), String>),
     Key(iced::keyboard::Key),
@@ -97,6 +98,8 @@ pub struct State {
     pub desktop: crate::platform_glue::State,
     pub loaded: Option<(String, Id)>,
     pub update_ready: Option<String>,
+    pub crash_notice: bool,
+    pub start_minimized: bool,
     pub confirm_update: bool,
     pub last_badge: u32,
     pub flash_pending: bool,
@@ -132,13 +135,13 @@ pub fn subscription(app: &App) -> Subscription<Msg> {
                 .map(|a| Msg::feature(Event::Activation(a))),
         );
     }
-    if let Some(c) = config(app) {
-        if !c.mock && option_env!("STICKTALK_UPDATE_PUBLIC_KEY").is_some() {
-            subs.push(
-                Subscription::run_with(c.server, |s| crate::platform_glue::updates(s.as_str()))
-                    .map(|v| Msg::feature(Event::Update(v))),
-            );
-        }
+    if !app.mock_mode && option_env!("STICKTALK_UPDATE_PUBLIC_KEY").is_some() {
+        subs.push(
+            Subscription::run_with(crate::storage::update_origin(), |s| {
+                crate::platform_glue::updates(s.as_str())
+            })
+            .map(|v| Msg::feature(Event::Update(v))),
+        );
     }
 
     if let (Some(c), Some(account)) = (config(app), app.me()) {
@@ -208,19 +211,34 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
         Event::Update(crate::platform_glue::UpdateEvent::Ready(version)) => {
             app.features.update_ready = Some(version)
         }
-        Event::Update(crate::platform_glue::UpdateEvent::Failed(error)) => {
-            app.error = format!("Update check failed: {error}")
+        Event::Update(crate::platform_glue::UpdateEvent::Failed(_)) => {
+            // Offline startup must not replace sign-in errors or interrupt typing.
+            let root = crate::storage::root().join("Updates");
+            if !app.mock_mode && std::fs::create_dir_all(&root).is_ok() {
+                let _ = std::fs::write(
+                    root.join("check-error.log"),
+                    "Could not check for updates. Will retry at the next scheduled check.",
+                );
+            }
+        }
+        Event::StartMinimized(enabled) => {
+            if !app.mock_mode {
+                if let Err(error) = crate::storage::save_start_minimized(enabled) {
+                    app.error = error;
+                    return Task::none();
+                }
+            }
+            app.features.start_minimized = enabled;
         }
         Event::ConfirmUpdate => app.features.confirm_update = !app.features.confirm_update,
         Event::ApplyUpdate => {
             if app.features.confirm_update {
                 app.features.confirm_update = false;
-                if let Some(c) = config(app) {
-                    if !c.mock {
-                        return emit(async move {
-                            Event::Restarted(crate::platform_glue::restart(c.server).await)
-                        });
-                    }
+                if !app.mock_mode {
+                    let origin = crate::storage::update_origin();
+                    return emit(async move {
+                        Event::Restarted(crate::platform_glue::restart(origin).await)
+                    });
                 }
             }
         }
@@ -892,22 +910,26 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
         }
         Event::Activation(a) => {
             use sticktalk_desktop_platform::activation::Activation;
-            if app.me().is_none() {
+            let focus = crate::desktop_host::update(
+                app,
+                crate::desktop_host::Event::Tray(
+                    sticktalk_desktop_platform::tray::TrayAction::Open,
+                ),
+            );
+            if a == Activation::Open {
+                return focus;
+            }
+            if app.state.session.is_none() || app.me().is_none() {
                 app.features.desktop.pending_activation = Some(a);
+                return focus;
             } else {
                 match a {
-                    Activation::Open => {
-                        return crate::desktop_host::update(
-                            app,
-                            crate::desktop_host::Event::Tray(
-                                sticktalk_desktop_platform::tray::TrayAction::Open,
-                            ),
-                        )
-                    }
+                    Activation::Open => return focus,
                     Activation::Invite(code) => {
                         app.features.picker = Picker::None;
                         app.dialog = Dialog::JoinGuild;
                         app.form.code = code;
+                        return focus;
                     }
                     Activation::Message {
                         channel_id,
@@ -915,7 +937,11 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
                     } => {
                         if app.state.model.channels.contains_key(&Id(channel_id)) {
                             let nav = app.update(Msg::Select(Id(channel_id)));
-                            return Task::batch([nav, app.update(Msg::JumpTo(Id(message_id)))]);
+                            return Task::batch([
+                                focus,
+                                nav,
+                                app.update(Msg::JumpTo(Id(message_id))),
+                            ]);
                         }
                     }
                 }
@@ -1253,7 +1279,7 @@ pub fn committed(app: &mut App, m: &Message) {
 
 pub fn update_pill(app: &App) -> iced::Element<'_, Msg> {
     if app.features.update_ready.is_some() {
-        super::ui::action("Restart to update", Msg::feature(Event::ConfirmUpdate))
+        super::ui::action("Update ready — restart", Msg::feature(Event::ConfirmUpdate))
             .width(iced::Fill)
             .style(crate::theme::primary)
             .into()

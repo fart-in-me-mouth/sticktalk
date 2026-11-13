@@ -963,7 +963,8 @@ size/hash before execution. Signatures authenticate the manifest and, via its
 hash, the installer. Server response keys/headers alone are not a trust anchor.
 
 Owner release tooling: `tools/release/release.ps1`, using `sticktalk-release` signing
-helper. Default **private key outside repo**:
+helper (the current desktop release script uses the compatible standalone
+`sticktalk-package` utility; see `deploy/RELEASING.md`). Default **private key outside repo**:
 `%USERPROFILE%/.sticktalk-secrets/update-signing.pk8` (Ed25519 PKCS#8).
 The server only gets base64 `STICKTALK_UPDATE_PUBLIC_KEY`. Publishing uses a
 separate random `STICKTALK_RELEASE_TOKEN` (32+ characters), never a user token.
