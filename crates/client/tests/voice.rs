@@ -24,6 +24,27 @@ use tokio_tungstenite::{
 };
 #[path = "support/gpu.rs"]
 mod gpu_usage;
+#[path = "support/input_window.rs"]
+mod input_window;
+// Compile the exact production SendInput seam, without publishing an unchecked
+// injection API in the shipping client. Only the ignored opt-in test uses it.
+use sticktalk::voice::control::{Injector, Surface};
+#[path = "../src/voice/control_native.rs"]
+mod native_injection;
+#[derive(Default)]
+struct TestInjector {
+    events: Vec<ControlInput>,
+    native: Option<native_injection::NativeInjector>,
+}
+impl Injector for TestInjector {
+    fn input(&mut self, input: &ControlInput, surface: Surface) -> Result<(), String> {
+        if let Some(native) = &mut self.native {
+            native.input(input, surface)?;
+        }
+        self.events.push(input.clone());
+        Ok(())
+    }
+}
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 struct Server {
@@ -207,6 +228,7 @@ async fn room(server: &Server, a: &AuthResponse, b: &AuthResponse) -> (Socket, S
     (aw, bw, channel)
 }
 enum Input {
+    Unpublish(TrackKind),
     Target(TrackKind, u64),
     Control(ControlData),
     Signal(VoiceSignal),
@@ -333,6 +355,7 @@ impl Endpoint {
                         Some(Input::Signal(s))=>send(&mut ws,ClientMsg::Voice(sticktalk_client_core::voice::encode(nonce,s).unwrap())).await,
                         Some(Input::Packet(kind,time,data,marker))=>if let Some(p)=&mut peer {p.send(kind,time,&data,marker,-24,Instant::now()).unwrap();},
                         Some(Input::Publish(kind))=>peer.as_mut().unwrap().publish(kind,true,ShareSurface::Monitor).unwrap(),
+                        Some(Input::Unpublish(kind))=>peer.as_mut().unwrap().publish(kind,false,ShareSurface::Monitor).unwrap(),
                         _=>break,
                     },
                     timer=clock.wait(deadline)=> { timer.unwrap(); if let Some(p)=&mut peer {p.timeout(Instant::now()).unwrap();} },
@@ -375,6 +398,15 @@ impl Endpoint {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn two_native_endpoints_exchange_file_opus_through_real_server() {
+    file_audio_and_control(false).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "real SendInput to an isolated secondary-monitor target; explicit invocation only"]
+async fn real_control_input_reaches_secondary_window_and_releases_on_revoke() {
+    file_audio_and_control(true).await;
+}
+async fn file_audio_and_control(real_input: bool) {
+    let target = real_input.then(input_window::Target::start);
     let server = Server::start().await;
     let a = server.account("native_a").await;
     let b = server.account("native_b").await;
@@ -498,7 +530,14 @@ async fn two_native_endpoints_exchange_file_opus_through_real_server() {
     consent.decide(1, true);
     consent.granted(own_sender, own_receiver, grant);
     let mut injector = sticktalk::voice::control::Receiver::new(
-        sticktalk::voice::control::DryRun::default(),
+        TestInjector {
+            native: target
+                .as_ref()
+                .map(|target| native_injection::NativeInjector {
+                    source: target.source.clone(),
+                }),
+            ..Default::default()
+        },
         sticktalk::voice::control::Surface {
             x: 0,
             y: 0,
@@ -512,9 +551,13 @@ async fn two_native_endpoints_exchange_file_opus_through_real_server() {
             sharer: own_sender,
             grant,
             sequence: 1,
-            input: ControlInput::Key {
-                usage: 4,
-                down: true,
+            input: if real_input {
+                ControlInput::Move { x: 32768, y: 32768 }
+            } else {
+                ControlInput::Key {
+                    usage: 4,
+                    down: true,
+                }
             },
         }))
         .await
@@ -528,11 +571,59 @@ async fn two_native_endpoints_exchange_file_opus_through_real_server() {
     }
     assert_eq!(
         injector.injector.events.last(),
-        Some(&ControlInput::Key {
-            usage: 4,
-            down: true
+        Some(&if real_input {
+            ControlInput::Move { x: 32768, y: 32768 }
+        } else {
+            ControlInput::Key {
+                usage: 4,
+                down: true,
+            }
         })
     );
+    // Mouse and keyboard traverse the reliable data channel and SFU grant,
+    // then the same receiver and SendInput code as production. Never target
+    // a personal application; the dedicated fixture is always secondary.
+    for (sequence, input) in [
+        (2, ControlInput::Move { x: 32768, y: 32768 }),
+        (
+            3,
+            ControlInput::Button {
+                button: 0,
+                down: true,
+            },
+        ),
+        (
+            4,
+            ControlInput::Key {
+                usage: 4,
+                down: true,
+            },
+        ),
+    ] {
+        receiver
+            .input
+            .send(Input::Control(ControlData::Input {
+                sharer: own_sender,
+                grant,
+                sequence,
+                input,
+            }))
+            .await
+            .unwrap();
+        loop {
+            if let Received::Control(bytes) = sender.recv().await {
+                injector
+                    .receive(
+                        &consent,
+                        own_sender,
+                        rmp_serde::from_slice(&bytes).unwrap(),
+                        3,
+                    )
+                    .unwrap();
+                break;
+            }
+        }
+    }
     receiver
         .input
         .send(Input::Signal(VoiceSignal::RevokeControl))
@@ -543,13 +634,59 @@ async fn two_native_endpoints_exchange_file_opus_through_real_server() {
         .await;
     consent.clear();
     injector.release().unwrap();
-    assert_eq!(
-        injector.injector.events.last(),
-        Some(&ControlInput::Key {
-            usage: 4,
-            down: false
-        })
-    );
+    assert!(injector.injector.events.contains(&ControlInput::Key {
+        usage: 4,
+        down: false
+    }));
+    assert!(injector.injector.events.contains(&ControlInput::Button {
+        button: 0,
+        down: false
+    }));
+    if let Some(target) = &target {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        target.assert_received();
+        println!("secondary target received real mouse/key input and revoke released both");
+    }
+    // Every new lifetime requires a NEW consent prompt, including after Deny.
+    for allow in [false, true] {
+        receiver
+            .input
+            .send(Input::Signal(VoiceSignal::RequestControl {
+                sharer: own_sender,
+            }))
+            .await
+            .unwrap();
+        sender.voice(|e| matches!(e, VoiceEvent::ControlRequested { requester, .. } if *requester == own_receiver)).await;
+        sender
+            .input
+            .send(Input::Signal(VoiceSignal::DecideControl {
+                requester: own_receiver,
+                allow,
+            }))
+            .await
+            .unwrap();
+        if allow {
+            let VoiceEvent::ControlGranted { grant: fresh, .. } = sender
+                .voice(|e| matches!(e, VoiceEvent::ControlGranted { .. }))
+                .await
+            else {
+                unreachable!()
+            };
+            assert_ne!(fresh, grant);
+            sender
+                .input
+                .send(Input::Unpublish(TrackKind::Screen))
+                .await
+                .unwrap();
+            sender
+                .voice(|e| matches!(e, VoiceEvent::ControlRevoked { grant, .. } if *grant == fresh))
+                .await;
+        } else {
+            receiver
+                .voice(|e| matches!(e, VoiceEvent::ControlDenied { .. }))
+                .await;
+        }
+    }
     sender
         .input
         .send(Input::Signal(VoiceSignal::State {
@@ -873,18 +1010,28 @@ async fn live_calls2_two_viewers_ten_minutes() {
 }
 
 fn bench_quality() -> sticktalk_media::Quality {
-    use sticktalk_media::{Quality, Resolution};
+    use sticktalk_media::{FrameRate, Quality, Resolution};
     Quality {
         resolution: match std::env::var("STICKTALK_CALLS2_QUALITY")
             .as_deref()
             .unwrap_or("1080")
         {
+            "480" => Resolution::P480,
+            "720" => Resolution::P720,
             "1080" => Resolution::P1080,
             "1440" => Resolution::P1440,
             "source" => Resolution::Source,
             other => panic!("unknown quality {other}"),
         },
-        ..Default::default()
+        fps: match std::env::var("STICKTALK_CALLS2_FPS")
+            .as_deref()
+            .unwrap_or("60")
+        {
+            "15" => FrameRate::Fps15,
+            "30" => FrameRate::Fps30,
+            "60" => FrameRate::Fps60,
+            other => panic!("unknown frame rate {other}"),
+        },
     }
 }
 fn bench_seconds() -> u64 {
@@ -929,7 +1076,14 @@ async fn live_calls2_worker(role: &str) {
         let source = sticktalk_media::list_sources()
             .unwrap()
             .into_iter()
-            .find(|s| s.kind == sticktalk_media::SourceKind::Monitor && s.primary)
+            .find(|s| {
+                if std::env::var("STICKTALK_CALLS2_SOURCE").is_ok_and(|v| v == "wgc-motion") {
+                    s.kind == sticktalk_media::SourceKind::Window
+                        && s.name == "StickTalk GPU benchmark pattern (closes automatically)"
+                } else {
+                    s.kind == sticktalk_media::SourceKind::Monitor && s.primary
+                }
+            })
             .unwrap();
         let bitrate = quality.recommended_bitrate(source.size).unwrap();
         let session = if std::env::var("STICKTALK_CALLS2_SOURCE").is_ok_and(|s| s == "synthetic") {
@@ -1102,6 +1256,7 @@ async fn live_calls2_worker(role: &str) {
         "private_bytes": after.private_bytes, "private_delta_bytes": after.private_bytes.saturating_sub(baseline.private_bytes),
         "payload_bytes": bytes, "raw_packets_with_warmup": raw_packets, "raw_payload_bytes_with_warmup": raw_bytes,
         "assembled_frames_with_warmup": access_units, "decode_errors": decode_errors,
+        "encoder_reconfigurations": share.as_ref().map(|s| s.stats().reconfigurations),
         "source": std::env::var("STICKTALK_CALLS2_SOURCE").unwrap_or_else(|_| "wgc".into()),
         "quality": format!("{quality:?}"), "decoder_size": format!("{coded_size:?}")
     })).unwrap()).unwrap();
@@ -1115,15 +1270,24 @@ async fn live_calls2_worker(role: &str) {
     );
     if let Some(share) = &share {
         println!("capture stats: {:?}", share.stats());
+        assert_eq!(
+            share.stats().reconfigurations,
+            0,
+            "encoder format reconfiguration thrash"
+        );
     }
     drop(share);
     drop(decoder);
     endpoint.stop().await;
-    assert!(count as f64 / elapsed >= 58., "below 58fps");
+    let target_fps = f64::from(quality.fps.get());
+    assert!(
+        count as f64 / elapsed >= target_fps * 58. / 60.,
+        "below target average fps"
+    );
     assert!(drift.abs() < 20., "latency drift exceeds 20ms");
     assert!(
-        *buckets.iter().min().unwrap() >= 50,
-        "one-second window below 50fps"
+        f64::from(*buckets.iter().min().unwrap()) >= target_fps * 45. / 60.,
+        "one-second window below 75% of target fps"
     );
     if role == "sharer" {
         assert!(cpu < 5.);
