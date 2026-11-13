@@ -82,6 +82,10 @@ struct App {
     profile: Option<ProfileDetail>,
     pins: Vec<Message>,
     notifications: Vec<NotificationSettings>,
+    admin_after: Option<Id>,
+    admin_more: bool,
+    admin_busy: bool,
+    dialog_generation: u64,
     reply: Option<Id>,
     editing: Option<Id>,
     attachments: Vec<Attachment>,
@@ -133,6 +137,10 @@ impl App {
         self.profile = None;
         self.pins.clear();
         self.notifications.clear();
+        self.admin_after = None;
+        self.admin_more = false;
+        self.admin_busy = false;
+        self.dialog_generation = self.dialog_generation.wrapping_add(1);
         self.reply = None;
         self.editing = None;
         self.attachments.clear();
@@ -265,6 +273,10 @@ pub fn mount() {
             profile: None,
             pins: vec![],
             notifications: vec![],
+            admin_after: None,
+            admin_more: false,
+            admin_busy: false,
+            dialog_generation: 0,
             reply: None,
             editing: None,
             attachments: vec![],

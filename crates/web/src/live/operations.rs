@@ -280,12 +280,32 @@ pub(super) fn action(app: Shared, raw: &str) {
         "close" => {
             let mut a = app.borrow_mut();
             a.dialog.clear();
+            a.dialog_generation = a.dialog_generation.wrapping_add(1);
             a.error.clear();
             a.profile = None;
             a.panel.clear();
             a.touch();
         }
-        "submit" => submit(app, arg),
+        "submit" => {
+            let form = arg.to_owned();
+            spawn_local(async move {
+                submit(app, form).await;
+            });
+        }
+        "admin-more" => {
+            let (name, epoch, generation) = {
+                let mut a = app.borrow_mut();
+                if a.admin_busy || !a.admin_more {
+                    return;
+                }
+                a.admin_busy = true;
+                a.touch();
+                (a.dialog.clone(), a.epoch, a.dialog_generation)
+            };
+            spawn_local(async move {
+                dialog_data(app, name, epoch, generation).await;
+            });
+        }
         "group-remove" | "group-owner" | "group-leave" => {
             let mut a = app.borrow_mut();
             if let Some(channel_id) = a.channel {
@@ -787,6 +807,10 @@ fn open_dialog(app: Shared, name: &str) {
     {
         let mut a = app.borrow_mut();
         a.dialog = name.into();
+        a.dialog_generation = a.dialog_generation.wrapping_add(1);
+        a.admin_after = None;
+        a.admin_more = false;
+        a.admin_busy = matches!(name, "invite" | "server-bans");
         if name == "pins" {
             a.pins.clear();
         }
@@ -795,13 +819,14 @@ fn open_dialog(app: Shared, name: &str) {
         a.touch();
     }
     let epoch = app.borrow().epoch;
+    let generation = app.borrow().dialog_generation;
     let name = name.to_owned();
     spawn_local(async move {
-        dialog_data(app, name, epoch).await;
+        dialog_data(app, name, epoch, generation).await;
     });
 }
 #[lazy]
-fn dialog_data(app: Shared, name: String, epoch: u64) {
+fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
     if app.borrow().epoch != epoch {
         return;
     }
@@ -814,6 +839,7 @@ fn dialog_data(app: Shared, name: String, epoch: u64) {
     let name = name.to_owned();
     let guild = app.borrow().guild;
     let channel = app.borrow().channel;
+    let after = app.borrow().admin_after;
     spawn_local(async move {
         let result: Result<(), String> = async {
             match name.as_str() {
@@ -838,7 +864,7 @@ fn dialog_data(app: Shared, name: String, epoch: u64) {
                     }
                     app.borrow_mut().devices = p.data;
                 }
-                "roles" => {
+                "roles" | "member-role" | "private" => {
                     if let Some(g) = guild {
                         let p: Snapshot<Vec<Role>> =
                             http.json(&format!("/guilds/{g}/roles", g = g.0)).await?;
@@ -849,6 +875,83 @@ fn dialog_data(app: Shared, name: String, epoch: u64) {
                         a.roles.retain(|_, r| r.guild_id != g);
                         for r in p.data {
                             a.roles.insert(r.id, r);
+                        }
+                        a.model.reconcile_metadata(&p.cursor);
+                    }
+                }
+                "invite" | "server-bans" => {
+                    if let Some(g) = guild {
+                        let allowed = app.borrow().model.guilds.get(&g).is_some_and(|g| {
+                            g.my_role == MemberRole::Owner
+                                || g.my_permissions.intersects(
+                                    Permissions::ADMINISTRATOR
+                                        | if name == "invite" {
+                                            Permissions::CREATE_INVITES | Permissions::MANAGE_GUILD
+                                        } else {
+                                            Permissions::BAN_MEMBERS
+                                        },
+                                )
+                        });
+                        if !allowed {
+                            return Ok(());
+                        }
+                        let suffix = after.map_or(String::new(), |id| format!("&after={}", id.0));
+                        if name == "invite" {
+                            let p: Page<Invite> = http
+                                .json(&format!("/guilds/{}/invites?limit=50{suffix}", g.0))
+                                .await?;
+                            let mut a = app.borrow_mut();
+                            if a.epoch != epoch
+                                || a.dialog_generation != generation
+                                || a.privacy_generation != privacy
+                                || !a.model.snapshot_valid(&p.cursor)
+                            {
+                                return Ok(());
+                            }
+                            if after.is_none() {
+                                a.model.invites.retain(|_, i| i.guild_id != g);
+                            }
+                            a.admin_more = p.has_more;
+                            a.admin_after = p.next_after;
+                            for i in p.items {
+                                a.model.invites.insert(i.id, i);
+                            }
+                            a.model.reconcile_metadata(&p.cursor);
+                        } else {
+                            let p: Page<Ban> = http
+                                .json(&format!("/guilds/{}/bans?limit=50{suffix}", g.0))
+                                .await?;
+                            let mut a = app.borrow_mut();
+                            if a.epoch != epoch
+                                || a.dialog_generation != generation
+                                || a.privacy_generation != privacy
+                                || !a.model.snapshot_valid(&p.cursor)
+                            {
+                                return Ok(());
+                            }
+                            if after.is_none() {
+                                a.model.bans.retain(|_, b| b.guild_id != g);
+                            }
+                            a.admin_more = p.has_more;
+                            a.admin_after = p.next_after;
+                            for b in p.items {
+                                a.model.bans.insert(b.user.id, b);
+                            }
+                            a.model.reconcile_metadata(&p.cursor);
+                        }
+                    }
+                }
+                value if value.starts_with("channel-edit:") => {
+                    if let Some(c) = id(value.trim_start_matches("channel-edit:")) {
+                        let p: Snapshot<Channel> = http.json(&format!("/channels/{}", c.0)).await?;
+                        let mut a = app.borrow_mut();
+                        if a.epoch == epoch
+                            && a.dialog_generation == generation
+                            && a.privacy_generation == privacy
+                            && a.model.snapshot_valid(&p.cursor)
+                        {
+                            a.model.topics.insert(c, p.data.topic);
+                            a.model.reconcile_metadata(&p.cursor);
                         }
                     }
                 }
@@ -864,7 +967,7 @@ fn dialog_data(app: Shared, name: String, epoch: u64) {
                         app.borrow_mut().pins = p.data;
                     }
                 }
-                "notifications" => {
+                "notifications" | "channel-notifications" => {
                     let p: Snapshot<Vec<NotificationSettings>> =
                         http.json("/me/notifications").await?;
                     if app.borrow().privacy_generation != privacy
@@ -872,13 +975,21 @@ fn dialog_data(app: Shared, name: String, epoch: u64) {
                     {
                         return Ok(());
                     }
-                    app.borrow_mut().notifications = p.data;
+                    let mut a = app.borrow_mut();
+                    a.model.merge_settings(Snapshot {
+                        cursor: p.cursor,
+                        data: sticktalk_client_core::settings::SnapshotData::Notifications(p.data),
+                    });
                 }
                 _ => {}
             }
             Ok(())
         }
         .await;
+        if app.borrow().epoch != epoch || app.borrow().dialog_generation != generation {
+            return;
+        }
+        app.borrow_mut().admin_busy = false;
         if let Err(e) = result {
             fail(&app, e)
         } else {
@@ -887,14 +998,48 @@ fn dialog_data(app: Shared, name: String, epoch: u64) {
     });
 }
 
-fn submit(app: Shared, form: &str) {
+#[lazy]
+fn submit(app: Shared, form: String) {
     let name = value("f-name");
     let text = value("f-value");
     let extra = value("f-extra");
     let mut a = app.borrow_mut();
     let channel = a.channel;
     let guild = a.guild;
-    let cmd = match form {
+    let cmd = match form.as_str() {
+        "server-overview" => guild.map(|guild_id| Command::UpdateGuild {
+            guild_id,
+            patch: GuildPatch {
+                name: Patch::Set(name),
+                ..Default::default()
+            },
+        }),
+        "channel-save" => id(&extra).map(|channel_id| Command::UpdateChannel {
+            channel_id,
+            patch: ChannelPatch {
+                name: Patch::Set(name),
+                topic: if text.is_empty() {
+                    Patch::Clear
+                } else {
+                    Patch::Set(text)
+                },
+            },
+        }),
+        "channel-delete" => {
+            if name != "DELETE" {
+                a.error = "Type DELETE to confirm channel deletion.".into();
+                a.touch();
+                return;
+            }
+            id(&extra).map(|channel_id| Command::DeleteChannel { channel_id })
+        }
+        "invite-revoke" => guild.map(|guild_id| Command::RevokeInvite {
+            guild_id,
+            code: name,
+        }),
+        "unban" => guild.and_then(|guild_id| {
+            id(&name).map(|user_id| Command::UnbanMember { guild_id, user_id })
+        }),
         "group-add" => channel.and_then(|channel_id| {
             id(&name).map(|user_id| Command::AddGroupRecipient {
                 channel_id,
@@ -915,7 +1060,9 @@ fn submit(app: Shared, form: &str) {
             name,
             icon_id: None,
         }),
-        "join" => Some(Command::JoinGuild { invite_code: name }),
+        "join" => Some(Command::JoinGuild {
+            invite_code: crate::wire::invite_code(&name),
+        }),
         "channel" => guild.map(|guild_id| Command::CreateChannel {
             guild_id,
             kind: if extra == "voice" {
@@ -1023,12 +1170,16 @@ fn submit(app: Shared, form: &str) {
             };
             Some(Command::Launch(LaunchCommand::SetNotifications(
                 NotificationSettings {
-                    guild_id: if channel.is_none() { guild } else { None },
-                    channel_id: channel,
+                    guild_id: None,
+                    channel_id: if value("f-scope") == "channel" {
+                        channel
+                    } else {
+                        None
+                    },
                     level,
-                    muted: text == "true",
+                    muted: checked("f-muted"),
                     mute_until: None,
-                    suppress_everyone: extra == "true",
+                    suppress_everyone: checked("f-suppress"),
                     hide_muted_channels: false,
                 },
             )))

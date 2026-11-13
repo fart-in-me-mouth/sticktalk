@@ -1,4 +1,6 @@
 // Browser-only DOM host. No protocol objects, credentials, or message data live here.
+import {loadPreferences, applyPreferences, setPreference} from './preferences.js';
+import {swipeAction, installOverlayHistory, syncOverlayHistory} from './navigation.js';
 const emit = (action) =>
   window.dispatchEvent(new CustomEvent("sticktalk-live", { detail: action }));
 const $ = (s) => document.querySelector(s);
@@ -11,6 +13,29 @@ let saved,
   lastChannel,
   media;
 let viewer;
+let invite = new URLSearchParams(location.search).get('invite');
+let inviteOpened = false;
+let reauth = new URLSearchParams(location.search).get('reauth');
+function updateJump(list) {
+  if(!list)return;
+  let button=$('#jump-to-present');
+  if(!button) {
+    button=document.createElement('button');button.id='jump-to-present';
+    button.className='button secondary jump-to-present';button.textContent='Jump to present';
+    button.onclick=()=>{
+      const current=$('#live-messages');if(!current)return;
+      current.scrollTop=current.scrollHeight;
+      if(Number(current.dataset.windowEnd)<Number(current.dataset.total))emit(`seek:${Math.max(0,Number(current.dataset.total)-50)}`);
+    };
+    $('.composer-wrap')?.append(button);
+  }
+  button.hidden=Number(list.dataset.windowEnd)>=Number(list.dataset.total)&&list.scrollHeight-list.scrollTop-list.clientHeight<list.clientHeight;
+}
+function resizeComposer(input) {
+  if(!input)return;
+  input.style.height='auto';
+  input.style.height=`${Math.min(input.scrollHeight,Math.max(44,(window.visualViewport?.height??innerHeight)*.4))}px`;
+}
 const closeViewer = () => viewer?.closeViewer();
 const openViewer = async (target) => {
   viewer ??= await import('/public/viewer.js');
@@ -71,12 +96,13 @@ export function beforeRender() {
     start: focus?.selectionStart,
     end: focus?.selectionEnd,
     dialog: $(".live-modal")?.dataset.dialog,
+    authUsername: $('#auth-username')?.value,
     completion: $('#live-completions [aria-selected="true"]')?.dataset.completion,
     fields: [
       ...document.querySelectorAll(
-        ".live-modal input:not([type=password]):not([type=file]),.live-modal select,.live-modal textarea",
+        ".live-modal input:not([type=file]),.live-modal select,.live-modal textarea",
       ),
-    ].map((e) => {
+    ].filter(e=>e.dataset.dirty==='true'||e.closest('form')?.dataset.dirty==='true').map((e) => {
       const selector = e.id ? `#${CSS.escape(e.id)}` :
         ['group-user','member-role','role-bit','settings-search'].map(key => e.hasAttribute(`data-${key}`) ? `[data-${key}="${CSS.escape(e.getAttribute(`data-${key}`))}"]` : null).find(Boolean);
       return [selector, e.value, e.type === 'checkbox' ? e.checked : null];
@@ -185,12 +211,15 @@ function restore() {
     }
   }
   if (saved) {
+    if(saved.authUsername && $('#auth-username'))$('#auth-username').value=saved.authUsername;
     if ($(".live-modal")?.dataset.dialog === saved.dialog)
       for (const [selector, value, checked] of saved.fields) {
         const e = selector && $('.live-modal')?.querySelector(selector);
         if (e) {
           e.value = value;
           if (checked !== null) e.checked = checked;
+          e.dataset.dirty='true';
+          if(e.form)e.form.dataset.dirty='true';
         }
       }
     if (saved.completion) {
@@ -210,6 +239,23 @@ function restore() {
   }
   const modal = $('.live-modal');
   if (modal && !modal.contains(document.activeElement)) modal.focus({preventScroll:true});
+  const shell=$('.live-shell');
+  if(shell)shell.inert=!!modal;
+  const left=$('.left-panel');
+  if(left)left.inert=innerWidth<768&&!shell?.classList.contains('panel-left');
+  applyPreferences();
+  resizeComposer(input);
+  updateJump(list);
+  syncOverlayHistory();
+  if(reauth && $('.live-home') && !modal) {
+    const page={password:'password',delete_account:'delete-account',link:'account',unlink:'account',linked:'account'}[reauth];
+    reauth=null;if(page)emit(`dialog:${page}`);
+  }
+  if(invite && $('.live-home') && !modal && !inviteOpened) {
+    inviteOpened=true; emit('dialog:join');
+  } else if(invite && modal?.dataset.dialog==='join' && $('#f-name')) {
+    $('#f-name').value=invite;$('#f-name').dataset.dirty='true';invite=null;
+  }
   media?.mount();
 }
 function send() {
@@ -221,6 +267,8 @@ function send() {
 export function installPlatform() {
   if (installed) return;
   installed = true;
+  loadPreferences();
+  installOverlayHistory(emit);
   document.addEventListener("compositionstart", () => (composing = true));
   document.addEventListener("compositionend", () => (composing = false));
   observer = new MutationObserver((records) => {
@@ -293,11 +341,16 @@ export function installPlatform() {
     }
   });
   document.addEventListener("input", (e) => {
+    if(e.target.closest('.live-modal')) {
+      e.target.dataset.dirty='true';
+      if(e.target.form)e.target.form.dataset.dirty='true';
+    }
     if (e.target.matches('[data-settings-search]')) {
       const query = e.target.value.toLowerCase();
       document.querySelectorAll('.settings-nav-row').forEach(row => row.hidden = !row.textContent.toLowerCase().includes(query));
     }
     if (e.target.id === "live-input") {
+      resizeComposer(e.target);
       const c = $("#live-messages")?.dataset.channel;
       if (c) remember(c, e.target.value);
       if (!composing) complete(e.target);
@@ -314,6 +367,11 @@ export function installPlatform() {
     }
   });
   document.addEventListener("change", (e) => {
+    if(e.target.closest('.live-modal')) {
+      e.target.dataset.dirty='true';
+      if(e.target.form)e.target.form.dataset.dirty='true';
+    }
+    if(e.target.matches('[data-preference]'))setPreference(e.target);
     if (e.target.id === "live-file") emit("upload");
     if (e.target.id === 'live-avatar') emit('avatar-upload');
     if (e.target.dataset.groupUser) {
@@ -393,6 +451,7 @@ export function installPlatform() {
     (e) => {
       const list = e.target;
       if (list.id !== "live-messages") return;
+      updateJump(list);
       const start = Number(list.dataset.windowStart),
         end = Number(list.dataset.windowEnd),
         total = Number(list.dataset.total);
@@ -420,6 +479,15 @@ export function installPlatform() {
     true,
   );
   const focus = () => emit(`focus:${!document.hidden && document.hasFocus()}`);
+  const network = () => {
+    document.documentElement.dataset.offline=String(!navigator.onLine);
+    let banner=$('#offline-banner');
+    if(!navigator.onLine&&!banner) {
+      banner=document.createElement('div');banner.id='offline-banner';banner.className='offline-banner';
+      banner.setAttribute('role','status');banner.textContent='You’re offline. Your draft is kept.';document.body.append(banner);
+    } else if(navigator.onLine)banner?.remove();
+  };
+  addEventListener('online',network);addEventListener('offline',network);network();
   window.addEventListener("online", () => emit("recover"));
   window.addEventListener("focus", focus);
   window.addEventListener("blur", focus);
@@ -448,14 +516,17 @@ export function installPlatform() {
       innerWidth < 768 &&
       !e.target.closest("input,textarea,[role=dialog]")
     )
-      touch = { x: e.clientX, y: e.clientY };
+      touch = { x: e.clientX, y: e.clientY, id:e.pointerId };
   });
+  document.addEventListener('pointercancel',()=>touch=null);
   document.addEventListener("pointerup", (e) => {
-    if (touch) {
+    if (touch && e.pointerId===touch.id) {
       const dx = e.clientX - touch.x,
         dy = e.clientY - touch.y;
-      if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy))
-        emit(`panel:${dx > 0 ? "left" : "right"}`);
+      const shell=$('.live-shell');
+      const panel=shell?.classList.contains('panel-left')?'left':shell?.classList.contains('panel-right')?'right':'';
+      const action=swipeAction(panel,dx,dy);
+      if(action){e.preventDefault();emit(action);}
       touch = null;
     }
   });
@@ -470,7 +541,7 @@ export function installPlatform() {
             const text = document.createElement('span'); text.textContent = 'Update ready.';
             const reload = document.createElement('button'); reload.className = 'button secondary'; reload.textContent = 'Reload';
             reload.onclick = () => {
-              if ($('#live-input')?.value) {text.textContent = 'Send or clear your draft before reloading.'; return;}
+              if ($('#live-input')?.value || [...drafts.values()].some(Boolean) || $('.live-upload,#live-connected:not([hidden])') || $('.live-modal form[data-dirty="true"]')) {text.textContent = 'Finish your drafts, uploads or call before reloading.'; return;}
               navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), {once:true});
               registration.waiting?.postMessage('activate-update');
             };

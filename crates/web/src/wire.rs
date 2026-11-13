@@ -1,5 +1,19 @@
 //! Small host-boundary rules, tested natively as well as used by WASM.
 use sticktalk_proto::*;
+/// Accept a pasted invite link without navigating to a user-supplied origin.
+pub fn invite_code(input: &str) -> String {
+    let input = input.trim();
+    let code = input
+        .split_once("?invite=")
+        .map(|(_, value)| value.split(['&', '#']).next().unwrap_or(value))
+        .or_else(|| {
+            input
+                .split_once("/invite/")
+                .map(|(_, value)| value.trim_end_matches('/'))
+        })
+        .unwrap_or(input);
+    code.to_owned()
+}
 pub fn stringify_ids(v: &mut serde_json::Value) {
     match v {
         serde_json::Value::Object(map) => {
@@ -102,6 +116,22 @@ fn message_group_boundaries() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn invite_links_are_parsed_as_data_not_navigation() {
+        let code = "AbC_def-0123456789abcd";
+        assert_eq!(invite_code(&format!("  {code}  ")), code);
+        assert_eq!(
+            invite_code(&format!(
+                "https://example.invalid/?invite={code}&ignored=1#hash"
+            )),
+            code
+        );
+        assert_eq!(
+            invite_code(&format!("https://example.invalid/invite/{code}/")),
+            code
+        );
+        assert_eq!(invite_code("javascript:alert(1)"), "javascript:alert(1)"); // server rejects it
+    }
     #[test]
     fn custom_role_colors_cannot_hide_names() {
         assert_eq!(legible_role_color(0xe8eaed), 0xe8eaed);

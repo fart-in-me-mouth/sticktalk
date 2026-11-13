@@ -25,6 +25,7 @@ async function loadApp() {
   } catch {
     loading = false;
     root.replaceChildren(form);
+    form.querySelectorAll('input,button').forEach(element=>element.disabled=false);
     status.textContent =
       "Could not load the app. Check your connection and try again.";
   }

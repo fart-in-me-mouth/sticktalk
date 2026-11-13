@@ -70,6 +70,13 @@ function preferH264(transceiver) {
   if (!h264.length) throw Error("This browser does not support H.264 video.");
   transceiver.setCodecPreferences(h264);
 }
+function preferOpus(transceiver) {
+  // Match the SFU's Opus-only audio contract; do not offer RED/G.722/DTMF
+  // codecs whose extra fmtp mappings differ across browser versions.
+  const codecs=RTCRtpReceiver.getCapabilities('audio')?.codecs.filter(c=>c.mimeType.toLowerCase()==='audio/opus')??[];
+  if(!codecs.length)throw Error('This browser does not support Opus audio.');
+  transceiver.setCodecPreferences(codecs);
+}
 async function negotiate() {
   const current = pc;
   if (!current || !joined) return;
@@ -166,6 +173,7 @@ async function publish(track, kind, stream) {
     senders.set(kind, transceiver);
   }
   if (track.kind === "video") preferH264(transceiver);
+  else preferOpus(transceiver);
   publications.set(kind, { kind, track, stream, transceiver });
   return transceiver;
 }
@@ -317,6 +325,7 @@ async function updateParticipant(participant) {
         : idleReceivers.splice(reusable, 1)[0];
     transceiver.direction = "recvonly";
     if (track.codec) preferH264(transceiver);
+    else preferOpus(transceiver);
     const subscription = {
       key: id,
       participant,
