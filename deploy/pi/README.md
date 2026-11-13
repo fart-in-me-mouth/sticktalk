@@ -29,18 +29,15 @@ sudo systemctl disable --now sticktalk caddy
 
 ## 2. Mount the HDD
 
-Ask your helper for an ext4 USB disk. **Do not format existing data.** Run
-`lsblk -f`; identify the partition by capacity, label and USB connection.
-Copy its UUID, then run `sudo mkdir -p /srv/sticktalk` and `sudo nano /etc/fstab`.
-Add, replacing the placeholder with the actual UUID:
+Use the **LUKS2 encrypted data volume** in "Protect the SSD and backups against
+theft" below before installing the service. Do not add a plain ext4 USB partition
+to fstab. That section has exact identification, backup, unlock and recovery
+commands; formatting is only for a verified EMPTY partition.
 
-```text
-UUID=YOUR-HDD-UUID /srv/sticktalk ext4 defaults,nofail,noatime 0 2
-```
-
-Run `sudo mount /srv/sticktalk`, `findmnt /srv/sticktalk` and `df -h /srv/sticktalk`.
-It must show the USB partition, not the SD card. Keep 10 GiB free plus backup and
-deleted-file retention space. The service refuses startup without this mount.
+`findmnt /srv/sticktalk` must show `/dev/mapper/sticktalk-data`, not an unencrypted
+USB partition or the SD card. Keep 10 GiB free plus backup/retention space. The
+backup script refuses a different mount. See the manual-unlock versus unattended
+keyfile tradeoff below before deciding how the Pi should reboot.
 
 ## 3. Build and install
 
@@ -146,3 +143,147 @@ Oracle can reclaim idle Always Free VMs. Nightly off-VM backups plus this standb
 are the mitigation; **no CPU-burning keepalives**. The HDD is still the only bulk
 copy, not protection from HDD failure. Rehearse on physical Pi/Linux/tailnet
 equipment before relying on this procedure.
+
+## Protect the SSD and backups against theft (required)
+
+Tailscale protects the network, **not a stolen drive**. Use LUKS2 for the Pi's
+**data volume**, and age for every off-device backup. The Pi can read live data
+while unlocked. Anyone with root access then can too. A keyfile on the same Pi
+allows unattended reboot but does not protect against theft of both Pi and SSD;
+the recommended plan is manual passphrase unlock after reboot.
+
+### 1. Prepare an empty data partition (one-time, destructive)
+
+**Do not run the format commands on a disk containing your only data copy.**
+First make and test an encrypted backup below. Identify the external SSD by its
+model, serial and size, not by a guessed `/dev/sda`. These commands run on the Pi,
+not your Windows PC. Install tools, then list disks:
+
+```sh
+sudo apt-get update
+sudo apt-get install cryptsetup age sqlite3 rsync
+lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE,MOUNTPOINTS
+ls -l /dev/disk/by-id/
+```
+
+Replace `REPLACE_WITH_EMPTY_SSD_PARTITION` with the stable **partition** identifier
+from that listing (usually ending in `-part1`). Ask for help if uncertain. Never
+select the Pi boot/root SD partition. This erases the selected partition:
+
+```sh
+DATA=/dev/disk/by-id/REPLACE_WITH_EMPTY_SSD_PARTITION
+readlink -f "$DATA"
+lsblk -o NAME,SIZE,MODEL,FSTYPE,MOUNTPOINTS "$DATA"
+sudo systemctl stop sticktalk sticktalk-storage
+sudo cryptsetup luksFormat --type luks2 "$DATA"
+# Choose a long unique passphrase; save it in your password manager OFF the Pi.
+sudo cryptsetup open "$DATA" sticktalk-data
+sudo mkfs.ext4 -L sticktalk-data /dev/mapper/sticktalk-data
+sudo mkdir -p /srv/sticktalk
+sudo mount /dev/mapper/sticktalk-data /srv/sticktalk
+sudo chmod 700 /srv/sticktalk
+sudo cryptsetup luksHeaderBackup "$DATA" --header-backup-file /root/sticktalk-luks-header.img
+sudo cryptsetup luksUUID "$DATA"
+```
+
+Keep the printed UUID and a copy of the header backup **offline** with the owner;
+the header is not a decryption key, but a damaged header can make data unrecoverable.
+Restore the private node archive into `/srv/sticktalk/node`, and restore the
+service's ownership (`sudo chown -R sticktalk:sticktalk /srv/sticktalk/node`).
+Older Pi-only servers use `/srv/sticktalk/data` instead. Add to
+`/etc/fstab` (not a second plaintext mount) using `sudoedit /etc/fstab`:
+
+```text
+/dev/mapper/sticktalk-data /srv/sticktalk ext4 defaults,noauto 0 2
+```
+
+After every reboot, unlock and start manually (replace the UUID):
+
+```sh
+sudo cryptsetup open /dev/disk/by-uuid/REPLACE_WITH_LUKS_UUID sticktalk-data
+sudo mount /srv/sticktalk
+sudo systemctl start sticktalk-storage sticktalk
+findmnt /srv/sticktalk
+sudo cryptsetup status sticktalk-data
+```
+
+**Optional unattended plan:** keep the passphrase as recovery and add a root-only
+keyfile on the Pi's SD card. This protects a removed SSD, not the whole stolen Pi:
+
+```sh
+sudo install -d -m 700 /etc/sticktalk
+sudo sh -c 'umask 077; head -c 64 /dev/urandom > /etc/sticktalk/data.key'
+sudo cryptsetup luksAddKey /dev/disk/by-uuid/REPLACE_WITH_LUKS_UUID /etc/sticktalk/data.key
+sudoedit /etc/crypttab
+# Add: sticktalk-data UUID=REPLACE_WITH_LUKS_UUID /etc/sticktalk/data.key luks
+sudoedit /etc/fstab
+# Replace noauto with defaults for the mapper entry (do not duplicate it).
+```
+
+Keep a separate recovery passphrase; losing both it and the keyfile loses the data.
+Never put the keyfile or recovery passphrase in the backup recipient configuration.
+
+### 2. Owner-held encrypted backups (14-day retention)
+
+On the **owner's separate trusted computer** with age installed, create a key:
+
+```sh
+age-keygen -o sticktalk-backup-key.txt
+age-keygen -y sticktalk-backup-key.txt
+```
+
+Save the `AGE-SECRET-KEY-...` file in your password manager and a second offline
+location. Put **only** the public `age1...` line on the Pi, using
+`sudoedit /etc/sticktalk/backup.env`:
+
+```text
+BACKUP_RECIPIENT=age1REPLACE_WITH_OWNER_PUBLIC_RECIPIENT
+BACKUP_DEST=backupuser@backuphost:/dedicated/sticktalk-encrypted
+BACKUP_KEY=/root/.ssh/sticktalk_backup
+```
+
+That remote directory must be dedicated to StickTalk: the script mirrors expiry
+with `rsync --delete`. Existing remote plaintext snapshots from older versions are
+**not** secured retroactively: delete them after verifying an encrypted restore.
+Run `sudo /usr/local/sbin/sticktalk-backup` (installed by `deploy/pi/install.sh`),
+then check the destination contains `.tar.age` files only. The script refuses an
+unencrypted mount or missing recipient; it never sends a plaintext snapshot.
+
+Test a restore on the owner's trusted computer (not into the live server):
+
+```sh
+mkdir -m 700 restore-test
+age -d -i sticktalk-backup-key.txt -o snapshot.tar SNAPSHOT.tar.age
+tar -xf snapshot.tar -C restore-test
+sqlite3 -readonly restore-test/storage.sqlite3 'PRAGMA integrity_check;'
+# For an older Pi-only archive, use restore-test/sticktalk.sqlite3 instead.
+# Expect: ok. Verify a few attachments and the replica-backups/*.sqlite3.age files.
+# To validate a chat snapshot too, replace TIMESTAMP with the newest actual name:
+age -d -i sticktalk-backup-key.txt -o restored-chat.sqlite3 restore-test/replica-backups/backup-TIMESTAMP.sqlite3.age
+sqlite3 -readonly restored-chat.sqlite3 'PRAGMA integrity_check;'
+# Expect: ok. Remove these plaintext test copies after checking.
+```
+
+Both scripts retain encrypted snapshots for **14 days**, removing expired remote
+copies on the next successful sync. An offline/unreachable backup host cannot be
+pruned until it reconnects; the owner must delete expired copies there manually.
+Account/message deletion affects live storage immediately, but historical copies
+remain decryptable by the owner until expiry. Do not restore erased accounts from
+old snapshots; reapply deletions before serving a restored backup. Backups are not
+cryptographic per-user deletion, and SSD secure erasure is not guaranteed.
+
+References: https://www.kernel.org/doc/html/latest/admin-guide/device-mapper/dm-crypt.html
+and https://github.com/FiloSottile/age#usage .
+
+Oracle's online `admin backup` also encrypts the SQLite snapshot before sending
+it to Pi. Put `STICKTALK_BACKUP_RECIPIENT=age1...` (public key only) in Oracle's
+`/etc/sticktalk.env`. Missing/invalid recipients fail closed. New snapshots are
+`backup-TIMESTAMP.sqlite3.age`. Decrypt on the owner's trusted computer before
+manual standby restore; do not copy the private identity to either server. Old
+plaintext `.sqlite3` snapshots must be removed after testing the encrypted path.
+
+For failover, place the owner-decrypted and deletion-reviewed database under
+`/srv/sticktalk/node/backups/recovery.sqlite3`, fence Oracle, then run:
+`sudo STICKTALK_RECOVERY_DB=recovery.sqlite3 bash failover.sh --oracle-fenced`.
+The script no longer silently chooses an older plaintext snapshot. Remove this
+recovery copy after installing it into the encrypted live data directory.

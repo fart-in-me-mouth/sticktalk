@@ -13,6 +13,7 @@ axum.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util"] }
 sqlx.workspace = true
 argon2.workspace = true
+age = { version = "=0.11.3", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 rmp-serde.workspace = true

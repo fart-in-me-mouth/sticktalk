@@ -14,7 +14,7 @@ StateDirectoryMode=0700
 WorkingDirectory=/var/lib/sticktalk
 Environment=STICKTALK_BIND=127.0.0.1:8080
 Environment=STICKTALK_DATA_DIR=/var/lib/sticktalk
-Environment=STICKTALK_MAX_UPLOAD_MB=25
+Environment=STICKTALK_MAX_UPLOAD_MB=0
 Environment=RUST_LOG=sticktalk_server=info
 EnvironmentFile=-/etc/sticktalk.env
 ExecStart=/usr/local/bin/sticktalk-server

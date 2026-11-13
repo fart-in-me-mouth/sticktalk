@@ -1,4 +1,5 @@
 //! StickTalk Phase 1 service. Mutations and snapshots share one serialization gate.
+mod account;
 pub mod admin;
 #[cfg(test)]
 mod audit_tests;
@@ -13,9 +14,11 @@ pub mod gifs;
 mod google;
 mod history;
 mod http;
+mod http_io;
 mod launch;
 mod legacy;
 mod mentions;
+mod reauth;
 pub mod storage_node;
 #[cfg(test)]
 mod storage_tests;
@@ -28,6 +31,7 @@ pub mod push;
 mod resumable;
 mod state;
 pub mod updates;
+mod upload_accounting;
 pub mod voice;
 mod ws;
 pub use admin::OperationsConfig;
@@ -40,3 +44,5 @@ pub fn router(app: App) -> axum::Router {
 }
 #[cfg(test)]
 mod launch_tests;
+#[cfg(test)]
+mod security_tests;

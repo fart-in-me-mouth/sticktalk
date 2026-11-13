@@ -1341,3 +1341,68 @@ async fn legacy_sessions_never_receive_unknown_launch_event_variants() {
     .unwrap();
     assert_eq!(events(&core, 2).len(), 1);
 }
+
+#[tokio::test]
+async fn s1_empty_partial_and_bit_removal_preserve_protected_acl() {
+    let (_dir, app) = fixture().await;
+    seed_roles(&app).await;
+    sqlx::query("INSERT INTO permission_overwrites VALUES(11,'member',2,0,?),(11,'member',3,0,?)")
+        .bind(Permissions::READ_HISTORY.bits() as i64)
+        .bind(Permissions::READ_HISTORY.bits() as i64)
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    let mut core = app.0.core.lock().await;
+    let before = acl::overwrites(&mut app.0.pool.acquire().await.unwrap(), Id(11))
+        .await
+        .unwrap();
+    for (nonce, overwrites) in [
+        (1, vec![]),
+        (2, vec![before[0].clone()]),
+        (
+            3,
+            vec![
+                overwrite(
+                    2,
+                    OverwriteKind::Member,
+                    Permissions::empty(),
+                    Permissions::empty(),
+                ),
+                before[1].clone(),
+            ],
+        ),
+    ] {
+        denied(
+            run(
+                &app,
+                &mut core,
+                2,
+                nonce,
+                LaunchCommand::SetOverwrites {
+                    channel_id: Id(11),
+                    overwrites,
+                },
+            )
+            .await,
+        );
+        assert_eq!(
+            acl::overwrites(&mut app.0.pool.acquire().await.unwrap(), Id(11))
+                .await
+                .unwrap(),
+            before
+        );
+    }
+    let mut replacement = before.clone();
+    replacement[0].allow = Permissions::VIEW_CHANNEL;
+    ok(run(
+        &app,
+        &mut core,
+        2,
+        4,
+        LaunchCommand::SetOverwrites {
+            channel_id: Id(11),
+            overwrites: replacement,
+        },
+    )
+    .await);
+}

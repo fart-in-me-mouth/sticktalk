@@ -478,7 +478,7 @@ async fn history_extent_exact_counts_gaps_acl_and_index_plans() {
     }
     for query in ["SELECT message_count FROM history_extents WHERE channel_id=11","SELECT ordinal,message_id FROM history_entries WHERE channel_id=11 AND ordinal>=6000 ORDER BY ordinal LIMIT 1","SELECT ordinal,message_id FROM history_entries WHERE channel_id=11 ORDER BY ordinal DESC LIMIT 1"] {
         use sqlx::Row;
-        let plan=sqlx::query(&format!("EXPLAIN QUERY PLAN {query}")).fetch_all(&app.0.pool).await.unwrap();let plan=plan.iter().map(|r|r.get::<String,_>("detail")).collect::<Vec<_>>().join(" ");assert!(plan.contains("SEARCH"),"{plan}");assert!(!plan.contains("SCAN")&&!plan.contains("TEMP"),"{plan}");
+        let plan=sqlx::query(sqlx::AssertSqlSafe(format!("EXPLAIN QUERY PLAN {query}"))).fetch_all(&app.0.pool).await.unwrap();let plan=plan.iter().map(|r|r.get::<String,_>("detail")).collect::<Vec<_>>().join(" ");assert!(plan.contains("SEARCH"),"{plan}");assert!(!plan.contains("SCAN")&&!plan.contains("TEMP"),"{plan}");
     }
     assert_eq!(
         call(

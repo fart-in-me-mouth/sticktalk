@@ -19,18 +19,17 @@ use sqlx::{sqlite::SqliteRow, Connection, Row};
 use sticktalk_proto::*;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 pub const CHUNK: u64 = 16 * 1024 * 1024;
-const DAY: u64 = 86_400_000;
+const DAY: u64 = crate::upload_accounting::IDLE_MS;
 fn full() -> Error {
     let mut e = Error::new(ErrorCode::Unavailable);
     e.0.message = "Server storage is full.".into();
     e
 }
 pub(crate) async fn disk_guard(app: &App, additional: u64) -> Result<()> {
-    let pending: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(byte_size-received+65536),0) FROM partial_uploads WHERE attachment_id IS NULL").fetch_one(&app.0.pool).await?;
-    let legacy: i64 =
-        sqlx::query_scalar("SELECT COALESCE(SUM(reserved_bytes+65536),0) FROM upload_reservations")
-            .fetch_one(&app.0.pool)
-            .await?;
+    let pending: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(byte_size-received+65536),0) FROM partial_uploads WHERE attachment_id IS NULL AND expires_at>?").bind(now() as i64).fetch_one(&app.0.pool).await?;
+    let legacy: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(65536),0) FROM upload_reservations")
+        .fetch_one(&app.0.pool)
+        .await?;
     let free = fs2::available_space(&app.0.config.data_dir)?;
     let needed = (pending as u64)
         .saturating_add(legacy as u64)
@@ -111,6 +110,7 @@ pub async fn create(State(app): State<App>, r: Request<Body>) -> Result<Response
     )?;
     let max = app.0.config.max_upload_mb.saturating_mul(1024 * 1024);
     require(max == 0 || req.byte_size <= max, ErrorCode::PayloadTooLarge)?;
+    gc(&app).await?;
     let _io = app.0.upload_io.lock().await;
     disk_guard(&app, req.byte_size + 65536).await?;
     let mut core = app.0.core.lock().await;
@@ -121,22 +121,8 @@ pub async fn create(State(app): State<App>, r: Request<Body>) -> Result<Response
     if let Some(ch) = req.channel_id {
         text(&mut c, u, ch, Permissions::ATTACH_FILES).await?;
     }
-    let pending:i64=sqlx::query_scalar("SELECT (SELECT COUNT(*) FROM partial_uploads WHERE owner_id=? AND attachment_id IS NULL)+(SELECT COUNT(*) FROM uploads WHERE owner_id=? AND expires_at IS NOT NULL)+(SELECT COUNT(*) FROM upload_reservations WHERE user_id=?)").bind(id(u)?).bind(id(u)?).bind(id(u)?).fetch_one(&mut *c).await?;
-    require(pending < 10, ErrorCode::LimitExceeded)?;
-    for (owner, limit) in [
-        (Some(u), app.0.config.operations.user_quota_mb),
-        (None, app.0.config.max_total_upload_mb),
-    ] {
-        if limit == 0 {
-            continue;
-        }
-        let used:i64=sqlx::query_scalar("SELECT COALESCE((SELECT SUM(byte_size+COALESCE(thumbnail_size,0)) FROM uploads WHERE ? IS NULL OR owner_id=?),0)+COALESCE((SELECT SUM(byte_size+65536) FROM partial_uploads WHERE attachment_id IS NULL AND (? IS NULL OR owner_id=?)),0)+COALESCE((SELECT SUM(reserved_bytes+65536) FROM upload_reservations WHERE ? IS NULL OR user_id=?),0)").bind(opt(owner)?).bind(opt(owner)?).bind(opt(owner)?).bind(opt(owner)?).bind(opt(owner)?).bind(opt(owner)?).fetch_one(&mut *c).await?;
-        require(
-            (used as u64).saturating_add(req.byte_size + 65536)
-                <= limit.saturating_mul(1024 * 1024),
-            ErrorCode::LimitExceeded,
-        )?;
-    }
+    crate::upload_accounting::admit(&mut c, u).await?;
+    crate::upload_accounting::quota(&app, &mut c, u, req.byte_size + 65536).await?;
     let key = stream_id();
     let storage = format!("{key}.part");
     let thumb = format!("{key}.jpg");
@@ -182,7 +168,7 @@ pub async fn chunk(
         .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
     require(len > 0 && len <= CHUNK, ErrorCode::PayloadTooLarge)?;
     let _io = app.0.upload_io.lock().await;
-    let (_, row) = access(&app, &headers, &key).await?;
+    let (user, row) = access(&app, &headers, &key).await?;
     require(
         row.get::<Option<i64>, _>("attachment_id").is_none()
             && offset == row.get::<i64, _>("received") as u64,
@@ -213,6 +199,12 @@ pub async fn chunk(
     let mut received = 0;
     while let Some(bytes) = body.next().await {
         let bytes = bytes.map_err(|_| Error::new(ErrorCode::InvalidRequest))?;
+        crate::upload_accounting::charge(&app, user, bytes.len()).await?;
+        sqlx::query("UPDATE partial_uploads SET expires_at=? WHERE id=?")
+            .bind((now() + DAY) as i64)
+            .bind(&key)
+            .execute(&app.0.pool)
+            .await?;
         received += bytes.len() as u64;
         require(received <= len, ErrorCode::PayloadTooLarge)?;
         file.write_all(&bytes).await?;
@@ -349,25 +341,22 @@ pub async fn usage(
 ) -> Result<Json<StorageUsage>> {
     let mut c = app.0.pool.acquire().await?;
     let (_, u) = auth(&mut c, bearer(&headers)?).await?;
-    guild_perm(&mut c, u, url_id(&g)?, Permissions::OWNER).await?;
+    let guild = url_id(&g)?;
+    guild_perm(&mut c, u, guild, Permissions::OWNER).await?;
     let committed: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(byte_size+COALESCE(thumbnail_size,0)),0) FROM uploads",
+        "SELECT COALESCE(SUM(u.byte_size+COALESCE(u.thumbnail_size,0)),0) FROM uploads u WHERE EXISTS(SELECT 1 FROM channels c WHERE c.id=u.channel_id AND c.guild_id=?1) OR EXISTS(SELECT 1 FROM guilds g WHERE g.id=?1 AND g.icon_id=u.id)",
     )
+    .bind(id(guild)?)
     .fetch_one(&mut *c)
     .await?;
-    let r=sqlx::query("SELECT COALESCE(SUM(received),0) AS partial,COALESCE(SUM(byte_size-received+65536),0) AS reserved FROM partial_uploads WHERE attachment_id IS NULL").fetch_one(&mut *c).await?;
+    let r=sqlx::query("SELECT COALESCE(SUM(p.received),0) AS partial,COALESCE(SUM(p.byte_size-p.received+65536),0) AS reserved FROM partial_uploads p JOIN channels c ON c.id=p.channel_id WHERE p.attachment_id IS NULL AND c.guild_id=?").bind(id(guild)?).fetch_one(&mut *c).await?;
     Ok(Json(StorageUsage {
-        total_bytes: fs2::total_space(&app.0.config.data_dir)?,
-        available_bytes: fs2::available_space(&app.0.config.data_dir)?,
+        // Host capacity is deliberately not exposed to guild owners.
+        total_bytes: 0, available_bytes: 0,
         committed_bytes: committed as u64,
         partial_bytes: r.get::<i64, _>("partial") as u64,
-        reserved_bytes: r.get::<i64, _>("reserved") as u64,
-        min_free_bytes: app
-            .0
-            .config
-            .operations
-            .min_free_disk_gb
-            .saturating_mul(1024 * 1024 * 1024),
+        reserved_bytes: (r.get::<i64, _>("reserved") + sqlx::query_scalar::<_,i64>("SELECT COALESCE(SUM(r.reserved_bytes+65536),0) FROM upload_reservations r JOIN channels c ON c.id=r.channel_id WHERE c.guild_id=? AND r.expires_at>?").bind(id(guild)?).bind(now() as i64).fetch_one(&mut *c).await?) as u64,
+        min_free_bytes: 0,
     }))
 }
 pub(crate) async fn gc(app: &App) -> Result<()> {

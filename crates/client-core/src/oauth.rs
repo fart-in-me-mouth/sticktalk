@@ -18,7 +18,11 @@ impl Proof {
         endpoint: &str,
         client_id: &str,
         redirect: &str,
+        nonce: &str,
     ) -> Result<String, String> {
+        if nonce.len() != 43 {
+            return Err("A fresh server Google challenge is required".into());
+        }
         let mut url =
             url::Url::parse(endpoint).map_err(|_| "Invalid authorization URL".to_string())?;
         url.query_pairs_mut().extend_pairs([
@@ -29,6 +33,8 @@ impl Proof {
             ("code_challenge", self.challenge().as_str()),
             ("code_challenge_method", "S256"),
             ("state", self.state.as_str()),
+            ("nonce", nonce),
+            ("max_age", "0"),
             ("prompt", "select_account"),
         ]);
         Ok(url.to_string())
@@ -207,5 +213,41 @@ mod tests {
         ] {
             assert!(callback(&s, 12345, "abc").is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod nonce_tests {
+    use super::*;
+    #[test]
+    fn s8_authorization_requests_the_exact_server_nonce() {
+        let proof = Proof {
+            verifier: "v".repeat(43),
+            state: "s".repeat(43),
+        };
+        assert!(proof
+            .authorization_url(
+                "https://accounts.google.com/auth",
+                "client",
+                "http://127.0.0.1:12345",
+                ""
+            )
+            .is_err());
+        let nonce = "n".repeat(43);
+        let url = url::Url::parse(
+            &proof
+                .authorization_url(
+                    "https://accounts.google.com/auth",
+                    "client",
+                    "http://127.0.0.1:12345",
+                    &nonce,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            url.query_pairs().find(|(k, _)| k == "nonce").unwrap().1,
+            nonce
+        );
     }
 }

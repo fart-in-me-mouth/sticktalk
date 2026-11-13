@@ -15,6 +15,7 @@ use axum::{
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use clap::Args;
 use serde::Deserialize;
+use sqlx::Connection;
 use std::{path::PathBuf, time::Duration};
 use sticktalk_proto::*;
 use subtle::ConstantTimeEq;
@@ -197,7 +198,7 @@ fn no_store(r: &mut Response) {
     r.headers_mut()
         .insert("cache-control", "no-store".parse().unwrap());
 }
-fn browser_session(auth: AuthResponse) -> Response {
+pub(crate) fn browser_session(auth: AuthResponse) -> Response {
     let token = csrf(&auth.token);
     let age = auth.expires_at.saturating_sub(state::now()) / 1000;
     let credential = auth.token;
@@ -250,8 +251,30 @@ pub(crate) async fn boundary(
                 }
             }
         }
-        let logout = r.uri().path().ends_with("/auth/logout");
+        let consumes_proof = matches!(
+            r.uri().path(),
+            "/api/v1/auth/password"
+                | "/api/auth/password"
+                | "/api/v1/auth/google/unlink"
+                | "/api/v1/auth/account/delete"
+        );
+        if cookie_auth && !r.headers().contains_key("x-sticktalk-reauth") {
+            if let Some(proof) = cookie(r.headers(), "__Host-sticktalk_reauth")?.map(str::to_owned)
+            {
+                r.headers_mut().insert(
+                    "x-sticktalk-reauth",
+                    proof
+                        .parse()
+                        .map_err(|_| Error::new(ErrorCode::InvalidRequest))?,
+                );
+            }
+        }
+        let logout = r.uri().path().ends_with("/auth/logout")
+            || r.uri().path().ends_with("/auth/account/delete");
         let mut response = next.run(r).await;
+        if cookie_auth && consumes_proof && response.status().is_success() {
+            set_cookie(&mut response, "__Host-sticktalk_reauth", "", 0, true, false);
+        }
         if cookie_auth && logout && response.status().is_success() {
             set_cookie(&mut response, SESSION, "", 0, true, false);
             set_cookie(&mut response, CSRF, "", 0, false, false);
@@ -419,7 +442,19 @@ fn callback_uri(app: &App) -> String {
         app.0.config.public_url.trim_end_matches('/')
     )
 }
-async fn start(State(app): State<App>, r: Request<Body>) -> Result<Response> {
+#[derive(Deserialize)]
+struct GoogleStart {
+    #[serde(default = "sign_in_operation")]
+    operation: String,
+}
+fn sign_in_operation() -> String {
+    "sign_in".into()
+}
+async fn start(
+    State(app): State<App>,
+    Query(query): Query<GoogleStart>,
+    r: Request<Body>,
+) -> Result<Response> {
     let (client_id, _) = web_client(&app)?;
     if r.headers().contains_key("origin") {
         require(same_origin(&app, r.headers()), ErrorCode::Forbidden)?;
@@ -429,6 +464,30 @@ async fn start(State(app): State<App>, r: Request<Body>) -> Result<Response> {
         .lock()
         .await
         .rate(http::auth_bucket(&app, &r), 10., 5.)?;
+    require(
+        matches!(
+            query.operation.as_str(),
+            "sign_in" | "link" | "unlink" | "password" | "delete_account" | "link_identity"
+        ),
+        ErrorCode::InvalidRequest,
+    )?;
+    let session = if query.operation == "sign_in" {
+        None
+    } else {
+        let token =
+            session_cookie(r.headers())?.ok_or_else(|| Error::new(ErrorCode::Unauthenticated))?;
+        Some(db::auth(&mut *app.0.pool.acquire().await?, token).await?.0)
+    };
+    // Strict session/proof cookies are intentionally absent on Google's
+    // cross-site callback. Bind the operation to their server-side hashes here.
+    let proof_hash = if query.operation == "link_identity" {
+        let proof = cookie(r.headers(), "__Host-sticktalk_reauth")?
+            .ok_or_else(|| Error::new(ErrorCode::InvalidCredentials))?;
+        require(proof.len() == 43, ErrorCode::InvalidCredentials)?;
+        Some(state::hash(proof.as_bytes()))
+    } else {
+        None
+    };
     let state = state::token();
     let verifier = state::token();
     let mut core = app.0.core.lock().await;
@@ -442,10 +501,13 @@ async fn start(State(app): State<App>, r: Request<Body>) -> Result<Response> {
         .fetch_one(&mut *c)
         .await?;
     require(n < 4096, ErrorCode::LimitExceeded)?;
-    sqlx::query("INSERT INTO web_oauth_states VALUES(?,?,?)")
+    sqlx::query("INSERT INTO web_oauth_states(state_hash,verifier,expires_at,session_hash,operation,reauth_proof_hash) VALUES(?,?,?,?,?,?)")
         .bind(state::hash(state.as_bytes()))
         .bind(&verifier)
-        .bind((state::now() + 600_000) as i64)
+        .bind((state::now() + crate::reauth::TTL) as i64)
+        .bind(session)
+        .bind(&query.operation)
+        .bind(proof_hash)
         .execute(&mut *c)
         .await?;
     let mut url = reqwest::Url::parse("https://accounts.google.com/o/oauth2/v2/auth").unwrap();
@@ -455,6 +517,8 @@ async fn start(State(app): State<App>, r: Request<Body>) -> Result<Response> {
         ("response_type", "code"),
         ("scope", "openid email profile"),
         ("state", &state),
+        ("nonce", &state),
+        ("max_age", "0"),
         (
             "code_challenge",
             &URL_SAFE_NO_PAD.encode(state::hash(verifier.as_bytes())),
@@ -483,14 +547,14 @@ async fn callback(
         q.state.len() == 43 && cookie(&headers, OAUTH)?.is_some_and(|s| equal(s, &q.state)),
         ErrorCode::InvalidCredentials,
     )?;
-    let verifier: Option<String> = sqlx::query_scalar(
-        "DELETE FROM web_oauth_states WHERE state_hash=? AND expires_at>? RETURNING verifier",
-    )
-    .bind(state::hash(q.state.as_bytes()))
-    .bind(state::now() as i64)
-    .fetch_optional(&app.0.pool)
-    .await?;
-    let verifier = verifier.ok_or_else(|| Error::new(ErrorCode::InvalidCredentials))?;
+    let row = sqlx::query("DELETE FROM web_oauth_states WHERE state_hash=? AND expires_at>? RETURNING verifier,session_hash,operation,reauth_proof_hash")
+        .bind(state::hash(q.state.as_bytes())).bind(state::now() as i64).fetch_optional(&app.0.pool).await?
+        .ok_or_else(||Error::new(ErrorCode::InvalidCredentials))?;
+    use sqlx::Row;
+    let verifier: String = row.get("verifier");
+    let key: Option<Vec<u8>> = row.get("session_hash");
+    let operation: String = row.get("operation");
+    let proof_hash: Option<Vec<u8>> = row.get("reauth_proof_hash");
     require(q.error.is_none(), ErrorCode::InvalidCredentials)?;
     let code = q
         .code
@@ -534,7 +598,68 @@ async fn callback(
     }
     let token: GoogleAuthRequest =
         serde_json::from_slice(&body).map_err(|_| Error::new(ErrorCode::InvalidCredentials))?;
-    let subject = app.0.google.verify(&token.id_token, client_id).await?;
+    let (subject, _) = app
+        .0
+        .google
+        .verify_bound(&token.id_token, client_id, Some(&q.state))
+        .await?;
+    if operation != "sign_in" {
+        let _gate = app.0.core.lock().await;
+        let mut c = app.0.pool.acquire().await?;
+        let mut tx = c.begin().await?;
+        let current = key.ok_or_else(|| Error::new(ErrorCode::InvalidCredentials))?;
+        let user:Option<i64>=sqlx::query_scalar("SELECT user_id FROM sessions WHERE token_hash=? AND expires_at>? AND NOT EXISTS(SELECT 1 FROM disabled_users WHERE user_id=sessions.user_id)")
+            .bind(&current).bind(state::now() as i64).fetch_optional(&mut *tx).await?;
+        let user = Id(user.ok_or_else(|| Error::new(ErrorCode::Unauthenticated))? as u64);
+        if let Some(token) = session_cookie(&headers)? {
+            require(
+                state::hash(token.as_bytes()) == current,
+                ErrorCode::InvalidCredentials,
+            )?;
+        }
+        if operation == "link_identity" {
+            let proof = proof_hash.ok_or_else(|| Error::new(ErrorCode::InvalidCredentials))?;
+            crate::reauth::consume_hash(&mut tx, &proof, &current, AccountOperation::Link).await?;
+            let linked:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM oauth_identities WHERE provider='google' AND (subject=? OR user_id=?))").bind(&subject).bind(db::id(user)?).fetch_one(&mut *tx).await?;
+            require(!linked, ErrorCode::IdentityAlreadyLinked)?;
+            sqlx::query("INSERT INTO oauth_identities VALUES('google',?,?)")
+                .bind(&subject)
+                .bind(db::id(user)?)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("DELETE FROM oauth_signup_tickets WHERE subject=?")
+                .bind(subject)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            let mut response =
+                (StatusCode::SEE_OTHER, [("location", "/?reauth=linked")]).into_response();
+            set_cookie(&mut response, "__Host-sticktalk_reauth", "", 0, true, false);
+            set_cookie(&mut response, OAUTH, "", 0, true, true);
+            return Ok(response);
+        }
+        let op: AccountOperation = serde_json::from_value(operation.clone().into())
+            .map_err(|_| Error::new(ErrorCode::InvalidRequest))?;
+        crate::reauth::existing_google(&mut tx, user, &subject).await?;
+        let proof = crate::reauth::issue(&mut tx, &current, op).await?;
+        tx.commit().await?;
+        let mut response = (
+            StatusCode::SEE_OTHER,
+            [("location", format!("/?reauth={operation}"))],
+        )
+            .into_response();
+        set_cookie(
+            &mut response,
+            "__Host-sticktalk_reauth",
+            &proof.proof,
+            300,
+            true,
+            false,
+        );
+        set_cookie(&mut response, OAUTH, "", 0, true, true);
+        no_store(&mut response);
+        return Ok(response);
+    }
     let result = crate::google::sign_in(&app, subject).await?;
     let (mut response, location) = match result {
         GoogleAuthResponse::Session(auth) => (browser_session(auth), "/"),

@@ -726,7 +726,10 @@ async fn mutate(
                     .bind(id(u)?)
                     .fetch_one(&mut *c)
                     .await?;
-            require(exists == 0, ErrorCode::UsernameTaken)?;
+            require(
+                exists == 0 && !crate::account::reserved(c, &user.username).await?,
+                ErrorCode::UsernameTaken,
+            )?;
             user.display_name = patch_text(user.display_name, p.display_name, 64, true)?;
             user.status_text = patch_text(user.status_text, p.status_text, 128, true)?;
             user.avatar_id = match p.avatar_id {

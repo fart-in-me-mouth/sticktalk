@@ -421,44 +421,89 @@ impl<A: HttpTransport> Http<A> {
         )
         .await
     }
-    pub async fn account(&self, action: AccountAction) -> Result<AuthMethodsResponse, String> {
-        let error = "Could not update sign-in methods. Please try again.";
-        match action {
-            AccountAction::Read => decode_json(
-                self.execute_with_error(
-                    "GET",
-                    "/api/auth/methods",
-                    Body::Empty,
-                    vec![],
-                    30_000,
-                    error,
-                )
-                .await?,
-            ),
-            AccountAction::Link(id_token) => {
-                self.post_api_with_error(
-                    "/api/auth/google/link",
-                    &GoogleAuthRequest { id_token },
-                    error,
-                )
-                .await
-            }
-            AccountAction::Unlink => {
-                self.post_api_with_error("/api/auth/google/unlink", &GoogleUnlinkRequest {}, error)
-                    .await
-            }
-            AccountAction::Password { current, new } => {
-                self.post_api_with_error(
-                    "/api/auth/password",
-                    &SetPasswordRequest {
-                        current_password: current,
-                        new_password: new,
-                    },
-                    error,
-                )
-                .await
-            }
+    pub async fn google_challenge(
+        &self,
+        operation: AccountOperation,
+    ) -> Result<GoogleChallengeResponse, String> {
+        self.post_api(
+            "/api/v1/auth/google/challenge",
+            &GoogleChallengeRequest { operation },
+        )
+        .await
+    }
+    pub async fn reauthenticate(&self, request: &ReauthRequest) -> Result<ReauthResponse, String> {
+        self.post_api("/api/v1/auth/reauth", request).await
+    }
+    pub async fn delete_account(&self, proof: &str) -> Result<(), String> {
+        let response = self
+            .execute(
+                "POST",
+                "/api/v1/auth/account/delete",
+                Body::Bytes(b"{}".to_vec()),
+                vec![
+                    ("Content-Type".into(), "application/json".into()),
+                    ("x-sticktalk-reauth".into(), proof.into()),
+                ],
+                30_000,
+            )
+            .await?;
+        if response.status == 204 {
+            Ok(())
+        } else {
+            decode_json::<serde_json::Value>(response).map(|_| ())
         }
+    }
+    /// Legacy callers can read methods; mutations should use account_authorized
+    /// and persist/reconnect with a returned rotated session.
+    pub async fn account(&self, action: AccountAction) -> Result<AuthMethodsResponse, String> {
+        Ok(self.account_authorized(action, None).await?.methods)
+    }
+    pub async fn account_authorized(
+        &self,
+        action: AccountAction,
+        proof: Option<&str>,
+    ) -> Result<AccountUpdateResponse, String> {
+        if matches!(action, AccountAction::Read) {
+            return Ok(AccountUpdateResponse {
+                methods: decode_json(
+                    self.execute("GET", "/api/auth/methods", Body::Empty, vec![], 30_000)
+                        .await?,
+                )?,
+                session: None,
+            });
+        }
+        let (path, body) = match action {
+            AccountAction::Link(id_token) => (
+                "/api/auth/google/link",
+                serde_json::to_vec(&GoogleAuthRequest { id_token }),
+            ),
+            AccountAction::Unlink => (
+                "/api/auth/google/unlink",
+                serde_json::to_vec(&GoogleUnlinkRequest {}),
+            ),
+            AccountAction::Password { current, new } => (
+                "/api/auth/password",
+                serde_json::to_vec(&SetPasswordRequest {
+                    current_password: current,
+                    new_password: new,
+                }),
+            ),
+            AccountAction::Read => unreachable!(),
+        };
+        let mut headers = vec![("Content-Type".into(), "application/json".into())];
+        if let Some(proof) = proof {
+            headers.push(("x-sticktalk-reauth".into(), proof.into()));
+        }
+        decode_json(
+            self.execute(
+                "POST",
+                path,
+                Body::Bytes(body.map_err(|_| "Could not encode request")?),
+                headers,
+                30_000,
+            )
+            .await?,
+        )
     }
     pub async fn logout(&self) {
         let _ = self

@@ -12,22 +12,12 @@ use axum::{
 };
 use image::{GenericImageView, ImageDecoder};
 use sqlx::{Connection, Row};
-use std::{
-    path::PathBuf,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-};
+use std::path::PathBuf;
 use sticktalk_proto::*;
 use tokio::io::AsyncWriteExt;
 struct UploadGuard {
     app: App,
     key: String,
-    day: i64,
-    user: Id,
-    reserved: u64,
-    received: Arc<AtomicU64>,
     paths: Vec<PathBuf>,
     complete: bool,
 }
@@ -38,23 +28,15 @@ impl Drop for UploadGuard {
         }
         let app = self.app.clone();
         let key = self.key.clone();
-        let day = self.day;
-        let user = self.user;
-        let unused = self
-            .reserved
-            .saturating_sub(self.received.load(Ordering::Relaxed));
         let paths = std::mem::take(&mut self.paths);
         tokio::spawn(async move {
             let _gate = app.0.core.lock().await;
             if let Ok(mut c) = app.0.pool.acquire().await {
                 if let Ok(mut tx) = c.begin().await {
-                    let r = sqlx::query("DELETE FROM upload_reservations WHERE key=?")
+                    let _ = sqlx::query("DELETE FROM upload_reservations WHERE key=?")
                         .bind(&key)
                         .execute(&mut *tx)
                         .await;
-                    if r.is_ok_and(|r| r.rows_affected() > 0) {
-                        let _=sqlx::query("UPDATE upload_daily_usage SET charged_bytes=MAX(0,charged_bytes-?) WHERE user_id=? AND utc_day=?").bind(unused as i64).bind(user.0 as i64).bind(day).execute(&mut *tx).await;
-                    }
                     let _ = tx.commit().await;
                 }
             }
@@ -188,69 +170,19 @@ pub async fn upload(
         auth(&mut c, token).await?
     };
     let _disk = app.0.upload_io.lock().await;
-    let max = if app.0.config.max_upload_mb == 0 {
-        25
-    } else {
-        app.0.config.max_upload_mb.min(25)
-    } * 1024
-        * 1024;
-    crate::resumable::disk_guard(&app, max + 65536).await?;
+    let max = app.0.config.max_upload_mb.saturating_mul(1024 * 1024);
+    crate::resumable::disk_guard(&app, 65536).await?;
     let day = (now() / 86_400_000) as i64;
     let reservation = stream_id();
-    let received = Arc::new(AtomicU64::new(0));
     {
         let mut core = app.0.core.lock().await;
         core.rate(format!("upload:{}", u.0), 10., 2.)?;
         let mut c = app.0.pool.acquire().await?;
         let mut tx = c.begin().await?;
-        let global: i64 = sqlx::query_scalar("SELECT COALESCE((SELECT SUM(byte_size+COALESCE(thumbnail_size,0)) FROM uploads),0)+COALESCE((SELECT SUM(reserved_bytes+65536) FROM upload_reservations),0)+COALESCE((SELECT SUM(byte_size+65536) FROM partial_uploads WHERE attachment_id IS NULL),0)")
-            .fetch_one(&mut *tx).await?;
-        require(
-            app.0.config.max_total_upload_mb == 0
-                || global as u64 + max + 65536 <= app.0.config.max_total_upload_mb * 1024 * 1024,
-            ErrorCode::LimitExceeded,
-        )?;
-        let n:i64=sqlx::query_scalar("SELECT (SELECT COUNT(*) FROM uploads WHERE owner_id=? AND expires_at IS NOT NULL)+(SELECT COUNT(*) FROM upload_reservations WHERE user_id=?)+(SELECT COUNT(*) FROM partial_uploads WHERE owner_id=? AND attachment_id IS NULL)").bind(id(u)?).bind(id(u)?).bind(id(u)?).fetch_one(&mut *tx).await?;
-        require(n < 10, ErrorCode::LimitExceeded)?;
-        let bytes:i64=sqlx::query_scalar("SELECT COALESCE((SELECT SUM(byte_size+COALESCE(thumbnail_size,0)) FROM uploads WHERE owner_id=?),0)+COALESCE((SELECT SUM(reserved_bytes+65536) FROM upload_reservations WHERE user_id=?),0)+COALESCE((SELECT SUM(byte_size+65536) FROM partial_uploads WHERE owner_id=? AND attachment_id IS NULL),0)").bind(id(u)?).bind(id(u)?).bind(id(u)?).fetch_one(&mut *tx).await?;
-        let quota = if app.0.config.operations.user_quota_mb == 0 {
-            1024 * 1024 * 1024
-        } else {
-            app.0
-                .config
-                .operations
-                .user_quota_mb
-                .saturating_mul(1024 * 1024)
-                .min(1024 * 1024 * 1024)
-        };
-        require(
-            bytes as u64 + max + 65536 <= quota,
-            ErrorCode::LimitExceeded,
-        )?;
-        sqlx::query("INSERT OR IGNORE INTO upload_daily_usage VALUES(?,?,0)")
-            .bind(id(u)?)
-            .bind(day)
-            .execute(&mut *tx)
-            .await?;
-        let charged: i64 = sqlx::query_scalar(
-            "SELECT charged_bytes FROM upload_daily_usage WHERE user_id=? AND utc_day=?",
-        )
-        .bind(id(u)?)
-        .bind(day)
-        .fetch_one(&mut *tx)
-        .await?;
-        require(
-            charged as u64 + max <= 250 * 1024 * 1024,
-            ErrorCode::LimitExceeded,
-        )?;
-        sqlx::query("UPDATE upload_daily_usage SET charged_bytes=charged_bytes+? WHERE user_id=? AND utc_day=?").bind(max as i64).bind(id(u)?).bind(day).execute(&mut *tx).await?;
-        sqlx::query("INSERT INTO upload_reservations VALUES(?,?,?,?)")
-            .bind(&reservation)
-            .bind(id(u)?)
-            .bind(day)
-            .bind(max as i64)
-            .execute(&mut *tx)
-            .await?;
+        crate::upload_accounting::admit(&mut tx, u).await?;
+        crate::upload_accounting::quota(&app, &mut tx, u, 65536).await?;
+        sqlx::query("INSERT INTO upload_reservations(key,user_id,utc_day,reserved_bytes,expires_at) VALUES(?,?,?,0,?)")
+            .bind(&reservation).bind(id(u)?).bind(day).bind((now()+crate::upload_accounting::IDLE_MS) as i64).execute(&mut *tx).await?;
         tx.commit().await?;
     }
     let dir = app.0.config.data_dir.join("files");
@@ -262,10 +194,6 @@ pub async fn upload(
     let mut guard = UploadGuard {
         app: app.clone(),
         key: reservation.clone(),
-        day,
-        user: u,
-        reserved: max,
-        received: received.clone(),
         paths: vec![staging.clone(), final_path.clone(), thumb_path.clone()],
         complete: false,
     };
@@ -310,12 +238,29 @@ pub async fn upload(
         let mut c = app.0.pool.acquire().await?;
         text(&mut c, u, ch, Permissions::ATTACH_FILES).await?;
     }
+    sqlx::query("UPDATE upload_reservations SET channel_id=? WHERE key=?")
+        .bind(opt(ch)?)
+        .bind(&reservation)
+        .execute(&app.0.pool)
+        .await?;
     let mut file = tokio::fs::File::create(&staging).await?;
     let mut size = 0u64;
     while let Some(chunk) = field.chunk().await.map_err(multipart_error)? {
         size += chunk.len() as u64;
-        received.store(size.min(max), Ordering::Relaxed);
-        require(size <= max, ErrorCode::PayloadTooLarge)?;
+        crate::upload_accounting::charge(&app, u, chunk.len()).await?;
+        require(max == 0 || size <= max, ErrorCode::PayloadTooLarge)?;
+        crate::resumable::disk_guard(&app, chunk.len() as u64).await?;
+        {
+            let _gate = app.0.core.lock().await;
+            let mut c = app.0.pool.acquire().await?;
+            crate::upload_accounting::quota(&app, &mut c, u, chunk.len() as u64).await?;
+            sqlx::query("UPDATE upload_reservations SET reserved_bytes=?,expires_at=? WHERE key=?")
+                .bind(size as i64)
+                .bind((now() + crate::upload_accounting::IDLE_MS) as i64)
+                .bind(&reservation)
+                .execute(&mut *c)
+                .await?;
+        }
         file.write_all(&chunk).await?;
     }
     file.flush().await?;
@@ -364,14 +309,6 @@ pub async fn upload(
     let a = core.id().await?;
     let expires = now() + 3_600_000;
     sqlx::query("INSERT INTO uploads(id,owner_id,purpose,channel_id,filename,content_type,byte_size,storage_key,width,height,thumbnail_key,thumbnail_width,thumbnail_height,thumbnail_size,thumbnail_type,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id(a)?).bind(id(u)?).bind(enum_str(purpose)).bind(opt(ch)?).bind(name).bind(media.mime).bind(size as i64).bind(&final_key).bind(media.width.map(i64::from)).bind(media.height.map(i64::from)).bind(media.thumb.map(|_|&thumb_key)).bind(media.thumb.map(|t|i64::from(t.0))).bind(media.thumb.map(|t|i64::from(t.1))).bind(media.thumb.map(|t|i64::from(t.2))).bind(media.thumb.map(|_|"image/jpeg")).bind(now() as i64).bind(expires as i64).execute(&mut *tx).await?;
-    sqlx::query(
-        "UPDATE upload_daily_usage SET charged_bytes=charged_bytes-? WHERE user_id=? AND utc_day=?",
-    )
-    .bind((max - size) as i64)
-    .bind(id(u)?)
-    .bind(day)
-    .execute(&mut *tx)
-    .await?;
     sqlx::query("DELETE FROM upload_reservations WHERE key=?")
         .bind(reservation)
         .execute(&mut *tx)
@@ -659,10 +596,6 @@ mod tests {
         drop(UploadGuard {
             app: app.clone(),
             key: key.into(),
-            day: 0,
-            user: Id(1),
-            reserved: 25,
-            received: Arc::new(AtomicU64::new(5)),
             paths: vec![path.clone()],
             complete: false,
         });
@@ -671,21 +604,17 @@ mod tests {
         // Failed pre-commit work must still be removed and settled.
         let path2 = app.0.config.data_dir.join("files/aborted.tmp");
         tokio::fs::write(&path2, b"bad").await.unwrap();
-        sqlx::query("INSERT INTO upload_daily_usage VALUES(1,0,25)")
+        sqlx::query("INSERT INTO upload_daily_usage VALUES(1,0,3)")
             .execute(&app.0.pool)
             .await
             .unwrap();
-        sqlx::query("INSERT INTO upload_reservations VALUES('aborted',1,0,25)")
+        sqlx::query("INSERT INTO upload_reservations(key,user_id,utc_day,reserved_bytes) VALUES('aborted',1,0,3)")
             .execute(&app.0.pool)
             .await
             .unwrap();
         drop(UploadGuard {
             app: app.clone(),
             key: "aborted".into(),
-            day: 0,
-            user: Id(1),
-            reserved: 25,
-            received: Arc::new(AtomicU64::new(3)),
             paths: vec![path2.clone()],
             complete: false,
         });

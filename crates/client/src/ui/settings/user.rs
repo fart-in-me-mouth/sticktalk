@@ -332,6 +332,21 @@ fn account(app: &App) -> Element<'_, Msg> {
     c = c.push(line());
 
     c = c.push(title("Sign-in Methods"));
+    c = c
+        .push(label_text(
+            "Confirm your current password to link or unlink Google",
+        ))
+        .push(
+            text_input(
+                "Current password (or leave blank to verify with Google)",
+                &app.form.name,
+            )
+            .secure(true)
+            .on_input(|v| Msg::Field(0, v))
+            .padding(t::S12)
+            .size(t::BODY)
+            .style(t::input),
+        );
     if let Some(m) = &app.methods {
         let mut google = row![column![
             label_text("Google"),
@@ -409,7 +424,11 @@ fn account(app: &App) -> Element<'_, Msg> {
         .push(line())
         .push(title("Account Status"))
         .push(label_text("Account active"))
-        .push(small("You are signed in to StickTalk."));
+        .push(small("You are signed in to StickTalk."))
+        .push(line()).push(title("Delete Account"))
+        .push(small("Permanently erase messages and attachments. Backups expire after 14 days; your username is held for 30 days."))
+        .push(text_input("Type your username to confirm",&app.form.topic).on_input(|v|Msg::Field(1,v)).padding(t::S12).size(t::BODY).style(t::input))
+        .push(super::super::action("Delete Account Permanently",Msg::DeleteAccount).on_press_maybe((!app.busy).then_some(Msg::DeleteAccount)).style(t::danger));
 
     c.into()
 }

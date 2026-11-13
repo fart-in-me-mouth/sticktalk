@@ -78,7 +78,7 @@ pub struct GoogleCompleteRequest {
     pub username: String,
 }
 
-/// Linking proves control of Google as well as the bearer-authenticated account.
+/// Linking requires a fresh session/operation-bound reauth proof as well as Google control.
 pub type GoogleLinkRequest = GoogleAuthRequest;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,7 +92,8 @@ pub struct AuthMethodsResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetPasswordRequest {
-    /// Required when a password already exists; null for Google-only accounts.
+    /// Current password, or null with a fresh operation-bound reauth proof.
+    /// Google-only accounts must supply that proof when creating a first password.
     pub current_password: Option<String>,
     pub new_password: String,
 }
@@ -240,4 +241,42 @@ pub struct UpdateManifest {
     pub url: String,
     pub byte_size: u64,
     pub sha256: String,
+}
+
+/// Fresh proof is bound to one operation and one login session, valid five minutes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountOperation {
+    SignIn,
+    Link,
+    Unlink,
+    Password,
+    DeleteAccount,
+}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct GoogleChallengeRequest {
+    pub operation: AccountOperation,
+}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct GoogleChallengeResponse {
+    pub nonce: String,
+    pub expires_at: UnixMillis,
+}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ReauthRequest {
+    pub operation: AccountOperation,
+    pub current_password: Option<String>,
+    pub id_token: Option<String>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ReauthResponse {
+    pub proof: String,
+    pub expires_at: UnixMillis,
+}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AccountUpdateResponse {
+    #[serde(flatten)]
+    pub methods: AuthMethodsResponse,
+    #[serde(default)]
+    pub session: Option<AuthResponse>,
 }

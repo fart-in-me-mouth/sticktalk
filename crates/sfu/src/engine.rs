@@ -16,6 +16,9 @@ use str0m::rtp::{ExtensionValues, RtpPacket, RtpWrite, Ssrc};
 use str0m::{Candidate, Event, Input, Output, Rtc};
 
 #[cfg(test)]
+#[path = "overload_tests.rs"]
+mod overload_tests;
+#[cfg(test)]
 #[path = "robustness_tests.rs"]
 mod robustness_tests;
 
@@ -217,6 +220,7 @@ pub struct Sfu {
     // Used to reject abusive signaling independently of the chat command rate.
     signals: BTreeMap<VoiceSession, (Instant, u16)>,
     failure_epoch: u64,
+    overloaded_sessions: BTreeSet<VoiceSession>,
 }
 
 pub fn rtc_config() -> str0m::RtcConfig {
@@ -318,6 +322,7 @@ impl Sfu {
             now,
             signals: BTreeMap::new(),
             failure_epoch: 0,
+            overloaded_sessions: BTreeSet::new(),
             room_budgets: BTreeMap::new(),
             room_negotiations: BTreeMap::new(),
         })
@@ -363,6 +368,20 @@ impl Sfu {
             })
             .flatten()
             .min()
+    }
+    pub(crate) fn take_overloaded(&mut self) -> BTreeSet<VoiceSession> {
+        std::mem::take(&mut self.overloaded_sessions)
+    }
+    /// Cleanup gets a reserved, temporarily empty queue. Preserve unrelated
+    /// output; the driver delivers these mandatory signals on its control lane.
+    pub(crate) fn overload_cleanup(&mut self, session: VoiceSession) -> Vec<Out> {
+        let mut pending = std::mem::take(&mut self.out);
+        pending.retain(|(_, out)| !matches!(out, Out::Signal {to, ..} if *to == session));
+        // The host synchronously revokes this session even if peer cleanup fails.
+        let _ = self.disconnect(session);
+        let cleanup = self.drain().collect();
+        self.out = pending;
+        cleanup
     }
     fn emit(&mut self, out: Out) -> Result<(), Error> {
         if self.out.len() >= 4096 {
@@ -492,6 +511,9 @@ impl Sfu {
     ) -> Result<T, Error> {
         let epoch = self.failure_epoch;
         let result = crate::boundary::run(|| operation(self));
+        if matches!(result, Err(Error::Backpressure)) && self.peers.contains_key(&key) {
+            self.overloaded_sessions.insert(key);
+        }
         if epoch == self.failure_epoch && matches!(result, Err(Error::PeerFailed | Error::Rtc(_))) {
             self.failure_epoch = self.failure_epoch.wrapping_add(1);
             // Never log the upstream error/panic payload: it may contain SDP.

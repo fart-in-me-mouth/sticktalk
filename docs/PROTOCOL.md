@@ -1743,3 +1743,47 @@ one-time backfill; insert/soft-delete/physical-delete/channel cascades maintain
 it transactionally. This index does not cache message bodies. Concurrent
 mutations are serialized with the normal snapshot gate. Clients should refresh
 the extent after substantial live changes, not poll on an idle timer.
+
+### Security hardening (2026-11)
+
+New additive DTOs: `AccountOperation` (`sign_in`, `link`, `unlink`, `password`,
+`delete_account`), `GoogleChallengeRequest/Response`, `ReauthRequest/Response`,
+`AccountUpdateResponse`. All routes below accept both API aliases unless noted.
+
+- POST `/api/v1/auth/google/challenge` `{operation}` issues a random nonce valid
+  five minutes. `sign_in` is public; other operations require the target bearer
+  session. Send it as Google's OIDC `nonce` authorization parameter. The server
+  verifies the signed ID token's nonce and atomically consumes its challenge,
+  bound to this operation/session. Tokens without a live challenge are rejected.
+- POST `/api/v1/auth/reauth` `{operation,current_password?,id_token?}` proves an
+  EXISTING login method. Google proof must match the account's linked subject and
+  use a fresh challenge for this operation/session. Returns `{proof,expires_at}`.
+  The random proof is single-use and expires after five minutes.
+- Link/unlink, first-password creation and POST `/api/v1/auth/account/delete`
+  require header `x-sticktalk-reauth: <proof>`. Normal password changes may instead
+  provide `current_password`; Google reauthentication is also accepted.
+- Password updates return `AccountUpdateResponse` with flattened existing auth
+  method booleans and `session: AuthResponse`. Persist the rotated token and
+  reconnect. ALL previous account tokens (including the current old token), WS
+  streams and voice sessions are revoked after the atomic credential transaction.
+- Cookie-authenticated password changes return `BrowserSession` and replace the
+  Secure/HttpOnly session + CSRF cookies; no bearer token appears in web JSON.
+- Browser Google start supports `?operation=sign_in|password|link|unlink|delete_account`
+  for existing-account reauth, storing a short-lived HttpOnly proof cookie. After
+  password/Google reauth for `link`, `?operation=link_identity` authorizes the NEW
+  Google identity. Both callbacks bind nonce/state/PKCE, operation and session.
+  No existing identity is inferred from email. Operations never rely on a generic
+  'recent login' timestamp.
+- Account deletion responds 204, clears credentials/sessions, tombstones authored
+  messages and profile as Deleted User, deletes attachment references/files, and
+  reserves the former username for 30 days. Direct-message tombstone identities
+  remain resolvable. An owned guild transfers to its earliest active remaining
+  member, or is removed if empty. Clients reconnect to discard cached content.
+  Historical encrypted backups expire after 14 days (see deployment privacy notes).
+- Guild storage's host capacity/free/floor fields are zero (not disclosed);
+  committed/partial/reserved counts include only the requested guild's channels.
+  Host-wide metrics are available solely from local `admin storage-status`.
+- Upload daily ingress allowance defaults to 100 GiB, shared across multipart and
+  resumable protocols, charged on arriving bytes including retries/aborts.
+  Maximum three unfinished uploads/user; idle reservations expire after one hour.
+  Zero file-size configuration means unlimited, for BOTH protocols.

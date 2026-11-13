@@ -83,7 +83,9 @@ fn number(h: &HeaderMap, name: &str) -> Result<u64> {
 }
 impl StorageNode {
     fn disk(&self, key: &str) -> &LocalDisk {
-        if key.starts_with("backup-") && key.ends_with(".sqlite3") {
+        if key.starts_with("backup-")
+            && (key.ends_with(".sqlite3") || key.ends_with(".sqlite3.age"))
+        {
             &self.0.backup_disk
         } else {
             &self.0.disk
@@ -254,8 +256,8 @@ async fn record(node: &StorageNode, key: &str) -> Result<blob::BlobStat> {
 async fn space(State(node): State<StorageNode>) -> Result<axum::Json<u64>> {
     let _io = node.0.io.lock().await;
     let stale: Vec<String> =
-        sqlx::query_scalar("SELECT key FROM blobs WHERE deleted_at<? OR (complete=0 AND key LIKE 'backup-%.sqlite3' AND updated_at<?) LIMIT 32")
-            .bind(now().saturating_sub(15 * 86400000) as i64)
+        sqlx::query_scalar("SELECT key FROM blobs WHERE deleted_at<? OR (complete=0 AND key LIKE 'backup-%.sqlite3%' AND updated_at<?) LIMIT 32")
+            .bind(now().saturating_sub(14 * 86400000) as i64)
         .bind(now().saturating_sub(86400000) as i64)
             .fetch_all(&node.0.pool)
             .await?;
@@ -360,9 +362,9 @@ async fn finalize(
         .execute(&node.0.pool)
         .await?;
     // Exactly fourteen UTC-day windows; failed backups never prune history.
-    if key.starts_with("backup-") && key.ends_with(".sqlite3") {
+    if key.starts_with("backup-") && (key.ends_with(".sqlite3") || key.ends_with(".sqlite3.age")) {
         let cutoff = format!("backup-{}.sqlite3", now().saturating_sub(14 * 86400000));
-        let keys: Vec<String> = sqlx::query_scalar("SELECT key FROM blobs WHERE complete=1 AND key LIKE 'backup-%.sqlite3' AND key<? LIMIT 32").bind(cutoff).fetch_all(&node.0.pool).await?;
+        let keys: Vec<String> = sqlx::query_scalar("SELECT key FROM blobs WHERE complete=1 AND key LIKE 'backup-%.sqlite3%' AND key<? LIMIT 32").bind(cutoff).fetch_all(&node.0.pool).await?;
         for key in keys {
             node.disk(&key).delete(&key).await?;
             sqlx::query("DELETE FROM blobs WHERE key=?")
@@ -436,7 +438,7 @@ async fn delete(State(node): State<StorageNode>, Path(key): Path<String>) -> Res
             .await?;
         return Ok(StatusCode::NO_CONTENT);
     }
-    // Retain deleted objects for 15 days so every retained daily DB snapshot can
+    // Retain deleted objects for 14 days so every retained daily DB snapshot can
     // still be restored. Chat authorization immediately removes public access.
     sqlx::query("UPDATE blobs SET deleted_at=COALESCE(deleted_at,?) WHERE key=?")
         .bind(now() as i64)
