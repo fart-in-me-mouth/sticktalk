@@ -82,6 +82,17 @@ impl Budget {
         self.tokens -= bytes as f64;
         true
     }
+    /// Earliest admission for original media. Used BEFORE polling str0m, so
+    /// an encrypted original is never popped and thrown away at our own cap.
+    /// The existing bounded RTC queue retains it; a one-shot deadline resumes
+    /// draining without a second queue, busy wait, or increased burst ceiling.
+    pub fn ready_at(&self, bytes: usize, now: Instant) -> Instant {
+        let tokens = (self.tokens
+            + now.saturating_duration_since(self.last).as_secs_f64() * self.bps as f64 / 8.0)
+            .min(self.capacity);
+        let missing = (bytes as f64 - tokens).max(0.0);
+        now + Duration::from_nanos((missing * 8_000_000_000.0 / self.bps as f64).ceil() as u64)
+    }
     /// Preflight without spending: peer/room/global admission must be atomic.
     /// Reserve 90% of the burst for original media, so capacity probes/RTX cannot
     /// consume the last tokens and break an otherwise admissible reference chain.
@@ -105,6 +116,19 @@ impl Budget {
 #[cfg(test)]
 mod budget_tests {
     use super::*;
+
+    #[test]
+    fn depleted_wire_cap_yields_a_precise_admission_deadline_without_spending() {
+        let now = Instant::now();
+        let mut b = Budget::new(32_000_000, 1232, now);
+        assert!(b.take(400_000, now));
+        let ready = b.ready_at(1232, now);
+        assert_eq!(ready - now, Duration::from_micros(308));
+        assert!(!b.available(1232, false, ready - Duration::from_nanos(1)));
+        assert!(b.available(1232, false, ready));
+        assert!(b.take(1232, ready));
+        assert!(!b.available(1, false, ready));
+    }
 
     #[test]
     fn probes_leave_media_headroom_without_increasing_wire_budget() {

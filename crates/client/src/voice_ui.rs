@@ -610,13 +610,20 @@ impl App {
             Data::Frame(ServerMsg::Voice(payload)) => {
                 match sticktalk_client_core::voice::decode(payload) {
                     Ok(event) => {
-                        if matches!(
-                            event,
-                            VoiceEvent::ControlGranted { .. }
-                                | VoiceEvent::ControlDenied { .. }
-                                | VoiceEvent::Error { .. }
-                                | VoiceEvent::Left { .. }
-                        ) {
+                        let resolves_request = match &event {
+                            VoiceEvent::ControlGranted { sharer, .. }
+                            | VoiceEvent::ControlDenied { sharer } => self
+                                .calls
+                                .control_request
+                                .is_some_and(|(pending, _)| pending == *sharer),
+                            VoiceEvent::Left { session } => self
+                                .calls
+                                .control_request
+                                .is_some_and(|(sharer, _)| sharer == *session),
+                            VoiceEvent::Error { .. } => true,
+                            _ => false,
+                        };
+                        if resolves_request {
                             self.calls.control_request = None;
                         }
                         let me = self.me().unwrap_or(Id(0));
@@ -1389,6 +1396,29 @@ mod tests {
             .control
             .pending
             .is_some());
+    }
+    #[test]
+    fn another_streams_control_events_do_not_clear_the_viewers_pending_request() {
+        let mut app = App::headless("request-control", iced::Size::new(1280., 800.));
+        let pending = app.calls.control_request.unwrap();
+        let other = VoiceSession {
+            user_id: Id(3),
+            connection_id: Id(903),
+        };
+        for event in [
+            VoiceEvent::ControlDenied { sharer: other },
+            VoiceEvent::Left { session: other },
+        ] {
+            app.call_network(&Data::Frame(ServerMsg::Voice(
+                sticktalk_sfu::encode_event(0, &event).unwrap(),
+            )));
+            assert_eq!(app.calls.control_request, Some(pending));
+        }
+        app.call_network(&Data::Frame(ServerMsg::Voice(
+            sticktalk_sfu::encode_event(0, &VoiceEvent::ControlDenied { sharer: pending.0 })
+                .unwrap(),
+        )));
+        assert!(app.calls.control_request.is_none());
     }
     #[test]
     fn popout_and_close_clear_fullscreen_ownership_without_polling_os_tasks() {

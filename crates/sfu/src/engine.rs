@@ -1462,6 +1462,23 @@ impl Sfu {
             if peer.failed {
                 return Ok(());
             }
+            if peer.pending_media.values().any(|queue| !queue.is_empty()) {
+                let bytes = usize::from(self.config.max_datagram_bytes);
+                let room = self.room_budgets.get(&peer.channel).ok_or(Error::Config)?;
+                let ready = peer
+                    .video_budget
+                    .ready_at(bytes, self.now)
+                    .max(room.ready_at(bytes, self.now))
+                    .max(self.budget.ready_at(bytes, self.now));
+                if ready > self.now {
+                    // Keep originals in str0m's bounded, BWE-paced queue until
+                    // ALL wire budgets can admit a full datagram atomically.
+                    // Do not poll and drop: that breaks H.264 reference chains
+                    // and produces artificial loss/congestion feedback.
+                    peer.deadline = ready;
+                    break;
+                }
+            }
             match peer.rtc.poll_output()? {
                 Output::Timeout(deadline) => {
                     peer.deadline = deadline;
