@@ -91,6 +91,9 @@ fn main() -> iced::Result {
             }
         }
     }
+    if !dry && platform_glue::apply_pending_at_startup() {
+        return Ok(());
+    }
     let result = iced::application(app::App::new, app::App::update, ui::view)
         .executor::<platform_glue::Executor>()
         .title("StickTalk")

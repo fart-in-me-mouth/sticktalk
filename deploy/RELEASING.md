@@ -3,7 +3,8 @@
 ## What friends get
 
 One `StickTalk-Setup-<version>.exe`. Setup never asks for administrator access:
-it installs in `%LOCALAPPDATA%\Programs\StickTalk`, adds a Start menu shortcut,
+a fresh install goes in `%LOCALAPPDATA%\Programs\StickTalk` (registered existing
+installations are upgraded in place), adds a Start menu shortcut,
 offers an optional desktop shortcut, and registers `sticktalk://` in HKCU.
 The first run shows a server address, sign-in/register, and Google when enabled
 by that server **and included in the build configuration below**. Google uses a
@@ -114,7 +115,9 @@ cargo fmt --all -- --check
 
 `deploy/windows/test-update.ps1` additionally exercises signed **0.0.1 → 0.0.2**
 fixture installers, HTTP Range resume, apply/healthy restart, a bad-startup rollback,
-and interrupted-setup recovery. It requires a **test-key build** and the temporary
+interrupted-setup recovery, keep/purge data behavior, and ordinary-launch application
+of a deferred update. Pass `-RealClient` to use the actual client for startup health
+checks (the fixture install metadata versions differ from its compiled 0.1.0). It requires a **test-key build** and the temporary
 private key used for that build. It binds only to `127.0.0.1`, never opens a browser,
 and launches no fixture windows. Do not use a production key for this test.
 See `deploy/windows/VALIDATION.md` for the actual run and remaining limits.
@@ -155,7 +158,9 @@ version, and test using a previously installed client.
   target/version, size and hash are checked before any executable is run, and
   checked again after the old app exits. No redirects or cross-origin artifacts.
 - A small **“Update ready — restart”** action asks for confirmation. No forced
-  restart or installer UI. Quit normally without accepting to defer the update.
+  restart or installer UI. If you quit instead, the verified update is applied
+  before the window on the next ordinary interactive launch. Background/autostart
+  and deep-link launches are never delayed; use the pill or a normal restart.
 - The copied helper waits for the old process, backs up owned installation files,
   runs per-user NSIS silently in place, then starts the new client. The client
   acknowledges after actual UI initialization; it must also stay alive for the

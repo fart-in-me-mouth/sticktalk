@@ -137,6 +137,8 @@ def stop_fixtures():
     kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p,ctypes.c_uint32]
     markers = [(m,int(m.stem.removeprefix('run-'))) for m in work.glob('run-*.txt')]
     if (stage/'last-update.pid').exists(): markers.append((stage/'last-update.pid',int((stage/'last-update.pid').read_text())))
+    startup_pid = work/'fresh-profile'/'StickTalk'/'Updates'/'last-update.pid'
+    if startup_pid.exists(): markers.append((startup_pid,int(startup_pid.read_text())))
     for marker,pid in markers:
         h = kernel.OpenProcess(0x1000|0x0001|0x00100000,False,pid)
         if h:
@@ -232,6 +234,40 @@ for name in registry_keys:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER,name): raise RuntimeError('Purge uninstall left registry key '+name)
     except FileNotFoundError: pass
 report['checks'].append('uninstall retains data by default and /PURGE=1 removes isolated test data')
+if a.real_client:
+    # The normal launcher must apply a deferred verified update BEFORE its window.
+    # Use a higher signed version than the engineering client's compiled 0.1.0.
+    startup_setup = work/'StickTalk-Setup-0.2.0.exe'
+    run([a.nsis,f'/DCLIENT={release / "sticktalk.exe"}',f'/DMAINTENANCE={release / "sticktalk-maintenance.exe"}',f'/DOUTPUT={startup_setup}','/DVERSION=0.2.0','/DTESTFIXTURE',f'/DTEST_DATA_DIR={test_data}',repo/'tools/release/installer.nsi'])
+    startup_stage = work/'fresh-profile'/'StickTalk'/'Updates'
+    startup_stage.mkdir(parents=True,exist_ok=True)
+    startup_manifest = work/'startup-manifest.json'
+    run([release/'sticktalk-package.exe','sign',key,startup_setup,'0.2.0','http://127.0.0.1:9',startup_manifest])
+    envelope = json.loads(startup_manifest.read_bytes())
+    signed = json.loads(envelope['manifest'])
+    shutil.copy2(startup_setup,startup_stage/(signed['sha256']+'.exe'))
+    (startup_stage/'pending.json').write_bytes(startup_manifest.read_bytes())
+    launcher = None
+    try:
+        subprocess.run(f'"{payload["0.0.2"][1]}" /S /D={install}',creationflags=flags,check=True)
+        launcher = subprocess.Popen([str(install/'sticktalk.exe')],env=env,creationflags=flags,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        assert launcher.wait(timeout=15) == 0, 'ordinary launcher did not hand off the verified pending update'
+        deadline = time.monotonic()+45
+        while time.monotonic() < deadline and not (startup_stage/'last-update.pid').exists(): time.sleep(0.1)
+        assert (startup_stage/'last-update.pid').exists(), 'startup update helper did not finish'
+        assert installed_version() == '0.2.0'
+        assert not (startup_stage/'pending.json').exists()
+        assert not (startup_stage/'rollback').exists()
+        report['checks'].append('ordinary interactive launch applies a deferred signed update before the real client window')
+    finally:
+        if launcher is not None and launcher.poll() is None:
+            launcher.kill(); launcher.wait()
+        stop_fixtures()
+        if (install/'Uninstall.exe').exists():
+            uninstaller = work/'startup-uninstall.exe'
+            shutil.copy2(install/'Uninstall.exe',uninstaller)
+            subprocess.run(f'"{uninstaller}" /S _?={install}',creationflags=flags,check=True)
+        assert not install.exists()
 report['http_checks'] = state['checks']
 report['artifact_requests'] = state['downloads']
 (work/'results.json').write_text(json.dumps(report,indent=2))

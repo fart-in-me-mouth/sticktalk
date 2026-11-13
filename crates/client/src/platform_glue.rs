@@ -218,6 +218,41 @@ pub fn bootstrap() -> Result<Host, String> {
         Ok(Host { should_run: true })
     }
 }
+/// A deferred, authenticated update is applied on the next ordinary interactive
+/// launch. Deep links and background startup are never delayed or discarded.
+pub fn apply_pending_at_startup() -> bool {
+    #[cfg(windows)]
+    {
+        if std::env::args().count() != 1
+            || std::env::var_os("STICKTALK_UPDATE_HEALTH_FILE").is_some()
+            || !crate::storage::root()
+                .join("Updates/pending.json")
+                .is_file()
+        {
+            return false;
+        }
+        let Ok(exe) = std::env::current_exe() else {
+            return false;
+        };
+        let Ok(updater) = sticktalk_desktop_platform::updater::Updater::embedded(
+            &crate::storage::update_origin(),
+            env!("CARGO_PKG_VERSION"),
+            crate::storage::root().join("Updates"),
+        ) else {
+            return false;
+        };
+        runtime().block_on(async {
+            if updater.pending().await.ok().flatten().is_none() {
+                return false;
+            }
+            updater.restart_to_apply(&exe).await.is_ok()
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
 pub fn has_instance() -> bool {
     #[cfg(windows)]
     {

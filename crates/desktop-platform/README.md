@@ -1,7 +1,7 @@
 # StickTalk desktop platform
 
 Independent Windows integration library, plus the `sticktalk-maintenance` helper.
-**No changes to `crates/client`.** Linking this crate creates no threads, windows,
+The desktop client integrates these APIs. Linking this crate creates no threads, windows,
 tray icons, devices, registry entries, or notifications. The host owns its existing
 Tokio runtime, window/event loop, preferences, authentication, and UI reducer.
 Runtime dependencies are target-gated where appropriate; protocol DTOs are reused.
@@ -114,8 +114,9 @@ path). `pending()` reauthenticates and rehashes disk data on every restart.
 installed helper too. The helper waits on the parent's process handle (no loop),
 reauthenticates staged data, locks the installer against writes/deletes, runs NSIS
 `/S /D=<existing-install-directory>`, checks exit status, clears the pending marker,
-then starts the installed client. Only this explicitly confirmed path launches the
-app; tests **never invoke it**. Failed installs retain the stage for retry. Installer
+then starts the installed client. The client calls this path after explicit Restart confirmation or to finish a
+previously deferred update on an ordinary interactive launch. Watch/download never
+execute installers. Test fixtures exercise restart only against loopback/test keys. Failed installs retain the stage for retry. Installer
 and copied helper files remain in staging for diagnostics; retention cleanup is
 left to the host. Authenticode/SmartScreen and production signing-key provisioning
 are separate release responsibilities. The release-engineering integration includes real NSIS apply/restart, failed-startup

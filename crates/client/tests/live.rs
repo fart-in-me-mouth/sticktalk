@@ -39,6 +39,43 @@ async fn post_retry<T: serde::de::DeserializeOwned>(
         }
     }
 }
+async fn account_retry(
+    http: &Http,
+    action: backend::AccountAction,
+    proof: &str,
+) -> Result<AccountUpdateResponse, String> {
+    loop {
+        match http
+            .core()
+            .account_authorized(action.clone(), Some(proof))
+            .await
+        {
+            Err(error) if error.starts_with("RateLimited") => {
+                tokio::time::sleep(Duration::from_secs(6)).await
+            }
+            result => return result,
+        }
+    }
+}
+async fn reauth(
+    http: &Http,
+    operation: AccountOperation,
+    password: Option<String>,
+    id_token: Option<String>,
+) -> String {
+    let response: ReauthResponse = post_retry(
+        http,
+        "/auth/reauth",
+        &ReauthRequest {
+            operation,
+            current_password: password,
+            id_token,
+        },
+    )
+    .await
+    .unwrap();
+    response.proof
+}
 async fn password_auth(
     url: &str,
     name: &str,
@@ -195,13 +232,18 @@ impl Fixture {
             .unwrap()
     }
     async fn google_id_token(&self) -> String {
-        // The opener is an HTTP script, never open::that/system browser.
-        let challenge = Http::new(&self.url, "")
-            .unwrap()
-            .core()
-            .google_challenge(AccountOperation::SignIn)
+        self.google_id_token_for(&Http::new(&self.url, "").unwrap(), AccountOperation::SignIn)
             .await
-            .unwrap();
+    }
+    async fn google_id_token_for(&self, http: &Http, operation: AccountOperation) -> String {
+        // The opener is an HTTP script, never open::that/system browser.
+        let challenge: GoogleChallengeResponse = post_retry(
+            http,
+            "/auth/google/challenge",
+            &GoogleChallengeRequest { operation },
+        )
+        .await
+        .unwrap();
         tokio::time::timeout(
             DEADLINE,
             sticktalk::oauth::flow(
@@ -809,49 +851,79 @@ async fn phase_one() {
     gifs(&mut alice, &bob).await;
     let methods: AuthMethodsResponse = carol.http.json("/auth/methods").await.unwrap();
     assert!(!methods.has_password && methods.google_linked);
-    assert!(post_retry::<AuthMethodsResponse>(
-        &carol.http,
-        "/auth/google/unlink",
-        &GoogleUnlinkRequest {}
-    )
-    .await
-    .unwrap_err()
-    .contains("only sign-in method"));
     let token = fixture
-        .mock
-        .token(CLIENT_ID, sticktalk::mock::now() / 1000 + 3600, true);
-    assert!(post_retry::<AuthMethodsResponse>(
-        &alice.http,
-        "/auth/google/link",
-        &GoogleLinkRequest {
-            id_token: token.clone()
-        }
-    )
-    .await
-    .unwrap_err()
-    .starts_with("IdentityAlreadyLinked"));
-    let _: AuthMethodsResponse = post_retry(
-        &carol.http,
-        "/auth/password",
-        &SetPasswordRequest {
-            current_password: None,
-            new_password: PASSWORD.into(),
-        },
-    )
-    .await
-    .unwrap();
-    let methods: AuthMethodsResponse =
-        post_retry(&carol.http, "/auth/google/unlink", &GoogleUnlinkRequest {})
+        .google_id_token_for(&carol.http, AccountOperation::Unlink)
+        .await;
+    let proof = reauth(&carol.http, AccountOperation::Unlink, None, Some(token)).await;
+    assert!(
+        account_retry(&carol.http, backend::AccountAction::Unlink, &proof)
             .await
-            .unwrap();
-    assert!(methods.has_password && !methods.google_linked);
-    let methods: AuthMethodsResponse = post_retry(
+            .err()
+            .expect("account action must be rejected")
+            .contains("only sign-in method")
+    );
+    let token = fixture
+        .google_id_token_for(&alice.http, AccountOperation::Link)
+        .await;
+    let proof = reauth(
+        &alice.http,
+        AccountOperation::Link,
+        Some(PASSWORD.into()),
+        None,
+    )
+    .await;
+    assert!(
+        account_retry(&alice.http, backend::AccountAction::Link(token), &proof)
+            .await
+            .err()
+            .expect("account action must be rejected")
+            .starts_with("IdentityAlreadyLinked")
+    );
+    let token = fixture
+        .google_id_token_for(&carol.http, AccountOperation::Password)
+        .await;
+    let proof = reauth(&carol.http, AccountOperation::Password, None, Some(token)).await;
+    let updated = account_retry(
         &carol.http,
-        "/auth/google/link",
-        &GoogleLinkRequest { id_token: token },
+        backend::AccountAction::Password {
+            current: None,
+            new: PASSWORD.into(),
+        },
+        &proof,
     )
     .await
     .unwrap();
+    let rotated = updated
+        .session
+        .expect("setting a password rotates the session");
+    // Reconnect with the returned session just like the production account reducer.
+    carol = Peer::connect(&fixture.url, &rotated).await;
+    let proof = reauth(
+        &carol.http,
+        AccountOperation::Unlink,
+        Some(PASSWORD.into()),
+        None,
+    )
+    .await;
+    let methods = account_retry(&carol.http, backend::AccountAction::Unlink, &proof)
+        .await
+        .unwrap()
+        .methods;
+    assert!(methods.has_password && !methods.google_linked);
+    let token = fixture
+        .google_id_token_for(&carol.http, AccountOperation::Link)
+        .await;
+    let proof = reauth(
+        &carol.http,
+        AccountOperation::Link,
+        Some(PASSWORD.into()),
+        None,
+    )
+    .await;
+    let methods = account_retry(&carol.http, backend::AccountAction::Link(token), &proof)
+        .await
+        .unwrap()
+        .methods;
     assert!(methods.google_linked);
 
     // Server-side socket disappearance: receive the real client's Backoff, send

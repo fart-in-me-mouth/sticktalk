@@ -2304,10 +2304,6 @@ impl App {
                         }
                     }
                     match self.initial_screen.as_str() {
-                        "connecting" => {
-                            app.state.model.me = None;
-                            app.state.connection = ConnectionState::Connecting;
-                        }
                         "home-online" | "empty-home" => {
                             self.state.guild = None;
                             self.state.screen = Screen::Friends(FriendTab::Online);
@@ -4246,6 +4242,10 @@ impl App {
                         _ => None,
                     };
                 }
+            }
+            "connecting" => {
+                app.state.model.me = None;
+                app.state.connection = ConnectionState::Connecting;
             }
             "home-online" | "empty-home" => {
                 app.state.guild = None;
