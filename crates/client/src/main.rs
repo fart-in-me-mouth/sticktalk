@@ -14,6 +14,7 @@ use sticktalk::model;
 use sticktalk::oauth;
 mod scroll_bench;
 use sticktalk::storage;
+mod settings_controller;
 mod theme;
 mod ui;
 fn main() -> iced::Result {

@@ -1,0 +1,618 @@
+{
+  "renderer": "iced-tiny-skia",
+  "window_backend": "none",
+  "screens": [
+    {
+      "file": "user-settings-account-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "d7b8a58e0248b171cf32c61840596f5b9f3341e29c8b2c9ad95f141f84d2802e"
+    },
+    {
+      "file": "user-settings-password-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "8570e99570bd2b42063ff184cf8e5ee431c875e50851b33e29ca5b4d32aee4c4"
+    },
+    {
+      "file": "user-settings-sign-in-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "96709f52e6424043ea34e963b68d9ef8d359312ed9b807b9b1fea36efad81374"
+    },
+    {
+      "file": "sign-in-methods-unlinked-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "558c3be0896d72b860e87720ee92d8926c589a1193249be31bf662078dd32c6c"
+    },
+    {
+      "file": "sign-in-methods-google-only-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "4ada16ff33289487206c9c0ac4a314682e044e5e052105fa4f10b7996c1f60d2"
+    },
+    {
+      "file": "password-settings-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "27d9cbbfe43a49eb6055f1843f2fe8342e5b6b5158ddf818ec9e4b6d1a374eb7"
+    },
+    {
+      "file": "user-settings-account-status-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "2321dc6ee0b0251c370e7d6a1a94c56630cdd5570ea4fc86782da631f56b628f"
+    },
+    {
+      "file": "user-settings-account-edit-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "75eddd80c0e544195f78379d053513102733b5415b647673c6ae14f818f580d7"
+    },
+    {
+      "file": "user-settings-account-revealed-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "77f5cf67e82b0b481218927ae08210aec36e9ba03914f05e4ce542f4be6de950"
+    },
+    {
+      "file": "user-settings-profile-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "b4ad936360cabc54e91d327e066e864e1fc67320712a4129363a304a8e6fd2a8"
+    },
+    {
+      "file": "user-settings-profile-dirty-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "f811fcd817faf20f4d3aa971a0d8ba4f33993b5385f7f54b04166f7900ec5375"
+    },
+    {
+      "file": "user-settings-privacy-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "8869b111ae5c2763d15e363498c15c41aa2aeb94401e22815778b4c2bce54e99"
+    },
+    {
+      "file": "user-settings-devices-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "5b85817abb7b1d8b80e2a2de012a3b8fb62518a61c7879a150febbe6299806fb"
+    },
+    {
+      "file": "user-settings-notifications-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "ef2ca3f42d866bca43187df4829da016e879bef9859e9b057b7c6303ea2ac4ea"
+    },
+    {
+      "file": "user-settings-voice-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "dd0e20d0cf4286174104fb47df2b73e092fea454201c8b6b55f9ab180f1786d5"
+    },
+    {
+      "file": "user-settings-voice-processing-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "e9805beada4a31d620c7cf107575d6169b4e4682104789a789de17954ed38efb"
+    },
+    {
+      "file": "user-settings-voice-input-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "8533bfba026a025054dff18b83c90fa869646244d4bb04aa70da3da4aec189a1"
+    },
+    {
+      "file": "user-settings-appearance-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "0ac0eb634271ec995336f8269fb3152356c3bdb383bff27039551d7613a1e9fa"
+    },
+    {
+      "file": "user-settings-accessibility-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "212d3a9cf18e87c2d91829fd00c93c3636c11e70ad4bb3c5d71e7fc033080386"
+    },
+    {
+      "file": "user-settings-keybinds-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "948de6157831e9fcb2b1f6e02847145d7af776d36acaa095a51bf0f0d2fea2ee"
+    },
+    {
+      "file": "user-settings-advanced-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "c54333a3c91d99ff89ce0091a3592998f9884babe7198967781457be15d403f0"
+    },
+    {
+      "file": "user-settings-nav-search-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "bebe558fe7e346f2576569b588196b56c07fc24ff392043f5f1ee6219f93f951"
+    },
+    {
+      "file": "guild-settings-overview-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "eaec2c9fad39a419624ac398232f220831be86b05ec0f6097e90d0f7f0d03b99"
+    },
+    {
+      "file": "guild-settings-dirty-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "7f99a3ba2741672639819eeb75640efbf27c8de951fef965fed914ca8e45811f"
+    },
+    {
+      "file": "guild-settings-engagement-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "6ced27cdd70c63cff3cac081bbfde1624fc986c52c5c5df690fa93fe12600b81"
+    },
+    {
+      "file": "guild-settings-members-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "d40bfedc4051e12568fbfcfe0579b6c2659b880f91cc7ff9e1fd62c37b05ee3d"
+    },
+    {
+      "file": "guild-settings-members-filter-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "b08a94ada0010baa8ac83254180b439e63a2175846ce5c6ed7f9affe90c95252"
+    },
+    {
+      "file": "guild-settings-roles-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "425e73983e6c3ebd2f018845fb6ea478046d1c5cd6dce2e141e7a0c5dc30001f"
+    },
+    {
+      "file": "guild-settings-roles-drag-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "a96dba7059d2858ee6b2c4df367e8c3ce67cbfcd0955ec2cc646f27acc5e3da3"
+    },
+    {
+      "file": "guild-settings-role-display-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "c31e4fc9baff813109f5bcfc7819cb3c7f69a6e70f50a4277d79d3823765ff54"
+    },
+    {
+      "file": "guild-settings-role-menu-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "ff13cf4c225082c60d46368903a189ab3e5ac9c9dbd4befb2e37ee381653a8e0"
+    },
+    {
+      "file": "guild-settings-role-permissions-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "8bc3faeb677224b39276cf474fba6fe0e658d8663074301d3a30dabe26d5c17d"
+    },
+    {
+      "file": "guild-settings-role-members-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "a16765abc49a4ebfc1e8e24215afac7eb8093f85b519817af80c35e4b6c7d82e"
+    },
+    {
+      "file": "guild-settings-role-add-members-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "ef192acccd91c9479738c0e9fe3e08726ac5bdca7227fcd2df9713acbd0000f6"
+    },
+    {
+      "file": "guild-settings-role-disabled-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "d4ee6eb1a1ab20a7ee411bebe4181d2a0054102bca09c2d2d3d35c900ef495d1"
+    },
+    {
+      "file": "guild-settings-default-permissions-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "a72c24fb1546c8e6b6b17241c7d2a35f9cb1c35a1845fb80c02792e21fad1162"
+    },
+    {
+      "file": "guild-settings-invites-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "a059ca5793bd0d0fb9e260896c7fce957c140aefcdf1c669d6045307c3263d78"
+    },
+    {
+      "file": "guild-settings-invites-empty-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "bb238bea074cb37bf8d26ebc3314927de35565f65cc85d82c71b0941079aa7ef"
+    },
+    {
+      "file": "guild-settings-bans-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "c2efdd125e945e4406778e374a81680d90ea7d7cd43314d0b9f5381ed8ff9568"
+    },
+    {
+      "file": "guild-settings-bans-empty-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "b1baae5a1ca53d3b1b67ada86d4459f5d12ae0269b6ce1829a88048a70520ad6"
+    },
+    {
+      "file": "guild-settings-emoji-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "b8a49371c54487dbd2da8d6cc176ba28c9f31f6a7d0e1625d48fdf013567cb33"
+    },
+    {
+      "file": "guild-settings-access-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "0df1b9b0b568b25666f65c9b8454a8ccdb09731b4ffb7dda537dbe259e0988b5"
+    },
+    {
+      "file": "guild-settings-audit-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "b78f3a1b01fd299b7cf3b1ea3567e5cc7613fd95575427048b612fce7e67438f"
+    },
+    {
+      "file": "guild-settings-delete-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "e398ce2c250944ed648014b784aa405c2df3c571da4c443c6f32d341f4b8b15d"
+    },
+    {
+      "file": "guild-settings-delete-confirmed-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "6166f30e83eb5091ed98dd3919baaf3d67a9d1cfb87aa45ede6850b001d50397"
+    },
+    {
+      "file": "channel-settings-overview-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "23d8ef1b158b54eb9ff6c16a90152a8ed42666bb2a0ebe230740dd16727c4cfe"
+    },
+    {
+      "file": "channel-settings-permissions-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "db94f398f7ff6adba4dd050ad41ccc79a65d18d9bac03beceeb7cd3278c316b7"
+    },
+    {
+      "file": "channel-settings-private-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "f04c6c9f693c001db890f771a89242213ef5fc4c504fb8ea409bb7f87b28feb1"
+    },
+    {
+      "file": "channel-settings-disabled-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "10fee7f59a6e2358bb7d8f5a84c08b8fb30a98b7698c7a7e2b0fe780bb644bcb"
+    },
+    {
+      "file": "notification-settings-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "13b336f7987378bc6585a706db30a93b15d3f926d020fc7744845274e87e49a7"
+    },
+    {
+      "file": "notification-settings-muted-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "6dbed2531696fb22de455ffd9de56ee903894f1631eb0b1f682305d34d40b1f6"
+    },
+    {
+      "file": "user-settings-account-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "8fbe72f3e76fb2888e3acf2578f495953c81c406b55bbb79ccd8b9255f38e718"
+    },
+    {
+      "file": "user-settings-password-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "947396198c05ae507e35e1f720c51bad41db1e65249cba6c484089893722ebd7"
+    },
+    {
+      "file": "user-settings-sign-in-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "e488896a95171715ada19db608f8d261e02f5f5fb24b06518ae237251cc6d63d"
+    },
+    {
+      "file": "sign-in-methods-unlinked-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "1e39dde4d3a0ec39b7f9903aef9cd5de75a064bc08a79a893aa86ef17597dc9f"
+    },
+    {
+      "file": "sign-in-methods-google-only-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "eac2fbca5fc2829374d12281fb703cfe63a8de8a51dd936aba2f7e232cb6e4ff"
+    },
+    {
+      "file": "password-settings-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "bf2560e7d3aff064ce85284ca33694ac1d85f14ffc5375271bc7389795c27943"
+    },
+    {
+      "file": "user-settings-account-status-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "dec0d3047f4d11be46db8c9f5ab132d95ea91b75f23cafaeee8074db940ba076"
+    },
+    {
+      "file": "user-settings-account-edit-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "a8628acfdbe1dcb04e8696b9ded7195de79e2c56c487d6051643058ed13134b9"
+    },
+    {
+      "file": "user-settings-account-revealed-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "1e9f8309609d8e20f39c8a57536257c2e548d6f5c0cd5ffc1b3e65d4c96cb350"
+    },
+    {
+      "file": "user-settings-profile-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "e0dbc3bbcd250e7b58d158af51d1db49f632921e17eef97f008878363e685b1a"
+    },
+    {
+      "file": "user-settings-profile-dirty-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "75673fe400b947cff98e0417627d5cfd02be56e3c958861904353657950677f0"
+    },
+    {
+      "file": "user-settings-privacy-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "c2ad879c1031bfe1eec95f65ab7e5b6aa3204402e61ab43ecc7b561d79f4d4e0"
+    },
+    {
+      "file": "user-settings-devices-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "a4118530971e350700050828763c36121119763dc57d6edb4c192a0fac6d62c5"
+    },
+    {
+      "file": "user-settings-notifications-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "e4096d577d90c3c833a3c1338ecfc468a9c3ea1412fdc12e0b4385f6f95d7235"
+    },
+    {
+      "file": "user-settings-voice-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "4ea961001bca05509eee2ece163e8d3f84a635c75dff8c97c9f96eb68958e507"
+    },
+    {
+      "file": "user-settings-voice-processing-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "76555b575a9d60d8d5c7d288b247948cd3ed7f5ec481d80863c7d1ee7b544592"
+    },
+    {
+      "file": "user-settings-voice-input-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "76555b575a9d60d8d5c7d288b247948cd3ed7f5ec481d80863c7d1ee7b544592"
+    },
+    {
+      "file": "user-settings-appearance-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "7534058bb339358065616ba94ec42a34a4b0caf888a9ec6ce7e1c178b2ce42b9"
+    },
+    {
+      "file": "user-settings-accessibility-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "8008bb3733eab57fec1b5308938d65cbec16928991b303b1c228637f7aaa231f"
+    },
+    {
+      "file": "user-settings-keybinds-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "ed970440de4105b348438de9ed801cccb980af0a2a2150352263013d9cd96001"
+    },
+    {
+      "file": "user-settings-advanced-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "af2768bed32db223b03bd971cfd454a7ee568cfef489c2e9be89b6ebd6649e01"
+    },
+    {
+      "file": "user-settings-nav-search-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "6e626b73a7803f4a4595eaa6f3b2f61f2d57fdf66ed7aebc155dcfcfc6026ebb"
+    },
+    {
+      "file": "guild-settings-overview-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "c46ed125eed8ba51fe428a8b0787dbc07a7694c5b39df128264ca020db3d454d"
+    },
+    {
+      "file": "guild-settings-dirty-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "197100eac6769ecbb4b9df7f5a09e3df65ced3b9429fa653403b2c7782dccb75"
+    },
+    {
+      "file": "guild-settings-engagement-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "4700c6a45a31fa4fa9f62d241ea0c979b2a5281267dc7a5d4b066fd76efaadf3"
+    },
+    {
+      "file": "guild-settings-members-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "f773fb532044eb432dc300f3fc71e3f046c3e98da76710c2d0e578b47be49288"
+    },
+    {
+      "file": "guild-settings-members-filter-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "b5ef8dd395db771b1613a032f00c7ccdff4310e6c6db2fe43137a463b4c1b2de"
+    },
+    {
+      "file": "guild-settings-roles-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "a0f6457304a462c8ec292fdd42a1cb539cb2e300f6bf55bd437bdf6abdfcd022"
+    },
+    {
+      "file": "guild-settings-roles-drag-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "396becb6fcb9d9fa2bb754cb9589a1d21f84b11eb90e23707b24f4160e80f013"
+    },
+    {
+      "file": "guild-settings-role-display-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "7b7cd71ee448818521ea45722e2b55a6850d9d132e8db3fe6bb02801f3e15fe1"
+    },
+    {
+      "file": "guild-settings-role-menu-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "1e5ea99c0df2220d5912198c857ba346007e40921aeb1744416694f44d9a4d8f"
+    },
+    {
+      "file": "guild-settings-role-permissions-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "ee3303c7eb8a1dc487897190e104ce161e8d0406b9b698e99f8015b1dff5c51b"
+    },
+    {
+      "file": "guild-settings-role-members-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "6a725b4045bef935990d0ae5d8d8aeb469f43139fe81fad562c0d8e3ee4b9090"
+    },
+    {
+      "file": "guild-settings-role-add-members-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "3f94ba2d1b9cf235941675629d3e679cdeed3cb9b3d11b719dca58ce8b1f2600"
+    },
+    {
+      "file": "guild-settings-role-disabled-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "ee8e6079e57fab6ea5df441a41fe53395c6a2d8e714d6f7f0d1c2294ae89dfe8"
+    },
+    {
+      "file": "guild-settings-default-permissions-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "966c30b4c8fe43017f72708757f5e4cd8402bc2deef2f5eb39276ff8f5fe5f78"
+    },
+    {
+      "file": "guild-settings-invites-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "9186f2b9cb734c1920b9f6b8d0eb1320f4150e7395edb0ecc28c08941615861b"
+    },
+    {
+      "file": "guild-settings-invites-empty-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "3a944152407ca85513ad12efec9a252153ee4cb9a64eeaa4fe2fd01b30fd6d17"
+    },
+    {
+      "file": "guild-settings-bans-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "b90aaccc304807c1d8bbe18011e4aa3ef1b4cd7a1d6834870d5109fb3ff964c8"
+    },
+    {
+      "file": "guild-settings-bans-empty-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "a640158f8284ffe928a5a0ecede52c7b74415dca636ccb98c3c4eb6f46df8cc4"
+    },
+    {
+      "file": "guild-settings-emoji-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "a693898e46f3626bbd5f6dd944a3e05254dee8867df41349f77622d7944eb3fb"
+    },
+    {
+      "file": "guild-settings-access-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "90fc9dc6d60ab1d2d222449a40f5acc240c53c00ddbdd1da916a44e9e5fbceb4"
+    },
+    {
+      "file": "guild-settings-audit-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "94034946a6c08b920dbe5b9f5ed41f95d259e3beaa960e70a826a82e5c896b7d"
+    },
+    {
+      "file": "guild-settings-delete-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "33366c7969d1c4245ca7c5a1a2c4d9b83c35032fee4002f4be8d36d5f0ea1721"
+    },
+    {
+      "file": "guild-settings-delete-confirmed-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "5614db8b31945b9f4b20b7638fc5397aec091041c40a4f39fca01274a19f50c3"
+    },
+    {
+      "file": "channel-settings-overview-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "bd3bb1f9017f9393330df28c88e3860876a6013e7c941dd31e4c0d5e1481e5ed"
+    },
+    {
+      "file": "channel-settings-permissions-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "d3b921e63f9268cf516e9745e381b3ff8c1ee0b9e66cc5c8b4d14febe824b6e8"
+    },
+    {
+      "file": "channel-settings-private-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "f565ec02805750ef7010ea04ca0b69bedbe02cdb41588c91c0b6cdcba6e17a03"
+    },
+    {
+      "file": "channel-settings-disabled-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "1565a9fa957a93ae9cac481912a2bf16a9b113a7bf29219c3b128721f435bb32"
+    },
+    {
+      "file": "notification-settings-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "e964b41d3bd2da98a93d0df77c6dd46b2e8ba8db3928655bf5e7e0326e60851b"
+    },
+    {
+      "file": "notification-settings-muted-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "e47d7599fbf53181033dcfc1cb1ebe2238c8d85082411637cc429f51561d67a2"
+    }
+  ]
+}

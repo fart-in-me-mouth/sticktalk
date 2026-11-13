@@ -8,6 +8,7 @@ pub mod mock;
 pub mod model;
 pub mod oauth;
 pub mod protocol;
+pub mod settings;
 pub mod state;
 pub mod upload;
 #[cfg(all(feature = "web", target_arch = "wasm32"))]

@@ -1,3 +1,4 @@
+pub(crate) mod settings;
 use crate::{
     app::{editor_binding, App, Dialog, FriendTab, GuildTab, Msg, Screen},
     focus_button::{button, Button},
@@ -358,7 +359,10 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         .style(t::rail)
         .into();
     }
-    let settings_page = if matches!(app.dialog, Dialog::UserSettings | Dialog::GuildSettings(_)) {
+    let settings_page = if matches!(
+        app.dialog,
+        Dialog::UserSettings | Dialog::GuildSettings(_) | Dialog::ChannelSettings(_)
+    ) {
         Some(&app.dialog)
     } else {
         app.settings_return.as_ref()
@@ -380,7 +384,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     let mut layers = vec![main];
     if !matches!(
         app.dialog,
-        Dialog::None | Dialog::UserSettings | Dialog::GuildSettings(_)
+        Dialog::None | Dialog::UserSettings | Dialog::GuildSettings(_) | Dialog::ChannelSettings(_)
     ) {
         let context = matches!(
             app.dialog,
@@ -858,6 +862,13 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
             ]
             .spacing(t::S8)
             .align_y(Center);
+            if selected && c.guild_id.is_some() && c.kind != ChannelKind::Category {
+                channel = channel.push(icon_button(
+                    "settings",
+                    "Edit Channel",
+                    Msg::Open(Dialog::ChannelSettings(c.id)),
+                ));
+            }
             if let Some(read) = read.filter(|r| r.mention_count > 0) {
                 channel = channel.push(
                     container(hint(read.mention_count.to_string()).color(t::TEXT_PRIMARY))
@@ -1677,6 +1688,8 @@ fn message_skeleton<'a>(height: f32) -> Element<'a, Msg> {
     .into()
 }
 fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) -> Element<'a, Msg> {
+    let compact =
+        app.settings.preferences.density == sticktalk_client_core::settings::Density::Compact;
     let hovered = app.hovered == Some(m.id);
     let mentioned = app.me().is_some_and(|id| m.mention_ids.contains(&id));
     let mut content = column![].spacing(t::S4).width(Fill);
@@ -1826,8 +1839,8 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
         }
         content = content.push(reactions);
     }
-    let gutter: Element<'_, Msg> = if grouped {
-        container(hint(if hovered {
+    let gutter: Element<'_, Msg> = if grouped || compact {
+        container(hint(if hovered || compact {
             timestamp(m.created_at, true)
         } else {
             String::new()
@@ -1843,7 +1856,13 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
             .into()
     };
     let (date, new) = app.row_decorations(m);
-    let top = if grouped { t::CONTINUATION } else { t::S16 };
+    let top = if compact {
+        t::S4
+    } else if grouped {
+        t::CONTINUATION
+    } else {
+        t::S16
+    };
     let inner = container(row![gutter, content].spacing(t::S16))
         .padding(Padding {
             top,
@@ -2049,10 +2068,14 @@ fn inline_content<'a>(
                 Target::Auto(url) => {
                     span = span
                         .color(t::ACCENT)
+                        .underline(app.settings.preferences.underline_links)
                         .link(RichLink::Url(url.clone(), false))
                 }
                 Target::Masked(url) => {
-                    span = span.color(t::ACCENT).link(RichLink::Url(url.clone(), true))
+                    span = span
+                        .color(t::ACCENT)
+                        .underline(app.settings.preferences.underline_links)
+                        .link(RichLink::Url(url.clone(), true))
                 }
                 Target::Mention(id) if m.mention_ids.contains(id) => {
                     label = format!("@{}", app.state.model.name(*id));
@@ -2083,7 +2106,7 @@ fn inline_content<'a>(
     }
     widget::rich_text(spans)
         .font(t::regular())
-        .size(size)
+        .size(size * app.settings.preferences.chat_font_scale)
         .line_height(t::LINE)
         .style(t::primary_text)
         .on_link_click(|link| match link {
@@ -2135,6 +2158,7 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
                 code_body = code_body.push(
                     scrollable(
                         txt(code)
+                            .size(t::BODY * app.settings.preferences.chat_font_scale)
                             .font(t::mono())
                             .wrapping(widget::text::Wrapping::None),
                     )
@@ -2167,6 +2191,12 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
     let mut hash = std::collections::hash_map::DefaultHasher::new();
     m.content.hash(&mut hash);
     m.edited_at.hash(&mut hash);
+    app.settings
+        .preferences
+        .chat_font_scale
+        .to_bits()
+        .hash(&mut hash);
+    app.settings.preferences.underline_links.hash(&mut hash);
     for id in &m.mention_ids {
         app.state.model.name(*id).hash(&mut hash);
     }
@@ -2226,14 +2256,22 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
                     ));
                 }
                 items = items.push(line()).push(menu_item(
-                    "log-out",
-                    "Leave server",
-                    Msg::Open(Dialog::Confirm(
-                        "Leave this server? Owners must transfer ownership first.".into(),
-                        Command::LeaveGuild { guild_id: g },
-                    )),
-                    true,
+                    "bell",
+                    "Notification Settings",
+                    Msg::Settings(crate::settings_controller::Action::Notifications(g)),
+                    false,
                 ));
+                if Some(app.state.model.guilds[&g].guild.owner_id) != app.me() {
+                    items = items.push(line()).push(menu_item(
+                        "log-out",
+                        "Leave server",
+                        Msg::Open(Dialog::Confirm(
+                            "Leave this server? Owners must transfer ownership first.".into(),
+                            Command::LeaveGuild { guild_id: g },
+                        )),
+                        true,
+                    ));
+                }
             }
         }
         Dialog::MessageActions(id) => {
@@ -2349,6 +2387,21 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
         _ => {}
     }
 
+    if app.settings.preferences.developer_mode {
+        let id = match app.dialog {
+            Dialog::MessageActions(id) | Dialog::MemberMenu(id) | Dialog::Profile(id) => Some(id),
+            Dialog::GuildMenu => app.state.guild,
+            _ => None,
+        };
+        if let Some(id) = id {
+            items = items.push(line()).push(menu_item(
+                "copy",
+                "Copy ID",
+                Msg::Copy(id.0.to_string()),
+                false,
+            ));
+        }
+    }
     container(items)
         .padding(t::S8)
         .width(t::CONTEXT_W)
@@ -2369,6 +2422,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
             "You can add a friend with their exact username.",
         ),
         Dialog::NewChannel(_, _) => ("Create a channel", ""),
+        Dialog::Notifications(_) => return settings::notifications(app),
         Dialog::ChannelSettings(_) => ("Channel settings", ""),
         Dialog::NewGroup => (
             "New group message",
@@ -2924,536 +2978,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
         .into()
 }
 fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
-    let guild = matches!(page, Dialog::GuildSettings(_));
-    let mut navs = column![
-        section(if guild {
-            "SERVER SETTINGS"
-        } else {
-            "USER SETTINGS"
-        }),
-        space().height(t::S8)
-    ]
-    .spacing(t::S4);
-    let mut content = column![].spacing(t::S24);
-    if let Dialog::GuildSettings(tab) = *page {
-        for (name, label, value) in [
-            ("settings", "Overview", GuildTab::Overview),
-            ("hash", "Channels", GuildTab::Channels),
-            ("users", "Members", GuildTab::Members),
-            ("link", "Invites", GuildTab::Invites),
-            ("ban", "Bans", GuildTab::Bans),
-        ] {
-            navs = navs.push(nav(
-                name,
-                label,
-                Msg::Open(Dialog::GuildSettings(value)),
-                tab == value,
-            ));
-        }
-        if let Some(gid) = app.state.guild {
-            let p = app.permissions();
-            match tab {
-                GuildTab::Overview => {
-                    content = content.push(title("Server overview")).push(field(
-                        "SERVER NAME",
-                        "Your server name",
-                        &app.form.name,
-                        0,
-                    ));
-                    if p.contains(Permissions::MANAGE_GUILD) {
-                        content = content
-                            .push(
-                                row![
-                                    space().width(Fill),
-                                    action(
-                                        "Change icon",
-                                        Msg::PickUpload(UploadPurpose::GuildIcon)
-                                    ),
-                                    primary("Save changes", Msg::Submit)
-                                ]
-                                .spacing(t::S12),
-                            )
-                            .push(
-                                action(
-                                    "Remove icon",
-                                    Msg::Command(Command::UpdateGuild {
-                                        guild_id: gid,
-                                        patch: GuildPatch {
-                                            name: Patch::Keep,
-                                            icon_id: Patch::Clear,
-                                        },
-                                    }),
-                                )
-                                .style(t::link),
-                            );
-                    }
-                    content = content
-                        .push(line())
-                        .push(section("YOUR ROLE"))
-                        .push(chip(
-                            format!("{:?}", app.state.model.guilds[&gid].my_role).to_uppercase(),
-                            t::ACCENT,
-                        ))
-                        .push(hint("Owners manage roles and ownership."));
-                    if p.contains(Permissions::OWNER) {
-                        content=content.push(action("Delete server",Msg::Open(Dialog::Confirm("Delete this server, its channels and all messages? This cannot be undone.".into(),Command::DeleteGuild{guild_id:gid}))).style(t::danger_link));
-                    } else {
-                        content = content.push(
-                            action(
-                                "Leave server",
-                                Msg::Open(Dialog::Confirm(
-                                    "Leave this server? You will need an invite to return.".into(),
-                                    Command::LeaveGuild { guild_id: gid },
-                                )),
-                            )
-                            .style(t::danger_link),
-                        );
-                    }
-                }
-                GuildTab::Channels => {
-                    content = content
-                        .push(title("Channels"))
-                        .push(hint("Use the arrows to reorder channels."));
-                    if p.contains(Permissions::MANAGE_CHANNELS) {
-                        content = content.push(
-                            row![
-                                primary(
-                                    "New channel",
-                                    Msg::Open(Dialog::NewChannel(ChannelKind::Text, None))
-                                ),
-                                action(
-                                    "New category",
-                                    Msg::Open(Dialog::NewChannel(ChannelKind::Category, None))
-                                )
-                            ]
-                            .spacing(t::S12),
-                        );
-                    }
-                    let mut rows = column![].spacing(t::S4);
-                    for c in app.sorted_channels() {
-                        let mut line = row![
-                            icon(
-                                if c.kind == ChannelKind::Category {
-                                    "folder"
-                                } else {
-                                    "hash"
-                                },
-                                t::INLINE_ICON,
-                                t::TEXT_MUTED
-                            ),
-                            txt(app.state.model.channel_name(c)).width(Fill)
-                        ]
-                        .spacing(t::S8)
-                        .align_y(Center);
-                        if p.contains(Permissions::MANAGE_CHANNELS) {
-                            line = line
-                                .push(icon_button(
-                                    "arrow-up",
-                                    "Move up",
-                                    Msg::Reorder(c.id, false),
-                                ))
-                                .push(icon_button(
-                                    "arrow-down",
-                                    "Move down",
-                                    Msg::Reorder(c.id, true),
-                                ))
-                                .push(icon_button(
-                                    "pencil",
-                                    "Edit channel",
-                                    Msg::Open(Dialog::ChannelSettings(c.id)),
-                                ));
-                        }
-                        rows = rows.push(container(line).padding([t::S4, t::S8]).style(t::bare));
-                    }
-                    content = content.push(rows);
-                }
-                GuildTab::Members => {
-                    content = content.push(title("Members")).push(
-                        text_input("Search members", &app.member_search)
-                            .on_input(Msg::MemberSearch)
-                            .padding([t::S12, t::S16])
-                            .size(t::BODY)
-                            .style(t::input),
-                    );
-                    let mut member_rows = column![].spacing(t::S4);
-                    let query = app.member_search.to_lowercase();
-                    for m in app.state.model.members.values().filter(|m| {
-                        m.guild_id == gid
-                            && (app
-                                .state
-                                .model
-                                .name(m.user.id)
-                                .to_lowercase()
-                                .contains(&query)
-                                || m.user.username.to_lowercase().contains(&query))
-                    }) {
-                        let mut member = row![
-                            avatar(app, m.user.id, t::AVATAR, true),
-                            column![
-                                txt(ellipsis(&app.state.model.name(m.user.id), 32))
-                                    .font(t::medium()),
-                                hint(format!("@{}", m.user.username))
-                            ]
-                            .spacing(t::S4)
-                            .width(Fill),
-                            column![
-                                section("JOINED"),
-                                hint(
-                                    crate::datetime::label(m.joined_at, false)
-                                        .split(" at ")
-                                        .next()
-                                        .unwrap_or("")
-                                        .to_owned()
-                                )
-                            ]
-                            .spacing(t::S4)
-                        ]
-                        .spacing(t::S16)
-                        .align_y(Center);
-                        member = member.push(member_action(app, m.user.id));
-                        member_rows = member_rows
-                            .push(container(member).padding([t::S8, 0.]).style(t::bare))
-                            .push(line());
-                    }
-                    content = content.push(member_rows);
-                    if app.state.member_after.is_some() {
-                        content =
-                            content.push(action("More members", Msg::MoreMembers).style(t::link));
-                    }
-                }
-                GuildTab::Invites => {
-                    content = content.push(title("Invites"));
-                    if p.contains(Permissions::CREATE_INVITES) {
-                        content = content.push(primary("Invite people", Msg::Open(Dialog::Invite)));
-                    }
-                    for v in app
-                        .state
-                        .model
-                        .invites
-                        .values()
-                        .filter(|v| v.guild_id == gid)
-                    {
-                        content = content.push(
-                            column![
-                                row![
-                                    txt(ellipsis(&v.code, 30)).width(Fill),
-                                    icon_button("copy", "Copy invite", Msg::Copy(v.code.clone())),
-                                    icon_button(
-                                        "trash-2",
-                                        "Revoke invite",
-                                        Msg::Command(Command::RevokeInvite {
-                                            guild_id: gid,
-                                            code: v.code.clone()
-                                        })
-                                    )
-                                ]
-                                .spacing(t::S8)
-                                .align_y(Center),
-                                hint(format!("{} / {} uses", v.uses, v.max_uses)),
-                                line()
-                            ]
-                            .spacing(t::S8),
-                        );
-                    }
-                    if app.state.invite_after.is_some() {
-                        content =
-                            content.push(action("More invites", Msg::MoreInvites).style(t::link));
-                    }
-                    if app.state.model.invites.is_empty() {
-                        content = content.push(hint("No active invites."));
-                    }
-                }
-                GuildTab::Bans => {
-                    content = content.push(title("Bans"));
-                    if !p.contains(Permissions::BAN_MEMBERS) {
-                        content = content
-                            .push(hint("You need Ban Members permission to manage this list."));
-                    }
-                    for b in app.state.model.bans.values().filter(|v| v.guild_id == gid) {
-                        content = content.push(
-                            row![
-                                avatar(app, b.user.id, t::SMALL_AVATAR, false),
-                                column![
-                                    txt(app.state.model.name(b.user.id)),
-                                    hint(b.reason.clone().unwrap_or_default())
-                                ]
-                                .spacing(t::S4)
-                                .width(Fill),
-                                action(
-                                    "Unban",
-                                    Msg::Command(Command::UnbanMember {
-                                        guild_id: gid,
-                                        user_id: b.user.id
-                                    })
-                                )
-                                .style(t::link)
-                            ]
-                            .spacing(t::S12)
-                            .align_y(Center),
-                        );
-                    }
-                    if app.state.ban_after.is_some() {
-                        content = content.push(action("More bans", Msg::MoreBans).style(t::link));
-                    }
-                    if app.state.model.bans.is_empty() {
-                        content = content.push(empty(
-                            "shield",
-                            "No banned members.",
-                            action(
-                                "Back to overview",
-                                Msg::Open(Dialog::GuildSettings(GuildTab::Overview)),
-                            )
-                            .style(t::link),
-                        ));
-                    }
-                }
-            }
-        }
-    } else {
-        for (name, label, value) in [
-            ("user-round", "My Account", 0),
-            ("pencil", "Profile", 1),
-            ("palette", "Appearance", 2),
-        ] {
-            navs = navs.push(nav(name, label, Msg::UserTab(value), app.user_tab == value));
-        }
-        navs = navs
-            .push(space().height(t::S16))
-            .push(line())
-            .push(action("Log Out", Msg::Logout).style(t::danger_link))
-            .push(space().height(t::S24))
-            .push(hint("StickTalk 0.1"));
-        let id = app.me().unwrap();
-        match app.user_tab {
-            0 => {
-                content = content
-                    .push(title("My Account"))
-                    .push(
-                        row![
-                            avatar(app, id, t::MODAL_INSET, true),
-                            column![
-                                title(app.state.model.name(id)),
-                                hint(format!(
-                                    "@{}",
-                                    app.state.model.me.as_ref().unwrap().user.username
-                                ))
-                            ]
-                            .spacing(t::S8)
-                        ]
-                        .spacing(t::S16)
-                        .align_y(Center),
-                    )
-                    .push(line())
-                    .push(field("USERNAME", "your_username", &app.form.code, 2))
-                    .push(
-                        row![
-                            space().width(Fill),
-                            primary(
-                                "Save username",
-                                Msg::Command(Command::UpdateProfile(ProfilePatch {
-                                    username: Patch::Set(app.form.code.trim().to_ascii_lowercase()),
-                                    ..ProfilePatch::default()
-                                }))
-                            )
-                        ]
-                        .spacing(t::S8),
-                    )
-                    .push(line())
-                    .push(title("Sign-in methods"));
-                if let Some(methods) = &app.methods {
-                    let mut google = row![
-                        column![
-                            txt("Google").font(t::semibold()),
-                            hint(if methods.google_linked {
-                                "Linked"
-                            } else {
-                                "Not linked"
-                            })
-                        ]
-                        .spacing(t::S4),
-                        space().width(Fill)
-                    ]
-                    .align_y(Center);
-                    if methods.google_linked {
-                        google = google.push(
-                            action(
-                                "Unlink",
-                                Msg::Account(crate::backend::AccountAction::Unlink),
-                            )
-                            .on_press_maybe(
-                                (!app.busy)
-                                    .then_some(Msg::Account(crate::backend::AccountAction::Unlink)),
-                            ),
-                        );
-                    } else if app.google_available() {
-                        google = google.push(
-                            action("Link", Msg::GoogleStart(true))
-                                .on_press_maybe((!app.busy).then_some(Msg::GoogleStart(true))),
-                        );
-                    }
-                    content = content.push(google).push(
-                        row![
-                            column![
-                                txt("Password").font(t::semibold()),
-                                hint(if methods.has_password {
-                                    "Password set"
-                                } else {
-                                    "No password set"
-                                })
-                            ]
-                            .spacing(t::S4),
-                            space().width(Fill),
-                            action(
-                                if methods.has_password {
-                                    "Change password"
-                                } else {
-                                    "Set password"
-                                },
-                                Msg::Open(Dialog::Password)
-                            )
-                        ]
-                        .align_y(Center),
-                    );
-                    if !methods.has_password && methods.google_linked {
-                        content = content.push(hint("Set a password before unlinking Google."));
-                    }
-                } else {
-                    content = content.push(hint("Loading sign-in methods…"));
-                }
-                if app.oauth_pending() {
-                    content = content.push(
-                        row![
-                            hint("Waiting for sign-in…"),
-                            action("Cancel", Msg::GoogleCancel).style(t::link)
-                        ]
-                        .spacing(t::S8),
-                    );
-                }
-            }
-            1 => {
-                content = content
-                    .push(title("Profile"))
-                    .push(
-                        row![
-                            avatar(app, id, t::MODAL_INSET, true),
-                            action("Change avatar", Msg::PickUpload(UploadPurpose::Avatar)),
-                            action(
-                                "Remove",
-                                Msg::Command(Command::UpdateProfile(ProfilePatch {
-                                    avatar_id: Patch::Clear,
-                                    ..ProfilePatch::default()
-                                }))
-                            )
-                            .style(t::link)
-                        ]
-                        .spacing(t::S16)
-                        .align_y(Center),
-                    )
-                    .push(field(
-                        "DISPLAY NAME",
-                        "What should we call you?",
-                        &app.form.name,
-                        0,
-                    ))
-                    .push(field(
-                        "STATUS TEXT",
-                        "What are you up to?",
-                        &app.form.topic,
-                        1,
-                    ))
-                    .push(section("PRESENCE"));
-                let mut choices = Row::new().spacing(t::S8);
-                for value in [
-                    PresenceStatus::Online,
-                    PresenceStatus::Idle,
-                    PresenceStatus::Dnd,
-                    PresenceStatus::Invisible,
-                ] {
-                    choices = choices.push(
-                        button(
-                            row![dot(status(value).1, t::S8), hint(status(value).0)]
-                                .spacing(t::S8)
-                                .align_y(Center),
-                        )
-                        .on_press(Msg::Presence(value))
-                        .padding(t::S8)
-                        .style(t::navigation(
-                            app.state
-                                .model
-                                .me
-                                .as_ref()
-                                .is_some_and(|u| u.desired_presence == value),
-                        )),
-                    );
-                }
-                content = content
-                    .push(choices)
-                    .push(footer("Save changes", Msg::Submit));
-            }
-            _ => {
-                content=content.push(title("Appearance")).push(txt("Dark theme")).push(hint("More appearance options are not available yet.")).push(chip("DARK THEME · ACTIVE",t::ACCENT)).push(line()).push(section("CREDITS")).push(hint("Inter by Rasmus Andersson (SIL OFL). JetBrains Mono by JetBrains (SIL OFL). Lucide icons (ISC). Twemoji artwork by Twitter and contributors (CC BY 4.0)."));
-            }
-        }
-    }
-    if !app.error.is_empty() {
-        content = content.push(hint(&app.error).color(t::DANGER));
-    }
-    let left_width = t::SETTINGS_NAV
-        + ((app.width - t::SETTINGS_NAV - t::SETTINGS_CONTENT - t::S32 * 4.) / 2.).max(0.);
-    let left = container(
-        container(navs)
-            .width(t::SETTINGS_NAV)
-            .padding([t::S32, t::S16])
-            .style(t::sidebar),
-    )
-    .align_right(left_width)
-    .height(Fill)
-    .style(t::sidebar);
-    let close = column![
-        button(icon("x", t::ICON, t::TEXT_SECONDARY))
-            .on_press(Msg::Close)
-            .padding(t::S8)
-            .width(t::AVATAR)
-            .height(t::AVATAR)
-            .style(t::close_circle),
-        hint("ESC")
-    ]
-    .spacing(t::S8)
-    .align_x(Center);
-    let content_width = (app.width - left_width - t::S32 - t::AVATAR - t::S8)
-        .clamp(t::SIDEBAR, t::SETTINGS_CONTENT);
-    let right = container(
-        row![
-            container(scroller(content).height(Fill))
-                .width(content_width)
-                .padding([0., t::S32])
-                .style(t::bare),
-            space().width(Fill),
-            close
-        ]
-        .spacing(t::S8),
-    )
-    .padding(Padding {
-        top: t::S32,
-        right: t::S32,
-        bottom: t::S32,
-        left: 0.,
-    })
-    .width(Fill)
-    .height(Fill)
-    .style(t::chat);
-    container(row![left, right])
-        .id(
-            if matches!(app.dialog, Dialog::UserSettings | Dialog::GuildSettings(_)) {
-                "dialog-scope"
-            } else {
-                "settings-underlay"
-            },
-        )
-        .width(Fill)
-        .height(Fill)
-        .style(t::chat)
-        .into()
+    settings::view(app, page)
 }
 
 fn compose_editor<'a>(

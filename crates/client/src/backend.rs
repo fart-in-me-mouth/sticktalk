@@ -66,6 +66,7 @@ async fn emit(output: &mut mpsc::Sender<Delivery>, budget: &Arc<Semaphore>, data
         Data::Members { page, .. } => encoded(rmp_serde::to_vec_named(page)),
         Data::Invites { page, .. } => encoded(rmp_serde::to_vec_named(page)),
         Data::Bans { page, .. } => encoded(rmp_serde::to_vec_named(page)),
+        Data::Settings { snapshot, .. } => encoded(rmp_serde::to_vec_named(snapshot)),
         Data::Channel { snapshot, .. } => encoded(rmp_serde::to_vec_named(snapshot)),
         Data::Users { snapshot, .. } => encoded(rmp_serde::to_vec_named(snapshot)),
         Data::Message { snapshot, .. } => encoded(rmp_serde::to_vec_named(snapshot)),

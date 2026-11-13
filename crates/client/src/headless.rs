@@ -109,7 +109,11 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             if !(940..=3840).contains(&w) || !(600..=2160).contains(&h) {
                 return Err("Screenshot size is out of range".into());
             }
-            for screen in SCREENS {
+            for screen in if args.iter().any(|v| v == "--settings-only") {
+                crate::ui::settings::SCREENS
+            } else {
+                SCREENS
+            } {
                 let name = format!("{screen}-{w}x{h}.png");
                 let path = Path::new(dir).join(&name);
                 render(screen, w, h, &path)?;
@@ -157,7 +161,19 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
         iced::Pixels(t::BODY),
     ));
     // Native layout sensors settle actual virtual-row heights; no timer, browser or application Task is run.
-    for pass in 0..12 {
+    // Full-screen settings have no virtual chat-row measurement sensors. Two
+    // deterministic layout passes suffice; retain the chat settling budget elsewhere.
+    let passes = if matches!(
+        app.dialog,
+        crate::app::Dialog::UserSettings
+            | crate::app::Dialog::GuildSettings(_)
+            | crate::app::Dialog::ChannelSettings(_)
+    ) {
+        2
+    } else {
+        12
+    };
+    for pass in 0..passes {
         app.headless_scroll();
         let y = app.scroll_y;
         let mut ui = UserInterface::build(crate::ui::view(&app), size, cache, &mut renderer);
@@ -169,6 +185,23 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
             },
         );
         ui.operate(&renderer, &mut scroll);
+        if matches!(
+            screen,
+            "user-settings-voice-processing" | "user-settings-voice-input"
+        ) {
+            let mut settings_scroll = operation::scrollable::scroll_to::<()>(
+                "settings-content".into(),
+                operation::scrollable::AbsoluteOffset {
+                    x: Some(0.),
+                    y: Some(if screen == "user-settings-voice-input" {
+                        1200.
+                    } else {
+                        640.
+                    }),
+                },
+            );
+            ui.operate(&renderer, &mut settings_scroll);
+        }
         let mut messages = Vec::new();
         let _ = ui.update(
             &[iced::Event::Window(iced::window::Event::RedrawRequested(
@@ -179,7 +212,7 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
             &mut iced::advanced::graphics::core::clipboard::Null,
             &mut messages,
         );
-        if pass == 11 {
+        if pass + 1 == passes {
             ui.draw(
                 &mut renderer,
                 &t::theme(&app),

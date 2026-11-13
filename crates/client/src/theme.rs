@@ -6,6 +6,7 @@ use iced::{
     },
     Border, Color, Font, Shadow, Theme,
 };
+pub mod settings;
 pub const BG_RAIL: Color = Color::from_rgb8(0x11, 0x11, 0x13);
 pub const BG_SIDEBAR: Color = Color::from_rgb8(0x17, 0x17, 0x1a);
 pub const BG_CHAT: Color = Color::from_rgb8(0x1c, 0x1c, 0x20);
