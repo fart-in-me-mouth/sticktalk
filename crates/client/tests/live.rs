@@ -2790,6 +2790,78 @@ async fn desktop_two_real_clients_render_and_send() {
             assert!(output.join(format!("{label}-{size}.png")).is_file());
         }
     }
+    // Capture actual validation feedback and an actual cut TCP connection, not
+    // mock UI states. The normal Ready capture timer fires after these changes.
+    for label in ["error-toast", "disconnected"] {
+        let home = tempfile::tempdir().unwrap();
+        let capture = output.join(format!("{label}-1280x800.png"));
+        if capture.is_file() {
+            std::fs::remove_file(&capture).unwrap();
+        }
+        let cable = if label == "disconnected" {
+            Some(Cable::new(&fixture.url).await)
+        } else {
+            None
+        };
+        let server = cable
+            .as_ref()
+            .map_or(fixture.url.as_str(), |c| c.url.as_str());
+        let content = if cable.is_some() {
+            "Native connection-cut proof".into()
+        } else {
+            "x".repeat(MAX_MESSAGE_CHARS + 1)
+        };
+        let mut child = Child(
+            std::process::Command::new(env!("CARGO_BIN_EXE_sticktalk"))
+                .creation_flags(0x08000000)
+                .args(["--size", "1280x800", "--capture"])
+                .arg(&capture)
+                .env("LOCALAPPDATA", home.path())
+                .env("STICKTALK_AGENT_WINDOW", "secondary")
+                .env("STICKTALK_QA_SERVER", server)
+                .env("STICKTALK_QA_TOKEN", &a.token)
+                .env("STICKTALK_QA_CHANNEL", channel.0.to_string())
+                .env("STICKTALK_QA_SEND", &content)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::fs::File::create(output.join(format!("{label}.log"))).unwrap())
+                .spawn()
+                .unwrap(),
+        );
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        if let Some(cable) = cable {
+            // The persisted send proves that the native process reached Ready.
+            // Closing both proxy listener and active streams makes retries fail.
+            loop {
+                let page: Page<Message> = member
+                    .http
+                    .json(&format!("/channels/{}/messages", channel.0))
+                    .await
+                    .unwrap();
+                if page.items.iter().any(|m| m.content == content) {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "native send before cable cut"
+                );
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            assert!(!capture.exists(), "connection must be cut before capture");
+            drop(cable);
+        }
+        loop {
+            if let Some(status) = child.0.try_wait().unwrap() {
+                assert!(status.success());
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{label} capture deadline"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        assert!(capture.is_file());
+    }
 }
 
 #[cfg(windows)]

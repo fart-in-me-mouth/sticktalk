@@ -28,85 +28,85 @@
     {
       "file": "emoji-picker-1280x800.png",
       "height": 800,
-      "sha256": "32c65bb9e7deaf93939f56610cfd8cdca45c65305d1343051084b87cee965cdc",
+      "sha256": "517664ff68b6ff9384bd0db504ac87a06cd63607608f16ed00d07a4d127d16c4",
       "width": 1280
     },
     {
       "file": "emoji-search-1280x800.png",
       "height": 800,
-      "sha256": "5d644fcce560bc7c7cffdde34ed561f4d15ca539710a839afb02587ff008455c",
+      "sha256": "b6e289b89034a4912d69f97b5db9c010545b808a9b16a2a59c4c0386b632ba77",
       "width": 1280
     },
     {
       "file": "emoji-autocomplete-1280x800.png",
       "height": 800,
-      "sha256": "157cd499f5a726c54910de8d783718535c2b1d83a5f08587d97dd57a74c5622a",
+      "sha256": "b29dd4b4ccddb0492a31e4dfbf157bf31129d5c5c7ba203fff9c45edede8b0a6",
       "width": 1280
     },
     {
       "file": "reaction-picker-1280x800.png",
       "height": 800,
-      "sha256": "32c65bb9e7deaf93939f56610cfd8cdca45c65305d1343051084b87cee965cdc",
+      "sha256": "517664ff68b6ff9384bd0db504ac87a06cd63607608f16ed00d07a4d127d16c4",
       "width": 1280
     },
     {
       "file": "gif-picker-1280x800.png",
       "height": 800,
-      "sha256": "9622a11890f91ff41dc0728ec6a64930a12be96def81deb63e7eb03f84df50d1",
+      "sha256": "fa01c6aae38f6fbd3b873752b4a37fabcd29790928c4154d85208a130c81dcbe",
       "width": 1280
     },
     {
       "file": "gif-search-1280x800.png",
       "height": 800,
-      "sha256": "ad72422094e4bf8465373556fc6b04881da21e436b801ba9bcd4bbfc531a9341",
+      "sha256": "774649b43e5ecabae874dcb885e32f2c519695efc62d880eda4b5d4f2ce37774",
       "width": 1280
     },
     {
       "file": "gif-favorites-1280x800.png",
       "height": 800,
-      "sha256": "be6118d81456906a0852f7a19034a06115832bd951b2b1e9438649a914f99211",
+      "sha256": "eec459e968e593585a853e14a9c6c9d4bcb598c4c6a7390347b2912e3e1792fd",
       "width": 1280
     },
     {
       "file": "image-viewer-1280x800.png",
       "height": 800,
-      "sha256": "0cc19be2567f5fe597bed4f05fb9e1cce70ce2c03d29147451e6a48c150cf9fa",
+      "sha256": "348140620da37446bb16bd00e6bab63b31e9512a5b04a479d9caf3e02a70ff0e",
       "width": 1280
     },
     {
       "file": "image-viewer-loading-1280x800.png",
       "height": 800,
-      "sha256": "b90de514162d3053dd0184a3f45ce8e8c701e3e8219af98492953d697c68efef",
+      "sha256": "a3fafd0ba7205eb6d7919f69d6d1d726ccb00703e16e5ef4c4262b13d1dc79ec",
       "width": 1280
     },
     {
       "file": "image-viewer-zoom-1280x800.png",
       "height": 800,
-      "sha256": "8b2ad0c37874e04068e21d81a12a6a9ce066067030ec34aee215b1698ccae349",
+      "sha256": "2bd8247136547a6fc93b938644fe26607afce1c4deebd696a25321dff5b3c321",
       "width": 1280
     },
     {
       "file": "upload-progress-1280x800.png",
       "height": 800,
-      "sha256": "27b57846c1402849b4d216b3fa2bf939810dabad7373d43974e4af1861dca115",
+      "sha256": "e6b112cd3f61de09a5081604c7491dd07f36e4ff208268d0627266996a010426",
       "width": 1280
     },
     {
       "file": "upload-storage-full-1280x800.png",
       "height": 800,
-      "sha256": "a0e91734e3c70cb2ffdaae0fa428d26505a6f05cae4b1c26b0e72b197c74fb5a",
+      "sha256": "259f3e452be68ff13ccdb987db4982cf49a2018a4eb64c89abede69be02cbead",
       "width": 1280
     },
     {
       "file": "upload-other-channel-1280x800.png",
       "height": 800,
-      "sha256": "166c14c95c20387f7d1caeecfd530c0865be6f6a8b60e0c096d98a2f71f5da72",
+      "sha256": "a13e42f18e179c9a2b93260d33ee42328451aecd55f82abdcb1340d9be728d4b",
       "width": 1280
     },
     {
       "file": "restart-update-1280x800.png",
       "height": 800,
-      "sha256": "4ac2ff77b5a878e1a92ccf5cbacc0cf81d3b22f1b0a6fa837177179143c7b9d2",
+      "sha256": "3f443b5f312112c02d68f4196736d83e1eb7fbf587a9d2e3d78c20d7a8520d20",
       "width": 1280
     },
     {
@@ -148,43 +148,43 @@
     {
       "file": "dm-chat-1280x800.png",
       "height": 800,
-      "sha256": "b0d81030949eb381c023ee92019e14830686659b6362e37b8b951d3c6fef9326",
+      "sha256": "f1227f8bc81649e852530df5a22b7c5702925b2afbef386a108bd50f6d9e1ea1",
       "width": 1280
     },
     {
       "file": "guild-chat-1280x800.png",
       "height": 800,
-      "sha256": "bafc47cb0ee407ee198b8f3dfd4f661c19f1ea0ab09b0f4b42db5eb00fcbc2c1",
+      "sha256": "fe1da6beece28e707f9e8fb5f0813872c1c4f20ad5e348ec17200d39cf87a1fb",
       "width": 1280
     },
     {
       "file": "group-chat-1280x800.png",
       "height": 800,
-      "sha256": "a33c295d753c894d5dd43a64ab8cff3a6b2a90bcf24da6f07be8913850919b78",
+      "sha256": "cff7c0020288a40cc067ad40cb6a2e379cfa71a0f893ca3bc51725b73acf2cd6",
       "width": 1280
     },
     {
       "file": "community-picker-1280x800.png",
       "height": 800,
-      "sha256": "8aed025b98cf1bd63f02ad92cf8d1ca29e1d370557d12854a593176dfd4dac67",
+      "sha256": "cff0cc27cccf4a6cf9657de01065e96c6ad36f85448d253dbb241485d9f97269",
       "width": 1280
     },
     {
       "file": "create-guild-form-1280x800.png",
       "height": 800,
-      "sha256": "007570c5cabe594ae5cbf05fe3d89aa6ece4d4b59f58b504617ded6618b43b02",
+      "sha256": "bbb42fa085ec93c031e80d658cf895cf54c2d6480a07496e8083be40a02d8cdb",
       "width": 1280
     },
     {
       "file": "join-guild-1280x800.png",
       "height": 800,
-      "sha256": "483d85da10107b2fdd6490c9681c3c985d2989639ab2ef769698125aac2740a1",
+      "sha256": "15c28e24a870229664350da94b995b1a579051355dfd2b55656349e76220182d",
       "width": 1280
     },
     {
       "file": "invite-1280x800.png",
       "height": 800,
-      "sha256": "015dbb960eb33964c03b290db8129b43daa76623c537dacb0161b2a0fd19900a",
+      "sha256": "d444203647f95db3fa733055a1d85300413dc28548ee11acac90ac330b423ff3",
       "width": 1280
     },
     {
@@ -238,13 +238,13 @@
     {
       "file": "context-1280x800.png",
       "height": 800,
-      "sha256": "7de3658aeea7b2cef66d1dc817c0bd0879d8a78e60a3d76ba5292a1601981e7a",
+      "sha256": "5d8b12ed1ef8141166fb817947bf32347d57afc8534324ae31ae71bb7e64be27",
       "width": 1280
     },
     {
       "file": "toast-1280x800.png",
       "height": 800,
-      "sha256": "830bd4ca927c6e98d491256195eb0e11f2e74b43b0f5671a7e294038a4e9fc36",
+      "sha256": "87937b1c433008e75780c7f1a6aec08f81a8a2b801268172df13389ea4f11eb8",
       "width": 1280
     },
     {
@@ -268,43 +268,43 @@
     {
       "file": "disconnected-1280x800.png",
       "height": 800,
-      "sha256": "9383cdd40769cecc767c6e4c031e8078304305c0a1b250d5f4e37b73384e49c8",
+      "sha256": "731f35b1ee705d4a378e636b28e22fe17dd0b11a7729360a6dae2930301d11a1",
       "width": 1280
     },
     {
       "file": "mention-autocomplete-1280x800.png",
       "height": 800,
-      "sha256": "94ef7df23c6336c3af3777308e85f3febd419c53bfa385a15ac6cf89a49ffcda",
+      "sha256": "9e986e255d93f305c20658523d8ee6b2ca11e47fdeaa5bd1fcc3a95fcd3a4ac4",
       "width": 1280
     },
     {
       "file": "edit-message-1280x800.png",
       "height": 800,
-      "sha256": "213c5822bc1b4f7d690e132d55b1a62b2020b8c3f0d2f9f6c3822a7778f78f3a",
+      "sha256": "f50639b7ac1808cb90be6f0f09fed8e0c6777da6349b56a9cb7be474e7b06e82",
       "width": 1280
     },
     {
       "file": "message-hover-1280x800.png",
       "height": 800,
-      "sha256": "5140e5c036ce56eac870f5d940bc031592baab4b0d6f1a3dd39f5166e0aee840",
+      "sha256": "c5816674d8b882aeb0bbcb4565902e6c656647bb789861e0f61b5d7591db6d93",
       "width": 1280
     },
     {
       "file": "message-hover-own-1280x800.png",
       "height": 800,
-      "sha256": "8082a915f2f637dd4aa229380e837c297688466a6bf143dc9f11f6b45a51276e",
+      "sha256": "63346dc323a7fc17dce13a867f4098544774a0f86bce136165e0bdf006dcbb9d",
       "width": 1280
     },
     {
       "file": "message-hover-grouped-1280x800.png",
       "height": 800,
-      "sha256": "5dbb033f91a71888b3ea99a04f0cf6dba4a70ef1f8c12e7f7882d3ca147b08b0",
+      "sha256": "6fffcee030e8f84b55b215d1eb4fa624cf39a385ba0b5d4e51669899059d31b2",
       "width": 1280
     },
     {
       "file": "add-friend-1280x800.png",
       "height": 800,
-      "sha256": "e68bdcf3f440e1a7f71323a18afe922418572a8bc4863a587f080e87eac92ac5",
+      "sha256": "74ae4c8c8d54f84e9f3aa41b73d81b34668e3f244376ff67ef77fa2c4c10a59c",
       "width": 1280
     },
     {
@@ -328,19 +328,19 @@
     {
       "file": "markdown-1280x800.png",
       "height": 800,
-      "sha256": "4b1613dfb821d345a88a15ae6a94650312c10120b69cfefb0587ce90d50ffff2",
+      "sha256": "7829a7129cd9df2328721e91993a6fca2514fb9ea6a7201dfdd0b5b3608319dc",
       "width": 1280
     },
     {
       "file": "masked-link-confirm-1280x800.png",
       "height": 800,
-      "sha256": "d68793be8c5b320df2c3048c6f9cf9d1f2d74b89c816261b143be6312b70ff89",
+      "sha256": "59127023951d9411f3c8503d1a548e8f2e48d37f20c4f1960945fc400628e194",
       "width": 1280
     },
     {
       "file": "context-own-message-1280x800.png",
       "height": 800,
-      "sha256": "3710326932ddf91b6320c38879696a6722453b7084aac12f177ba517c51fdb0a",
+      "sha256": "39d811394be85cbe9c2ec88d61e261aaaac5d1b2887f1ce54bcf9cb7529f57ba",
       "width": 1280
     },
     {
@@ -352,13 +352,13 @@
     {
       "file": "channel-top-1280x800.png",
       "height": 800,
-      "sha256": "660392af61a90eef10ab466cf0214d4c1bd098330ec2e0e366fd463e83da7e81",
+      "sha256": "2f224e38e3e296329f2a8ba33975cf87ac96ca48844e7de49706649798abdb35",
       "width": 1280
     },
     {
       "file": "markdown-revealed-1280x800.png",
       "height": 800,
-      "sha256": "31a869498577b4fee63693f1fe99babff1e2a34fdb779faa93459eae77be4da8",
+      "sha256": "af10e03d9dfc557a663326f2d01c14f8b0f509951f256793d7b96bfba5b41db8",
       "width": 1280
     },
     {
@@ -388,25 +388,25 @@
     {
       "file": "scroll-5000-1280x800.png",
       "height": 800,
-      "sha256": "b28818051b935ceb5f21ef2f143939d8d5fe75278f3d213e011253cdd6684620",
+      "sha256": "598f39430a1fcdd6d5da8001f733c92601d82c10513a79aa611c400947208e0e",
       "width": 1280
     },
     {
       "file": "scroll-skeleton-1280x800.png",
       "height": 800,
-      "sha256": "0b81eaaf02910c745981c0b2b063ed0964c7c4d1a4d590672b34bb4cd41316b3",
+      "sha256": "999599d5cac66df742178af939f97fa6f326d1fd6697a4a202dae6ec7807484b",
       "width": 1280
     },
     {
       "file": "history-jump-1280x800.png",
       "height": 800,
-      "sha256": "1a111c24f98b970c62cd2cdac6cf7c2bb6bdd9429d9c6a72e5d6d83e81b98096",
+      "sha256": "7a8eae2d2157e5b485423ab6b5be7670a9e2ec81ec7c680d445955efd8a82c5d",
       "width": 1280
     },
     {
       "file": "reply-preview-1280x800.png",
       "height": 800,
-      "sha256": "191376c6b63886fa93281b7a9960f8f477f0e4c1a3895bf810dbaf998e6fa195",
+      "sha256": "b4160fe83551b26c96ddb7622d183cb4fa99b8c2a7cf67b38b4889931854524d",
       "width": 1280
     },
     {
@@ -436,85 +436,85 @@
     {
       "file": "emoji-picker-1920x1080.png",
       "height": 1080,
-      "sha256": "7d132868d1937dd474746582009fa15fac515aa8b12db561762cc43312c73c3a",
+      "sha256": "47f66c1c4dafa17eb155a007c8c7c217ebd35c413c437279205f8978627063a4",
       "width": 1920
     },
     {
       "file": "emoji-search-1920x1080.png",
       "height": 1080,
-      "sha256": "9e53f8dbcf3c133f5c18370d2a1cb9edcf53431b1e103cde953ba7d1161303dd",
+      "sha256": "1cd232c26254871e7184553a854ecbd93b19f1e6c9a0a5aaac2741be4e635081",
       "width": 1920
     },
     {
       "file": "emoji-autocomplete-1920x1080.png",
       "height": 1080,
-      "sha256": "b786c9be5c81f5d315ec3373ec37c6a29bf9ccac5cd4f4ba7a2c1993f628704b",
+      "sha256": "2fc92fb4600791b80bfb8d8b4f41f7a14816afdaf9308be9965688fadf7f4e6d",
       "width": 1920
     },
     {
       "file": "reaction-picker-1920x1080.png",
       "height": 1080,
-      "sha256": "7d132868d1937dd474746582009fa15fac515aa8b12db561762cc43312c73c3a",
+      "sha256": "47f66c1c4dafa17eb155a007c8c7c217ebd35c413c437279205f8978627063a4",
       "width": 1920
     },
     {
       "file": "gif-picker-1920x1080.png",
       "height": 1080,
-      "sha256": "d77ccf5f678534c04cc10618717a7310052dc3750f8ae2287d4824d483fa1c95",
+      "sha256": "c136c27126fe503d850bfe9b0c235986d963e88209b272519df12425c73822a5",
       "width": 1920
     },
     {
       "file": "gif-search-1920x1080.png",
       "height": 1080,
-      "sha256": "03a85fbcd70fd0bca73d21bbf1d5c19e0ec52b50b8ffb0485057aef7403cc95c",
+      "sha256": "457cb2bfbbcbb206f1f408c1662d91a218eb79e5a180e64dbb0d45ffa90e9ef0",
       "width": 1920
     },
     {
       "file": "gif-favorites-1920x1080.png",
       "height": 1080,
-      "sha256": "c4c359b47b15cb83be3accd279bf073167aeca41e3072ffc6537219f7aed70a7",
+      "sha256": "bb98ab46ff2c5d95def987323e991caa16bf275f0dfd724b1e4ae2a03c77852b",
       "width": 1920
     },
     {
       "file": "image-viewer-1920x1080.png",
       "height": 1080,
-      "sha256": "bcbaae6d0d0b3cf60876879676d829d609196b372493217ffa876086e422722c",
+      "sha256": "8bc7be0f7ff80a5b8174c01451a911ecf8c2677f695274a945157c2569cbc558",
       "width": 1920
     },
     {
       "file": "image-viewer-loading-1920x1080.png",
       "height": 1080,
-      "sha256": "be52fdeb076e0c2816223ff0755e196403af3c35e69d0a095e802b449bbc06d6",
+      "sha256": "9947a7029d8fb2fffe271ada0892273331ab0dec4efeb26bc19d2436cf5347ec",
       "width": 1920
     },
     {
       "file": "image-viewer-zoom-1920x1080.png",
       "height": 1080,
-      "sha256": "195dccafd3e2b7e0855dbf856fab966c1591d7e145f0ec5918ec963357aaa672",
+      "sha256": "b18d03e2240f3e4c8c0d88c6383174f2844efa5f07812c492297c8b24489e43e",
       "width": 1920
     },
     {
       "file": "upload-progress-1920x1080.png",
       "height": 1080,
-      "sha256": "a4a10f5f256699c19d75f90419496e61e8b37dc7b507bbba6596bc3961ae4026",
+      "sha256": "6636f7f5e81b04ef08afed97fb0f885e4f4884057ba3ddc23697b8974eb20a81",
       "width": 1920
     },
     {
       "file": "upload-storage-full-1920x1080.png",
       "height": 1080,
-      "sha256": "39f8840cbd137d3a8167d6e0b9817bdf0d0d266b0b5b6b4531b3845319f580ee",
+      "sha256": "ea123d1363dfb9c2c4b2a4d87f7e52df2c3249686ef2de1aa59c704f453fa2a2",
       "width": 1920
     },
     {
       "file": "upload-other-channel-1920x1080.png",
       "height": 1080,
-      "sha256": "1ca15cf3907c9acc7620bfa123638f2c6a4ab3008cba5e7bfa098581d6b344d3",
+      "sha256": "58f6ab6bf2d654f1459f00cb6917a08320688a723f1bad29e5f9400a10c07e18",
       "width": 1920
     },
     {
       "file": "restart-update-1920x1080.png",
       "height": 1080,
-      "sha256": "429622cd815b1e8ea00b5f065966cb00e83387841d8c090f9f487b0ad46ca1cf",
+      "sha256": "862bbb96257b3f0180467a2a2c3fd438dedcfc7df2cf8f6380a8b4eca07008d2",
       "width": 1920
     },
     {
@@ -556,43 +556,43 @@
     {
       "file": "dm-chat-1920x1080.png",
       "height": 1080,
-      "sha256": "e6c722a56a3737c7b4e5edd693fcca7f77f0cf26fc92bdae37bd4bd7720dd091",
+      "sha256": "52690513894c2fa7a7264e6ffea89e8621206bcfca9cfaebb9c71e278329361f",
       "width": 1920
     },
     {
       "file": "guild-chat-1920x1080.png",
       "height": 1080,
-      "sha256": "63b7802cc89f78e2c3419c6ce2c0de7f6a669f0fa56faa2e2d6b47b807d9c7a5",
+      "sha256": "d327157f9f6255fdb913b371102411bc0aac473f57d295d142aa543c949966df",
       "width": 1920
     },
     {
       "file": "group-chat-1920x1080.png",
       "height": 1080,
-      "sha256": "d01eca2b6cd392993ba5735c91211f5b1ab50aa45946657e128dedebdd297f0e",
+      "sha256": "1d0b8b1e4278ab59b882074ef3f7bdc9111b6a4bd8ab789bb236aa4228e7e68e",
       "width": 1920
     },
     {
       "file": "community-picker-1920x1080.png",
       "height": 1080,
-      "sha256": "865ad4755efaeded9cf2d688af0b036e8747a09c57db80aa3758b91860263771",
+      "sha256": "88f540e42c492979a270d128a1fe4652ff88cbfdb0b414e87e9ba5bb6d560a66",
       "width": 1920
     },
     {
       "file": "create-guild-form-1920x1080.png",
       "height": 1080,
-      "sha256": "b6aeb9ded9d85c5948dbe5fa6ccef46c04058cd5ac5e541dc90d8a2441bdb77d",
+      "sha256": "5c358a3e11fbc5f8c1cda2cd851d20e0a2bd6f97a974d1c849f269b3f546bccf",
       "width": 1920
     },
     {
       "file": "join-guild-1920x1080.png",
       "height": 1080,
-      "sha256": "2453d5ef4a5529f7d970d4189b20910ab453dd4f280010e541897364626766ce",
+      "sha256": "476468db8ba4db6dd20ec981d639c84829a34f0fc9edbb23cfac7f447bc8d82a",
       "width": 1920
     },
     {
       "file": "invite-1920x1080.png",
       "height": 1080,
-      "sha256": "b96cff34b4d65cd771072716e7f930fb74692647f8bd06c634699018d159bc29",
+      "sha256": "4c0c3d971612d755dc1bfda66d719e387006ee6b96d92968d8ece942e1b670f5",
       "width": 1920
     },
     {
@@ -646,13 +646,13 @@
     {
       "file": "context-1920x1080.png",
       "height": 1080,
-      "sha256": "116dc9a7e290d5c7dbaca78d0210522f325fe61f89f1716c22fc2a274ff720ff",
+      "sha256": "14122333de8f7bdb91b313ef602a5fdb0210909f089982488768708de2f9517c",
       "width": 1920
     },
     {
       "file": "toast-1920x1080.png",
       "height": 1080,
-      "sha256": "567c962533baf76a795c779e3c791414a589dc0609f1abdc3b4ad5169ac7e1af",
+      "sha256": "f5dca8c16bf88994e2aea52df2045732456d83a870fcf90ee31c04cc50f2c7be",
       "width": 1920
     },
     {
@@ -676,43 +676,43 @@
     {
       "file": "disconnected-1920x1080.png",
       "height": 1080,
-      "sha256": "82b89257be2afb39f74e9496cbec5250b7651c9aa3ff8c4e9d4f4253ee57b2d5",
+      "sha256": "a50b0d7c9c7c25cd54e2600107542ea86c4bfaad0d391c54fd90d910d2cc5661",
       "width": 1920
     },
     {
       "file": "mention-autocomplete-1920x1080.png",
       "height": 1080,
-      "sha256": "904ce84d7e6455b3d982a100c63e3e05935a99a9f4a240c361a45b6d20f65960",
+      "sha256": "4cc97069d39c35e4e31a70cceec604d6e31f5ceb90aee9244e5740eceeb2340d",
       "width": 1920
     },
     {
       "file": "edit-message-1920x1080.png",
       "height": 1080,
-      "sha256": "bd15c3df5c234b3270fa832054819ff8e4ab2b14c087a55f6048e494965a4403",
+      "sha256": "84741f0283a898e3c86bdbee3c5e766b3a1b454be5eddfedf62742d7abcaf978",
       "width": 1920
     },
     {
       "file": "message-hover-1920x1080.png",
       "height": 1080,
-      "sha256": "0683a6e210755bbec6ad22165cb51557e2e44baef081124aac415a7222e1e729",
+      "sha256": "aa73435f63092f401a5f341358729f28a8a125b248ee7af95c36962b538c373e",
       "width": 1920
     },
     {
       "file": "message-hover-own-1920x1080.png",
       "height": 1080,
-      "sha256": "de8696d9ad6d05b3d08a6b05c896cc5ef138ea2d8bbd0b348433b1fdaa93adc0",
+      "sha256": "082d6b5c2a83f700a4da343aa4ce5479628a7989049aad7006021b8275e9401a",
       "width": 1920
     },
     {
       "file": "message-hover-grouped-1920x1080.png",
       "height": 1080,
-      "sha256": "b74b434b3237314d5b07f4c7181687ca377998ec30da93a17438e2b5b2943cc6",
+      "sha256": "7774379c9c94ce363ffbb8d0f5155b60b60cd665290cfde057dc6c011e70ad63",
       "width": 1920
     },
     {
       "file": "add-friend-1920x1080.png",
       "height": 1080,
-      "sha256": "74962b1679e185d6ff48deed3a13efc7b6acb487ef422d3791bd62083c0adbb3",
+      "sha256": "f1185069b92c87d7cf1d86d37c8043a598398037322bed5ca60ed29a42061a88",
       "width": 1920
     },
     {
@@ -736,19 +736,19 @@
     {
       "file": "markdown-1920x1080.png",
       "height": 1080,
-      "sha256": "2a0377c744ca3a7d47f9fb8ff1b2d13350377d8491e33d3bb2c8977567984af9",
+      "sha256": "9dc9caf61490b3aeb9b9511e03a72d7fc9f5723b35597f082e29422a078fc16c",
       "width": 1920
     },
     {
       "file": "masked-link-confirm-1920x1080.png",
       "height": 1080,
-      "sha256": "d3c8381147145c74571c1dd8b43414e1028f365b51b4c4b460b2405447b02e12",
+      "sha256": "3c322187c7b2f48b231fa16af4c9d6d5b5cb19b83f4ae49573b91d53410c63ca",
       "width": 1920
     },
     {
       "file": "context-own-message-1920x1080.png",
       "height": 1080,
-      "sha256": "9232c564e5fa6ba3f842a801c272b8199da348be56d4c21f5bc6c96b0465b46d",
+      "sha256": "f0f754bebbccefc5f7e2637fdf111da2628b09d72330c81f144663e0ffe780c5",
       "width": 1920
     },
     {
@@ -760,13 +760,13 @@
     {
       "file": "channel-top-1920x1080.png",
       "height": 1080,
-      "sha256": "0badb67f4658d2e531f4b5f568363c12366a396151831a6f5602f0ebee0cee06",
+      "sha256": "aa0f648e67f50a485851584f4052bed356241f569ad06468d75eba4f6c868050",
       "width": 1920
     },
     {
       "file": "markdown-revealed-1920x1080.png",
       "height": 1080,
-      "sha256": "b892cd1050837f887dd87bc244fad7219549f33f131c5e7e533fb2f67c3c0f0e",
+      "sha256": "7a0dabb8832453d7263d81f3c75e6d161e48f2de63c74a3550c68c71fab8343c",
       "width": 1920
     },
     {
@@ -796,25 +796,25 @@
     {
       "file": "scroll-5000-1920x1080.png",
       "height": 1080,
-      "sha256": "6258615b3de06b374292542113945f18321cf85106008a4f9c1d0011791ae581",
+      "sha256": "1f3c95a1e6174123764f18d5c76d7b2d53345620c72974a8d47318a2f24669ae",
       "width": 1920
     },
     {
       "file": "scroll-skeleton-1920x1080.png",
       "height": 1080,
-      "sha256": "41fe361f4a303d54037bf3e5b5f7b2beaf1019c18e2f1d7019444264f28c48b2",
+      "sha256": "d21fbcc771cb2f4b85f734d6054605dbefbb0a8d7c13a4c51afd168e62bc34f7",
       "width": 1920
     },
     {
       "file": "history-jump-1920x1080.png",
       "height": 1080,
-      "sha256": "b25c03be2d008e339d7be90b9afd6410e07f101f5bf4ad3c6bbae787f6d21023",
+      "sha256": "dc7f3a2c9a9ea23e6247642e22630cc635bc0f3e7b27e89c1de83bf36ada8090",
       "width": 1920
     },
     {
       "file": "reply-preview-1920x1080.png",
       "height": 1080,
-      "sha256": "5fe27144ada59c835c8616dd385158c52dd8bf89b122127056c74abe63823610",
+      "sha256": "3c88bf876e13eaba0f8e14d8590439e34c46c66984c5a976c7492f06bef6e8c0",
       "width": 1920
     }
   ],
