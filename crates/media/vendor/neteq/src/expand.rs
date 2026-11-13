@@ -43,8 +43,10 @@ pub struct ExpandFactory;
 
 impl ExpandFactory {
     /// Create an expand processor
-    pub fn create_expand(sample_rate: u32, _channels: u8) -> Box<Expand> {
-        Box::new(Expand::new(sample_rate))
+    pub fn create_expand(sample_rate: u32, channels: u8) -> Box<Expand> {
+        let mut expand = Expand::new(sample_rate);
+        expand.overlap_length *= channels as usize;
+        Box::new(expand)
     }
 }
 

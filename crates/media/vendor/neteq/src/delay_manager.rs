@@ -36,7 +36,8 @@ use crate::{histogram::Histogram, Result};
 const K_START_DELAY_MS: u32 = 80;
 
 const K_DELAY_BUCKETS: usize = 100;
-const K_BUCKET_SIZE_MS: i32 = 20;
+// Preserve a genuine 10 ms clean-link target after the histogram warms up.
+const K_BUCKET_SIZE_MS: i32 = 5;
 
 /// Configuration for the delay manager
 #[derive(Debug, Clone)]

@@ -432,7 +432,7 @@ impl NetEq {
         // Update frame timestamp
         self.frame_timestamp = self
             .frame_timestamp
-            .wrapping_add((frame.samples_per_channel * self.config.channels as usize) as u32);
+            .wrapping_add(frame.samples_per_channel as u32);
 
         // Update statistics
         self.statistics
@@ -482,6 +482,11 @@ impl NetEq {
     pub fn set_minimum_delay(&mut self, delay_ms: u32) -> u32 {
         self.delay_manager.set_minimum_delay(delay_ms)
     }
+    /// Explicit codec-frame floor. The wrapper lowers this to 10 ms only after
+    /// observing a valid 10 ms Opus packet; legacy/default streams retain 20 ms.
+    pub fn set_base_minimum_delay(&mut self, delay_ms: u32) {
+        self.delay_manager.set_base_minimum_delay(delay_ms);
+    }
 
     /// Set maximum delay, return the effective maximum delay
     pub fn set_maximum_delay(&mut self, delay_ms: u32) -> u32 {
@@ -521,8 +526,10 @@ impl NetEq {
         self.buffer_level_filter
             .set_target_buffer_level(target_delay_ms);
 
-        self.buffer_level_filter
-            .update(current_buffer_samples, -self.timestretch_added_samples);
+        self.buffer_level_filter.update(
+            current_buffer_samples / self.config.channels as usize,
+            -self.timestretch_added_samples,
+        );
 
         // Reset for next frame (matches WebRTC decision_logic.cc:245-246)
         self.timestretch_added_samples = 0;
@@ -543,13 +550,15 @@ impl NetEq {
             return Ok(Operation::TimeStretchBuffer);
         }
 
-        if self.consecutive_expands > 0 && current_buffer_samples < low_limit as usize {
+        if self.consecutive_expands > 0
+            && current_buffer_samples / (self.config.channels as usize) < low_limit as usize
+        {
             // prefer a single continuous expand over many small ones
             self.consecutive_expands = self.consecutive_expands.saturating_add(1);
             return Ok(Operation::Expand);
         }
 
-        if current_buffer_samples < self.output_frame_size_samples * 3 / 2
+        if current_buffer_samples < self.output_frame_size_samples
             && current_buffer_samples >= self.output_frame_size_samples / 2
             && self.consecutive_expands == 0
         {
@@ -709,14 +718,17 @@ impl NetEq {
             let mut extended_frame = AudioFrame::new(
                 self.config.sample_rate,
                 self.config.channels,
-                required_samples,
+                required_samples / self.config.channels as usize,
             );
 
             self.decode_normal(&mut extended_frame)?;
 
             // Will output up to 30ms output
-            let mut output =
-                AudioFrame::new(self.config.sample_rate, self.config.channels, output_len);
+            let mut output = AudioFrame::new(
+                self.config.sample_rate,
+                self.config.channels,
+                output_len / self.config.channels as usize,
+            );
 
             // Apply accelerate algorithm
             let _result =
@@ -849,7 +861,7 @@ impl NetEq {
         let mut input = AudioFrame::new(
             self.config.sample_rate,
             self.config.channels,
-            samples_required,
+            samples_required / self.config.channels as usize,
         );
 
         self.decode_normal(&mut input)?;
@@ -905,7 +917,9 @@ impl NetEq {
     pub fn current_buffer_size_ms(&self) -> u32 {
         // Use total content duration instead of timestamp span
         // This handles cases where packets have close/identical timestamps
-        self.current_buffer_size_samples() as u32 * 1000 / self.config.sample_rate
+        self.current_buffer_size_samples() as u32 * 1000
+            / self.config.sample_rate
+            / self.config.channels as u32
     }
 
     /// Get current buffer size in samples

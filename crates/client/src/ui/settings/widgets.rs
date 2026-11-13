@@ -115,6 +115,15 @@ pub(super) fn toggle<'a>(
     action: A,
     enabled: bool,
 ) -> Element<'a, Msg> {
+    toggle_message(label, description, on, Msg::Settings(action), enabled)
+}
+pub(super) fn toggle_message<'a>(
+    label: &str,
+    description: &str,
+    on: bool,
+    message: Msg,
+    enabled: bool,
+) -> Element<'a, Msg> {
     let symbol: Element<'a, Msg> = if on {
         icon("check", t::HINT, t::ACCENT).into()
     } else {
@@ -167,7 +176,7 @@ pub(super) fn toggle<'a>(
         .spacing(t::S24)
         .align_y(Center),
     )
-    .on_press_maybe(enabled.then_some(Msg::Settings(action)))
+    .on_press_maybe(enabled.then_some(message))
     .width(Fill)
     .padding([t::S12, 0.])
     .style(st::toggle_row);

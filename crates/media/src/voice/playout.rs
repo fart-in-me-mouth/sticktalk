@@ -111,6 +111,11 @@ struct Stream {
     speaking: bool,
     highest: Option<u64>,
     repair: Arc<Mutex<RepairState>>,
+    tail_ticks: u8,
+    last_timestamp: Option<u64>,
+    packet_ms: u32,
+    arrival: Option<Instant>,
+    jitter_us: u32,
 }
 /// Quantile-delay adaptive jitter, acceleration/preemptive expansion/PLC from
 /// `neteq` (not claimed to be Chromium's native NetEq). Sans-I/O, 10ms rendering;
@@ -192,6 +197,11 @@ impl VoiceMixer {
                 speaking: false,
                 highest: None,
                 repair,
+                tail_ticks: 0,
+                last_timestamp: None,
+                packet_ms: 20,
+                arrival: None,
+                jitter_us: 0,
             },
         );
         Ok(())
@@ -219,7 +229,7 @@ impl VoiceMixer {
         }
         self.jitter = target;
         for s in self.streams.values_mut() {
-            s.playout.set_minimum_delay((target * 20) as u32);
+            s.playout.set_minimum_delay(target as u32 * s.packet_ms);
             s.playout.set_maximum_delay((target * 20).max(80) as u32);
         }
         Ok(())
@@ -227,7 +237,7 @@ impl VoiceMixer {
     pub fn flush(&mut self) {
         for s in self.streams.values_mut() {
             s.playout.flush();
-            s.playout.set_start_delay((self.jitter * 20) as u32);
+            s.playout.set_start_delay(self.jitter as u32 * s.packet_ms);
             s.highest = None;
             let mut repair = s.repair.lock().unwrap();
             repair.last_sequence = None;
@@ -238,8 +248,7 @@ impl VoiceMixer {
         self.streams.get(&user).map(|s| {
             let stats = s.playout.get_statistics();
             PlayoutStatistics {
-                // Upstream counts interleaved samples as mono milliseconds.
-                current_buffer_size_ms: stats.current_buffer_size_ms / u32::from(s.channels),
+                current_buffer_size_ms: stats.current_buffer_size_ms,
                 target_delay_ms: stats.target_delay_ms,
                 packets_awaiting_decode: stats.packets_awaiting_decode,
                 packets_per_sec: stats.packets_per_sec,
@@ -254,12 +263,26 @@ impl VoiceMixer {
     pub fn push(&mut self, user: u64, packet: AudioPacket) -> Result<()> {
         self.push_at(user, packet, Instant::now())
     }
-    pub fn push_at(&mut self, user: u64, packet: AudioPacket, arrival: Instant) -> Result<()> {
+    pub fn push_at(&mut self, user: u64, mut packet: AudioPacket, arrival: Instant) -> Result<()> {
         let s = self
             .streams
             .get_mut(&user)
             .ok_or_else(|| Error::Invalid("unknown remote".into()))?;
         let samples = opus::packet::get_nb_samples(&packet.data, SAMPLE_RATE).map_err(invalid)?;
+        // RTP's 48 kHz clock wraps every ~24.9 hours. Extended callers are
+        // unchanged; wire-u32 callers are unwrapped around the high-water mark.
+        if packet.timestamp <= u64::from(u32::MAX) {
+            if let Some(last) = s.last_timestamp {
+                let candidate = (last & !u64::from(u32::MAX)) | packet.timestamp;
+                packet.timestamp = if candidate.saturating_add(1 << 31) < last {
+                    candidate + (1 << 32)
+                } else if candidate > last.saturating_add(1 << 31) {
+                    candidate.saturating_sub(1 << 32)
+                } else {
+                    candidate
+                };
+            }
+        }
         if packet.data.is_empty()
             || packet.data.len() > MAX_PACKET_BYTES
             || ![TICK, PACKET_SAMPLES].contains(&samples)
@@ -271,16 +294,64 @@ impl VoiceMixer {
                 "expected bounded 10/20ms Opus with registered channels".into(),
             ));
         }
+        let packet_ms = samples as u32 / 48;
+        if s.last_timestamp.is_none() || packet_ms != s.packet_ms {
+            s.packet_ms = packet_ms;
+            let minimum = self.jitter as u32 * packet_ms;
+            s.playout.set_base_minimum_delay(packet_ms);
+            s.playout.set_minimum_delay(minimum);
+            if s.last_timestamp.is_none() {
+                s.playout.set_start_delay(minimum);
+            }
+        }
         if let Some(highest) = s.highest {
             if packet.sequence.saturating_add(12) < highest {
                 return Ok(());
             }
             if packet.sequence.saturating_sub(highest) > 250 {
-                return Err(Error::Invalid(
-                    "audio jump >5 seconds; re-register stream".into(),
-                ));
+                // A long real outage must recover without a call rejoin. Reset
+                // rather than allocating PLC for the missing interval.
+                s.playout.flush();
+                s.playout.set_start_delay(self.jitter as u32 * s.packet_ms);
+                let mut repair = s.repair.lock().unwrap();
+                repair.last_sequence = None;
+                repair.expanded_samples = 0;
+                s.last_timestamp = None;
+                s.arrival = None;
             }
         }
+        if let (Some(last), Some(timestamp)) = (s.arrival, s.last_timestamp) {
+            if packet.timestamp > timestamp && packet.timestamp <= timestamp + 4800 {
+                let source_us = (packet.timestamp - timestamp) * 1_000_000 / 48000;
+                let delta = arrival
+                    .saturating_duration_since(last)
+                    .as_micros()
+                    .min(1_000_000) as u64;
+                let error = delta.abs_diff(source_us).min(1_000_000) as u32;
+                s.jitter_us = (s.jitter_us * 15 + error) / 16;
+            }
+        }
+        if s.last_timestamp.is_none_or(|t| packet.timestamp > t) {
+            s.arrival = Some(arrival);
+        }
+        if (s.tail_ticks == 0 && packet.data.len() > 2 && s.last_timestamp.is_some())
+            || s.last_timestamp
+                .is_some_and(|t| packet.timestamp > t + 4800)
+        {
+            // Resume after DTX without generating concealment for intentionally
+            // unsent silence or retaining an old target/buffer backlog.
+            s.playout.flush();
+            s.playout.set_start_delay(self.jitter as u32 * s.packet_ms);
+            let mut repair = s.repair.lock().unwrap();
+            repair.last_sequence = None;
+            repair.expanded_samples = 0;
+        }
+        s.last_timestamp = Some(s.last_timestamp.unwrap_or(0).max(packet.timestamp));
+        s.tail_ticks = if packet.data.len() <= 2 {
+            s.tail_ticks.min(6)
+        } else {
+            20
+        };
         s.highest = Some(s.highest.unwrap_or(packet.sequence).max(packet.sequence));
         let mut data = packet.sequence.to_le_bytes().to_vec();
         data.extend_from_slice(&packet.data);
@@ -309,6 +380,13 @@ impl VoiceMixer {
             })
             .collect()
     }
+    pub fn network_jitter_ms(&self) -> u32 {
+        self.streams
+            .values()
+            .map(|s| s.jitter_us.div_ceil(1000))
+            .max()
+            .unwrap_or(0)
+    }
     pub fn render(&mut self) -> Result<[f32; TICK]> {
         let s = self.render_stereo()?;
         Ok(std::array::from_fn(|i| (s[i * 2] + s[i * 2 + 1]) * 0.5))
@@ -316,6 +394,14 @@ impl VoiceMixer {
     pub fn render_stereo(&mut self) -> Result<[f32; TICK * 2]> {
         let mut mixed = [0.0; TICK * 2];
         for (&user, s) in &mut self.streams {
+            if s.tail_ticks == 0 {
+                if s.speaking {
+                    s.speaking = false;
+                    self.events.insert(user, false);
+                }
+                continue;
+            }
+            s.tail_ticks -= 1;
             let frame = match s.playout.get_audio() {
                 Ok(frame) => frame,
                 Err(_) => {
@@ -360,6 +446,70 @@ impl VoiceMixer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn clean_native_stereo_playout_preserves_both_packet_durations() {
+        for packet_ticks in [1usize, 2] {
+            let mut mixer = VoiceMixer::new(1).unwrap();
+            // WASAPI renders stereo even when the remote voice codec is mono.
+            mixer.add_stereo_remote(1).unwrap();
+            let mut encoder = super::super::OpusEncoder::new(false, 64000).unwrap();
+            let origin = Instant::now();
+            let mut energetic_ticks = 0;
+            for tick in 0..300usize {
+                if tick.is_multiple_of(packet_ticks) {
+                    let pcm: Vec<_> = (0..TICK * packet_ticks)
+                        .map(|i| ((tick * TICK + i) as f32 * 0.035).sin() * 0.1)
+                        .collect();
+                    let packet = encoder.encode(&pcm, (tick * TICK) as u64).unwrap();
+                    mixer
+                        .push_at(
+                            1,
+                            packet,
+                            origin + std::time::Duration::from_millis(tick as u64 * 10),
+                        )
+                        .unwrap();
+                }
+                let out = mixer.render_stereo().unwrap();
+                if tick > 10 && rms_dbfs(&out) > -40.0 {
+                    energetic_ticks += 1;
+                }
+                assert!(out
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .all(|s| (s[0] - s[1]).abs() < 0.001));
+            }
+            assert!(
+                energetic_ticks >= 285,
+                "packet_ticks={packet_ticks}, energetic={energetic_ticks}"
+            );
+            assert_eq!(
+                mixer.statistics(1).unwrap().target_delay_ms,
+                packet_ticks as u32 * 10
+            );
+            assert_eq!(
+                mixer.repair_statistics(1).unwrap().late_samples_discarded,
+                0
+            );
+        }
+    }
+    #[test]
+    fn clock_wrap_and_long_outage_recover_without_allocating_gap_audio() {
+        let mut mixer = VoiceMixer::new(1).unwrap();
+        mixer.add_remote(1).unwrap();
+        let mut encoder = super::super::OpusEncoder::new(false, 64000).unwrap();
+        let pcm = [0.1; TICK];
+        mixer
+            .push(1, encoder.encode(&pcm, (1u64 << 32) - 480).unwrap())
+            .unwrap();
+        mixer.push(1, encoder.encode(&pcm, 0).unwrap()).unwrap();
+        assert_eq!(mixer.streams[&1].last_timestamp, Some(1u64 << 32));
+        let mut resumed = encoder.encode(&pcm, 480000).unwrap();
+        resumed.sequence = 1000;
+        mixer.push(1, resumed).unwrap();
+        assert!(mixer.statistics(1).unwrap().packets_awaiting_decode <= 12);
+        assert!(mixer.render().unwrap().iter().all(|s| s.is_finite()));
+    }
     #[test]
     fn telemetry_reports_per_channel_milliseconds_for_mono_and_stereo() {
         for stereo in [false, true] {

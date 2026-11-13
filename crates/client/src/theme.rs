@@ -567,3 +567,13 @@ pub fn friend_action(theme: &Theme, status: button_widget::Status) -> button_wid
     }
     s
 }
+
+pub fn threshold_slider(
+    theme: &Theme,
+    status: iced::widget::slider::Status,
+) -> iced::widget::slider::Style {
+    let mut s = slider(theme, status);
+    s.rail.backgrounds = (TRANSPARENT.into(), TRANSPARENT.into());
+    s.handle.background = WARNING.into();
+    s
+}

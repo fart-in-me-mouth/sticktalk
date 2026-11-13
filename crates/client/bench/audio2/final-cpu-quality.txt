@@ -1,0 +1,19 @@
+AUTO probe: NoiseCpuProbe { recommended: Standard, mean_frame: 261.895µs, p95_frame: 401.7µs, failure: None }
+mode=Off, studio=false, talking=true, bitrate=46.031 kbit/s: seconds=10.000, CPU machine=0.1660% / one-core=2.6561%, RSS=49.75 MiB, private=6.33 MiB
+playout: Some((10, 0, 0))
+mode=Off, studio=false, talking=false, bitrate=0.473 kbit/s: seconds=10.000, CPU machine=0.0293% / one-core=0.4687%, RSS=49.76 MiB, private=5.83 MiB
+playout: Some((10, 90, 9))
+mode=Standard, studio=false, talking=true, bitrate=41.245 kbit/s: seconds=10.000, CPU machine=0.1660% / one-core=2.6561%, RSS=49.83 MiB, private=6.23 MiB
+playout: Some((10, 0, 0))
+mode=Standard, studio=false, talking=false, bitrate=0.473 kbit/s: seconds=10.000, CPU machine=0.0293% / one-core=0.4687%, RSS=49.97 MiB, private=6.23 MiB
+playout: Some((10, 90, 9))
+mode=HighQuality, studio=false, talking=true, bitrate=10.655 kbit/s: seconds=10.000, CPU machine=0.7324% / one-core=11.7183%, RSS=90.23 MiB, private=46.29 MiB
+playout: Some((10, 0, 0))
+mode=HighQuality, studio=false, talking=false, bitrate=0.473 kbit/s: seconds=10.001, CPU machine=0.0098% / one-core=0.1562%, RSS=89.78 MiB, private=45.82 MiB
+playout: Some((10, 90, 9))
+mode=Off, studio=true, talking=true, bitrate=147.809 kbit/s: seconds=10.000, CPU machine=0.0684% / one-core=1.0937%, RSS=49.21 MiB, private=5.27 MiB
+playout: Some((10, 0, 0))
+File enhancement SI-SDR: mode=Off, aligned delay=0.958 ms, score=-0.775 dB; deterministic approximately 0dB additive noise, NOT DNSMOS or a Discord comparison
+File enhancement SI-SDR: mode=Standard, aligned delay=10.958 ms, score=4.427 dB; deterministic approximately 0dB additive noise, NOT DNSMOS or a Discord comparison
+File enhancement SI-SDR: mode=HighQuality, aligned delay=10.958 ms, score=7.240 dB; deterministic approximately 0dB additive noise, NOT DNSMOS or a Discord comparison
+all processors dropped: seconds=5.000, CPU machine=0.0000% / one-core=0.0000%, RSS=47.54 MiB, private=3.84 MiB

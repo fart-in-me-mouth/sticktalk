@@ -1,0 +1,5 @@
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+    Checking sticktalk-media v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-48d31b61-9c034731556fb049\crates\media)
+    Checking sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-48d31b61-9c034731556fb049\crates\client)
+    Checking sticktalk-client-core v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-48d31b61-9c034731556fb049\crates\client-core)
+    Finished `dev` profile [unoptimized] target(s) in 6.20s

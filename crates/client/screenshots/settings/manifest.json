@@ -82,7 +82,7 @@
     {
       "file": "user-settings-devices-1280x800.png",
       "height": 800,
-      "sha256": "07d2cd536ebb6c32b4ef7aadf2054cd0a5bdf96adf925ca7b4db4d9e733e615e",
+      "sha256": "8ece0fd60868f0b72a5663b65813cb70504e84d30138d1b455ced7ba5bcefeac",
       "width": 1280
     },
     {
@@ -94,19 +94,19 @@
     {
       "file": "user-settings-voice-1280x800.png",
       "height": 800,
-      "sha256": "7a1a4c54afb0ecbe114fefc4554065805fad54b73180b8b3ea2e91bcde0d475d",
+      "sha256": "983b893bf7585e761ab3ed0ffc55b62148a216d6504dee18eb0082f62d4ff1f7",
       "width": 1280
     },
     {
       "file": "user-settings-voice-processing-1280x800.png",
       "height": 800,
-      "sha256": "c4489dbfe40a17ee971ca0239291ea6ea773c9e1fe1e8c97dee4e47fce12e8df",
+      "sha256": "d7d6ecd315caf4ae4073a45ebec4bf304917394393019b577796e1dbfd3c0a8f",
       "width": 1280
     },
     {
       "file": "user-settings-voice-input-1280x800.png",
       "height": 800,
-      "sha256": "6cf2d9845c22caef1d4e84992722326c350effc24a2bc69b059cd6d132b83173",
+      "sha256": "d12c8c67bd2e1a48ab61ea4eeacd03064c1a420c6f3cbc6840c4741b92b39024",
       "width": 1280
     },
     {
@@ -160,13 +160,13 @@
     {
       "file": "guild-settings-members-1280x800.png",
       "height": 800,
-      "sha256": "c785924c986eb0a2e18da57331960e8678d48f29f28f050912518c7189c84ce2",
+      "sha256": "d378f65be7d994773b2cd80e502f770fe929f1045328a0f25e07e976c03bbdd8",
       "width": 1280
     },
     {
       "file": "guild-settings-members-filter-1280x800.png",
       "height": 800,
-      "sha256": "2533dec3ce25b385aa9148c652d94efbd338cd38c613b093a68522ce0cac99a9",
+      "sha256": "a9eb9a19e09611d993b54e5a8b8802939a30d6599245c22932c07b372b5096b9",
       "width": 1280
     },
     {
@@ -304,13 +304,13 @@
     {
       "file": "notification-settings-1280x800.png",
       "height": 800,
-      "sha256": "6dc735f41015699411ba1304f89b50a61e07df7c01e6e80eeb9f99d74c373504",
+      "sha256": "b17752ab8ca7814f052adcabadada8fe51f7a1aa066925a419676cf03477faa3",
       "width": 1280
     },
     {
       "file": "notification-settings-muted-1280x800.png",
       "height": 800,
-      "sha256": "814a9e44a8dc43360138bee1f1de94c383c7376b79ce36cb2e06fab799f064ef",
+      "sha256": "38dc0d593386dc512d17adc78cbedb08242644b63fc8adbe14ebb33e16a682f2",
       "width": 1280
     },
     {
@@ -394,7 +394,7 @@
     {
       "file": "user-settings-devices-1920x1080.png",
       "height": 1080,
-      "sha256": "c8d9cf9587586d3b630778d624451ed7fccdb4e21cb061e129c583aca3c70c98",
+      "sha256": "ef09f7bfccadc577342a8b385673bc81a935668dd7c8e90d4b2e5ddf03249cc2",
       "width": 1920
     },
     {
@@ -406,19 +406,19 @@
     {
       "file": "user-settings-voice-1920x1080.png",
       "height": 1080,
-      "sha256": "a4532dfaf28ec06464f460da3981e6164c723dd835bc5a452a3dc9a2bd3f5ec5",
+      "sha256": "82422272f234fdd88bce353a0b0f60661f34eecd85092e75df269aafb9902246",
       "width": 1920
     },
     {
       "file": "user-settings-voice-processing-1920x1080.png",
       "height": 1080,
-      "sha256": "77dfd77a6eb78d3e26fefee8c321630d2d96dc43a5b3422845eec6cd1d56f228",
+      "sha256": "4e5dfd189b63298b866ee067b2df9a1cf845ad5030030a9fb6b140e1c693d99d",
       "width": 1920
     },
     {
       "file": "user-settings-voice-input-1920x1080.png",
       "height": 1080,
-      "sha256": "77dfd77a6eb78d3e26fefee8c321630d2d96dc43a5b3422845eec6cd1d56f228",
+      "sha256": "a73ae61ce65d505193e4ac607f260f583566dd143c7bf3d70395c9b16c99e32f",
       "width": 1920
     },
     {
@@ -472,13 +472,13 @@
     {
       "file": "guild-settings-members-1920x1080.png",
       "height": 1080,
-      "sha256": "397dbe83637969f7367250dece47ab7792352d9923d84e8d91e585ff97253a0b",
+      "sha256": "bd69d82d25d8318e5cc2d8c04c5698284f67c061c2875e6e9dc237374f403579",
       "width": 1920
     },
     {
       "file": "guild-settings-members-filter-1920x1080.png",
       "height": 1080,
-      "sha256": "846d8f2283ccc915ee6a44a5692e8a53a1611d7716b156da48a61ee9a0e595c2",
+      "sha256": "1ade7e737fd32c9ab8755b363b111dcdcd6269a0be32ccdabdba4773a955ed7d",
       "width": 1920
     },
     {
@@ -616,13 +616,13 @@
     {
       "file": "notification-settings-1920x1080.png",
       "height": 1080,
-      "sha256": "06cfbb54bc08d54a68ea015dfd2bb43f407ee251c129fc039b979d13343db85c",
+      "sha256": "4a459f2b6035f68bc4b98bdde2d2cb55eb78b5bde16f764eaaf41c552fd3d993",
       "width": 1920
     },
     {
       "file": "notification-settings-muted-1920x1080.png",
       "height": 1080,
-      "sha256": "6ff7dcd89607ed2a864922455e2788625edc8e0a7b1802c34c4ec29f479cdf3f",
+      "sha256": "835ad9112d414094787ca72febbd739e3a75a413b9d580e4625ce56592db4a35",
       "width": 1920
     }
   ],

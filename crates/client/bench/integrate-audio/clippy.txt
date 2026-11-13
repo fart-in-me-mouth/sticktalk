@@ -1,0 +1,4 @@
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+    Checking sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-1c8c5ebc-9bdd006c3fc91c64\crates\client)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.61s

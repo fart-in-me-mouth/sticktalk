@@ -1,5 +1,9 @@
 # Native call integration evidence — 2026-11-12
 
+Audio-only follow-up: [`../audio2/REPORT.md`](../audio2/REPORT.md) supersedes this
+report's voice CPU, timing method and settings gaps. Video/control evidence below
+remains unchanged.
+
 **Partial delivery, not Phase 2 acceptance.** See [integration boundaries and
 remaining work](../../VOICE_INTEGRATION.md). Measurements were collected on the
 owner's Windows PC without opening a visible window, real microphone/camera,

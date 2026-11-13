@@ -80,6 +80,7 @@ mod native {
         ptt: Option<u32>,
         down: BTreeSet<u32>,
         control: Arc<AtomicBool>,
+        notify: Option<Arc<dyn Fn() + Send + Sync>>,
     }
     static STATE: OnceLock<Mutex<Option<State>>> = OnceLock::new();
     unsafe extern "system" fn keyboard(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
@@ -101,6 +102,9 @@ mod native {
                             let event = action(s.ptt, data.vkCode, down, ctrl, shift, alt);
                             if let Some(event) = event {
                                 let _ = s.sender.try_send(event);
+                                if let Some(notify) = &s.notify {
+                                    notify();
+                                }
                             }
                         }
                     }
@@ -118,6 +122,9 @@ mod native {
                 if let Some(s) = state.as_ref() {
                     if s.control.swap(false, Ordering::AcqRel) {
                         let _ = s.sender.try_send(Hotkey::Revoke);
+                        if let Some(notify) = &s.notify {
+                            notify();
+                        }
                     }
                 }
             }
@@ -146,6 +153,7 @@ mod native {
                     ptt,
                     down: BTreeSet::new(),
                     control: control.clone(),
+                    notify: None,
                 });
             }
             let thread = thread::Builder::new()
@@ -194,6 +202,13 @@ mod native {
         }
         pub fn set_control_active(&self, active: bool) {
             self.control.store(active, Ordering::Release);
+        }
+        pub fn set_notifier(&self, notify: Arc<dyn Fn() + Send + Sync>) {
+            if let Ok(mut state) = STATE.get().unwrap().lock() {
+                if let Some(state) = state.as_mut() {
+                    state.notify = Some(notify);
+                }
+            }
         }
         pub fn set_ptt_key(&self, key: Option<u32>) {
             if let Ok(mut state) = STATE.get().unwrap().lock() {

@@ -1,0 +1,90 @@
+{
+  "renderer": "iced-tiny-skia",
+  "screens": [
+    {
+      "file": "audio-default-1280x800.png",
+      "height": 800,
+      "sha256": "983b893bf7585e761ab3ed0ffc55b62148a216d6504dee18eb0082f62d4ff1f7",
+      "width": 1280
+    },
+    {
+      "file": "audio-mic-test-1280x800.png",
+      "height": 800,
+      "sha256": "9b91f3c8c361ba511ee22eacd8491286550d83abfd97c8227e096de701b56329",
+      "width": 1280
+    },
+    {
+      "file": "audio-manual-1280x800.png",
+      "height": 800,
+      "sha256": "af7198f74107bb245edf1d240df929a8d5bc12cca61495ea45a2a6090c029c0a",
+      "width": 1280
+    },
+    {
+      "file": "audio-ptt-1280x800.png",
+      "height": 800,
+      "sha256": "b215b2710de6ca6dcdda3c9f742d261b800dc6efa00193718b9c6e14d3c1d3af",
+      "width": 1280
+    },
+    {
+      "file": "audio-devices-1280x800.png",
+      "height": 800,
+      "sha256": "61fdabb9cacfefce5ab30ee0ae176c3bf4da0e3d6a9f0ba4f359b7c58b2f2e55",
+      "width": 1280
+    },
+    {
+      "file": "audio-bluetooth-1280x800.png",
+      "height": 800,
+      "sha256": "4e00c3fae19ef1f3b61c54a4e01f45198ab920e419fa8ce8c2e4f7d65b2bcee6",
+      "width": 1280
+    },
+    {
+      "file": "audio-processing-1280x800.png",
+      "height": 800,
+      "sha256": "d7d6ecd315caf4ae4073a45ebec4bf304917394393019b577796e1dbfd3c0a8f",
+      "width": 1280
+    },
+    {
+      "file": "audio-default-1920x1080.png",
+      "height": 1080,
+      "sha256": "82422272f234fdd88bce353a0b0f60661f34eecd85092e75df269aafb9902246",
+      "width": 1920
+    },
+    {
+      "file": "audio-mic-test-1920x1080.png",
+      "height": 1080,
+      "sha256": "20ff71752f998cff598d78902dec2ceb533c94d8132922008ecceec60bcbfef4",
+      "width": 1920
+    },
+    {
+      "file": "audio-manual-1920x1080.png",
+      "height": 1080,
+      "sha256": "c224c9bf17a0522eca5627bef750f85930d9f6acba342afca5a091ca27703726",
+      "width": 1920
+    },
+    {
+      "file": "audio-ptt-1920x1080.png",
+      "height": 1080,
+      "sha256": "d7732dd9126f23e3ec2537351fc559de5cc760d2601713676648b3ad8a1a15cd",
+      "width": 1920
+    },
+    {
+      "file": "audio-devices-1920x1080.png",
+      "height": 1080,
+      "sha256": "cab7b5f9af85c1d2dc897ce445c610548cc38cf403eba69d2d8de3346a303019",
+      "width": 1920
+    },
+    {
+      "file": "audio-bluetooth-1920x1080.png",
+      "height": 1080,
+      "sha256": "b8facba4a74978083e0b9eaf055e30f202d8940e76bd9a1fee6891b2007a1981",
+      "width": 1920
+    },
+    {
+      "file": "audio-processing-1920x1080.png",
+      "height": 1080,
+      "sha256": "4e5dfd189b63298b866ee067b2df9a1cf845ad5030030a9fb6b140e1c693d99d",
+      "width": 1920
+    }
+  ],
+  "window_backend": "none"
+}

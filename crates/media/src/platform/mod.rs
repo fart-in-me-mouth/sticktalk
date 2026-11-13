@@ -17,6 +17,8 @@ pub use usage::{process_usage, ProcessUsage};
 
 mod audio;
 pub use audio::*;
+mod attenuation;
+pub use attenuation::AppAttenuation;
 
 mod camera;
 pub use camera::*;

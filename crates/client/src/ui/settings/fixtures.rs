@@ -203,6 +203,14 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
             _ => UserPage::Account,
         };
         app.user_tab = page.index();
+        if page == UserPage::Voice {
+            app.calls.audio_devices = crate::audio_settings::fixture_devices();
+            app.calls.call.settings.auto_high_quality = Some(true);
+            if screen == "user-settings-voice-input" {
+                app.calls.call.settings.push_to_talk = true;
+                app.calls.call.settings.push_to_talk_key = Some(0x56);
+            }
+        }
         match screen {
             "user-settings-profile-dirty" => {
                 app.settings.profile.about = "Building something new. Come say hello!".into();
