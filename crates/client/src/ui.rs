@@ -5,6 +5,7 @@ mod link_context;
 mod main_window;
 mod members;
 mod menus;
+mod observe;
 mod popout;
 mod rail;
 mod sidebar;
@@ -232,6 +233,9 @@ fn dot<'a>(color: Color, size: f32) -> Element<'a, Msg> {
         .into()
 }
 fn avatar<'a>(app: &App, id: Id, size: f32, presence: bool) -> Element<'a, Msg> {
+    if presence {
+        return controls::avatar(app, id, size, t::BG_SIDEBAR, false);
+    }
     let face: Element<'_, Msg> = if let Some(handle) = app
         .state
         .model
@@ -253,37 +257,27 @@ fn avatar<'a>(app: &App, id: Id, size: f32, presence: bool) -> Element<'a, Msg> 
             .take(if size <= t::S24 { 1 } else { 2 })
             .filter_map(|v| v.chars().next())
             .collect::<String>();
-        container(txt(initials).size(size * 0.4).font(t::semibold()))
-            .width(size)
-            .height(size)
-            .center_x(size)
-            .center_y(size)
-            .style(move |_| container::Style {
-                border: Border {
-                    radius: t::ROUND.into(),
-                    ..Default::default()
-                },
-                ..t::surface(t::avatar_color(id.0))
-            })
-            .into()
+        container(
+            txt(initials)
+                .size(size * 0.4)
+                .line_height(1.)
+                .wrapping(widget::text::Wrapping::None)
+                .font(t::semibold()),
+        )
+        .width(size)
+        .height(size)
+        .center_x(size)
+        .center_y(size)
+        .style(move |_| container::Style {
+            border: Border {
+                radius: t::ROUND.into(),
+                ..Default::default()
+            },
+            ..t::surface(t::avatar_color(id.0))
+        })
+        .into()
     };
-    if !presence {
-        return face;
-    }
-    let presence = app
-        .state
-        .model
-        .presences
-        .get(&id)
-        .copied()
-        .unwrap_or(PresenceStatus::Offline);
-    stack![
-        face,
-        container(controls::status_badge(presence, size, t::BG_SIDEBAR))
-            .align_right(size)
-            .align_bottom(size)
-    ]
-    .into()
+    face
 }
 fn emoji<'a>(value: &str, size: f32) -> Element<'a, Msg> {
     let bytes: Option<&'static [u8]> = match value {
@@ -321,6 +315,9 @@ fn empty<'a>(name: &str, label: impl Into<String>, button: Button<'a>) -> Elemen
     .into()
 }
 pub fn view(app: &App) -> Element<'_, Msg> {
+    if app.main.avatar_gallery {
+        return controls::avatar_gallery(app);
+    }
     if app.state.session.is_none() {
         return login(app);
     }
@@ -368,25 +365,23 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             Dialog::MessageActions(_) | Dialog::GuildMenu | Dialog::MemberMenu(_)
         );
         let overlay = if context {
-            container(opaque(context_menu(app)))
-                .id("dialog-scope")
-                .align_left(Fill)
-                .align_top(Fill)
-                .padding(Padding {
-                    top: app
-                        .main
-                        .position
-                        .y
-                        .clamp(t::S8, (app.height - t::ROW * 12.).max(t::S8)),
-                    right: 0.,
-                    bottom: 0.,
-                    left: app
-                        .main
-                        .position
-                        .x
-                        .clamp(t::S8, (app.width - t::CONTEXT_W - t::S8).max(t::S8)),
-                })
-                .style(t::bare)
+            let body = widget::sensor(
+                container(context_menu(app))
+                    .id("main-popover")
+                    .max_height(app.height - t::S16),
+            )
+            .key(app.main.measurement_revision)
+            .on_show(|s| crate::main_window::mm(crate::main_window::Message::PopoverSize(s)))
+            .on_resize(|s| crate::main_window::mm(crate::main_window::Message::PopoverSize(s)));
+            container(observe::popup(
+                opaque(body),
+                app.main.position,
+                app.main.anchor,
+            ))
+            .id("dialog-scope")
+            .width(Fill)
+            .height(Fill)
+            .style(t::bare)
         } else {
             container(opaque(modal(app)))
                 .id("dialog-scope")
@@ -610,7 +605,6 @@ fn login(app: &App) -> Element<'_, Msg> {
 }
 fn rail(app: &App) -> Element<'_, Msg> {
     rail::view(app)
-
 }
 
 fn sidebar(app: &App) -> Element<'_, Msg> {
@@ -912,7 +906,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
             )
         });
         list = list.push(widget::keyed_column(visible).width(Fill));
-        list = list.push(space().height(tail));
+        list = list.push(space().height(tail + t::HISTORY_BOTTOM));
         scroller(list)
             .id("messages")
             .on_scroll(Msg::Scroll)
@@ -933,13 +927,12 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
                 .into(),
         );
     }
-    let center = column![
-        connection_banner(app),
-        stack(history_layers).height(Fill),
-        composer(app, channel)
-    ]
-    .height(Fill)
-    .width(Fill);
+    let history = widget::sensor(stack(history_layers).height(Fill).width(Fill))
+        .on_show(Msg::HistoryViewport)
+        .on_resize(Msg::HistoryViewport);
+    let center = column![connection_banner(app), history, composer(app, channel)]
+        .height(Fill)
+        .width(Fill);
     let mut body = row![center].height(Fill);
     if app
         .members_open
@@ -1113,8 +1106,8 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                         Msg::PickUpload(UploadPurpose::Message)
                     ),
                     editor,
-                    icon_button("smile", "Choose an emoji", Msg::Open(Dialog::EmojiPicker)),
-                    icon_button("send", "Send message", Msg::Send)
+                    controls::gif_button(),
+                    icon_button("smile", "Choose an emoji", Msg::Open(Dialog::EmojiPicker))
                 ]
                 .spacing(t::S12)
                 .align_y(Center),
@@ -1161,6 +1154,7 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
             .style(t::bare),
     );
     container(body)
+        .id("composer")
         .padding(Padding {
             top: t::S8,
             right: t::S16,
@@ -1481,11 +1475,12 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
             .into(),
         );
     }
-    let message: Element<'_, Msg> = mouse_area(stack(layers))
-        .on_enter(Msg::Hover(Some(m.id)))
-        .on_exit(Msg::HoverLeave(m.id))
-        .on_right_press(Msg::Open(Dialog::MessageActions(m.id)))
-        .into();
+    let message: Element<'_, Msg> = observe::anchor(
+        mouse_area(stack(layers))
+            .on_enter(Msg::Hover(Some(m.id)))
+            .on_exit(Msg::HoverLeave(m.id))
+            .on_right_press(Msg::Open(Dialog::MessageActions(m.id))),
+    );
     let mut full = column![].spacing(0);
     if date {
         full = full.push(
@@ -1529,25 +1524,29 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
     let width = app.viewport_w.to_bits();
     let seq = app.row_revision(m);
     let editing = app.state.editing == Some(id);
-    widget::sensor(full.push(message))
-        .key((id, generation, width, seq, editing))
-        .on_show(move |size| Msg::Measured {
-            message: id,
-            generation,
-            width,
-            seq,
-            editing,
-            height: size.height,
-        })
-        .on_resize(move |size| Msg::Measured {
-            message: id,
-            generation,
-            width,
-            seq,
-            editing,
-            height: size.height,
-        })
-        .into()
+    widget::sensor(
+        container(full.push(message))
+            .id(format!("message-{}", id.0))
+            .width(Fill),
+    )
+    .key((id, generation, width, seq, editing))
+    .on_show(move |size| Msg::Measured {
+        message: id,
+        generation,
+        width,
+        seq,
+        editing,
+        height: size.height,
+    })
+    .on_resize(move |size| Msg::Measured {
+        message: id,
+        generation,
+        width,
+        seq,
+        editing,
+        height: size.height,
+    })
+    .into()
 }
 fn thumb_size(a: &Attachment) -> (f32, f32) {
     if let Some(thumb) = &a.thumbnail {
@@ -1934,11 +1933,7 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
         _ => {}
     }
 
-    container(items)
-        .padding(t::MENU_PADDING)
-        .width(t::CONTEXT_W)
-        .style(controls::surface)
-        .into()
+    menus::card(items)
 }
 fn modal(app: &App) -> Element<'_, Msg> {
     if matches!(app.dialog, Dialog::GuildSettings(_) | Dialog::UserSettings) {

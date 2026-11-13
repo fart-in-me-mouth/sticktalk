@@ -68,25 +68,27 @@ pub fn profile(app: &App, id: Id) -> Element<'_, Msg> {
     ]
     .spacing(t::S8);
     if let Some(d) = detail {
-        content = content
-            .push(
+        content = content.push(
+            row![
                 button(
                     hint(format!("{} Mutual Servers", d.mutual_servers.len()))
-                        .color(t::TEXT_SECONDARY),
+                        .color(t::TEXT_SECONDARY)
                 )
                 .on_press(mm(Main::Open(Popover::Mutual(id, true))))
                 .padding(0)
                 .style(t::icon),
-            )
-            .push(
+                hint("·"),
                 button(
                     hint(format!("{} Mutual Friends", d.mutual_friends.len()))
-                        .color(t::TEXT_SECONDARY),
+                        .color(t::TEXT_SECONDARY)
                 )
                 .on_press(mm(Main::Open(Popover::Mutual(id, false))))
                 .padding(0)
-                .style(t::icon),
-            );
+                .style(t::icon)
+            ]
+            .spacing(t::S4)
+            .align_y(Center),
+        );
         if let Some(s) = user.and_then(|u| u.status_text.as_deref()) {
             content = content.push(txt(s).size(t::USER_NAME));
         }
@@ -100,7 +102,7 @@ pub fn profile(app: &App, id: Id) -> Element<'_, Msg> {
             .map_or(d.profile.created_at, |s| s.member_since);
         content = content.push(section("Member since")).push(hint({
             let d = crate::datetime::local(joined);
-            format!("{:04}-{:02}-{:02}", d.year, d.month, d.day)
+            crate::datetime::member_since(d)
         }));
     } else {
         content = content.push(hint("Loading profile…"));
@@ -147,26 +149,6 @@ pub fn profile(app: &App, id: Id) -> Element<'_, Msg> {
                 .width(Fill),
         );
     } else {
-        let friend = app
-            .state
-            .model
-            .relationships
-            .get(&id)
-            .is_some_and(|r| r.kind == RelationshipKind::Friend);
-        content = content.push(
-            primary(
-                if friend { "Message" } else { "Add Friend" },
-                if friend {
-                    Msg::Command(Command::OpenDm { user_id: id })
-                } else {
-                    Msg::Command(Command::SendFriendRequest {
-                        username: user.map_or(String::new(), |u| u.username.clone()),
-                    })
-                },
-            )
-            .height(t::PROFILE_ACTION)
-            .width(Fill),
-        );
         content = content.push(
             text_input(
                 &format!("Message @{}", user.map_or("user", |u| u.username.as_str())),

@@ -28,13 +28,13 @@ impl Window {
         self.channel.is_some() && self.count >= 200
     }
     pub fn total(&self) -> f32 {
-        self.count as f32 * t::HISTORY_ROW + t::VIRTUAL_HEADER
+        self.count as f32 * t::HISTORY_ROW + t::VIRTUAL_HEADER + t::HISTORY_BOTTOM
     }
     pub fn top(&self) -> f32 {
         self.start_rank as f32 * t::HISTORY_ROW + t::VIRTUAL_HEADER
     }
     pub fn top_for(&self, height: f32) -> f32 {
-        let end = (self.total() - height).max(0.);
+        let end = (self.total() - t::HISTORY_BOTTOM - height).max(0.);
         if self.ends_at_present {
             end
         } else {

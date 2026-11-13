@@ -137,7 +137,7 @@ pub fn run(args: &[String], index: usize) -> Result<(), String> {
             let raster_ms = rendering.elapsed().as_secs_f64() * 1000.;
             renderer.reset(iced::Rectangle::with_size(size));
             for m in messages {
-                if matches!(m, Msg::Measured { .. }) {
+                if matches!(m, Msg::Measured { .. } | Msg::HistoryViewport(_)) {
                     let _ = app.update(m);
                 }
             }
@@ -231,35 +231,8 @@ impl Gpu {
 #[cfg(test)]
 mod input_tests {
     use super::*;
-    use iced::{
-        advanced::widget::{operation::Scrollable, Id, Operation},
-        Point, Rectangle, Vector,
-    };
-    #[derive(Default)]
-    struct Geometry {
-        bounds: Rectangle,
-        content: Rectangle,
-        offset: Vector,
-    }
-    impl Operation for Geometry {
-        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
-            operate(self)
-        }
-        fn scrollable(
-            &mut self,
-            id: Option<&Id>,
-            bounds: Rectangle,
-            content: Rectangle,
-            offset: Vector,
-            _: &mut dyn Scrollable,
-        ) {
-            if id == Some(&Id::new("messages")) {
-                self.bounds = bounds;
-                self.content = content;
-                self.offset = offset;
-            }
-        }
-    }
+    use crate::scroll::test_geometry::Geometry;
+    use iced::Point;
     #[test]
     fn native_iced_fractional_wheel_and_scrollbar_drag_are_headless() {
         let size = Size::new(2560., 1440.);

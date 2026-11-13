@@ -86,10 +86,16 @@ pub fn server(app: &App) -> Element<'_, Msg> {
     card(list)
 }
 pub fn card<'a>(items: impl Into<Element<'a, Msg>>) -> Element<'a, Msg> {
-    container(items)
-        .padding(t::MENU_PADDING)
+    container(scroller(items).height(Length::Shrink))
+        .padding(t::S8)
         .width(t::CONTEXT_W)
-        .style(controls::surface)
+        .style(|theme| container::Style {
+            border: Border {
+                radius: t::S4.into(),
+                ..controls::surface(theme).border
+            },
+            ..controls::surface(theme)
+        })
         .into()
 }
 pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {

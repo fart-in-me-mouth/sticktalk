@@ -121,25 +121,35 @@ fn cell<'a>(app: &App, id: Option<Id>, name: &str) -> Element<'a, Msg> {
         container(marker).center_y(t::GUILD_ICON).into(),
     ];
     if mentions > 0 {
+        let label = mention_label(mentions);
+        let width = t::BADGE_H.max(label.len() as f32 * t::HINT * 0.65 + t::S8);
         layers.push(
             container(
                 container(
-                    hint(if mentions > 99 {
-                        "99+".into()
-                    } else {
-                        mentions.to_string()
-                    })
-                    .font(t::semibold())
-                    .color(t::TEXT_PRIMARY),
+                    container(
+                        hint(label)
+                            .font(t::bold())
+                            .color(t::BADGE_TEXT)
+                            .line_height(1.)
+                            .wrapping(widget::text::Wrapping::None),
+                    )
+                    .center_x(width)
+                    .center_y(t::BADGE_H)
+                    .style(|_| container::Style {
+                        border: Border {
+                            radius: t::ROUND.into(),
+                            ..Default::default()
+                        },
+                        ..t::surface(t::DANGER)
+                    }),
                 )
-                .padding([0., t::S4])
+                .padding(t::BADGE_RING)
                 .style(|_| container::Style {
                     border: Border {
                         radius: t::ROUND.into(),
-                        width: 3.,
-                        color: t::BG_RAIL,
+                        ..Default::default()
                     },
-                    ..t::surface(t::DANGER)
+                    ..t::surface(t::BG_RAIL)
                 }),
             )
             .align_right(t::RAIL - t::S8)
@@ -148,13 +158,38 @@ fn cell<'a>(app: &App, id: Option<Id>, name: &str) -> Element<'a, Msg> {
         );
     }
     controls::tip(
-        mouse_area(stack(layers))
-            .on_enter(Msg::GuildHover(Some(id)))
-            .on_exit(Msg::GuildHover(None))
-            .on_right_press(mm(Main::Open(Popover::Context(
-                id.map_or(Entity::Rail, Entity::Guild),
-            )))),
+        observe::anchor(
+            mouse_area(stack(layers))
+                .on_enter(Msg::GuildHover(Some(id)))
+                .on_exit(Msg::GuildHover(None))
+                .on_right_press(mm(Main::Open(Popover::Context(
+                    id.map_or(Entity::Rail, Entity::Guild),
+                )))),
+        ),
         name,
         tooltip::Position::Right,
     )
+}
+
+fn mention_label(count: u32) -> String {
+    if count > 99 {
+        "99+".into()
+    } else {
+        count.to_string()
+    }
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn badge_counts_are_bounded() {
+        for (n, label) in [
+            (2, "2"),
+            (10, "10"),
+            (99, "99"),
+            (100, "99+"),
+            (u32::MAX, "99+"),
+        ] {
+            assert_eq!(super::mention_label(n), label);
+        }
+    }
 }

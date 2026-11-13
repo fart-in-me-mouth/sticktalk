@@ -96,6 +96,12 @@ pub const MAIN_SCREENS: &[&str] = &[
     "main-history-extent",
     "main-history-skeleton",
     "main-server-menu-member",
+    "main-last-long",
+    "main-last-long-no-typing",
+    "main-last-image",
+    "main-search-focused",
+    "main-rail-counts",
+    "main-avatar-sizes",
 ];
 pub fn run_if_requested() -> Option<Result<(), String>> {
     let args: Vec<_> = std::env::args().collect();
@@ -196,6 +202,7 @@ pub(crate) fn load_fonts() {
     for bytes in [
         include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice(),
         include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice(),
+        include_bytes!("../assets/fonts/Inter-Bold.ttf").as_slice(),
         include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice(),
         include_bytes!("../assets/fonts/Inter-Italic.ttf").as_slice(),
         include_bytes!("../assets/fonts/Inter-SemiBoldItalic.ttf").as_slice(),
@@ -275,7 +282,12 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
         }
         cache = ui.into_cache();
         for message in messages {
-            if matches!(message, Msg::Measured { .. }) {
+            if matches!(
+                message,
+                Msg::Measured { .. }
+                    | Msg::HistoryViewport(_)
+                    | Msg::Main(crate::main_window::Message::PopoverSize(_))
+            ) {
                 let _ = app.update(message);
             }
         }
@@ -290,7 +302,15 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
         &iced_tiny_skia::graphics::Viewport::with_physical_size(Size::new(w, h), 1.),
         t::BG_CHAT,
     );
-    image::save_buffer(path, &rgba, w, h, image::ColorType::Rgba8).map_err(|e| e.to_string())
+    use image::{
+        codecs::png::{CompressionType, FilterType, PngEncoder},
+        ImageEncoder,
+    };
+    // Lossless fast encoding keeps the full parity suite practical in debug builds.
+    let file = std::fs::File::create(path).map_err(|e| e.to_string())?;
+    PngEncoder::new_with_quality(file, CompressionType::Fast, FilterType::Sub)
+        .write_image(&rgba, w, h, image::ExtendedColorType::Rgba8)
+        .map_err(|e| e.to_string())
 }
 
 /// Resource proof for a loaded, rendered view with no window/event-loop or media.
@@ -423,5 +443,148 @@ mod tests {
         }
         assert!(dark > 200, "tooltip did not appear above the settings icon");
         let _ = std::fs::remove_file(path);
+    }
+    use crate::scroll::test_geometry::Geometry;
+    fn settle(app: &mut App, size: Size, mut cache: Cache) -> (Cache, Geometry) {
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            t::regular(),
+            iced::Pixels(t::BODY),
+        ));
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+        let mut geometry = Geometry::default();
+        for _ in 0..16 {
+            app.headless_scroll();
+            let y = app.scroll_y;
+            let mut ui = UserInterface::build(crate::ui::view(app), size, cache, &mut renderer);
+            ui.operate(
+                &renderer,
+                &mut operation::scrollable::scroll_to::<()>(
+                    "messages".into(),
+                    operation::scrollable::AbsoluteOffset {
+                        x: Some(0.),
+                        y: Some(y),
+                    },
+                ),
+            );
+            let mut messages = Vec::new();
+            let _ = ui.update(
+                &[iced::Event::Window(iced::window::Event::RedrawRequested(
+                    Instant::now(),
+                ))],
+                mouse::Cursor::Unavailable,
+                &mut renderer,
+                &mut iced::advanced::graphics::core::clipboard::Null,
+                &mut messages,
+            );
+            geometry = Geometry {
+                last_id: "message-2279".into(),
+                ..Default::default()
+            };
+            ui.operate(&renderer, &mut geometry);
+            cache = ui.into_cache();
+            for m in messages {
+                if matches!(
+                    m,
+                    Msg::Measured { .. }
+                        | Msg::HistoryViewport(_)
+                        | Msg::Main(crate::main_window::Message::PopoverSize(_))
+                ) {
+                    let _ = app.update(m);
+                }
+            }
+        }
+        (cache, geometry)
+    }
+    #[test]
+    fn newest_message_clears_composer_with_long_text_images_and_typing_toggles() {
+        load_fonts();
+        for size in [Size::new(1280., 800.), Size::new(1920., 1080.)] {
+            for screen in ["guild-chat", "main-last-long", "main-last-image"] {
+                let mut app = App::headless(screen, size);
+                let (cache, g) = settle(&mut app, size, Cache::new());
+                assert_bottom(&app, &g, screen);
+                let typing = app.state.model.typing.clone();
+                app.state.model.typing.clear();
+                let (cache, g) = settle(&mut app, size, cache);
+                assert_bottom(&app, &g, screen);
+                app.state.model.typing = typing;
+                let (_, g) = settle(&mut app, size, cache);
+                assert_bottom(&app, &g, screen);
+            }
+        }
+    }
+    #[test]
+    fn pending_sparse_seek_does_not_replace_loaded_messages_with_skeletons() {
+        load_fonts();
+        let size = Size::new(1280., 800.);
+        let mut app = App::headless("guild-chat", size);
+        app.extent.channel = Some(sticktalk_proto::Id(12));
+        app.extent.count = 10_000;
+        app.extent.start_rank = 500;
+        app.extent.loaded = false;
+        app.extent.ends_at_present = true;
+        app.state.at_present = true;
+        let (_, geometry) = settle(&mut app, size, Cache::new());
+        assert!(
+            geometry.last.height > 0.,
+            "loaded last message was replaced by a skeleton during a pending seek"
+        );
+    }
+    #[test]
+    fn profile_popouts_measure_natural_height_before_clamping_at_the_bottom() {
+        load_fonts();
+        for size in [Size::new(1280., 800.), Size::new(1920., 1080.)] {
+            for screen in [
+                "main-own-profile",
+                "main-profile-idle",
+                "main-profile-offline",
+                "main-user-context",
+                "main-message-menu",
+            ] {
+                let mut app = App::headless(screen, size);
+                app.main.position = iced::Point::new(size.width - t::S8, size.height - t::S8);
+                let (_, g) = settle(&mut app, size, Cache::new());
+                assert!(g.popover.width > 0., "{screen}: popover not found");
+                assert!(
+                    g.popover.x >= t::S8 - 1.
+                        && g.popover.y >= t::S8 - 1.
+                        && g.popover.x + g.popover.width <= size.width - t::S8 + 1.
+                        && g.popover.y + g.popover.height <= size.height - t::S8 + 1.,
+                    "{screen}: popover outside window: {:?}",
+                    g.popover
+                );
+                if screen == "main-own-profile" {
+                    assert!(
+                        g.popover.height > 400.,
+                        "own profile was constrained before measuring: {}",
+                        g.popover.height
+                    );
+                }
+            }
+        }
+    }
+    fn assert_bottom(app: &App, g: &Geometry, screen: &str) {
+        assert!(
+            (g.content.height - app.history_height()).abs() < 2.,
+            "{screen}: content {} model {}",
+            g.content.height,
+            app.history_height()
+        );
+        assert!(
+            (g.offset.y + g.viewport.height - g.content.height).abs() < 2.,
+            "{screen}: not at bottom"
+        );
+        assert!(g.last.height > 0., "{screen}: last row not rendered");
+        // Native operations report row bounds in content coordinates; account for the scroll translation.
+        let bottom = g.last.y + g.last.height - g.offset.y;
+        let gap = g.composer.y + t::S8 - bottom;
+        assert!(
+            (16. - 2. ..=24. + 2.).contains(&gap),
+            "{screen}: last-message/composer gap {gap}, row {:?}, scroll {}",
+            g.last,
+            g.offset.y
+        );
     }
 }

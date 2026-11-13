@@ -13,22 +13,14 @@ pub fn header<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
         .members_open
         .unwrap_or(app.width >= t::MEMBER_BREAKPOINT);
     let narrow = app.width < t::DEFAULT_W;
-    let search = text_input(
-        &format!(
-            "Search {}",
-            app.state
-                .guild
-                .and_then(|g| app.state.model.guilds.get(&g))
-                .map_or("messages", |g| g.guild.name.as_str())
-        ),
-        &app.main.search,
-    )
-    .on_input(|s| mm(Main::Search(s)))
-    .padding([t::S4, t::S8])
-    .font(t::regular())
-    .size(t::USER_NAME)
-    .style(t::input)
-    .width(Fill);
+    let search = text_input("Search", &app.main.search)
+        .id("header-search")
+        .on_input(|s| mm(Main::Search(s)))
+        .padding([t::S4, t::S8])
+        .font(t::regular())
+        .size(t::USER_NAME)
+        .style(t::input)
+        .width(Fill);
     let muted = crate::main_window::muted(app, c.id);
     container(
         row![
@@ -71,17 +63,16 @@ pub fn header<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
             controls::icon_button("users", "Member List", Msg::ToggleMembers, members),
             container(
                 row![
-                    search,
-                    hint("Local"),
+                    observe::focus(search),
                     icon("search", t::INLINE_ICON, t::TEXT_MUTED)
                 ]
                 .spacing(t::S4)
                 .align_y(Center)
             )
-            .width(if narrow {
-                t::SEARCH_NARROW
-            } else {
+            .width(if app.main.search_focused {
                 t::SEARCH_W
+            } else {
+                t::SEARCH_REST
             })
             .height(t::VOICE_USER_ROW)
             .padding(Padding {
@@ -135,58 +126,61 @@ pub fn overlay(app: &App) -> Option<Element<'_, Msg>> {
         Popover::Roles(id) => popout::roles(app, *id),
         Popover::Nickname(id) => popout::nickname(app, *id),
     };
-    let (x, y) = match p {
-        Popover::Server => (t::RAIL + t::S8, t::HEADER + t::S4),
+    let size = if app.main.popover_size.width > 0. {
+        app.main.popover_size
+    } else {
+        iced::Size::new(
+            if matches!(p, Popover::Quick) {
+                t::QUICK_W
+            } else {
+                t::POPOUT_W
+            },
+            t::S32 * 10.,
+        )
+    };
+    let desired = match p {
+        Popover::Server => iced::Point::new(t::RAIL + t::S8, t::HEADER + t::S4),
         Popover::Notifications(_, Some(_)) | Popover::Topic(_) => {
-            (app.main.position.x, t::HEADER + t::S8)
+            iced::Point::new(app.main.position.x, t::HEADER + t::S8)
         }
-        Popover::Pins(_) => (
+        Popover::Pins(_) => iced::Point::new(
             app.width - t::MEMBERS - t::POPOUT_W - t::S32,
             t::HEADER + t::S8,
         ),
-        Popover::Quick => ((app.width - t::QUICK_W) / 2., t::HEADER + t::S32),
-        Popover::Devices(_) => (t::RAIL + t::S8, app.height - t::USER_HEIGHT - t::S24 * 7.),
-        Popover::Profile(_) | Popover::Mutual(_, _) => {
-            let x = if app.main.position.x >= app.width - t::MEMBERS {
-                app.width - t::MEMBERS - t::POPOUT_W - t::S8
-            } else {
-                app.main.position.x + t::S16
-            };
-            (
-                x,
-                app.main
-                    .position
-                    .y
-                    .min((app.height - t::BANNER_H - t::S32 * 16.).max(t::S8)),
-            )
+        Popover::Quick => iced::Point::new((app.width - t::QUICK_W) / 2., t::HEADER + t::S32),
+        Popover::Devices(_) => {
+            iced::Point::new(t::RAIL + t::S8, app.height - t::USER_HEIGHT - size.height)
         }
-        _ => (app.main.position.x, app.main.position.y),
+        Popover::Profile(_) | Popover::Mutual(_, _) => {
+            let anchor = app
+                .main
+                .anchor
+                .unwrap_or(iced::Rectangle::new(app.main.position, iced::Size::ZERO));
+            let x = if anchor.x >= app.width - t::MEMBERS {
+                anchor.x.min(app.width - t::MEMBERS) - size.width - t::S8
+            } else {
+                anchor.x + anchor.width + t::S8
+            };
+            iced::Point::new(x, anchor.y)
+        }
+        _ => app.main.position,
     };
-    let width = if matches!(p, Popover::Quick) {
-        t::QUICK_W
-    } else if matches!(
-        p,
-        Popover::Server
-            | Popover::Context(_)
-            | Popover::Devices(_)
-            | Popover::Roles(_)
-            | Popover::Notifications(..)
-    ) {
-        t::CONTEXT_W
+    let avoid = if matches!(p, Popover::Context(_)) {
+        app.main.anchor
     } else {
-        t::POPOUT_W + t::S32
+        None
     };
-    let height = if matches!(p, Popover::Server) {
-        t::ROW * 9. + t::S32 * 2.
-    } else {
-        t::S32 * 10.
-    };
-    let overlay = container(opaque(body))
-        .padding(Padding {
-            left: x.clamp(t::S8, (app.width - width - t::S8).max(t::S8)),
-            top: y.clamp(t::S8, (app.height - height - t::S8).max(t::S8)),
-            ..Padding::ZERO
-        })
+    let body = widget::sensor(
+        container(scroller(body).height(Length::Shrink))
+            .id("main-popover")
+            .max_height(app.height - t::S16),
+    )
+    .key(app.main.measurement_revision)
+    .on_show(|size| mm(Main::PopoverSize(size)))
+    .on_resize(|size| mm(Main::PopoverSize(size)));
+    // Measure against the whole window before translating. Padding/pin would
+    // constrain the card to the remaining height and hide its true extent.
+    let overlay = container(observe::popup(opaque(body), desired, avoid))
         .width(Fill)
         .height(Fill);
     Some(
@@ -228,7 +222,7 @@ pub fn drop_overlay<'a>() -> Element<'a, Msg> {
 }
 pub fn local_results(app: &App, id: Id) -> Element<'_, Msg> {
     let query = app.main.search.to_lowercase();
-    let mut list = column![hint("Local search · loaded messages only")].spacing(t::S12);
+    let mut list = column![section("Search results")].spacing(t::S12);
     for m in app
         .state
         .model

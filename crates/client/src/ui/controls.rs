@@ -197,9 +197,6 @@ pub fn toggle<'a>(label: impl Into<String>, on: bool, message: Msg) -> Element<'
 pub fn profile_message(id: Id) -> Msg {
     mm(Main::Open(Popover::Profile(id)))
 }
-pub fn status_badge<'a>(presence: PresenceStatus, size: f32, parent: Color) -> Element<'a, Msg> {
-    status_badge_alpha(presence, size, parent, 1.)
-}
 fn status_badge_alpha<'a>(
     presence: PresenceStatus,
     size: f32,
@@ -220,8 +217,7 @@ fn status_badge_alpha<'a>(
             (c.b * 255.) as u8
         )
     };
-    let ring = if size >= 80. { 5. } else { 3. };
-    let dot = if size >= 80. { 16. } else { 10. };
+    let (dot, ring) = status_geometry(size);
     let total = dot + 2. * ring;
     let r = dot / 2.;
     let center = total / 2.;
@@ -320,8 +316,14 @@ pub fn avatar_fade<'a>(
         container(
             txt(initials)
                 .size(inner * 0.4)
+                .line_height(1.)
+                .wrapping(widget::text::Wrapping::None)
+                .width(inner)
+                .height(inner)
+                .align_x(Center)
+                .align_y(Center)
                 .font(t::semibold())
-                .color(t::alpha(t::TEXT_PRIMARY, opacity)),
+                .color(mix(t::TEXT_PRIMARY)),
         )
         .center_x(inner)
         .center_y(inner)
@@ -356,11 +358,75 @@ pub fn avatar_fade<'a>(
         .unwrap_or(PresenceStatus::Offline);
     stack![
         face,
-        container(status_badge_alpha(presence, size, parent, opacity))
-            .align_right(size)
-            .align_bottom(size)
+        observe::shift(
+            container(status_badge_alpha(presence, size, parent, opacity))
+                .align_right(size)
+                .align_bottom(size),
+            iced::Vector::new(status_geometry(size).1, status_geometry(size).1)
+        )
     ]
     .into()
+}
+
+pub fn status_geometry(size: f32) -> (f32, f32) {
+    (
+        (size * 0.25).clamp(4., 16.),
+        if size >= t::PROFILE_AVATAR {
+            5.
+        } else {
+            t::STATUS_RING * (size / t::SMALL_AVATAR).min(1.)
+        },
+    )
+}
+pub fn gif_button<'a>() -> Element<'a, Msg> {
+    tip(
+        button(
+            container(
+                text("GIF")
+                    .font(t::semibold())
+                    .size(t::HINT)
+                    .line_height(1.)
+                    .style(t::inherit_text),
+            )
+            .center_x(t::S24)
+            .center_y(t::S16)
+            .style(|_| container::Style {
+                border: Border {
+                    width: t::HAIRLINE,
+                    color: t::TEXT_SECONDARY,
+                    radius: t::S4.into(),
+                },
+                ..Default::default()
+            }),
+        )
+        .on_press(Msg::OpenGifPicker)
+        .width(t::S32)
+        .height(t::S32)
+        .padding([t::S8, t::S4])
+        .centered()
+        .style(t::icon),
+        "Choose a GIF",
+        tooltip::Position::Top,
+    )
+}
+
+pub fn avatar_gallery(app: &App) -> Element<'_, Msg> {
+    let mut gallery = column![title("Avatars")].spacing(t::S24);
+    for size in [16., 20., 24., 32., 40., 80.] {
+        let mut samples = row![hint(format!("{size:.0} px")).width(t::PROFILE_AVATAR)]
+            .spacing(t::S24)
+            .align_y(Center);
+        for id in [Id(2), Id(1), Id(4), Id(3), Id(5), Id(6)] {
+            samples = samples.push(avatar(app, id, size, t::BG_SIDEBAR, false));
+        }
+        gallery = gallery.push(samples);
+    }
+    container(gallery)
+        .padding(t::S32)
+        .width(Fill)
+        .height(Fill)
+        .style(t::sidebar)
+        .into()
 }
 
 #[cfg(test)]

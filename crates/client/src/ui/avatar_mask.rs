@@ -42,10 +42,9 @@ pub fn masked(handle: &Handle, size: f32) -> Handle {
         .to_image();
         let mut out =
             image::imageops::resize(&source, edge, edge, image::imageops::FilterType::Triangle);
-        let ring = if size >= 80. { 5. } else { 3. };
-        let dot = if size >= 80. { 16. } else { 10. };
+        let (dot, ring) = super::controls::status_geometry(size);
         let radius = (dot / 2. + ring) / size * edge as f32;
-        let center = edge as f32 - radius;
+        let center = edge as f32 - dot / 2. / size * edge as f32;
         for (x, y, p) in out.enumerate_pixels_mut() {
             let distance =
                 ((x as f32 + 0.5 - center).powi(2) + (y as f32 + 0.5 - center).powi(2)).sqrt();
@@ -70,7 +69,7 @@ mod tests {
             panic!()
         };
         let p = |x: usize, y: usize| pixels[(y * width as usize + x) * 4 + 3];
-        assert_eq!(p(48, 48), 0);
+        assert_eq!(p(56, 56), 0);
         assert_eq!(p(20, 20), 255);
     }
 }

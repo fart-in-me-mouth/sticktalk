@@ -96,6 +96,12 @@ pub fn medium() -> Font {
         ..regular()
     }
 }
+pub fn bold() -> Font {
+    Font {
+        weight: iced::font::Weight::Bold,
+        ..regular()
+    }
+}
 pub fn semibold() -> Font {
     Font {
         weight: iced::font::Weight::Semibold,
@@ -457,7 +463,6 @@ pub const SECONDARY_HOVER: Color = Color::from_rgb8(0x45, 0x45, 0x4d);
 pub const ROLE_CHIP: Color = Color::from_rgb8(0x2b, 0x2b, 0x30);
 pub const CROWN: f32 = 14.;
 pub const SEARCH_W: f32 = 240.;
-pub const SEARCH_NARROW: f32 = 144.;
 pub const QUICK_W: f32 = 560.;
 pub const HISTORY_ROW: f32 = 96.;
 
@@ -478,3 +483,11 @@ pub fn secondary(theme: &Theme, status: button_widget::Status) -> button_widget:
 }
 
 pub const PROFILE_ACTION: f32 = 36.;
+
+// Main-window parity geometry shared by rendering and layout observers.
+pub const HISTORY_BOTTOM: f32 = 8.;
+pub const SEARCH_REST: f32 = 160.;
+pub const STATUS_RING: f32 = 3.;
+pub const BADGE_TEXT: Color = Color::WHITE;
+pub const BADGE_H: f32 = 16.;
+pub const BADGE_RING: f32 = 3.;

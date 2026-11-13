@@ -281,11 +281,12 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
             }),
     )
     .center_y(t::CHANNEL_ROW);
-    mouse_area(stack![row, marker])
-        .on_enter(mm(Main::ChannelHover(Some(c.id))))
-        .on_exit(mm(Main::ChannelHover(None)))
-        .on_right_press(mm(Main::Open(Popover::Context(Entity::Channel(c.id)))))
-        .into()
+    observe::anchor(
+        mouse_area(stack![row, marker])
+            .on_enter(mm(Main::ChannelHover(Some(c.id))))
+            .on_exit(mm(Main::ChannelHover(None)))
+            .on_right_press(mm(Main::Open(Popover::Context(Entity::Channel(c.id))))),
+    )
 }
 fn participant<'a>(app: &'a App, v: &'a GuildVoiceState) -> Element<'a, Msg> {
     let p = &v.participant;
@@ -322,7 +323,7 @@ fn participant<'a>(app: &'a App, v: &'a GuildVoiceState) -> Element<'a, Msg> {
     if p.tracks.iter().any(|t| t.kind == TrackKind::Camera) {
         body = body.push(icon("video", t::INLINE_ICON, t::TEXT_MUTED));
     }
-    container(
+    container(observe::anchor(
         mouse_area(
             button(body)
                 .on_press(controls::profile_message(user))
@@ -332,7 +333,7 @@ fn participant<'a>(app: &'a App, v: &'a GuildVoiceState) -> Element<'a, Msg> {
                 .style(t::icon),
         )
         .on_right_press(mm(Main::Open(Popover::Context(Entity::User(user))))),
-    )
+    ))
     .padding(Padding {
         left: t::S32 + t::S4,
         ..Padding::ZERO
@@ -450,32 +451,34 @@ fn split<'a>(app: &App, mic: bool) -> Element<'a, Msg> {
     } else {
         "headphones"
     };
-    let body = row![
-        button(icon(
-            glyph,
-            t::ICON,
-            if on { t::DANGER } else { t::TEXT_SECONDARY }
-        ))
-        .on_press(mm(if mic { Main::Mute } else { Main::Deafen }))
-        .width(t::S32)
-        .height(t::S32)
-        .padding(t::TOOL_ICON_PADDING)
-        .style(move |theme, status| {
-            let mut s = t::icon(theme, status);
-            if on {
-                s.background = Some(t::alpha(t::DANGER, 0.12).into());
-            }
-            s
-        }),
-        button(icon("chevron-down", t::S12, t::TEXT_SECONDARY))
-            .on_press(mm(Main::Open(Popover::Devices(mic))))
-            .width(t::S16)
-            .height(t::S32)
-            .padding(0)
-            .style(t::icon)
-    ]
+    let mut body = row![button(icon(
+        glyph,
+        t::ICON,
+        if on { t::DANGER } else { t::TEXT_SECONDARY }
+    ))
+    .on_press(mm(if mic { Main::Mute } else { Main::Deafen }))
+    .width(t::S32)
+    .height(t::S32)
+    .padding(t::TOOL_ICON_PADDING)
+    .style(move |theme, status| {
+        let mut s = t::icon(theme, status);
+        if on {
+            s.background = Some(t::alpha(t::DANGER, 0.12).into());
+        }
+        s
+    })]
     .spacing(0);
     let hovered = app.main.split_hover == Some(mic);
+    if hovered {
+        body = body.push(
+            button(icon("chevron-down", t::S12, t::TEXT_SECONDARY))
+                .on_press(mm(Main::Open(Popover::Devices(mic))))
+                .width(t::S16)
+                .height(t::S32)
+                .padding(0)
+                .style(t::icon),
+        );
+    }
     controls::tip(
         mouse_area(container(body).style(move |_| container::Style {
             border: Border {
@@ -503,31 +506,49 @@ fn user_panel(app: &App) -> Element<'_, Msg> {
             .clone()
             .unwrap_or_else(|| status(own.desired_presence).0.into())
     };
-    let identity = mouse_area(
-        button(
-            row![
-                controls::avatar(app, me, t::SMALL_AVATAR, t::USER_PANEL, false),
-                column![
-                    txt(ellipsis(&app.state.model.name(me), 6))
+    let identity = observe::anchor(
+        mouse_area(
+            button(
+                row![
+                    controls::avatar(app, me, t::SMALL_AVATAR, t::USER_PANEL, false),
+                    column![
+                        txt(ellipsis(
+                            &app.state.model.name(me),
+                            if app.main.split_hover.is_some() {
+                                7
+                            } else {
+                                10
+                            }
+                        ))
+                        .wrapping(widget::text::Wrapping::None)
                         .font(t::semibold())
                         .size(t::USER_NAME),
-                    hint(ellipsis(&sub, 7))
+                        hint(ellipsis(
+                            &sub,
+                            if app.main.split_hover.is_some() {
+                                9
+                            } else {
+                                12
+                            }
+                        ))
+                        .wrapping(widget::text::Wrapping::None)
+                    ]
+                    .spacing(0)
+                    .width(Fill)
                 ]
-                .spacing(0)
-                .width(Fill)
-            ]
-            .spacing(t::S4)
-            .align_y(Center),
+                .spacing(t::S4)
+                .align_y(Center),
+            )
+            .on_press(controls::profile_message(me))
+            .width(Fill)
+            .height(t::USER_HEIGHT)
+            .padding(0)
+            .style(t::icon),
         )
-        .on_press(controls::profile_message(me))
-        .width(Fill)
-        .height(t::USER_HEIGHT)
-        .padding(0)
-        .style(t::icon),
-    )
-    .on_enter(mm(Main::UserHover(true)))
-    .on_exit(mm(Main::UserHover(false)))
-    .on_right_press(mm(Main::Open(Popover::Context(Entity::User(me)))));
+        .on_enter(mm(Main::UserHover(true)))
+        .on_exit(mm(Main::UserHover(false)))
+        .on_right_press(mm(Main::Open(Popover::Context(Entity::User(me))))),
+    );
     container(
         container(
             row![

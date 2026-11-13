@@ -93,7 +93,14 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                 .and_then(|u| u.status_text.as_deref())
                 .unwrap_or("");
             let body = row![
-                controls::avatar_fade(app, id, t::SMALL_AVATAR, t::BG_SIDEBAR, false, alpha),
+                controls::avatar_fade(
+                    app,
+                    id,
+                    t::SMALL_AVATAR,
+                    if hover { t::BG_HOVER } else { t::BG_SIDEBAR },
+                    false,
+                    alpha
+                ),
                 column![
                     name,
                     hint(ellipsis(sub, 23)).color(t::alpha(t::TEXT_MUTED, alpha))
@@ -118,7 +125,7 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                     false,
                 ));
             }
-            list = list.push(
+            list = list.push(observe::anchor(
                 mouse_area(container(cell).style(move |_| container::Style {
                     border: Border {
                         radius: t::TOOLTIP_RADIUS.into(),
@@ -129,7 +136,7 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                 .on_enter(mm(Main::MemberHover(Some(id))))
                 .on_exit(mm(Main::MemberHover(None)))
                 .on_right_press(mm(Main::Open(Popover::Context(Entity::User(id))))),
-            );
+            ));
         }
     }
     if app.state.member_after.is_some() {

@@ -75,6 +75,8 @@ pub enum Msg {
     CompleteMention,
     DismissSuggestions,
     Scroll(scrollable::Viewport),
+    HistoryViewport(iced::Size),
+    OpenGifPicker,
     ScrollInternal,
     ScrollMonitorQuery,
     ScrollMonitorRate(u32),
@@ -1330,6 +1332,20 @@ impl App {
                     }
                 }
             }
+            Msg::OpenGifPicker => {
+                // TODO(gif-picker): open the picker here when its module lands.
+            }
+            Msg::HistoryViewport(size) => {
+                if (self.viewport_h - size.height).abs() > 0.5
+                    || (self.viewport_w - size.width).abs() > 0.5
+                {
+                    self.viewport_h = size.height;
+                    self.viewport_w = size.width;
+                    if self.state.at_present {
+                        return self.jump();
+                    }
+                }
+            }
             Msg::ScrollInternal => {}
             Msg::ScrollMonitorRate(rate) => crate::scroll::pacing::set_refresh_millihertz(rate),
             Msg::ScrollMonitorQuery => {
@@ -1345,6 +1361,8 @@ impl App {
                 {
                     return Task::none();
                 }
+                let keep_present =
+                    self.state.at_present && (self.viewport_h - v.bounds().height).abs() > 0.5;
                 let distance = (self.scroll_y - v.absolute_offset().y).abs();
                 let rapid =
                     fast_scroll_delta(distance, self.viewport_h, self.last_scroll.elapsed());
@@ -1358,6 +1376,9 @@ impl App {
                 self.viewport_h = v.bounds().height;
                 self.viewport_w = v.bounds().width;
                 self.total_h = v.content_bounds().height;
+                if keep_present {
+                    return self.jump();
+                }
                 if self.extent.active() {
                     self.state.at_present =
                         self.scroll_y + self.viewport_h >= self.extent.total() - 24.;
@@ -2962,6 +2983,7 @@ impl App {
             .and_then(|c| c.offsets.last().copied())
             .unwrap_or(0.)
             + crate::theme::VIRTUAL_HEADER
+            + crate::theme::HISTORY_BOTTOM
     }
     pub fn visible_range(&self) -> (usize, usize, f32, f32) {
         self.ensure_rows();
@@ -3208,6 +3230,9 @@ impl App {
         }
         self.main.popover = None;
         self.main.position = self.main.pointer;
+        self.main.anchor = self.main.anchor.filter(|r| r.contains(self.main.pointer));
+        self.main.popover_size = iced::Size::ZERO;
+        self.main.measurement_revision = self.main.measurement_revision.wrapping_add(1);
         if matches!(dialog, Dialog::MessageActions(_)) {
             if let Screen::Channel(id) = self.state.screen {
                 self.request(Request::Launch {
@@ -3864,6 +3889,69 @@ impl App {
                 _ => {}
             }
         }
+        if let Some(Popover::Profile(id)) = app.main.popover {
+            let y = match id.0 {
+                2 => 105.,
+                1 => 147.,
+                4 => 231.,
+                3 => 273.,
+                5 => 359.,
+                _ => 401.,
+            };
+            app.main.anchor = Some(iced::Rectangle::new(
+                iced::Point::new(size.width - crate::theme::MEMBERS + crate::theme::S16, y),
+                iced::Size::new(
+                    crate::theme::MEMBERS - crate::theme::S32,
+                    crate::theme::PARITY_MEMBER_ROW,
+                ),
+            ));
+            if screen == "main-own-profile" {
+                app.main.anchor = Some(iced::Rectangle::new(
+                    iced::Point::new(
+                        crate::theme::RAIL + crate::theme::S8,
+                        size.height - crate::theme::USER_HEIGHT - crate::theme::S16,
+                    ),
+                    iced::Size::new(
+                        crate::theme::SIDEBAR - crate::theme::S16,
+                        crate::theme::USER_HEIGHT,
+                    ),
+                ));
+            }
+        }
+        match screen {
+            "main-last-long" | "main-last-long-no-typing" => {
+                let messages = app.state.model.messages.get_mut(&channel).unwrap();
+                messages.last_entry().unwrap().get_mut().content = "Thanks, everyone. Let's pick this up tomorrow. The notes include the decisions, follow-up questions, and next steps so nobody needs to search through the conversation again. ".repeat(5);
+                if screen.ends_with("no-typing") {
+                    app.state.model.typing.clear();
+                }
+            }
+            "main-last-image" => {
+                let messages = app.state.model.messages.get_mut(&channel).unwrap();
+                let attachment = messages
+                    .values()
+                    .find(|m| !m.attachments.is_empty())
+                    .unwrap()
+                    .attachments
+                    .clone();
+                let last = messages.last_entry().unwrap().into_mut();
+                last.content = "Here's the final photo for tomorrow.".into();
+                last.attachments = attachment;
+            }
+            "main-search-focused" => app.main.search_focused = true,
+            "main-avatar-sizes" => {
+                app.main.avatar_gallery = true;
+                app.state.model.presences.insert(Id(4), PresenceStatus::Dnd);
+            }
+            "main-rail-counts" => {
+                for (id, count) in [(Id(14), 10), (Id(31), 100), (Id(41), 99)] {
+                    if let Some(read) = app.state.model.reads.get_mut(&id) {
+                        read.mention_count = count;
+                    }
+                }
+            }
+            _ => {}
+        }
         if let Some(methods) = &app.methods {
             app.mock_account.lock().unwrap().methods = methods.clone();
         }
@@ -3907,6 +3995,20 @@ impl App {
                     app.state.model.merge_page(channel, page);
                     app.reset_history_geometry();
                     app.extent.loaded = true;
+                }
+            }
+        }
+        if screen.starts_with("main-history-") {
+            if let Some(c) = app.state.model.channels.get_mut(&channel) {
+                c.name = Some("general".into());
+            }
+            if let Some(messages) = app.state.model.messages.get_mut(&channel) {
+                for (i, m) in messages.values_mut().enumerate() {
+                    m.content = match i % 3 {
+                        0 => "The notes from this afternoon are ready. I added the decisions and the open questions so we can pick up where we left off tomorrow.".into(),
+                        1 => "Thanks for the thoughtful feedback. I'll bring the updated sketches to our next conversation, including the simpler version we discussed.".into(),
+                        _ => "I've shared the photos and the reading list in design-lab. Let me know if anything is missing, and feel free to add your own suggestions.".into(),
+                    };
                 }
             }
         }

@@ -44,6 +44,11 @@ pub enum MediaAction {
 pub struct State {
     pub popover: Option<Popover>,
     pub position: Point,
+    pub anchor: Option<iced::Rectangle>,
+    pub popover_size: iced::Size,
+    pub measurement_revision: u64,
+    pub search_focused: bool,
+    pub avatar_gallery: bool,
     pub pointer: Point,
     pub collapsed: BTreeSet<Id>,
     pub hovered_channel: Option<Id>,
@@ -70,6 +75,9 @@ pub enum Message {
     Open(Popover),
     Close,
     Pointer(Point),
+    Anchor(iced::Rectangle),
+    PopoverSize(iced::Size),
+    SearchFocus(bool),
     Category(Id),
     ChannelHover(Option<Id>),
     CategoryHover(Option<Id>),
@@ -129,6 +137,9 @@ impl App {
     pub(crate) fn main_open(&mut self, p: Popover) -> Task<Msg> {
         self.dialog = Dialog::None;
         self.main.position = self.main.pointer;
+        self.main.anchor = self.main.anchor.filter(|r| r.contains(self.main.pointer));
+        self.main.popover_size = iced::Size::ZERO;
+        self.main.measurement_revision = self.main.measurement_revision.wrapping_add(1);
         self.main.message.clear();
         match &p {
             Popover::Profile(id) => {
@@ -172,6 +183,9 @@ impl App {
             Message::Open(p) => return self.main_open(p),
             Message::Close => self.main.popover = None,
             Message::Pointer(p) => self.main.pointer = p,
+            Message::Anchor(r) => self.main.anchor = Some(r),
+            Message::PopoverSize(s) => self.main.popover_size = s,
+            Message::SearchFocus(focused) => self.main.search_focused = focused,
             Message::Category(id) => {
                 if !self.main.collapsed.remove(&id) {
                     self.main.collapsed.insert(id);
@@ -580,6 +594,77 @@ pub fn muted(app: &App, id: Id) -> bool {
         .channels
         .get(&id)
         .is_some_and(|c| app.state.model.launch.muted(c.guild_id, id, now()))
+}
+
+/// Cursor-first menus avoid their source row when an adjacent side has room.
+pub fn place_popover(
+    desired: Point,
+    size: iced::Size,
+    window: iced::Size,
+    avoid: Option<iced::Rectangle>,
+) -> Point {
+    use crate::theme as t;
+    let clamp = |p: Point| {
+        Point::new(
+            p.x.clamp(t::S8, (window.width - size.width - t::S8).max(t::S8)),
+            p.y.clamp(t::S8, (window.height - size.height - t::S8).max(t::S8)),
+        )
+    };
+    let mut p = clamp(desired);
+    if let Some(row) = avoid {
+        let overlaps = |p: Point| iced::Rectangle::new(p, size).intersects(&row);
+        if overlaps(p) {
+            let candidates = [
+                Point::new(row.x + row.width + t::S8, p.y),
+                Point::new(row.x - size.width - t::S8, p.y),
+                Point::new(p.x, row.y + row.height + t::S4),
+                Point::new(p.x, row.y - size.height - t::S4),
+            ];
+            if let Some(next) = candidates
+                .into_iter()
+                .map(clamp)
+                .filter(|p| !overlaps(*p))
+                .min_by(|a, b| {
+                    let distance = |q: Point| (q.x - desired.x).powi(2) + (q.y - desired.y).powi(2);
+                    distance(*a).total_cmp(&distance(*b))
+                })
+            {
+                p = next;
+            }
+        }
+    }
+    p
+}
+
+#[cfg(test)]
+mod placement_tests {
+    use super::*;
+    #[test]
+    fn menus_stay_inside_window_and_avoid_clicked_rows() {
+        let window = iced::Size::new(1280., 800.);
+        let size = iced::Size::new(220., 320.);
+        for row in [
+            iced::Rectangle::new(Point::new(80., 170.), iced::Size::new(224., 34.)),
+            iced::Rectangle::new(Point::new(1040., 120.), iced::Size::new(224., 42.)),
+            iced::Rectangle::new(Point::new(312., 700.), iced::Size::new(728., 64.)),
+        ] {
+            let p = place_popover(
+                Point::new(row.x + 20., row.y + 20.),
+                size,
+                window,
+                Some(row),
+            );
+            assert!(
+                p.x >= 8.
+                    && p.y >= 8.
+                    && p.x + size.width <= window.width - 8.
+                    && p.y + size.height <= window.height - 8.
+            );
+            assert!(!iced::Rectangle::new(p, size).intersects(&row));
+        }
+        let p = place_popover(Point::new(1279., 799.), size, window, None);
+        assert_eq!(p, Point::new(1052., 472.));
+    }
 }
 
 #[cfg(test)]
