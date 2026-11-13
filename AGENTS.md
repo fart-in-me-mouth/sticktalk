@@ -19,6 +19,12 @@ Project: StickTalk, a Discord-like chat app in Rust. Contracts:
 - Build output must stay out of OneDrive. Use your own target dir per task, for example `$env:CARGO_TARGET_DIR = "C:/Users/dwhee/.cargo-target/sticktalk-<task>"`.
 - Git: if you were given your own worktree/branch, commit your work there with clear messages when done (never push, never rewrite history). In the shared main checkout, do not commit; the lead does.
 - **Disk space is limited.** Use exactly ONE target dir for your whole task, `C:/Users/dwhee/.cargo-target/sticktalk-<task>`, for all crates. **Delete it when your task is finished**, after the final validation; the lead's merges rebuild anyway. Never leave per-crate target dirs behind.
+- **Hard disk budget: 10 GB per task.**
+  - Set `$env:CARGO_INCREMENTAL = "0"`.
+  - Use the workspace dev profile, which has minimal debug info. Don't override it.
+  - Build `--release` only when a measurement truly needs it, then delete `release/` right after.
+  - Never keep both debug and release trees around.
+  - Check the size of your target dir after big builds. If it's over 10 GB, run `cargo clean` for the profiles you no longer need.
 - Updating `Cargo.lock` and the workspace `members` list for your crates is always allowed — include them in your commit, don't ask.
 - Edit only the crates your task names. `crates/proto` changes must be additive and wire-compatible.
 - Before reporting done, run `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --all -- --check` for the crates you touched.
