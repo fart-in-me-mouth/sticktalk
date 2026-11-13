@@ -43,6 +43,14 @@ async fn replicate(remote: &RemoteStore, local: &LocalDisk, key: &str, size: u64
         .await
 }
 pub async fn run(config: &Config) -> Result<()> {
+    let recipient = config
+        .operations
+        .backup_recipient
+        .as_deref()
+        .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
+    recipient
+        .parse::<age::x25519::Recipient>()
+        .map_err(|_| Error::new(ErrorCode::InvalidRequest))?;
     let tier = crate::tier::Tier::new(config)?;
     let remote = tier
         .remote
@@ -54,6 +62,8 @@ pub async fn run(config: &Config) -> Result<()> {
     tokio::fs::create_dir_all(&dir).await?;
     let key = format!("backup-{}.sqlite3", now());
     let snapshot = dir.join(&key);
+    let encrypted_key = format!("{key}.age");
+    let encrypted = dir.join(&encrypted_key);
     let mut db = sqlx::SqliteConnection::connect_with(
         &sqlx::sqlite::SqliteConnectOptions::new()
             .filename(config.data_dir.join("sticktalk.sqlite3"))
@@ -79,10 +89,61 @@ pub async fn run(config: &Config) -> Result<()> {
                 after = key;
             }
         }
-        replicate(remote,&LocalDisk::new(dir.clone()),&key,tokio::fs::metadata(&snapshot).await?.len()).await?;
-        println!("Verified backup stored on Pi: {key}");
+        drop(backup);
+        let plain=snapshot.clone();let cipher=encrypted.clone();let recipient=recipient.to_owned();
+        tokio::task::spawn_blocking(move||encrypt_snapshot(&plain,&cipher,&recipient)).await.map_err(|_|Error::new(ErrorCode::Internal))??;
+        // Never send an unencrypted database snapshot to the storage node.
+        replicate(remote,&LocalDisk::new(dir.clone()),&encrypted_key,tokio::fs::metadata(&encrypted).await?.len()).await?;
+        println!("Verified age-encrypted backup stored on Pi: {encrypted_key}");
         Ok(())
     }.await;
     let _ = tokio::fs::remove_file(&snapshot).await;
+    let _ = tokio::fs::remove_file(&encrypted).await;
     result
+}
+
+fn encrypt_snapshot(
+    input: &std::path::Path,
+    output: &std::path::Path,
+    recipient: &str,
+) -> Result<()> {
+    let recipient: age::x25519::Recipient = recipient
+        .parse()
+        .map_err(|_| Error::new(ErrorCode::InvalidRequest))?;
+    let encryptor =
+        age::Encryptor::with_recipients(std::iter::once(&recipient as &dyn age::Recipient))
+            .map_err(|_| Error::new(ErrorCode::Internal))?;
+    let mut input = std::fs::File::open(input)?;
+    let output = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(output)?;
+    let mut writer = encryptor.wrap_output(output)?;
+    std::io::copy(&mut input, &mut writer)?;
+    writer.finish()?.sync_all()?;
+    Ok(())
+}
+#[cfg(test)]
+mod encryption_tests {
+    use super::*;
+    #[test]
+    fn s7_snapshot_is_ciphertext_and_only_owner_identity_decrypts() {
+        assert!(crate::blob::valid_key("backup-123456789.sqlite3.age"));
+        assert!(!crate::blob::valid_key("backup-../secret.sqlite3.age"));
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("plain");
+        let output = dir.path().join("cipher");
+        std::fs::write(&source, b"SQLite snapshot containing private messages").unwrap();
+        let owner = age::x25519::Identity::generate();
+        encrypt_snapshot(&source, &output, &owner.to_public().to_string()).unwrap();
+        let ciphertext = std::fs::read(&output).unwrap();
+        assert!(ciphertext.starts_with(b"age-encryption.org/v1"));
+        assert!(!ciphertext.windows(7).any(|w| w == b"private"));
+        assert_eq!(
+            age::decrypt(&owner, &ciphertext).unwrap(),
+            std::fs::read(&source).unwrap()
+        );
+        assert!(age::decrypt(&age::x25519::Identity::generate(), &ciphertext).is_err());
+        assert!(encrypt_snapshot(&source, &dir.path().join("invalid"), "not-a-recipient").is_err());
+    }
 }

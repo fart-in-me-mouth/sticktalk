@@ -68,13 +68,14 @@ struct MockIssuer {
     key: Arc<RsaPrivateKey>,
     issuer: String,
     challenge: Arc<Mutex<Option<String>>>,
+    nonce: Arc<std::sync::Mutex<String>>,
 }
 impl MockIssuer {
     fn token(&self, audience: &str, expires: u64, verified: bool) -> String {
         let now = sticktalk::mock::now() / 1000;
         let h = URL_SAFE_NO_PAD
             .encode(serde_json::to_vec(&json!({"alg":"RS256","kid":"e2e"})).unwrap());
-        let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&json!({"iss":self.issuer,"aud":audience,"sub":"carol-subject","exp":expires,"iat":now-3600,"email_verified":verified})).unwrap());
+        let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&json!({"iss":self.issuer,"aud":audience,"sub":"carol-subject","exp":expires,"iat":now-3600,"email_verified":verified,"nonce":self.nonce.lock().unwrap().clone()})).unwrap());
         let data = format!("{h}.{c}");
         let key =
             ring::signature::RsaKeyPair::from_pkcs8(self.key.to_pkcs8_der().unwrap().as_bytes())
@@ -118,6 +119,7 @@ impl Fixture {
             key: Arc::new(key),
             issuer: issuer.clone(),
             challenge: Default::default(),
+            nonce: Default::default(),
         };
         let router = axum::Router::new()
             .route("/jwks", get(|State(m): State<MockIssuer>| async move {
@@ -127,6 +129,7 @@ impl Fixture {
                 assert_eq!(q["code_challenge_method"], "S256");
                 assert_eq!(q["client_id"], CLIENT_ID);
                 *m.challenge.lock().await = Some(q["code_challenge"].clone());
+                *m.nonce.lock().unwrap()=q["nonce"].clone();
                 let mut redirect = reqwest::Url::parse(&q["redirect_uri"]).unwrap();
                 redirect.query_pairs_mut().append_pair("state", &q["state"]).append_pair("code", "mock-code");
                 Redirect::temporary(redirect.as_str())
@@ -193,10 +196,17 @@ impl Fixture {
     }
     async fn google(&self) -> AuthResponse {
         // The opener is an HTTP script, never open::that/system browser.
+        let challenge = Http::new(&self.url, "")
+            .unwrap()
+            .core()
+            .google_challenge(AccountOperation::SignIn)
+            .await
+            .unwrap();
         let id_token = tokio::time::timeout(
             DEADLINE,
             sticktalk::oauth::flow(
                 CLIENT_ID.into(),
+                challenge.nonce,
                 "mock-secret",
                 format!("{}/authorize", self.mock.issuer),
                 format!("{}/token", self.mock.issuer),

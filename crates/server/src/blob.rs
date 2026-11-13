@@ -15,6 +15,13 @@ pub fn valid_key(key: &str) -> bool {
     if key.is_empty() || key.len() > 100 {
         return false;
     }
+    // Encrypted snapshots are still a single, fixed-format opaque component.
+    if let Some(stamp) = key
+        .strip_prefix("backup-")
+        .and_then(|s| s.strip_suffix(".sqlite3.age"))
+    {
+        return !stamp.is_empty() && stamp.bytes().all(|b| b.is_ascii_digit());
+    }
     let mut parts = key.split('.');
     let stem = parts.next().unwrap_or_default();
     let suffix = parts.next();

@@ -381,7 +381,7 @@ async fn http_admission_and_global_upload_reservation_are_bounded() {
         .text("purpose", "avatar")
         .part(
             "file",
-            reqwest::multipart::Part::bytes(vec![0]).file_name("file"),
+            reqwest::multipart::Part::bytes(vec![0; 1024 * 1024]).file_name("file"),
         );
     let response = http
         .post(format!("{url}/api/v1/uploads"))
@@ -455,7 +455,9 @@ fn deployment_security_invariants() {
     for required in [
         "read_header 10s",
         "read_body 120s",
-        "max_size 26279936",
+        "write 15m",
+        "read_timeout 30s",
+        "write_timeout 30s",
         "127.0.0.1:8080",
     ] {
         assert!(caddy.contains(required));

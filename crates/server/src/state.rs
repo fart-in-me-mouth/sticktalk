@@ -102,6 +102,8 @@ pub(crate) struct Inner {
     pub sockets: Arc<Semaphore>,
     pub requests: Arc<Semaphore>,
     pub uploads: Arc<Semaphore>,
+    pub transfers: Arc<Semaphore>,
+    pub download_limits: std::sync::Mutex<HashMap<String, std::sync::Weak<Semaphore>>>,
     pub file_gc: Arc<Semaphore>,
     pub upload_io: Mutex<()>,
     pub dummy_hash: String,
@@ -460,6 +462,8 @@ impl App {
             sockets: Arc::new(Semaphore::new(1024)),
             requests: Arc::new(Semaphore::new(128)),
             uploads: Arc::new(Semaphore::new(16)),
+            transfers: Arc::new(Semaphore::new(64)),
+            download_limits: std::sync::Mutex::new(HashMap::new()),
             file_gc: Arc::new(Semaphore::new(1)),
             upload_io: Mutex::new(()),
             dummy_hash,
@@ -491,6 +495,18 @@ impl App {
     }
     pub async fn housekeeping(&self) -> Result<()> {
         crate::resumable::gc(self).await?;
+        sqlx::query("DELETE FROM reserved_usernames WHERE release_at<=?")
+            .bind(now() as i64)
+            .execute(&self.0.pool)
+            .await?;
+        sqlx::query("DELETE FROM google_challenges WHERE expires_at<=?")
+            .bind(now() as i64)
+            .execute(&self.0.pool)
+            .await?;
+        sqlx::query("DELETE FROM reauth_proofs WHERE expires_at<=?")
+            .bind(now() as i64)
+            .execute(&self.0.pool)
+            .await?;
         sqlx::query("DELETE FROM web_oauth_states WHERE expires_at<=?")
             .bind(now() as i64)
             .execute(&self.0.pool)
@@ -603,8 +619,9 @@ impl App {
         let storage = self.clone();
         let storage_task = tokio::spawn(crate::tier::background(storage));
         let stop = self.clone();
+        use axum::serve::ListenerExt as _;
         let result = axum::serve(
-            listener,
+            crate::http_io::Listener(listener).tap_io(|_| {}),
             crate::router(self.clone()).into_make_service_with_connect_info::<SocketAddr>(),
         )
         .with_graceful_shutdown(async move {

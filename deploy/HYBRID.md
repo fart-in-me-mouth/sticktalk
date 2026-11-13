@@ -92,3 +92,12 @@
    replacement Oracle VM. DNS/HTTPS/media recovery is deliberate, not automatic.
    Never run two writable primaries. Physical Pi/Linux/tailnet validation remains
    necessary before relying on the standby.
+
+## Encrypted online backups
+Set `STICKTALK_BACKUP_RECIPIENT=age1...` in `/etc/sticktalk.env` before enabling
+the backup timer. The owner generates the age identity and retains its private
+key offline; only the public recipient belongs on Oracle/Pi. Online snapshots
+are now `.sqlite3.age`; decrypt on the owner's trusted computer before manual
+standby recovery. Never feed ciphertext to SQLite or put the owner's private key
+on the standby. Remove legacy plaintext snapshots after a verified encrypted
+backup. See `pi/README.md` for LUKS, exact commands and 14-day privacy retention.

@@ -29,18 +29,76 @@ pub struct SignalOut {
     pub envelope: VoicePayload,
 }
 
+/// Mandatory cleanup never competes with routine state/ACK output.
+#[derive(Debug)]
+pub enum ControlOut {
+    Revoked(VoiceSession),
+    Signal(SignalOut),
+}
+
 impl Sfu {
+    async fn overloaded(
+        &mut self,
+        session: VoiceSession,
+        socket: &tokio::net::UdpSocket,
+        control: &Option<mpsc::Sender<ControlOut>>,
+    ) {
+        for out in self.overload_cleanup(session) {
+            match out {
+                Out::Signal { to, nonce, event } => {
+                    if let (Some(control), Ok(envelope)) = (control, encode_event(nonce, &event)) {
+                        let _ = control
+                            .send(ControlOut::Signal(SignalOut {
+                                session: to,
+                                envelope,
+                            }))
+                            .await;
+                    }
+                }
+                Out::Datagram { to, bytes } => {
+                    let _ = socket.send_to(&bytes, to).await;
+                }
+            }
+        }
+        if let Some(control) = control {
+            let _ = control.send(ControlOut::Revoked(session)).await;
+        }
+    }
     /// Drive the one UDP socket on the host's existing Tokio runtime. No extra
     /// runtime, task per peer, fixed polling loop, capture, browser or OS UI.
     /// Closing commands or sending Shutdown revokes grants and stops the SFU.
     pub async fn run(
+        self,
+        commands: mpsc::Receiver<Command>,
+        signals: mpsc::Sender<SignalOut>,
+    ) -> Result<(), Error> {
+        let (_tx, rx) = mpsc::channel(128);
+        self.run_driver(commands, signals, rx, None).await
+    }
+    /// Separate bounded cleanup lane: signaling congestion cannot lose revocation.
+    pub async fn run_with_control(
+        self,
+        commands: mpsc::Receiver<Command>,
+        signals: mpsc::Sender<SignalOut>,
+        disconnects: mpsc::Receiver<VoiceSession>,
+        revoked: mpsc::Sender<ControlOut>,
+    ) -> Result<(), Error> {
+        self.run_driver(commands, signals, disconnects, Some(revoked))
+            .await
+    }
+    async fn run_driver(
         mut self,
         mut commands: mpsc::Receiver<Command>,
         signals: mpsc::Sender<SignalOut>,
+        mut disconnects: mpsc::Receiver<VoiceSession>,
+        revoked: Option<mpsc::Sender<ControlOut>>,
     ) -> Result<(), Error> {
         let socket = tokio::net::UdpSocket::from_std(self.socket.take().ok_or(Error::Config)?)?;
         let mut buf = vec![0u8; 65536];
         loop {
+            for session in self.take_overloaded() {
+                self.overloaded(session, &socket, &revoked).await;
+            }
             let generation = self.policy_generation();
             let output: Vec<_> = self.drain().collect();
             for out in output {
@@ -63,9 +121,9 @@ impl Sfu {
                             })
                             .is_err()
                         {
-                            // The host must not retain a live ACL/Ready entry
-                            // after losing its only cleanup notification.
-                            return Err(Error::Backpressure);
+                            // Only the destination voice session is affected. Drain
+                            // output before cleanup, which may itself emit signals.
+                            self.overloaded(to, &socket, &revoked).await;
                         }
                     }
                 }
@@ -75,6 +133,8 @@ impl Sfu {
             }
             let deadline = self.next_timeout();
             tokio::select! {
+                biased;
+                Some(session) = disconnects.recv() => { self.overloaded(session,&socket,&revoked).await; }
                 command = commands.recv() => {
                     match command {
                         Some(Command::Signal { session, envelope }) => {
@@ -82,20 +142,28 @@ impl Sfu {
                             // Version/decode errors occur before handle_signal.
                             let nonce = envelope.nonce;
                             if let Err(error) = self.handle_envelope(session, envelope, Instant::now()) {
-                                if matches!(error, Error::Backpressure) { return Err(error); }
+                                if matches!(error, Error::Backpressure) {
+                                    // Internal output congestion: discard queued
+                                    // signals for this peer, then reserve cleanup.
+                                    self.overloaded(session,&socket,&revoked).await;
+                                }
                                 tracing::debug!(?session, nonce, %error, "SFU signal rejected");
                             }
                         }
-                        Some(Command::Refresh(session)) => self.refresh_policy(session)?,
-                        Some(Command::Move {session,channel}) => { if self.move_session(session,channel).is_err() { self.disconnect(session)?; } },
-                        Some(Command::Disconnect(session)) => self.disconnect(session)?,
+                        Some(Command::Refresh(session)) => {if self.refresh_policy(session).is_err(){self.overloaded(session,&socket,&revoked).await;}},
+                        Some(Command::Move {session,channel}) => { if self.move_session(session,channel).is_err() { self.overloaded(session,&socket,&revoked).await; } },
+                        Some(Command::Disconnect(session)) => self.overloaded(session,&socket,&revoked).await,
                         Some(Command::Path { session, path }) => { let _ = self.set_path(session, path); }
                         Some(Command::Shutdown) | None => break,
                     }
                 }
                 received = socket.recv_from(&mut buf) => {
                     match received {
-                        Ok((len, source)) => self.handle_datagram(source, &buf[..len], Instant::now())?,
+                        Ok((len, source)) => {
+                            if let Err(error)=self.handle_datagram(source,&buf[..len],Instant::now()) {
+                                if !matches!(error,Error::Backpressure){return Err(error);}
+                            }
+                        },
                         // Windows can report an ICMP port-unreachable from a
                         // departed peer as a receive-side connection reset.
                         // That must not tear down every other participant.
@@ -108,7 +176,7 @@ impl Sfu {
                         Some(t) => tokio::time::sleep_until(t.into()).await,
                         None => std::future::pending::<()>().await,
                     }
-                } => self.handle_timeout(Instant::now())?,
+                } => {if let Err(error)=self.handle_timeout(Instant::now()) {if !matches!(error,Error::Backpressure){return Err(error);}}},
             }
         }
         // Notify host and sharers before dropping all cryptographic sessions.

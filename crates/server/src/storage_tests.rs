@@ -423,7 +423,10 @@ async fn hybrid_main_outage_resume_cache_permissions_sync_and_backup() {
         1
     );
     // Snapshot is online and includes all remote files before publication.
-    crate::backup::run(&app.0.config).await.unwrap();
+    let identity = age::x25519::Identity::generate();
+    let mut backup_config = app.0.config.clone();
+    backup_config.operations.backup_recipient = Some(identity.to_public().to_string());
+    crate::backup::run(&backup_config).await.unwrap();
     let mut entries = tokio::fs::read_dir(dir.path().join("backups"))
         .await
         .unwrap();
@@ -434,6 +437,11 @@ async fn hybrid_main_outage_resume_cache_permissions_sync_and_backup() {
         }
     }
     let backup = backup.unwrap();
+    assert!(backup.to_string_lossy().ends_with(".sqlite3.age"));
+    let ciphertext = tokio::fs::read(&backup).await.unwrap();
+    let plaintext = age::decrypt(&identity, &ciphertext).unwrap();
+    let backup = dir.path().join("decrypted-test.sqlite3");
+    tokio::fs::write(&backup, plaintext).await.unwrap();
     let mut db = sqlx::SqliteConnection::connect_with(
         &sqlx::sqlite::SqliteConnectOptions::new()
             .filename(backup)

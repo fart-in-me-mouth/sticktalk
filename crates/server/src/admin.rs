@@ -23,6 +23,12 @@ pub struct OperationsConfig {
     pub min_free_disk_gb: u64,
     #[arg(long, env="STICKTALK_USER_QUOTA_MB", default_value_t=0, value_parser=clap::value_parser!(u64).range(0..=8796093022207))]
     pub user_quota_mb: u64,
+    /// Daily ingress budget, shared by multipart and resumable uploads (0 disables).
+    #[arg(long, env="STICKTALK_USER_DAILY_UPLOAD_MB", default_value_t=102400, value_parser=clap::value_parser!(u64).range(0..=8796093022207))]
+    pub user_daily_upload_mb: u64,
+    /// Public age X25519 recipient; the owner keeps its private key offline.
+    #[arg(long, env = "STICKTALK_BACKUP_RECIPIENT")]
+    pub backup_recipient: Option<String>,
     /// Base64 raw 32-byte Ed25519 public key (NOT a private signing key).
     #[arg(long, env = "STICKTALK_UPDATE_PUBLIC_KEY")]
     pub update_public_key: Option<String>,
@@ -52,6 +58,8 @@ impl Default for OperationsConfig {
             storage: Default::default(),
             min_free_disk_gb: 10,
             user_quota_mb: 0,
+            user_daily_upload_mb: 102400,
+            backup_recipient: None,
             update_public_key: None,
             release_token: None,
             command: None,
@@ -71,9 +79,19 @@ pub enum AdminCommand {
     StorageStatus,
     Backup,
     ListUsers,
-    ResetPassword { username: String },
-    DisableUser { username: String },
-    EnableUser { username: String },
+    ResetPassword {
+        username: String,
+    },
+    DisableUser {
+        username: String,
+    },
+    /// Stop the server first: erase content, files and credentials, retaining tombstones.
+    EraseAccount {
+        username: String,
+    },
+    EnableUser {
+        username: String,
+    },
 }
 pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     if matches!(command, AdminCommand::Backup) {
@@ -93,6 +111,32 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
             },
             None => println!("Storage node: not configured (local only)"),
         }
+        let mut c = sqlx::SqliteConnection::connect_with(
+            &SqliteConnectOptions::new()
+                .filename(config.data_dir.join("sticktalk.sqlite3"))
+                .read_only(true),
+        )
+        .await?;
+        let committed: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(byte_size+COALESCE(thumbnail_size,0)),0) FROM uploads",
+        )
+        .fetch_one(&mut c)
+        .await?;
+        let partial: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(received),0) FROM partial_uploads WHERE attachment_id IS NULL",
+        )
+        .fetch_one(&mut c)
+        .await?;
+        let reserved:i64=sqlx::query_scalar("SELECT COALESCE((SELECT SUM(byte_size-received+65536) FROM partial_uploads WHERE attachment_id IS NULL),0)+COALESCE((SELECT SUM(reserved_bytes+65536) FROM upload_reservations),0)").fetch_one(&mut c).await?;
+        println!("Host committed bytes: {committed}; partial bytes: {partial}; reserved bytes: {reserved}");
+        println!(
+            "Host total bytes: {}; free-space floor bytes: {}",
+            fs2::total_space(&config.data_dir)?,
+            config
+                .operations
+                .min_free_disk_gb
+                .saturating_mul(1024 * 1024 * 1024)
+        );
         return Ok(());
     }
     // Do NOT App::open: its startup orphan cleanup is unsafe alongside a live server.
@@ -131,7 +175,8 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     let name = match command {
         AdminCommand::ResetPassword { username }
         | AdminCommand::DisableUser { username }
-        | AdminCommand::EnableUser { username } => username,
+        | AdminCommand::EnableUser { username }
+        | AdminCommand::EraseAccount { username } => username,
         _ => unreachable!(),
     };
     let mut tx = c.begin().await?;
@@ -140,6 +185,17 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+    if matches!(command, AdminCommand::EraseAccount { .. }) {
+        let paths = crate::account::erase(&mut tx, Id(user as u64)).await?;
+        tx.commit().await?;
+        for key in paths {
+            let _ = tokio::fs::remove_file(config.data_dir.join("files").join(&key)).await;
+        }
+        println!(
+            "Account erased. Retained backups expire after 14 days; username hold is 30 days."
+        );
+        return Ok(());
+    }
     let mut code = None;
     match command {
         AdminCommand::ResetPassword { .. } => {
@@ -209,20 +265,15 @@ pub async fn reset(State(app): State<App>, r: Request<Body>) -> Result<StatusCod
         .bind(user)
         .execute(&mut *tx)
         .await?;
+    let keys: Vec<Vec<u8>> = sqlx::query_scalar("SELECT token_hash FROM sessions WHERE user_id=?")
+        .bind(user)
+        .fetch_all(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM sessions WHERE user_id=?")
         .bind(user)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
-    core.streams.retain(|_, s| {
-        if s.user.0 == user as u64 {
-            if let Some(c) = &s.connection {
-                let _ = c.close.send(Some(4001));
-            }
-            false
-        } else {
-            true
-        }
-    });
+    crate::reauth::disconnect(&app, &mut core, &mut c, &keys).await?;
     Ok(StatusCode::NO_CONTENT)
 }

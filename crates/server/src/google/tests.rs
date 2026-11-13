@@ -154,9 +154,31 @@ impl Fixture {
         token: Option<&str>,
         body: Value,
     ) -> reqwest::Response {
-        // Behavior tests are independent of time-dependent limiter credit.
-        // The dedicated rate test below does not clear the limiter.
+        // Behavior tests obtain a server nonce exactly as a real client does.
         self.app.0.core.lock().await.limits.clear();
+        let mut body = body;
+        if matches!(path, "/api/auth/google" | "/api/v1/auth/google")
+            && self.app.0.config.google_client_id.is_some()
+        {
+            if let Some(token) = body["id_token"].as_str() {
+                if let Some(encoded) = token.split('.').nth(1) {
+                    if let Ok(bytes) = URL_SAFE_NO_PAD.decode(encoded) {
+                        if let Ok(mut claims) = serde_json::from_slice::<Value>(&bytes) {
+                            let challenge = crate::reauth::issue_challenge(
+                                &self.app,
+                                None,
+                                AccountOperation::SignIn,
+                            )
+                            .await
+                            .unwrap();
+                            claims["nonce"] = json!(challenge.nonce);
+                            body["id_token"] =
+                                json!(signed(json!({"alg":"RS256","kid":"one"}), claims));
+                        }
+                    }
+                }
+            }
+        }
         self.raw(method, path, token, body).await
     }
     async fn google(&self, sub: &str) -> GoogleAuthResponse {
@@ -478,196 +500,108 @@ async fn tickets_expire_rotate_and_are_atomically_single_use() {
 }
 
 #[tokio::test]
-async fn link_unlink_and_password_recovery_rules() {
+async fn s2_stolen_session_cannot_link_unlink_or_create_first_password() {
     let f = Fixture::new(true).await;
     let alice = f.signup("alice-google", "alice").await;
-    let status: AuthMethodsResponse = f
-        .call("GET", "/api/auth/methods", Some(&alice.token), json!(null))
-        .await
-        .json()
+    error(
+        f.call(
+            "POST",
+            "/api/auth/password",
+            Some(&alice.token),
+            json!({"new_password":"new long password","current_password":null}),
+        )
+        .await,
+        401,
+        ErrorCode::InvalidCredentials,
+    )
+    .await;
+    error(
+        f.call(
+            "POST",
+            "/api/auth/google/unlink",
+            Some(&alice.token),
+            json!({}),
+        )
+        .await,
+        401,
+        ErrorCode::InvalidCredentials,
+    )
+    .await;
+    let challenge = crate::reauth::issue_challenge(
+        &f.app,
+        Some(&state::hash(alice.token.as_bytes())),
+        AccountOperation::Link,
+    )
+    .await
+    .unwrap();
+    let mut c = claims("attacker-google");
+    c["nonce"] = json!(challenge.nonce);
+    error(
+        f.call(
+            "POST",
+            "/api/auth/google/link",
+            Some(&alice.token),
+            json!({"id_token":signed(json!({"alg":"RS256","kid":"one"}),c)}),
+        )
+        .await,
+        401,
+        ErrorCode::InvalidCredentials,
+    )
+    .await;
+    // Correct existing Google identity, fresh nonce, exact operation and session.
+    let key = state::hash(alice.token.as_bytes());
+    let challenge = crate::reauth::issue_challenge(&f.app, Some(&key), AccountOperation::Password)
         .await
         .unwrap();
-    assert_eq!(
-        status,
-        AuthMethodsResponse {
-            has_password: false,
-            google_linked: true
-        }
-    );
-    error(
-        f.call(
+    let mut c = claims("alice-google");
+    c["nonce"] = json!(challenge.nonce);
+    let r=f.call("POST","/api/v1/auth/reauth",Some(&alice.token),json!({"operation":"password","current_password":null,"id_token":signed(json!({"alg":"RS256","kid":"one"}),c)})).await;
+    assert_eq!(r.status(), 200);
+    let proof: ReauthResponse = r.json().await.unwrap();
+    let r = reqwest::Client::new()
+        .post(format!("{}/api/auth/password", f.url))
+        .bearer_auth(&alice.token)
+        .header("x-sticktalk-reauth", &proof.proof)
+        .json(&json!({"new_password":"new long password","current_password":null}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 200);
+    let updated: AccountUpdateResponse = r.json().await.unwrap();
+    let alice = updated.session.unwrap();
+    assert!(updated.methods.has_password);
+    // Current-password proof authorizes unlink; another operation cannot use it.
+    let r = f
+        .call(
             "POST",
-            "/api/auth/google/unlink",
+            "/api/v1/auth/reauth",
             Some(&alice.token),
-            json!({}),
+            json!({"operation":"unlink","current_password":"new long password","id_token":null}),
         )
-        .await,
-        409,
-        ErrorCode::LastLoginMethod,
-    )
-    .await;
-    // Google-only accounts never authenticate using the server's dummy password.
+        .await;
+    assert_eq!(r.status(), 200);
+    let proof: ReauthResponse = r.json().await.unwrap();
+    let r = reqwest::Client::new()
+        .post(format!("{}/api/auth/google/unlink", f.url))
+        .bearer_auth(&alice.token)
+        .header("x-sticktalk-reauth", &proof.proof)
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 200);
+    assert!(!r.json::<AuthMethodsResponse>().await.unwrap().google_linked);
     error(
-        f.call(
-            "POST",
-            "/api/v1/auth/login",
-            None,
-            json!({"username":"alice","password":"unused dummy credential"}),
-        )
-        .await,
+        reqwest::Client::new()
+            .post(format!("{}/api/auth/google/unlink", f.url))
+            .bearer_auth(&alice.token)
+            .header("x-sticktalk-reauth", &proof.proof)
+            .json(&json!({}))
+            .send()
+            .await
+            .unwrap(),
         401,
         ErrorCode::InvalidCredentials,
-    )
-    .await;
-    let r = f
-        .call(
-            "POST",
-            "/api/auth/password",
-            Some(&alice.token),
-            json!({"current_password":null,"new_password":"my new long password"}),
-        )
-        .await;
-    assert_eq!(r.status(), 200);
-    let status: AuthMethodsResponse = r.json().await.unwrap();
-    assert!(status.has_password && status.google_linked);
-    let r = f
-        .call(
-            "POST",
-            "/api/v1/auth/login",
-            None,
-            json!({"username":"alice","password":"my new long password"}),
-        )
-        .await;
-    assert_eq!(r.status(), 200);
-    error(
-        f.call(
-            "POST",
-            "/api/auth/password",
-            Some(&alice.token),
-            json!({"current_password":"wrong","new_password":"another long password"}),
-        )
-        .await,
-        401,
-        ErrorCode::InvalidCredentials,
-    )
-    .await;
-    error(
-        f.call(
-            "POST",
-            "/api/auth/password",
-            Some(&alice.token),
-            json!({"current_password":null,"new_password":"another long password"}),
-        )
-        .await,
-        401,
-        ErrorCode::InvalidCredentials,
-    )
-    .await;
-    let r = f.call("POST", "/api/auth/password", Some(&alice.token), json!({"current_password":"my new long password","new_password":"another long password"})).await;
-    assert_eq!(r.status(), 200);
-    let r = f
-        .call(
-            "POST",
-            "/api/auth/google/unlink",
-            Some(&alice.token),
-            json!({}),
-        )
-        .await;
-    assert_eq!(r.status(), 200);
-    let status: AuthMethodsResponse = r.json().await.unwrap();
-    assert!(status.has_password && !status.google_linked);
-    // Unlink is idempotent, and the same Google identity can be linked again.
-    assert_eq!(
-        f.call(
-            "POST",
-            "/api/auth/google/unlink",
-            Some(&alice.token),
-            json!({})
-        )
-        .await
-        .status(),
-        200
-    );
-    let r = f
-        .call(
-            "POST",
-            "/api/auth/google/link",
-            Some(&alice.token),
-            json!({"id_token":id_token("alice-google")}),
-        )
-        .await;
-    assert_eq!(r.status(), 200);
-    let bob = f.register("bob").await;
-    error(
-        f.call(
-            "POST",
-            "/api/auth/google/link",
-            Some(&bob.token),
-            json!({"id_token":id_token("alice-google")}),
-        )
-        .await,
-        409,
-        ErrorCode::IdentityAlreadyLinked,
-    )
-    .await;
-    error(
-        f.call(
-            "POST",
-            "/api/auth/google/link",
-            Some(&alice.token),
-            json!({"id_token":id_token("other-google")}),
-        )
-        .await,
-        409,
-        ErrorCode::IdentityAlreadyLinked,
-    )
-    .await;
-    assert_eq!(
-        f.call(
-            "POST",
-            "/api/auth/google/link",
-            Some(&alice.token),
-            json!({"id_token":id_token("alice-google")})
-        )
-        .await
-        .status(),
-        200
-    );
-    error(
-        f.call(
-            "POST",
-            "/api/auth/google/link",
-            None,
-            json!({"id_token":id_token("unused")}),
-        )
-        .await,
-        401,
-        ErrorCode::Unauthenticated,
-    )
-    .await;
-    error(
-        f.call("POST", "/api/auth/google/unlink", None, json!({}))
-            .await,
-        401,
-        ErrorCode::Unauthenticated,
-    )
-    .await;
-    let unused = f.ticket("bob-google").await;
-    assert_eq!(
-        f.call(
-            "POST",
-            "/api/auth/google/link",
-            Some(&bob.token),
-            json!({"id_token":id_token("bob-google")})
-        )
-        .await
-        .status(),
-        200
-    );
-    error(
-        f.complete(&unused.ticket, "surprise").await,
-        401,
-        ErrorCode::InvalidSignupTicket,
     )
     .await;
 }
@@ -864,7 +798,7 @@ async fn malformed_or_oversized_jwks_fails_closed_and_backs_off() {
 }
 
 #[tokio::test]
-async fn disabled_google_still_allows_session_password_setup_and_methods_are_strict() {
+async fn s2_disabled_google_does_not_allow_unproven_password_setup() {
     let f = Fixture::new(false).await;
     // Model a persisted Google-only account after the owner disables Google.
     sqlx::query("INSERT INTO users(id,username,password_hash,desired_presence,created_at) VALUES(1,'alice','','online',0)").execute(&f.app.0.pool).await.unwrap();
@@ -894,8 +828,7 @@ async fn disabled_google_still_allows_session_password_setup_and_methods_are_str
             json!({"new_password":"new password for recovery","current_password":null}),
         )
         .await;
-    assert_eq!(r.status(), 200);
-    assert!(r.json::<AuthMethodsResponse>().await.unwrap().has_password);
+    assert_eq!(r.status(), 401);
     assert_eq!(f.mock.calls.load(Ordering::SeqCst), 0);
     for (method, path) in [
         ("POST", "/api/meta"),
@@ -1016,6 +949,9 @@ async fn web_redirect_pkce_state_cookie_signup_and_existing_session() {
             .status(),
         StatusCode::UNAUTHORIZED
     );
+    let mut web_claims = claims("web-subject");
+    web_claims["nonce"] = json!(params["nonce"]);
+    *current.write().await = signed(json!({"alg":"RS256","kid":"one"}), web_claims);
     let r = router
         .clone()
         .oneshot(callback(&state_cookie))
@@ -1085,6 +1021,9 @@ async fn web_redirect_pkce_state_cookie_signup_and_existing_session() {
         .unwrap()
         .1
         .into_owned();
+    let mut web_claims = claims("web-subject");
+    web_claims["nonce"] = json!(state);
+    *current.write().await = signed(json!({"alg":"RS256","kid":"one"}), web_claims);
     let r = router
         .clone()
         .oneshot(
@@ -1157,6 +1096,316 @@ async fn web_redirect_pkce_state_cookie_signup_and_existing_session() {
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+    // Google's cross-site callback sends only the transient Lax cookie, NOT
+    // Strict session/reauth cookies. The stored operation must bind the session.
+    app.0.core.lock().await.limits.clear();
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/browser/google/start?operation=password")
+                .header("cookie", &session_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let oauth_cookie = cookie_pairs(&response);
+    assert!(!oauth_cookie.contains("__Host-sticktalk_session="));
+    let url = reqwest::Url::parse(response.headers()["location"].to_str().unwrap()).unwrap();
+    let params: HashMap<_, _> = url.query_pairs().into_owned().collect();
+    let mut c = claims("web-subject");
+    c["nonce"] = json!(params["nonce"]);
+    *current.write().await = signed(json!({"alg":"RS256","kid":"one"}), c);
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/browser/google/callback?state={}&code=reauth",
+                    params["state"]
+                ))
+                .header("cookie", oauth_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    assert_eq!(response.headers()["location"], "/?reauth=password");
+    assert!(cookie_pairs(&response).contains("__Host-sticktalk_reauth="));
+    // Now model an unlinked password account and prove the NEW identity link
+    // callback also works without forwarding either Strict cookie from Google.
+    sqlx::query("DELETE FROM oauth_identities")
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE users SET password_hash=? WHERE username='web_user'")
+        .bind(&app.0.dummy_hash)
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    app.0.core.lock().await.limits.clear();
+    let session_csrf = session_cookie
+        .split("; ")
+        .find_map(|s| s.strip_prefix("__Host-sticktalk_csrf="))
+        .unwrap();
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/reauth")
+                .header("cookie", &session_cookie)
+                .header("origin", "https://sticktalk.test")
+                .header("x-sticktalk-csrf", session_csrf)
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"operation":"link","current_password":"unused dummy credential"})
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookies = format!("{}; {}", session_cookie, cookie_pairs(&response));
+    app.0.core.lock().await.limits.clear();
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/browser/google/start?operation=link_identity")
+                .header("cookie", cookies)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let oauth_cookie = cookie_pairs(&response);
+    let url = reqwest::Url::parse(response.headers()["location"].to_str().unwrap()).unwrap();
+    let params: HashMap<_, _> = url.query_pairs().into_owned().collect();
+    let mut c = claims("new-web-subject");
+    c["nonce"] = json!(params["nonce"]);
+    *current.write().await = signed(json!({"alg":"RS256","kid":"one"}), c);
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/browser/google/callback?state={}&code=link",
+                    params["state"]
+                ))
+                .header("cookie", oauth_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    assert_eq!(response.headers()["location"], "/?reauth=linked");
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT subject FROM oauth_identities")
+            .fetch_one(&app.0.pool)
+            .await
+            .unwrap(),
+        "new-web-subject"
+    );
     app.shutdown();
     upstream.abort();
+}
+
+#[tokio::test]
+async fn s8_google_nonce_is_mandatory_single_use_short_lived_and_session_bound() {
+    let f = Fixture::new(true).await;
+    error(
+        f.raw(
+            "POST",
+            "/api/auth/google",
+            None,
+            json!({"id_token":id_token("no-nonce")}),
+        )
+        .await,
+        401,
+        ErrorCode::InvalidCredentials,
+    )
+    .await;
+    let challenge = crate::reauth::issue_challenge(&f.app, None, AccountOperation::SignIn)
+        .await
+        .unwrap();
+    let mut c = claims("nonce-user");
+    c["nonce"] = json!(challenge.nonce);
+    let token = signed(json!({"alg":"RS256","kid":"one"}), c);
+    assert_eq!(
+        f.raw("POST", "/api/auth/google", None, json!({"id_token":token}))
+            .await
+            .status(),
+        200
+    );
+    error(
+        f.raw("POST", "/api/auth/google", None, json!({"id_token":token}))
+            .await,
+        401,
+        ErrorCode::InvalidCredentials,
+    )
+    .await;
+    let expired = crate::reauth::issue_challenge(&f.app, None, AccountOperation::SignIn)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE google_challenges SET expires_at=0")
+        .execute(&f.app.0.pool)
+        .await
+        .unwrap();
+    let mut c = claims("nonce-user");
+    c["nonce"] = json!(expired.nonce);
+    error(
+        f.raw(
+            "POST",
+            "/api/auth/google",
+            None,
+            json!({"id_token":signed(json!({"alg":"RS256","kid":"one"}),c)}),
+        )
+        .await,
+        401,
+        ErrorCode::InvalidCredentials,
+    )
+    .await;
+    let alice = f.signup("existing-google", "alice").await;
+    let key = state::hash(alice.token.as_bytes());
+    let challenge = crate::reauth::issue_challenge(&f.app, Some(&key), AccountOperation::Password)
+        .await
+        .unwrap();
+    let mut c = claims("attacker-google");
+    c["nonce"] = json!(challenge.nonce);
+    error(
+        f.call(
+            "POST",
+            "/api/v1/auth/reauth",
+            Some(&alice.token),
+            json!({"operation":"password","id_token":signed(json!({"alg":"RS256","kid":"one"}),c)}),
+        )
+        .await,
+        401,
+        ErrorCode::InvalidCredentials,
+    )
+    .await;
+    let challenge = crate::reauth::issue_challenge(&f.app, Some(&key), AccountOperation::Password)
+        .await
+        .unwrap();
+    let mut c = claims("existing-google");
+    c["nonce"] = json!(challenge.nonce);
+    let token = signed(json!({"alg":"RS256","kid":"one"}), c);
+    assert!(crate::reauth::verify_challenge(
+        &f.app,
+        &token,
+        CLIENT_ID,
+        Some(&[9; 32]),
+        AccountOperation::Password
+    )
+    .await
+    .is_err());
+    assert!(crate::reauth::verify_challenge(
+        &f.app,
+        &token,
+        CLIENT_ID,
+        Some(&key),
+        AccountOperation::Unlink
+    )
+    .await
+    .is_err());
+    assert!(crate::reauth::verify_challenge(
+        &f.app,
+        &token,
+        CLIENT_ID,
+        Some(&key),
+        AccountOperation::Password
+    )
+    .await
+    .is_ok());
+    // Proofs have the same operation/session binding and cannot unlink the last method.
+    let mut c = f.app.0.pool.acquire().await.unwrap();
+    let proof = crate::reauth::issue(&mut c, &key, AccountOperation::Unlink)
+        .await
+        .unwrap();
+    drop(c);
+    let r = reqwest::Client::new()
+        .post(format!("{}/api/auth/google/unlink", f.url))
+        .bearer_auth(&alice.token)
+        .header("x-sticktalk-reauth", &proof.proof)
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    error(r, 409, ErrorCode::LastLoginMethod).await;
+}
+#[tokio::test]
+async fn s2_google_reauth_proofs_expire_and_cannot_cross_sessions_or_operations() {
+    let f = Fixture::new(true).await;
+    let alice = f.register("alice").await;
+    let key = state::hash(alice.token.as_bytes());
+    let mut c = f.app.0.pool.acquire().await.unwrap();
+    let proof = crate::reauth::issue(&mut c, &key, AccountOperation::Password)
+        .await
+        .unwrap();
+    let mut h = axum::http::HeaderMap::new();
+    h.insert("x-sticktalk-reauth", proof.proof.parse().unwrap());
+    assert!(
+        crate::reauth::consume(&mut c, &h, &[8; 32], AccountOperation::Password)
+            .await
+            .is_err()
+    );
+    assert!(
+        crate::reauth::consume(&mut c, &h, &key, AccountOperation::Link)
+            .await
+            .is_err()
+    );
+    sqlx::query("UPDATE reauth_proofs SET expires_at=0")
+        .execute(&mut *c)
+        .await
+        .unwrap();
+    assert!(
+        crate::reauth::consume(&mut c, &h, &key, AccountOperation::Password)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn google_only_account_deletion_accepts_only_fresh_existing_identity_proof() {
+    let f = Fixture::new(true).await;
+    let alice = f.signup("delete-google", "delete_me").await;
+    let key = state::hash(alice.token.as_bytes());
+    let challenge =
+        crate::reauth::issue_challenge(&f.app, Some(&key), AccountOperation::DeleteAccount)
+            .await
+            .unwrap();
+    let mut c = claims("delete-google");
+    c["nonce"] = json!(challenge.nonce);
+    let proof=f.call("POST","/api/v1/auth/reauth",Some(&alice.token),json!({"operation":"delete_account","id_token":signed(json!({"alg":"RS256","kid":"one"}),c)})).await;
+    assert_eq!(proof.status(), 200);
+    let proof: ReauthResponse = proof.json().await.unwrap();
+    let result = reqwest::Client::new()
+        .post(format!("{}/api/v1/auth/account/delete", f.url))
+        .bearer_auth(&alice.token)
+        .header("x-sticktalk-reauth", proof.proof)
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(result.status(), 204);
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM oauth_identities WHERE user_id=?")
+            .bind(id(alice.user.user.id).unwrap())
+            .fetch_one(&f.app.0.pool)
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(
+        auth(&mut f.app.0.pool.acquire().await.unwrap(), &alice.token)
+            .await
+            .is_err()
+    );
 }

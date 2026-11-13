@@ -44,8 +44,10 @@ pub enum Msg {
     GoogleComplete,
     GoogleSession(u64, Result<Session, String>),
     Account(backend::AccountAction),
-    Methods(u64, bool, Result<AuthMethodsResponse, String>),
+    Methods(u64, bool, Result<backend::AccountResult, String>),
     SavePassword,
+    DeleteAccount,
+    AccountDeleted(Result<(), String>),
     MemberSearch(String),
     MenuMove(bool),
     BrowserOpened(bool),
@@ -779,12 +781,32 @@ impl App {
                 let serial = self.auth_serial;
                 let id = self.google_id.clone().unwrap_or_default();
                 let mock = self.mock_mode;
+                let server = self.server.clone();
+                let session_token = if link {
+                    self.state
+                        .session
+                        .as_ref()
+                        .map(|s| s.config.token.clone())
+                        .unwrap_or_default()
+                } else {
+                    String::new()
+                };
                 let stream = iced::stream::channel(2, move |mut output| async move {
                     let result = if mock {
                         Ok("mock-new".into())
                     } else {
                         let (tx, rx) = tokio::sync::oneshot::channel();
-                        let flow = crate::oauth::sign_in(id, tx);
+                        let flow = async {
+                            let challenge = backend::Http::new(&server, &session_token)?
+                                .core()
+                                .google_challenge(if link {
+                                    AccountOperation::Link
+                                } else {
+                                    AccountOperation::SignIn
+                                })
+                                .await?;
+                            crate::oauth::sign_in(id, challenge.nonce, tx).await
+                        };
                         tokio::pin!(flow);
                         tokio::select! {
                             accepted=rx=>{if accepted.is_ok(){let _=futures_util::SinkExt::send(&mut output,Msg::GoogleCallback(serial)).await;}flow.await},
@@ -833,6 +855,8 @@ impl App {
                                     session.config.clone(),
                                     backend::AccountAction::Link(token),
                                     self.mock_account.clone(),
+                                    (!self.form.name.is_empty())
+                                        .then(|| std::mem::take(&mut self.form.name)),
                                 ),
                                 move |r| Msg::Methods(generation, false, r),
                             )
@@ -915,7 +939,13 @@ impl App {
                     let generation = session.config.generation;
                     let password = matches!(action, backend::AccountAction::Password { .. });
                     return Task::perform(
-                        backend::account(session.config.clone(), action, self.mock_account.clone()),
+                        backend::account(
+                            session.config.clone(),
+                            action,
+                            self.mock_account.clone(),
+                            (!self.form.name.is_empty())
+                                .then(|| std::mem::take(&mut self.form.name)),
+                        ),
                         move |r| Msg::Methods(generation, password, r),
                     );
                 }
@@ -931,8 +961,11 @@ impl App {
                 }
                 self.busy = false;
                 match result {
-                    Ok(methods) => {
-                        self.methods = Some(methods);
+                    Ok(result) => {
+                        self.methods = Some(result.methods);
+                        if let Some(session) = result.session {
+                            return self.update(Msg::Auth(Ok(session)));
+                        }
                         if password {
                             self.form.name.clear();
                             self.form.topic.clear();
@@ -941,6 +974,41 @@ impl App {
                             self.notice = "Password saved.".into();
                         }
                     }
+                    Err(e) => self.error = e,
+                }
+            }
+            Msg::DeleteAccount => {
+                if self.busy {
+                    return Task::none();
+                }
+                let Some(session) = self.state.session.as_ref() else {
+                    return Task::none();
+                };
+                if self
+                    .state
+                    .model
+                    .me
+                    .as_ref()
+                    .is_none_or(|me| me.user.username != self.form.topic.trim())
+                {
+                    self.error = "Type your username to confirm permanent account deletion.".into();
+                    return Task::none();
+                }
+                self.busy = true;
+                self.error.clear();
+                let password = std::mem::take(&mut self.form.name);
+                return Task::perform(
+                    backend::delete_account(
+                        session.config.clone(),
+                        (!password.is_empty()).then_some(password),
+                    ),
+                    Msg::AccountDeleted,
+                );
+            }
+            Msg::AccountDeleted(result) => {
+                self.busy = false;
+                match result {
+                    Ok(()) => return self.update(Msg::Logout),
                     Err(e) => self.error = e,
                 }
             }

@@ -11,6 +11,7 @@ use sticktalk_client_core::oauth::{callback, Proof};
 
 pub async fn sign_in(
     client_id: String,
+    nonce: String,
     accepted: tokio::sync::oneshot::Sender<()>,
 ) -> Result<String, String> {
     if !configured(Some(&client_id)) {
@@ -20,6 +21,7 @@ pub async fn sign_in(
         Duration::from_secs(120),
         flow(
             client_id,
+            nonce,
             CLIENT_SECRET.unwrap_or_default(),
             "https://accounts.google.com/o/oauth2/v2/auth".into(),
             "https://oauth2.googleapis.com/token".into(),
@@ -39,6 +41,7 @@ pub async fn sign_in(
 }
 pub async fn flow<F, Fut>(
     client_id: String,
+    nonce: String,
     client_secret: &str,
     authorization_endpoint: String,
     token_endpoint: String,
@@ -59,7 +62,7 @@ where
         .port();
     let redirect = format!("http://127.0.0.1:{port}");
     let url = proof
-        .authorization_url(&authorization_endpoint, &client_id, &redirect)
+        .authorization_url(&authorization_endpoint, &client_id, &redirect, &nonce)
         .expect("constant URL");
     open_browser(url).await?;
     let code = loop {
@@ -198,7 +201,7 @@ mod flow_tests {
             let body = r#"{"id_token":"mock-id-token","access_token":"never-sent-to-sticktalk"}"#;
             socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
         });
-        let token=tokio::time::timeout(Duration::from_secs(5),flow("fixture-client".into(),"fixture-secret","http://127.0.0.1/mock-authorization".into(),endpoint,Some(accepted_tx),move |url|async move {
+        let token=tokio::time::timeout(Duration::from_secs(5),flow("fixture-client".into(),"n".repeat(43),"fixture-secret","http://127.0.0.1/mock-authorization".into(),endpoint,Some(accepted_tx),move |url|async move {
             let auth=reqwest::Url::parse(&url).unwrap();assert_eq!(auth.host_str(),Some("127.0.0.1"));
             let params:BTreeMap<_,_>=auth.query_pairs().map(|(k,v)|(k.into_owned(),v.into_owned())).collect();
             assert_eq!(params["code_challenge_method"],"S256");assert_eq!(params["scope"],"openid email profile");
@@ -224,6 +227,7 @@ mod flow_tests {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let flow = tokio::spawn(flow(
             "fixture".into(),
+            "n".repeat(43),
             "secret",
             "http://127.0.0.1/auth".into(),
             "http://127.0.0.1/token".into(),
@@ -251,6 +255,7 @@ mod flow_tests {
         );
         let pending = super::flow(
             "fixture".into(),
+            "n".repeat(43),
             "secret",
             "http://127.0.0.1/auth".into(),
             "http://127.0.0.1/token".into(),

@@ -13,7 +13,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 use sticktalk_proto::*;
-use sticktalk_sfu::{Command as MediaCommand, Sfu, SignalOut};
+use sticktalk_sfu::{Command as MediaCommand, ControlOut, Sfu, SignalOut};
 use tokio::sync::mpsc;
 
 #[derive(Args, Clone, Debug)]
@@ -115,11 +115,17 @@ fn advertised_ip(explicit: Option<IpAddr>, http: IpAddr, interfaces: Vec<IpAddr>
         .or_else(|| interfaces.into_iter().find(|ip| tailscale(*ip)))
         .unwrap_or(http)
 }
+type Driver = (
+    Sfu,
+    mpsc::Receiver<MediaCommand>,
+    mpsc::Receiver<VoiceSession>,
+);
 pub(crate) struct Voice {
     commands: mpsc::Sender<MediaCommand>,
+    cleanup: mpsc::Sender<VoiceSession>,
     acl: Projection,
     pub address: SocketAddr,
-    driver: std::sync::Mutex<Option<(Sfu, mpsc::Receiver<MediaCommand>)>>,
+    driver: std::sync::Mutex<Option<Driver>>,
 }
 pub(crate) struct Entry {
     key: Vec<u8>,
@@ -161,11 +167,13 @@ impl Voice {
         .map_err(|_| Error::new(ErrorCode::Unavailable))?;
         let address = sfu.local_addr();
         let (commands, receiver) = mpsc::channel(128);
+        let (cleanup, cleanup_rx) = mpsc::channel(128);
         Ok(Self {
             commands,
+            cleanup,
             acl,
             address,
-            driver: std::sync::Mutex::new(Some((sfu, receiver))),
+            driver: std::sync::Mutex::new(Some((sfu, receiver, cleanup_rx))),
         })
     }
     fn command(&self, command: MediaCommand) -> Result<()> {
@@ -180,7 +188,7 @@ impl Voice {
     }
 }
 pub(crate) fn spawn(app: &App) {
-    let Some((sfu, commands)) = app
+    let Some((sfu, commands, cleanup)) = app
         .0
         .voice
         .driver
@@ -191,14 +199,23 @@ pub(crate) fn spawn(app: &App) {
         return;
     };
     let (tx, mut rx) = mpsc::channel::<SignalOut>(128);
+    let (revoked_tx, mut revoked_rx) = mpsc::channel::<ControlOut>(128);
     let stop = app.0.shutdown.clone();
     let weak = Arc::downgrade(&app.0);
     tokio::spawn(async move {
         tokio::select! {
             _ = stop.cancelled() => {},
-            result = sfu.run(commands, tx) => {
-                if let Err(error) = result { tracing::error!(%error, "SFU stopped; shutting down fail closed"); }
-                if let Some(inner) = weak.upgrade() { App(inner).shutdown(); }
+            result = sfu.run_with_control(commands, tx, cleanup, revoked_tx) => {
+                if let Err(error) = result { tracing::error!(%error, "SFU stopped; chat remains available"); }
+                if let Some(inner) = weak.upgrade() {
+                    let app = App(inner);
+                    app.0.voice.clear();
+                    let mut core = app.0.core.lock().await;
+                    if let Ok(mut c) = app.0.pool.acquire().await {
+                        let sessions: Vec<_> = core.voice.keys().copied().collect();
+                        for session in sessions { let _ = remove(&app, &mut core, &mut c, session).await; }
+                    }
+                }
             }
         }
     });
@@ -206,26 +223,61 @@ pub(crate) fn spawn(app: &App) {
     let weak = Arc::downgrade(&app.0);
     tokio::spawn(async move {
         loop {
-            let signal =
-                tokio::select! { _ = stop.cancelled() => break, signal = rx.recv() => signal };
+            let signal = tokio::select! {
+                _ = stop.cancelled() => break,
+                Some(control) = revoked_rx.recv() => {
+                    let session=match control {ControlOut::Revoked(session)=>session,ControlOut::Signal(signal)=>{
+                        if let Some(inner)=weak.upgrade() {
+                            let app=App(inner);let mut core=app.0.core.lock().await;
+                            if let Ok(mut c)=app.0.pool.acquire().await {let _=output(&app,&mut core,&mut c,signal).await;}
+                        }
+                        continue;
+                    }};
+                    if let Some(inner) = weak.upgrade() {
+                        let app = App(inner);
+                        let mut core = app.0.core.lock().await;
+                        if let Ok(mut c) = app.0.pool.acquire().await { let _ = remove(&app, &mut core, &mut c, session).await; }
+                    }
+                    continue;
+                },
+                signal = rx.recv() => signal,
+            };
             let (Some(signal), Some(inner)) = (signal, weak.upgrade()) else {
                 break;
             };
             let app = App(inner);
             let mut core = app.0.core.lock().await;
+            let affected = signal.session;
             let result = async {
                 let mut c = app.0.pool.acquire().await?;
                 output(&app, &mut core, &mut c, signal).await
             }
             .await;
             if result.is_err() {
-                app.shutdown();
-                break;
+                // A voice output failure revokes only its destination call.
+                if let Ok(mut c) = app.0.pool.acquire().await {
+                    let _ = remove(&app, &mut core, &mut c, affected).await;
+                }
             }
         }
     });
 }
 fn send(core: &mut Core, key: &[u8], nonce: u64, event: &VoiceEvent) -> Result<()> {
+    let critical = matches!(
+        event,
+        VoiceEvent::Left { .. } | VoiceEvent::ControlRevoked { .. }
+    );
+    if let Some(connection) = core.streams.get(key).and_then(|s| s.connection.as_ref()) {
+        require(
+            connection.tx.capacity() >= if critical { 1 } else { 32 },
+            ErrorCode::Unavailable,
+        )?;
+        // Never let voice signaling fill the shared chat frame/byte budget.
+        require(
+            connection.budget.available_permits() >= if critical { 65536 } else { 262144 },
+            ErrorCode::Unavailable,
+        )?;
+    }
     let envelope =
         sticktalk_sfu::encode_event(nonce, event).map_err(|_| Error::new(ErrorCode::Internal))?;
     core.send(key, &ServerMsg::Voice(envelope))
@@ -257,7 +309,7 @@ async fn broadcast(
                 continue;
             }
         }
-        send(core, &key, 0, event)?;
+        let _ = send(core, &key, 0, event);
     }
     Ok(())
 }
@@ -293,15 +345,9 @@ pub(crate) async fn remove(
         p.generation += 1;
     }
     if let Some(entry) = core.voice.remove(&session) {
-        // A full command queue cannot keep media access alive: ACL is already gone.
-        if app
-            .0
-            .voice
-            .command(MediaCommand::Disconnect(session))
-            .is_err()
-        {
-            app.shutdown();
-        }
+        // Reserved cleanup lane, sized above the SFU's maximum live sessions.
+        // ACL denial above is synchronous even if the actor has stopped.
+        let _ = app.0.voice.cleanup.try_send(session);
         send(core, &entry.key, 0, &VoiceEvent::Left { session })?;
         if entry.joined {
             broadcast(
@@ -389,10 +435,9 @@ async fn refresh(
     c: &mut SqliteConnection,
     session: VoiceSession,
 ) -> Result<()> {
-    app.0
-        .voice
-        .command(MediaCommand::Refresh(session))
-        .inspect_err(|_| app.shutdown())?;
+    if app.0.voice.command(MediaCommand::Refresh(session)).is_err() {
+        return remove(app, core, c, session).await;
+    }
     let permissions = app
         .0
         .voice
@@ -477,13 +522,17 @@ async fn moderate(
             p.generation += 1;
         }
         core.voice.get_mut(&session).unwrap().state.channel_id = channel_id;
-        app.0
+        if app
+            .0
             .voice
             .command(MediaCommand::Move {
                 session,
                 channel: channel_id,
             })
-            .inspect_err(|_| app.shutdown())?;
+            .is_err()
+        {
+            return remove(app, core, c, session).await;
+        }
         broadcast(
             core,
             c,
@@ -845,6 +894,94 @@ pub(crate) async fn snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn s5_voice_frames_cannot_consume_reserved_chat_capacity() {
+        let (_dir, app) = crate::audit_tests::fixture().await;
+        let mut core = app.0.core.lock().await;
+        let key = vec![1; 32];
+        core.cursor(&key, Id(1));
+        let (tx, _rx) = mpsc::channel(128);
+        let (close, watch) = tokio::sync::watch::channel(None);
+        core.streams.get_mut(&key).unwrap().connection = Some(crate::state::Connection {
+            id: "chat".into(),
+            focused: false,
+            alive: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            tx,
+            budget: Arc::new(tokio::sync::Semaphore::new(2 * 1024 * 1024)),
+            close,
+        });
+        for nonce in 1..=1000 {
+            let _ = send(&mut core, &key, nonce, &VoiceEvent::Ack);
+        }
+        assert_eq!(*watch.borrow(), None);
+        let connection = core.streams[&key].connection.as_ref().unwrap();
+        assert!(connection.tx.capacity() >= 31);
+        core.send(
+            &key,
+            &ServerMsg::HeartbeatAck(HeartbeatAck {
+                nonce: 1,
+                server_time: now(),
+            }),
+        )
+        .unwrap();
+        assert_eq!(*watch.borrow(), None);
+    }
+    #[tokio::test]
+    async fn s5_signaling_flood_does_not_shutdown_chat() {
+        let (_dir, app) = crate::audit_tests::fixture().await;
+        spawn(&app);
+        let gate = app.0.core.lock().await;
+        let tx = app.0.voice.commands.clone();
+        let flood = tokio::spawn(async move {
+            for nonce in 1..=2000 {
+                tx.send(MediaCommand::Signal {
+                    session: VoiceSession {
+                        user_id: Id(1),
+                        connection_id: Id(100),
+                    },
+                    envelope: VoicePayload {
+                        nonce,
+                        version: 0,
+                        kind: "invalid".into(),
+                        payload: vec![],
+                    },
+                })
+                .await
+                .unwrap();
+            }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        assert!(!app.0.shutdown.is_cancelled());
+        drop(gate);
+        tokio::time::timeout(std::time::Duration::from_secs(10), flood)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut core = app.0.core.lock().await;
+        core.limits.clear();
+        let response = crate::commands::execute(
+            &app,
+            &mut core,
+            &[1; 32],
+            Id(1),
+            CommandRequest {
+                nonce: 1,
+                command: Command::SendMessage(MessageDraft {
+                    channel_id: Id(11),
+                    content: "chat survives signaling overload".into(),
+                    reply_to: None,
+                    attachment_ids: vec![],
+                    mention_ids: vec![],
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(matches!(response.outcome, CommandOutcome::Ok(_)));
+        assert!(!app.0.shutdown.is_cancelled());
+        drop(core);
+        app.shutdown();
+    }
     #[test]
     fn only_tailscale_cgnat_addresses_match() {
         for ip in ["100.64.0.1", "100.127.255.254"] {

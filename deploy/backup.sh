@@ -2,6 +2,10 @@
 # Run with sudo. Stops only StickTalk, and always attempts to restore its state.
 set -euo pipefail
 umask 077
+source /etc/sticktalk/backup.env
+: "${BACKUP_RECIPIENT:?Set the owner age public recipient (age1...)}"
+[[ $BACKUP_RECIPIENT == age1* ]] || exit 1
+command -v age >/dev/null
 [[ $EUID == 0 ]] || { echo 'Run with sudo.' >&2; exit 1; }
 data=/var/lib/sticktalk
 root=/var/backups/sticktalk
@@ -22,4 +26,8 @@ destination=$(mktemp -d "$root/$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")
 sqlite3 "$data/sticktalk.sqlite3" ".backup '$destination/sticktalk.sqlite3'"
 [[ $(sqlite3 "$destination/sticktalk.sqlite3" 'PRAGMA quick_check;') == ok ]]
 cp -a -- "$data/files" "$destination/files"
-printf 'Backup complete: %s\n' "$destination"
+tar -C "$destination" -cf - . | age -r "$BACKUP_RECIPIENT" -o "$destination.tar.age.tmp"
+mv -- "$destination.tar.age.tmp" "$destination.tar.age"
+rm -rf -- "$destination"
+find "$root" -maxdepth 1 -type f -name '*.tar.age' -mmin +20160 -delete
+printf 'Encrypted backup complete: %s\n' "$destination.tar.age"

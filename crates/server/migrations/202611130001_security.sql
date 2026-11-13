@@ -1,0 +1,11 @@
+ALTER TABLE upload_reservations ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE upload_reservations ADD COLUMN channel_id INTEGER REFERENCES channels(id) ON DELETE CASCADE;
+CREATE TABLE google_challenges(nonce_hash BLOB PRIMARY KEY, session_hash BLOB REFERENCES sessions(token_hash) ON DELETE CASCADE, operation TEXT NOT NULL, expires_at INTEGER NOT NULL);
+CREATE INDEX google_challenges_expiry ON google_challenges(expires_at);
+CREATE TABLE reauth_proofs(proof_hash BLOB PRIMARY KEY, session_hash BLOB NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE, operation TEXT NOT NULL, expires_at INTEGER NOT NULL);
+CREATE TABLE deleted_accounts(user_id INTEGER PRIMARY KEY REFERENCES users(id), deleted_at INTEGER NOT NULL, release_at INTEGER NOT NULL);
+CREATE TABLE reserved_usernames(username TEXT PRIMARY KEY, release_at INTEGER NOT NULL);
+ALTER TABLE web_oauth_states ADD COLUMN session_hash BLOB;
+ALTER TABLE web_oauth_states ADD COLUMN operation TEXT NOT NULL DEFAULT 'sign_in';
+ALTER TABLE web_oauth_states ADD COLUMN reauth_proof_hash BLOB;
+CREATE INDEX reauth_proofs_expiry ON reauth_proofs(expires_at);

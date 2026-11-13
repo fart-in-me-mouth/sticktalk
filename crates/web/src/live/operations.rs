@@ -29,6 +29,61 @@ pub(super) fn action(app: Shared, raw: &str) {
                 });
             }
         }
+        "reauth-google" => {
+            if matches!(arg, "password" | "link" | "unlink" | "delete_account") {
+                let _ = window()
+                    .location()
+                    .set_href(&format!("/api/v1/browser/google/start?operation={arg}"));
+            }
+        }
+        "google-link" | "google-unlink" => {
+            let http = app.borrow().http();
+            let password = value("google-current-password");
+            let linking = kind == "google-link";
+            spawn_local(async move {
+                let proof = if password.is_empty() {
+                    None
+                } else {
+                    match http
+                        .reauthenticate(&ReauthRequest {
+                            operation: if linking {
+                                AccountOperation::Link
+                            } else {
+                                AccountOperation::Unlink
+                            },
+                            current_password: Some(password),
+                            id_token: None,
+                        })
+                        .await
+                    {
+                        Ok(proof) => Some(proof.proof),
+                        Err(e) => {
+                            fail(&app, e);
+                            return;
+                        }
+                    }
+                };
+                if linking {
+                    let _ = window()
+                        .location()
+                        .set_href("/api/v1/browser/google/start?operation=link_identity");
+                } else {
+                    match http
+                        .account_authorized(
+                            sticktalk_client_core::backend::AccountAction::Unlink,
+                            proof.as_deref(),
+                        )
+                        .await
+                    {
+                        Ok(_) => {
+                            app.borrow_mut().error = "Google unlinked.".into();
+                            app.borrow().touch();
+                        }
+                        Err(e) => fail(&app, e),
+                    }
+                }
+            });
+        }
         "dismiss-error" => {
             let mut a = app.borrow_mut();
             a.error.clear();
@@ -993,9 +1048,62 @@ fn submit(app: Shared, form: &str) {
                     .await
                 {
                     Ok(_) => {
-                        let mut a = app.borrow_mut();
-                        a.dialog.clear();
-                        a.touch();
+                        let _ = window().location().reload();
+                    }
+                    Err(e) => fail(&app, e),
+                }
+            });
+            return;
+        }
+        "delete-account" => {
+            if text != "DELETE" {
+                a.error = "Type DELETE to confirm account erasure.".into();
+                a.touch();
+                return;
+            }
+            let http = a.http();
+            drop(a);
+            spawn_local(async move {
+                let proof = if name.is_empty() {
+                    None
+                } else {
+                    match http
+                        .reauthenticate(&ReauthRequest {
+                            operation: AccountOperation::DeleteAccount,
+                            current_password: Some(name),
+                            id_token: None,
+                        })
+                        .await
+                    {
+                        Ok(p) => Some(p.proof),
+                        Err(e) => {
+                            fail(&app, e);
+                            return;
+                        }
+                    }
+                };
+                // Empty proof leaves the HttpOnly Google proof cookie authoritative.
+                let result = if let Some(proof) = proof {
+                    http.delete_account(&proof).await
+                } else {
+                    match http
+                        .execute(
+                            "POST",
+                            "/api/v1/auth/account/delete",
+                            sticktalk_client_core::http::Body::Bytes(b"{}".to_vec()),
+                            vec![("Content-Type".into(), "application/json".into())],
+                            30_000,
+                        )
+                        .await
+                    {
+                        Ok(r) if r.status == 204 => Ok(()),
+                        Ok(r) => decode_json::<serde_json::Value>(r).map(|_| ()),
+                        Err(e) => Err(e),
+                    }
+                };
+                match result {
+                    Ok(()) => {
+                        let _ = window().location().set_href("/");
                     }
                     Err(e) => fail(&app, e),
                 }
