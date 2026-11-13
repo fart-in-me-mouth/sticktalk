@@ -13,8 +13,10 @@ target = pathlib.Path(a.target).resolve()
 key = pathlib.Path(a.key).resolve()
 assert repo not in key.parents, 'Never use a key inside the repo'
 release = target/'release'
-work = target/'update-e2e'
-work.mkdir(exist_ok=True)
+# A repeated acceptance run must never consume a previous run's health/PID,
+# quarantine or pending markers. Keep its artifacts until final Cargo cleanup.
+work = target/f'update-e2e-{os.getpid()}'
+work.mkdir()
 test_data = work/'isolated-uninstall-data'
 test_data.mkdir(exist_ok=True)
 (test_data/'keep-me.txt').write_text('test-only settings')
@@ -271,4 +273,5 @@ if a.real_client:
 report['http_checks'] = state['checks']
 report['artifact_requests'] = state['downloads']
 (work/'results.json').write_text(json.dumps(report,indent=2))
+print('Evidence: '+str(work/'results.json'))
 print(json.dumps(report,indent=2))
