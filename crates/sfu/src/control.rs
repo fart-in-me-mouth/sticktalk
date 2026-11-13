@@ -83,8 +83,8 @@ impl Budget {
         true
     }
     /// Preflight without spending: peer/room/global admission must be atomic.
-    /// Reserve half the burst for original media, so capacity probes/RTX cannot
-    /// consume the last tokens and break an otherwise admissible reference chain.
+    /// Reserve 90% of the burst for original media (matching allocation
+    /// headroom), so probes/RTX cannot break an admissible reference chain.
     /// Both classes still share the SAME strict wire rate and burst ceiling.
     pub fn available(&mut self, bytes: usize, repair: bool, now: Instant) -> bool {
         self.tokens = (self.tokens
@@ -94,7 +94,7 @@ impl Budget {
         // Tiny configured buckets must still admit one full-MTU repair when
         // full; otherwise probes can never discover capacity from a low floor.
         let reserve = if repair {
-            (self.capacity * 0.5).min((self.capacity - bytes as f64).max(0.0))
+            (self.capacity * 0.9).min((self.capacity - bytes as f64).max(0.0))
         } else {
             0.0
         };
@@ -130,5 +130,15 @@ mod budget_tests {
         assert!(!b.available(1, true, now));
         assert!(!b.available(1233, true, now + Duration::from_secs(1)));
         assert!(b.available(1232, true, now + Duration::from_secs(1)));
+    }
+    #[test]
+    fn probes_cannot_spend_the_allocated_media_burst() {
+        let now = Instant::now();
+        let mut b = Budget::new(80_000, 100, now);
+        assert!(b.available(100, true, now));
+        assert!(b.take(100, now));
+        assert!(!b.available(1, true, now));
+        assert!(b.take(900, now));
+        assert!(!b.take(1, now));
     }
 }

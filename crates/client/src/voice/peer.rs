@@ -60,7 +60,7 @@ pub struct Peer {
     bwe_target: u64,
     video_starting: bool,
     video_gates: BTreeMap<String, VideoGate>,
-    staged_bytes: BTreeMap<String, usize>,
+    media_queues: BTreeMap<String, (u32, sticktalk_sfu::queue::MediaQueue)>,
     keyframes: Vec<TrackKind>,
 }
 fn err(e: impl std::fmt::Display) -> String {
@@ -148,7 +148,7 @@ impl Peer {
             bwe_target: 0,
             video_starting: false,
             video_gates: BTreeMap::new(),
-            staged_bytes: BTreeMap::new(),
+            media_queues: BTreeMap::new(),
             keyframes: vec![],
         })
     }
@@ -280,6 +280,10 @@ impl Peer {
         let mut api = self.rtc.sdp_api();
         if let Some((mid, _, active)) = self.publications.iter_mut().find(|(_, k, _)| *k == kind) {
             *active = enabled;
+            if !enabled {
+                self.media_queues.remove(&mid.to_string());
+                self.video_gates.remove(&mid.to_string());
+            }
             api.set_direction(
                 *mid,
                 if enabled {
@@ -474,20 +478,12 @@ impl Peer {
         let key = mid.to_string();
         if media_kind(kind) == MediaKind::Video {
             self.offered_frames += u64::from(marker);
-            // RTX cache size does NOT bound str0m's unsent RTP queue. Use its
-            // refreshed pacer snapshot plus this undrained batch's bytes.
-            let queued = self.rtc.direct_api().stream_tx(&ssrc).and_then(|s| {
-                s.queue_info()
-                    .map(|q| (q.packet_count(), q.byte_size(), q.first_unsent()))
-            });
-            let staged = self.staged_bytes.get(&key).copied().unwrap_or(0);
-            let full = queued.is_some_and(|(packets, bytes, first)| {
-                packets >= 2048
-                    || bytes.saturating_add(staged) >= 2 * 1024 * 1024
-                    || first.is_some_and(|at| {
-                        now.saturating_duration_since(at) > Duration::from_millis(250)
-                    })
-            }) || staged >= 2 * 1024 * 1024;
+            let queue = self.media_queues.entry(key.clone()).or_default();
+            if queue.0 != *ssrc {
+                *queue = (*ssrc, Default::default());
+            }
+            let queued = queue.1.snapshot();
+            let full = queue.1.full(payload.len(), now);
             let (admit, request) = self
                 .video_gates
                 .entry(key.clone())
@@ -495,12 +491,14 @@ impl Peer {
                 .admit(timestamp, payload, full);
             if request && self.video_trace {
                 eprintln!(
-                    "VIDEO_TRACE sender_gate timestamp={timestamp} queue={:?} staged={staged}",
-                    queued.map(|(p, b, t)| (
-                        p,
-                        b,
-                        t.map(|t| now.saturating_duration_since(t).as_millis())
-                    ))
+                    "VIDEO_TRACE sender_gate timestamp={timestamp} media_queue={:?}",
+                    (
+                        queued.0,
+                        queued.1,
+                        queued
+                            .2
+                            .map(|t| now.saturating_duration_since(t).as_millis())
+                    )
                 );
             }
             if request && !self.keyframes.contains(&kind) {
@@ -510,9 +508,18 @@ impl Peer {
                 self.gated_frames += u64::from(marker);
                 return Ok(());
             }
-            *self.staged_bytes.entry(key.clone()).or_default() += payload.len();
         }
-        let seq = self.sequences.entry(key).or_default();
+        let seq = self.sequences.entry(key.clone()).or_default();
+        if media_kind(kind) == MediaKind::Video
+            && !self
+                .media_queues
+                .get_mut(&key)
+                .unwrap()
+                .1
+                .push(*seq as u16, payload.len(), now)
+        {
+            return Err("Video media queue overload".into());
+        }
         let mut api = self.rtc.direct_api();
         let stream = api.stream_tx(&ssrc).ok_or("No RTP sender")?;
         if media_kind(kind) == MediaKind::Audio {
@@ -559,6 +566,19 @@ impl Peer {
                     break;
                 }
                 Output::Transmit(t) => {
+                    let bytes: &[u8] = t.contents.as_ref();
+                    if bytes.len() >= 12
+                        && bytes[0] >> 6 == 2
+                        && !(192..=223).contains(&bytes[1])
+                        && bytes[0] & 0x20 == 0
+                    {
+                        let ssrc = u32::from_be_bytes(bytes[8..12].try_into().unwrap());
+                        if let Some((_, queue)) =
+                            self.media_queues.values_mut().find(|(s, _)| *s == ssrc)
+                        {
+                            queue.transmitted(u16::from_be_bytes([bytes[2], bytes[3]]));
+                        }
+                    }
                     out.push(PeerOutput::Datagram(t.destination, t.contents.to_vec()))
                 }
                 Output::Event(Event::Connected) => out.push(PeerOutput::Connected),
@@ -627,7 +647,6 @@ impl Peer {
                 return Err("Media output overload".into());
             }
         }
-        self.staged_bytes.clear();
         Ok(out)
     }
 }
