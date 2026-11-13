@@ -1,0 +1,138 @@
+{
+  "renderer": "iced-tiny-skia",
+  "screens": [
+    {
+      "file": "focused-stream-1280x800.png",
+      "height": 800,
+      "sha256": "163aef63e6b426087bca7ae383e6afbe1e02b48eb9d04620affd9dce9181d447",
+      "width": 1280
+    },
+    {
+      "file": "stream-stats-1280x800.png",
+      "height": 800,
+      "sha256": "9767a733198d7e2cbd0795e353b2930b1457711969f1aa0f234103643162382c",
+      "width": 1280
+    },
+    {
+      "file": "share-picker-windows-1280x800.png",
+      "height": 800,
+      "sha256": "4010c001d179b9fa308a4d5df8591f7da9dbc4de49ef6fde550ed5bdb9213aae",
+      "width": 1280
+    },
+    {
+      "file": "share-quality-1280x800.png",
+      "height": 800,
+      "sha256": "3c4cda58acd6322518accbaabf1f545315d279deba753184d39d0f84863a1f6c",
+      "width": 1280
+    },
+    {
+      "file": "controlling-banner-1280x800.png",
+      "height": 800,
+      "sha256": "8417c5d1bf98e18ab44344ff893c3b88cd0d005795b5c4a4864cadbd51776f42",
+      "width": 1280
+    },
+    {
+      "file": "request-control-1280x800.png",
+      "height": 800,
+      "sha256": "163aef63e6b426087bca7ae383e6afbe1e02b48eb9d04620affd9dce9181d447",
+      "width": 1280
+    },
+    {
+      "file": "camera-tiles-1280x800.png",
+      "height": 800,
+      "sha256": "d2dbecfc2546d9a1e7f588430fff4eb87dfa8fd09a2b03a519f9ebf23e8f556b",
+      "width": 1280
+    },
+    {
+      "file": "camera-chooser-1280x800.png",
+      "height": 800,
+      "sha256": "c5eb08a574515d25e2df1dad96633716c6b21a0b3f41017166f144ad7e215b79",
+      "width": 1280
+    },
+    {
+      "file": "voice-call-1280x800.png",
+      "height": 800,
+      "sha256": "2cb26bc3fa5cb63df19c0cc41f68f5afe6733788eedb23ff0d1baaf2c2e369cf",
+      "width": 1280
+    },
+    {
+      "file": "share-picker-1280x800.png",
+      "height": 800,
+      "sha256": "f5c8ec7bc208248fac9aef0fb7dd318016cb0b48295d2ef3587715aab0f83c81",
+      "width": 1280
+    },
+    {
+      "file": "voice-consent-1280x800.png",
+      "height": 800,
+      "sha256": "d4d8af93e18a44f722ec58a567f5918166ed8eaba2577534be800f74e57b70e5",
+      "width": 1280
+    },
+    {
+      "file": "focused-stream-1920x1080.png",
+      "height": 1080,
+      "sha256": "38270aac9aa94e24f568e6313e391d5da69b93660b36fa025541aab319a7c731",
+      "width": 1920
+    },
+    {
+      "file": "stream-stats-1920x1080.png",
+      "height": 1080,
+      "sha256": "aad52bf33850291e9432d2783985690cddf5bdc9dd925ad8370a6d5ccbab3759",
+      "width": 1920
+    },
+    {
+      "file": "share-picker-windows-1920x1080.png",
+      "height": 1080,
+      "sha256": "47a180c151d51b6c1ec3b5172db44c067ce426f00128f926ea18648ce2fbe47b",
+      "width": 1920
+    },
+    {
+      "file": "share-quality-1920x1080.png",
+      "height": 1080,
+      "sha256": "0f6518bd810b91c645aa53660a0ccd892cda7c6da3acdd6e31c287f74902173a",
+      "width": 1920
+    },
+    {
+      "file": "controlling-banner-1920x1080.png",
+      "height": 1080,
+      "sha256": "f4410808fdbc53d7c72a2d706904d76a31ead713c3cfd8a9f3fcc95c7f3c7f05",
+      "width": 1920
+    },
+    {
+      "file": "request-control-1920x1080.png",
+      "height": 1080,
+      "sha256": "38270aac9aa94e24f568e6313e391d5da69b93660b36fa025541aab319a7c731",
+      "width": 1920
+    },
+    {
+      "file": "camera-tiles-1920x1080.png",
+      "height": 1080,
+      "sha256": "4a54f7b4fded996c5650bee48c09c613d5454058056f901308a4c4b0dcbbc36d",
+      "width": 1920
+    },
+    {
+      "file": "camera-chooser-1920x1080.png",
+      "height": 1080,
+      "sha256": "4cd18b65c9becaca22eaa25ba8b95d4dc20f78ede39fb563ec844737763b802f",
+      "width": 1920
+    },
+    {
+      "file": "voice-call-1920x1080.png",
+      "height": 1080,
+      "sha256": "9eda770c6d535a5a4f89c050393c2fff1727aa09fdf2444151b0bee32a65f40e",
+      "width": 1920
+    },
+    {
+      "file": "share-picker-1920x1080.png",
+      "height": 1080,
+      "sha256": "f5c44bcfa3915298b4df0667f83d43fedc55c9d7cbd61f78abf54f5c401ddf3f",
+      "width": 1920
+    },
+    {
+      "file": "voice-consent-1920x1080.png",
+      "height": 1080,
+      "sha256": "242426d76c100e72e3301e72225f46cb4b51fec18f37f49447bbcafa1496eb95",
+      "width": 1920
+    }
+  ],
+  "window_backend": "none"
+}

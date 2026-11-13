@@ -140,8 +140,9 @@ mod platform;
 #[cfg(windows)]
 pub use platform::{
     audio_devices, camera_devices, hardware_encoders, list_sources, process_usage,
-    source_process_id, source_thumbnail, AudioDevice, AudioDeviceEvent, AudioDeviceWatcher,
-    AudioDirection, AudioSessionEvent, CameraDevice, CameraFrameEncoder, CameraOptions,
-    CameraSession, DecodedFrame, Decoder, LoopbackSession, LoopbackSource, MicLevel,
-    MicTestSession, ProcessUsage, ShareSession, SourceThumbnail, VoiceDevices, VoiceSession,
+    source_gpu_thumbnail, source_process_id, source_thumbnail, AudioDevice, AudioDeviceEvent,
+    AudioDeviceWatcher, AudioDirection, AudioSessionEvent, CameraDevice, CameraFrameEncoder,
+    CameraOptions, CameraSession, DecodedFrame, Decoder, DisplayBridge, DisplayFrame,
+    GpuThumbnailer, LoopbackSession, LoopbackSource, MicLevel, MicTestSession, ProcessUsage,
+    ShareSession, SourceThumbnail, VoiceDevices, VoiceSession,
 };

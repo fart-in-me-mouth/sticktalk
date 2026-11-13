@@ -7,6 +7,14 @@ use iced::{advanced::widget::operation, mouse, Size};
 use iced_runtime::user_interface::{Cache, UserInterface};
 use std::{path::Path, time::Instant};
 pub const SCREENS: &[&str] = &[
+    "focused-stream",
+    "stream-stats",
+    "share-picker-windows",
+    "share-quality",
+    "controlling-banner",
+    "request-control",
+    "camera-tiles",
+    "camera-chooser",
     "voice-call",
     "share-picker",
     "voice-consent",
@@ -121,7 +129,14 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             if !(940..=3840).contains(&w) || !(600..=2160).contains(&h) {
                 return Err("Screenshot size is out of range".into());
             }
-            for screen in SCREENS {
+            let filter = args
+                .iter()
+                .position(|v| v == "--screens")
+                .and_then(|i| args.get(i + 1));
+            for screen in SCREENS
+                .iter()
+                .filter(|s| filter.is_none_or(|f| f.split(',').any(|name| name == **s)))
+            {
                 let name = format!("{screen}-{w}x{h}.png");
                 let path = Path::new(dir).join(&name);
                 render(screen, w, h, &path)?;

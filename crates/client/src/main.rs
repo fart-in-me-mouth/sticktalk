@@ -43,25 +43,40 @@ fn main() -> iced::Result {
         }
         return Ok(());
     }
-    iced::application(app::App::new, app::App::update, ui::view)
-        .title("StickTalk")
-        .theme(theme::theme)
-        .subscription(app::App::subscription)
-        .window(iced::window::Settings {
-            size: window_size(),
-            visible: !agent_window::enabled(),
-            min_size: Some(iced::Size::new(theme::MIN_W, theme::MIN_H)),
-            ..iced::window::Settings::default()
-        })
-        .default_font(theme::regular())
-        .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/Inter-Italic.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/Inter-SemiBoldItalic.ttf").as_slice())
-        .antialiasing(false)
-        .run()
+    iced::daemon(
+        || {
+            let (mut app, init) = app::App::new();
+            let (id, open) = iced::window::open(iced::window::Settings {
+                size: window_size(),
+                visible: !agent_window::enabled(),
+                min_size: Some(iced::Size::new(theme::MIN_W, theme::MIN_H)),
+                exit_on_close_request: false,
+                ..Default::default()
+            });
+            app.calls.main_window = Some(id);
+            (
+                app,
+                open.then({
+                    let mut init = Some(init);
+                    move |_| init.take().unwrap_or_else(iced::Task::none)
+                }),
+            )
+        },
+        app::App::update,
+        ui::view_window,
+    )
+    .title("StickTalk")
+    .theme(|app: &app::App, _| theme::theme(app))
+    .subscription(app::App::subscription)
+    .default_font(theme::regular())
+    .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
+    .font(include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice())
+    .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
+    .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
+    .font(include_bytes!("../assets/fonts/Inter-Italic.ttf").as_slice())
+    .font(include_bytes!("../assets/fonts/Inter-SemiBoldItalic.ttf").as_slice())
+    .antialiasing(false)
+    .run()
 }
 
 fn window_size() -> iced::Size {

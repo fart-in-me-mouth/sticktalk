@@ -480,3 +480,11 @@ pub fn checkbox(
         text_color: Some(TEXT_PRIMARY),
     }
 }
+
+// Call playback layout reserves header, participant strip and controls.
+pub const CALL_STRIP_HEIGHT: f32 = 44.;
+pub const PICKER_WIDTH: f32 = 640.;
+pub const SOURCE_PREVIEW_W: f32 = 160.;
+pub const SOURCE_PREVIEW_H: f32 = 96.;
+
+pub const PICKER_SOURCES_HEIGHT: f32 = 176.;

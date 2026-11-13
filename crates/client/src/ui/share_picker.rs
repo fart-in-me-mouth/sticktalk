@@ -1,120 +1,260 @@
 use super::*;
 use crate::voice_ui::Action;
 use iced::widget::{column, row};
+
+fn choice(label: String, selected: bool, action: Action) -> Element<'static, Msg> {
+    button(
+        row![
+            txt(label).width(Fill),
+            icon(
+                if selected { "check" } else { "circle" },
+                t::INLINE_ICON,
+                if selected { t::ACCENT } else { t::TEXT_MUTED }
+            )
+        ]
+        .spacing(t::S8)
+        .align_y(Center),
+    )
+    .on_press(Msg::Call(action))
+    .padding(t::S8)
+    .width(Fill)
+    .style(t::navigation(selected))
+    .into()
+}
 pub(super) fn view(app: &App) -> Element<'_, Msg> {
     let mut sources = column![].spacing(t::S8);
-    for (index, s) in app.calls.sources.iter().enumerate() {
-        let thumbnail: Element<'_, Msg> = s.thumbnail.as_ref().map_or_else(
-            || {
-                container(icon("monitor-up", t::ICON, t::TEXT_MUTED))
-                    .width(96)
-                    .height(54)
-                    .center_x(96)
-                    .center_y(54)
-                    .style(t::elevated)
+    let filtered: Vec<_> = app
+        .calls
+        .sources
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| {
+            (s.kind == sticktalk_media::SourceKind::Window) == app.calls.picker_windows
+        })
+        .collect();
+    for chunk in filtered.chunks(2) {
+        let mut tiles = row![].spacing(t::S8);
+        for (index, s) in chunk {
+            let thumbnail: Element<'_, Msg> = s.thumbnail.as_ref().map_or_else(
+                || {
+                    container(icon("monitor-up", t::CALL_AVATAR, t::TEXT_MUTED))
+                        .center_x(Fill)
+                        .center_y(t::SOURCE_PREVIEW_H)
+                        .style(t::rail)
+                        .into()
+                },
+                |handle| {
+                    image(handle.clone())
+                        .width(Fill)
+                        .height(t::SOURCE_PREVIEW_H)
+                        .content_fit(iced::ContentFit::Contain)
+                        .into()
+                },
+            );
+            #[cfg(feature = "wgpu")]
+            let thumbnail: Element<'_, Msg> = if let Some(frame) = &s.gpu_thumbnail {
+                container(
+                    widget::shader(sticktalk::voice::video::Video(frame.clone()))
+                        .width(t::SOURCE_PREVIEW_W)
+                        .height(frame.size.height as f32),
+                )
+                .center_x(Fill)
+                .center_y(t::SOURCE_PREVIEW_H)
+                .style(t::rail)
+                .into()
+            } else {
+                thumbnail
+            };
+            let label = column![
+                txt(ellipsis(&s.name, 28)),
+                hint(format!("{} × {}", s.size.width, s.size.height))
+            ]
+            .spacing(t::S4);
+            let content: Element<'_, Msg> = if app.calls.quality_menu {
+                row![container(thumbnail).width(t::SOURCE_PREVIEW_W), label]
+                    .spacing(t::S12)
+                    .align_y(Center)
                     .into()
-            },
-            |handle| {
-                image(handle.clone())
-                    .width(96)
-                    .height(54)
-                    .content_fit(iced::ContentFit::Contain)
-                    .into()
-            },
-        );
-        sources = sources.push(
-            button(
-                row![
-                    thumbnail,
-                    icon(
-                        if s.kind == sticktalk_media::SourceKind::Monitor {
-                            "monitor-up"
-                        } else {
-                            "layout-grid"
-                        },
-                        t::ICON,
-                        t::TEXT_SECONDARY
-                    ),
-                    column![
-                        txt(ellipsis(&s.name, 42)),
-                        hint(format!("{} × {}", s.size.width, s.size.height))
-                    ]
+            } else {
+                column![thumbnail, label].spacing(t::S4).into()
+            };
+            tiles = tiles.push(
+                button(content)
+                    .on_press(Msg::Call(Action::ChooseSource(*index)))
                     .width(Fill)
+                    .padding(t::S8)
+                    .style(t::navigation(app.calls.source == Some(*index))),
+            );
+        }
+        sources = sources.push(tiles);
+    }
+    if filtered.is_empty() {
+        sources = sources.push(hint("No sources available. Refresh to try again."));
+    }
+    let settings = &app.calls.call.settings;
+    let source = app
+        .calls
+        .source
+        .and_then(|i| app.calls.sources.get(i))
+        .map(|s| &s.source)
+        .or(app.calls.active_source.as_ref());
+    let mut audio = column![].spacing(t::S4);
+    if settings.share_include_audio {
+        let name = app
+            .calls
+            .sources
+            .iter()
+            .find(|s| s.process_id == app.calls.audio_source && s.process_id.is_some())
+            .map(|s| s.name.clone())
+            .unwrap_or("Choose an application".into());
+        audio = audio.push(action(
+            format!("Audio source · {name}"),
+            Msg::Call(Action::AudioMenu),
+        ));
+        if app.calls.audio_menu {
+            let mut seen = std::collections::BTreeSet::new();
+            for s in &app.calls.sources {
+                if let Some(pid) = s.process_id {
+                    if seen.insert(pid) {
+                        audio = audio.push(choice(
+                            ellipsis(&s.name, 42),
+                            app.calls.audio_source == Some(pid),
+                            Action::AudioProcess(pid),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    let mut quality = column![].spacing(t::S8);
+    if app.calls.quality_menu {
+        let mut fps = column![section("FRAME RATE")].spacing(t::S4);
+        for rate in [15, 30, 60] {
+            fps = fps.push(choice(
+                format!("{rate} FPS"),
+                settings.share_fps == rate,
+                Action::Fps(rate),
+            ));
+        }
+        let mut resolution = column![section("RESOLUTION")].spacing(t::S4);
+        for height in [480, 720, 1080, 1440, 0] {
+            let label = if height == 0 {
+                source.map_or("Source".into(), |s| {
+                    format!("Source ({}×{})", s.size.width, s.size.height)
+                })
+            } else {
+                format!("{height}p")
+            };
+            resolution = resolution.push(choice(
+                label,
+                settings.share_height == height,
+                Action::Height(height),
+            ));
+        }
+        quality = quality.push(row![fps.width(Fill), resolution.width(Fill)].spacing(t::S16));
+    }
+    let resolution = if settings.share_height == 0 {
+        "Source".into()
+    } else {
+        format!("{}p", settings.share_height)
+    };
+    container(
+        scroller(
+            column![
+                row![
+                    title(if app.calls.sharing {
+                        "Stream Quality"
+                    } else {
+                        "Share Your Screen"
+                    })
+                    .width(Fill),
+                    icon_button("x", "Close", Msg::Call(Action::ClosePicker))
                 ]
-                .spacing(t::S12)
                 .align_y(Center),
-            )
-            .on_press(Msg::Call(Action::ChooseSource(index)))
-            .padding(t::S12)
-            .width(Fill)
-            .style(t::navigation(app.calls.source == Some(index))),
-        );
+                row![
+                    choice(
+                        "Screens".into(),
+                        !app.calls.picker_windows,
+                        Action::PickerTab(false)
+                    ),
+                    choice(
+                        "Applications".into(),
+                        app.calls.picker_windows,
+                        Action::PickerTab(true)
+                    ),
+                    icon_button(
+                        "refresh-cw",
+                        "Refresh previews",
+                        Msg::Call(Action::RefreshSources)
+                    )
+                ]
+                .spacing(t::S8),
+                container(scroller(sources)).max_height(if app.calls.quality_menu {
+                    t::SOURCE_PREVIEW_H
+                } else {
+                    t::PICKER_SOURCES_HEIGHT
+                }),
+                widget::checkbox(settings.share_include_audio)
+                    .label("Include application audio")
+                    .on_toggle(|a| Msg::Call(Action::IncludeAudio(a)))
+                    .style(t::checkbox),
+                audio,
+                action(
+                    format!("Stream quality · {resolution} · {} FPS", settings.share_fps),
+                    Msg::Call(Action::QualityMenu)
+                ),
+                quality,
+                row![
+                    space().width(Fill),
+                    action("Cancel", Msg::Call(Action::ClosePicker)),
+                    button(
+                        txt(if app.calls.sharing { "Done" } else { "Go Live" })
+                            .font(t::semibold())
+                            .style(t::inherit_text)
+                    )
+                    .on_press_maybe(if app.calls.sharing {
+                        Some(Msg::Call(Action::ClosePicker))
+                    } else {
+                        app.calls.source.map(|_| Msg::Call(Action::StartShare))
+                    })
+                    .padding([t::S8, t::S16])
+                    .height(t::BUTTON)
+                    .style(t::primary)
+                ]
+                .spacing(t::S8)
+            ]
+            .spacing(t::S12),
+        )
+        .height(Length::Shrink),
+    )
+    .max_height((app.height - 2. * t::S24).max(t::HEADER))
+    .padding(t::S24)
+    .width(t::PICKER_WIDTH)
+    .style(t::elevated)
+    .into()
+}
+pub(super) fn cameras(app: &App) -> Element<'_, Msg> {
+    let mut devices = column![
+        title("Choose a Camera"),
+        hint("Your camera starts only after you choose a device.")
+    ]
+    .spacing(t::S12);
+    for (i, camera) in app.calls.cameras.iter().enumerate() {
+        devices = devices.push(action(
+            camera.name.clone(),
+            Msg::Call(Action::ChooseCamera(i)),
+        ));
     }
-    let s = &app.calls.call.settings;
-    let mut fps = row![].spacing(t::S8);
-    for f in [15, 30, 60] {
-        fps = fps.push(
-            button(txt(format!("{f} FPS")))
-                .on_press(Msg::Call(Action::Fps(f)))
-                .padding(t::S8)
-                .style(t::navigation(s.share_fps == f)),
-        );
-    }
-    let source = app.calls.source.and_then(|i| app.calls.sources.get(i));
-    let mut resolutions = column![].spacing(t::S4);
-    for height in [480, 720, 1080, 1440, 0] {
-        let mut settings = s.clone();
-        settings.share_height = height;
-        let actual = source.and_then(|source| {
-            sticktalk::voice::quality(&settings)
-                .ok()?
-                .output_size(source.size)
-                .ok()
-        });
-        let label = if height == 0 {
-            "Source".into()
-        } else {
-            format!("{height}p")
-        };
-        let label = actual.map_or(label.clone(), |size| {
-            format!("{label} ({} × {})", size.width, size.height)
-        });
-        resolutions = resolutions.push(
-            button(txt(label))
-                .on_press(Msg::Call(Action::Height(height)))
-                .width(Fill)
-                .padding(t::S8)
-                .style(t::navigation(s.share_height == height)),
-        );
+    if app.calls.cameras.is_empty() {
+        devices = devices.push(hint("No camera found."));
     }
     container(
-        column![
-            row![
-                title("Share Your Screen").width(Fill),
-                icon_button("x", "Close", Msg::Call(Action::ClosePicker))
-            ]
-            .align_y(Center),
-            container(scroller(sources)).max_height(220),
-            line(),
-            section("Frame Rate"),
-            fps,
-            section("Resolution"),
-            resolutions,
-            widget::checkbox(s.share_include_audio)
-                .label("Include application audio")
-                .on_toggle(|a| Msg::Call(Action::IncludeAudio(a)))
-                .style(t::checkbox),
-            row![
-                space().width(Fill),
-                action("Cancel", Msg::Call(Action::ClosePicker)),
-                primary("Go Live", Msg::Call(Action::StartShare))
-            ]
-            .spacing(t::S8)
-        ]
-        .spacing(t::S12),
+        scroller(devices.push(action("Cancel", Msg::Call(Action::CloseCameras))))
+            .height(Length::Shrink),
     )
+    .max_height((app.height - 2. * t::S24).max(t::HEADER))
     .padding(t::S24)
-    .width(560)
+    .width(t::PICKER_WIDTH)
     .style(t::elevated)
     .into()
 }
