@@ -129,26 +129,34 @@ The fixture build still requires `?mock`; all other URLs use the live app. Clear
 STICKTALK_WEB_MOCK and rebuild without --features mock before deployment. Old
 root screenshots/reports are historical fixture baselines, not live-flow proof.
 
+## Mobile QA
+
+`npm run test:qa` runs real-server touch/navigation/settings/admin/history tests at
+390x844, 412x915, 820x1180 and 1440x900, mock Google OAuth with loopback TLS,
+actual service-worker offline/update flows, and phone media with a second-process
+publisher. Temporary databases and certificates remain inside CARGO_TARGET_DIR.
+It needs the built server, packaged web distribution and Playwright Chromium.
+The TLS fixture uses Git for Windows' openssl (override STICKTALK_QA_OPENSSL).
+Evidence and limitations: [QA report](../../docs/QA_WEB_REPORT.md),
+[screenshot contact sheet](screenshots/qa/contact-phone.png).
+
 ## Known remaining launch work
 
-- Full Phase 1 moderation/administration, invite management and every native
-  settings interaction are not yet exposed in the live UI.
-- User settings use desktop two-pane navigation and phone settings-list/subpages.
-  Profile/avatar editing, hoisted-role member groups, seven-minute message grouping,
-  four-trigger autocomplete and group-DM create/manage are exposed. Full role
-  reorder, all settings pages, rich GIF embeds/favorites/categories and viewer
-  forwarding/clipboard-image actions remain.
-- Direct KLIPY uses only the public `/meta` key, credential-free bounded fetches
-  and exact approved media hosts. The server opens CSP discovery/media sources
-  only in enabled direct mode. Provider account approval/live key delivery was
-  not exercised; the adapter is unit-tested without external calls.
-- Google redirect/completion is wired and capability-gated, but this work has not
-  rerun mock OAuth end-to-end. Screen capture options are implemented but not
-  certified by a headless display-capture test. Real phone/Safari behavior, external
-  push delivery, offline/version-upgrade behavior, network impairment and large-call
-  quality need separate validation.
-- See the live report for measured cold/warm TTI and any missed target. Do not
-  confuse progressive login or a skeleton paint with authenticated chat TTI.
+- Mobile settings now cover account/profile, appearance, per-server/conversation
+  notifications, voice/video, sessions, deletion and blocked users. Server settings
+  cover overview/icon/banner, role order/permissions/member assignment, channels,
+  invites and bans. Unsupported backend privacy switches, global notification
+  defaults and custom emoji administration are honestly disabled. Fine-grained
+  channel permission overwrite authoring is not yet exposed.
+- Rich GIF categories/favorites, viewer forwarding and clipboard-image actions
+  remain. KLIPY account approval/live provider delivery was not exercised;
+  the adapter is unit-tested without external requests.
+- Mock OAuth, offline shell/version upgrades and a phone receiving decoded SFU
+  screen-share frames are automated. Real iOS/Safari installs and keyboard/permission
+  behavior, OS display capture, external push delivery, impaired networks and
+  large-call quality still require physical-device/operational certification.
+- See the QA report for cold/warm authenticated TTI and any missed target.
+  Progressive login or skeleton paint is not authenticated chat TTI.
 
 ## Packaging and PWA updates
 
@@ -163,8 +171,10 @@ demand, and never intercepts private API traffic. The HTML shell uses
 stale-while-revalidate; content-versioned assets are cache-first to avoid warm
 re-downloads and mixing incompatible versions. An update waits for Reload (and refuses
 to discard an unsent draft). Deployments should retain the previous `pkg/<digest>`
-directory until old tabs have reloaded, so an older open tab can still discover
-a not-yet-opened secondary screen.
+and `public/runtime/<digest>` directories until old tabs have reloaded, so an older open tab can still discover
+a not-yet-opened secondary screen. Runtime JS and its lazy imports are now also
+release-fingerprinted; stable public aliases are diagnostics entry points only.
+Reload any tabs from a pre-fingerprinting release once when adopting this build.
 
 After final validation delete the one task target directory:
 `Remove-Item -LiteralPath $env:CARGO_TARGET_DIR -Recurse -Force`.

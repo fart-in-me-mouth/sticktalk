@@ -3,12 +3,16 @@
 import {readFile,writeFile,mkdir,cp} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {createHash} from 'node:crypto';
+import {hostGraphFingerprint} from './version-runtime.mjs';
 const target=resolve(process.env.CARGO_TARGET_DIR), dist=resolve(process.env.TRUNK_STAGING_DIR);
 await mkdir(dist,{recursive:true});
 const wasm=await readFile(join(target,'wasm32-unknown-unknown/web-release/sticktalk-web.wasm'));
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex').slice(0,20);
 const entry='sticktalk-web-'+hash(wasm), css=await readFile('live.css'), style='live-'+hash(css)+'.css';
-const pkg=`pkg/${hash(wasm)}`;
+// The generated host glue changes when JS changes even if WASM does not. Give
+// that graph a new immutable URL too, rather than reusing an HTTP-cached loader.
+const graph=await hostGraphFingerprint(wasm,'public');
+const pkg=`pkg/${graph}`;
 await cp('public',join(dist,'public'),{recursive:true});
 await writeFile(join(dist,style),css);
 let html=await readFile('index.html','utf8');
