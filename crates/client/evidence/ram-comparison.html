@@ -1,0 +1,23 @@
+<section id="sticktalk-ram-comparison" aria-label="Paired headless RAM comparison">
+  <h3>Headless RAM · MiB</h3>
+  <div class="context">Debug · DX12 · system allocator · no native window/swapchain</div>
+  <div class="metric">Working set</div>
+  <div class="row"><span>Before</span><div class="track"><div class="bar before" style="width:73.695%"></div></div><span>162.13</span></div>
+  <div class="row"><span>After</span><div class="track"><div class="bar" style="width:73.873%"></div></div><span>162.52</span></div>
+  <div class="metric">Private bytes</div>
+  <div class="row"><span>Before</span><div class="track"><div class="bar before" style="width:91.5%"></div></div><span>201.30</span></div>
+  <div class="row"><span>After</span><div class="track"><div class="bar" style="width:91.086%"></div></div><span>200.39</span></div>
+  <div class="axis"><span>0</span><span>220 MiB</span></div>
+</section>
+<style>
+#sticktalk-ram-comparison {color:var(--foreground);font-family:var(--font-sans);font-variant-numeric:tabular-nums}
+#sticktalk-ram-comparison h3 {margin:0;font-weight:500}
+#sticktalk-ram-comparison .context {color:var(--muted-foreground);margin:6px 0 16px}
+#sticktalk-ram-comparison .metric {margin:14px 0 7px;font-weight:500}
+#sticktalk-ram-comparison .row {display:grid;grid-template-columns:54px minmax(0,1fr) 62px;gap:10px;align-items:center;margin:7px 0}
+#sticktalk-ram-comparison .row>span:last-child {text-align:right}
+#sticktalk-ram-comparison .track {height:18px;background:var(--muted)}
+#sticktalk-ram-comparison .bar {height:18px;background:var(--chart-1)}
+#sticktalk-ram-comparison .before {opacity:.5}
+#sticktalk-ram-comparison .axis {display:flex;justify-content:space-between;margin:8px 72px 0 64px;color:var(--muted-foreground)}
+</style>

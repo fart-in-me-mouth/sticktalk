@@ -1,0 +1,13 @@
+{
+  "allocator": "mimalloc",
+  "memory": {
+    "private_bytes": 138612736,
+    "working_set_bytes": 106676224
+  },
+  "method": "30 warm frames, 2s idle and one allocator collection, live App/view/cache/renderer retained; one offscreen target; NO OS window or swapchain; not directly comparable to native-window working set",
+  "renderer": "vulkan",
+  "size": [
+    1280,
+    800
+  ]
+}

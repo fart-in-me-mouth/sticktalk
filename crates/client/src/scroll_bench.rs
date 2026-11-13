@@ -150,7 +150,7 @@ pub fn run(args: &[String], index: usize) -> Result<(), String> {
         }
         results.push(serde_json::json!({"input":mode,"layout":summary(layout),"draw_primitives":summary(draw),"render":summary(raster),"total":summary(total),"max_visible_rows":max_visible,"message_layout_hits":app.message_layouts.hits.get(),"message_layout_misses":app.message_layouts.misses.get()}));
     }
-    std::fs::write(output,serde_json::to_vec_pretty(&serde_json::json!({"renderer":if use_gpu { "wgpu-dx12" } else { "tiny-skia" },"window_backend":"none","size":[2560,1440],"messages":5000,"warmup_frames":60,"method":"actual iced view; synthetic fractional wheel offsets, random cold seeks and fast-drag skeleton offsets; tiny-skia persistent pixmap + damaged chat region only; GPU full offscreen texture and synchronous submission completion; no PNG encoding/readback/OS window; not physical monitor cadence","results":results})).unwrap()).map_err(|e|e.to_string())
+    std::fs::write(output,serde_json::to_vec_pretty(&serde_json::json!({"renderer":if use_gpu { if std::env::var("STICKTALK_BENCH_BACKEND").is_ok_and(|v|v=="vulkan") {"wgpu-vulkan"}else{"wgpu-dx12"} } else { "tiny-skia" },"window_backend":"none","size":[2560,1440],"messages":5000,"warmup_frames":60,"method":"actual iced view; synthetic fractional wheel offsets, random cold seeks and fast-drag skeleton offsets; tiny-skia persistent pixmap + damaged chat region only; GPU full offscreen texture and synchronous submission completion; no PNG encoding/readback/OS window; not physical monitor cadence","results":results})).unwrap()).map_err(|e|e.to_string())
 }
 
 #[cfg(feature = "wgpu")]
@@ -163,6 +163,9 @@ struct Gpu {
 #[cfg(feature = "wgpu")]
 impl Gpu {
     fn new() -> Result<Self, String> {
+        Self::with_size(iced::Size::new(2560, 1440))
+    }
+    fn with_size(size: iced::Size<u32>) -> Result<Self, String> {
         use iced_wgpu::{graphics, wgpu};
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -170,7 +173,11 @@ impl Gpu {
             .map_err(|e| e.to_string())?;
         runtime.block_on(async {
             let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-                backends: wgpu::Backends::DX12,
+                backends: if std::env::var("STICKTALK_BENCH_BACKEND").is_ok_and(|v| v == "vulkan") {
+                    wgpu::Backends::VULKAN
+                } else {
+                    wgpu::Backends::DX12
+                },
                 flags: wgpu::InstanceFlags::empty(),
                 ..Default::default()
             });
@@ -195,8 +202,8 @@ impl Gpu {
                 .create_texture(&wgpu::TextureDescriptor {
                     label: Some("offscreen scroll target"),
                     size: wgpu::Extent3d {
-                        width: 2560,
-                        height: 1440,
+                        width: size.width,
+                        height: size.height,
                         depth_or_array_layers: 1,
                     },
                     mip_level_count: 1,
@@ -228,6 +235,84 @@ impl Gpu {
         })
     }
 }
+/// Idle offscreen resource harness. No winit surface, OS window or periodic timers.
+pub fn resources(args: &[String], index: usize) -> Result<(), String> {
+    if !args.iter().any(|s| s == "--mock") {
+        return Err("--bench-resources requires --mock".into());
+    }
+    let path = args.get(index + 1).ok_or("Missing resource output path")?;
+    crate::headless::load_fonts();
+    let size = Size::new(1280., 800.);
+    let viewport = iced_tiny_skia::graphics::Viewport::with_physical_size(Size::new(1280, 800), 1.);
+    let app = App::headless("guild-chat", size);
+    let mut cache = Cache::new();
+    #[cfg(feature = "wgpu")]
+    let mut gpu = Gpu::with_size(Size::new(1280, 800))?;
+    #[cfg(feature = "wgpu")]
+    let mut renderer = iced::Renderer::Primary(gpu.renderer.take().unwrap());
+    #[cfg(not(feature = "wgpu"))]
+    let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+    #[cfg(not(feature = "wgpu"))]
+    let mut pixmap = tiny_skia::Pixmap::new(1280, 800).unwrap();
+    #[cfg(not(feature = "wgpu"))]
+    let mut mask = tiny_skia::Mask::new(1280, 800).unwrap();
+    for _ in 0..30 {
+        let mut ui = UserInterface::build(crate::ui::view(&app), size, cache, &mut renderer);
+        ui.draw(
+            &mut renderer,
+            &t::theme(&app),
+            &iced::advanced::renderer::Style {
+                text_color: t::TEXT_PRIMARY,
+            },
+            mouse::Cursor::Unavailable,
+        );
+        cache = ui.into_cache();
+        #[cfg(feature = "wgpu")]
+        if let iced::Renderer::Primary(r) = &mut renderer {
+            let sub = r.present(Some(t::BG_CHAT), gpu.format, &gpu.target, &viewport);
+            gpu.device
+                .poll(iced_wgpu::wgpu::PollType::Wait {
+                    submission_index: Some(sub),
+                    timeout: Some(std::time::Duration::from_secs(5)),
+                })
+                .map_err(|e| e.to_string())?;
+        }
+        #[cfg(not(feature = "wgpu"))]
+        renderer.draw(
+            &mut pixmap.as_mut(),
+            &mut mask,
+            &viewport,
+            &[iced::Rectangle::with_size(size)],
+            t::BG_CHAT,
+        );
+        renderer.reset(iced::Rectangle::with_size(size));
+    }
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    sticktalk::resources::collect();
+    #[cfg(windows)]
+    let memory = unsafe {
+        use windows_sys::Win32::System::{
+            ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS_EX},
+            Threading::GetCurrentProcess,
+        };
+        let mut m: PROCESS_MEMORY_COUNTERS_EX = std::mem::zeroed();
+        m.cb = std::mem::size_of_val(&m) as u32;
+        if K32GetProcessMemoryInfo(
+            GetCurrentProcess(),
+            (&mut m as *mut PROCESS_MEMORY_COUNTERS_EX).cast(),
+            m.cb,
+        ) == 0
+        {
+            return Err("Could not measure process memory".into());
+        }
+        serde_json::json!({"working_set_bytes":m.WorkingSetSize,"private_bytes":m.PrivateUsage})
+    };
+    #[cfg(not(windows))]
+    let memory = serde_json::Value::Null;
+    let output = serde_json::json!({"memory":memory,"size":[1280,800],"renderer":if cfg!(feature="wgpu"){std::env::var("STICKTALK_BENCH_BACKEND").unwrap_or_else(|_|"dx12".into())}else{"tiny-skia".to_string()},"allocator":if cfg!(feature="compact-allocator"){"mimalloc"}else{"system"},"method":"30 warm frames, 2s idle and one allocator collection, live App/view/cache/renderer retained; one offscreen target; NO OS window or swapchain; not directly comparable to native-window working set"});
+    std::fs::write(path, serde_json::to_vec_pretty(&output).unwrap()).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod input_tests {
     use super::*;

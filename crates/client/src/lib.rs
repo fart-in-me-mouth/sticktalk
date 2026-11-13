@@ -9,3 +9,10 @@ pub mod platform;
 pub mod storage;
 #[cfg(windows)]
 pub mod voice;
+
+pub mod animated;
+pub mod gifs;
+pub mod platform_glue;
+pub mod uploads;
+
+pub mod resources;

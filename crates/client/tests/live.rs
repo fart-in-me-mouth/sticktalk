@@ -1630,3 +1630,117 @@ async fn launch_main_window_real_clients() {
     .await
     .expect("main window live deadline");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_upload_worker_checkpoints_completion_and_download_replaces_atomically() {
+    let fixture = Fixture::start().await;
+    let a = fixture.register("queue_alice").await;
+    let b = fixture.register("queue_bob").await;
+    let mut alice = Peer::connect(&fixture.url, &a).await;
+    let mut bob = Peer::connect(&fixture.url, &b).await;
+    alice
+        .command(Command::SendFriendRequest {
+            username: "queue_bob".into(),
+        })
+        .await;
+    bob.command(Command::AcceptFriendRequest {
+        user_id: a.user.user.id,
+    })
+    .await;
+    let CommandResult::Channel(channel) = alice
+        .command(Command::OpenDm {
+            user_id: b.user.user.id,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("image.jpg");
+    tokio::fs::write(&path, sticktalk_client_core::mock::IMAGE)
+        .await
+        .unwrap();
+    let (size, modified_ms) = sticktalk::uploads::fingerprint(&path).unwrap();
+    let config = sticktalk::backend::Config {
+        server: fixture.url.clone(),
+        token: a.token.clone(),
+        mock: false,
+        generation: 1,
+        scenario: String::new(),
+    };
+    let id = sticktalk::backend::nonce();
+    let account = a.user.user.id;
+    let job = sticktalk::uploads::Job {
+        id,
+        path,
+        channel: channel.summary.id,
+        forward: false,
+        size,
+        modified_ms,
+        upload: None,
+        attachment: None,
+    };
+    sticktalk::uploads::save(&config, account, &job).unwrap();
+    let worker = sticktalk::uploads::Worker {
+        config: config.clone(),
+        account,
+        id,
+        journal: serde_json::to_string(&job).unwrap(),
+    };
+    let mut stream = Box::pin(sticktalk::uploads::subscription(&worker));
+    let attachment = loop {
+        let event = tokio::time::timeout(Duration::from_secs(15), stream.next())
+            .await
+            .unwrap()
+            .expect("worker ended without completion");
+        match event {
+            sticktalk::uploads::Event::Complete(_, attachment) => break attachment,
+            sticktalk::uploads::Event::Failed(_, e) => panic!("{e}"),
+            _ => {}
+        }
+    };
+    drop(stream);
+    let restored = sticktalk::uploads::restore(&config, account)
+        .into_iter()
+        .find(|j| j.id == id)
+        .unwrap();
+    assert_eq!(restored.attachment.as_ref().unwrap().id, attachment.id);
+    assert!(!std::fs::read_to_string(
+        sticktalk::uploads::preferences(&config, account)
+            .parent()
+            .unwrap()
+            .join(format!("{id}.json"))
+    )
+    .unwrap()
+    .contains(&a.token));
+    // Bind the pending upload before downloading it, just like the composer.
+    alice
+        .command(Command::SendMessage(MessageDraft {
+            channel_id: channel.summary.id,
+            content: String::new(),
+            reply_to: None,
+            attachment_ids: vec![attachment.id],
+            mention_ids: vec![],
+        }))
+        .await;
+    let destination = dir.path().join("saved.jpg");
+    tokio::fs::write(&destination, b"old destination")
+        .await
+        .unwrap();
+    alice
+        .http
+        .download(attachment.id, destination.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        tokio::fs::read(&destination).await.unwrap(),
+        sticktalk_client_core::mock::IMAGE
+    );
+    sticktalk::uploads::remove(&config, account, id);
+    let journal_dir = sticktalk::uploads::preferences(&config, account)
+        .parent()
+        .unwrap()
+        .to_owned();
+    let _ = std::fs::remove_file(journal_dir.join(format!("{id}.cancelled")));
+    let _ = std::fs::remove_dir(journal_dir);
+}

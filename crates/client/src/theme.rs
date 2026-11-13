@@ -537,3 +537,17 @@ pub const STATUS_RING: f32 = 3.;
 pub const BADGE_TEXT: Color = Color::WHITE;
 pub const BADGE_H: f32 = 16.;
 pub const BADGE_RING: f32 = 3.;
+// Media surfaces (B1 and GIFS.md).
+pub const PICKER_W: f32 = 420.;
+pub const VIEWER_MARGIN: f32 = 48.;
+pub const VIEWER_BACKDROP: Color = Color::from_rgba8(0, 0, 0, 0.85);
+pub fn popover(theme: &Theme) -> container::Style {
+    container::Style {
+        border: Border {
+            color: DIVIDER,
+            width: HAIRLINE,
+            radius: S8.into(),
+        },
+        ..modal(theme)
+    }
+}

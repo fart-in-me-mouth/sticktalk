@@ -158,6 +158,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             .padding([t::S8, t::S8])
             .height(Fill),
         voice_connected(app),
+        crate::features::update_pill(app),
         user_panel(app)
     ])
     .width(t::SIDEBAR)

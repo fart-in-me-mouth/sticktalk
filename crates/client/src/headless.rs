@@ -11,6 +11,20 @@ pub const SCREENS: &[&str] = &[
     "share-picker",
     "voice-consent",
     "voice-settings",
+    "emoji-picker",
+    "emoji-search",
+    "emoji-autocomplete",
+    "reaction-picker",
+    "gif-picker",
+    "gif-search",
+    "gif-favorites",
+    "image-viewer",
+    "image-viewer-loading",
+    "image-viewer-zoom",
+    "upload-progress",
+    "upload-storage-full",
+    "upload-other-channel",
+    "restart-update",
     "login",
     "register",
     "home-online",
@@ -123,6 +137,9 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
                 .ok_or_else(|| "Missing proof path".into())
                 .and_then(|p| idle_proof(Path::new(p))),
         );
+    }
+    if let Some(index) = args.iter().position(|v| v == "--bench-resources") {
+        return Some(crate::scroll_bench::resources(&args, index));
     }
     if let Some(index) = args.iter().position(|v| v == "--bench-scroll") {
         return Some(crate::scroll_bench::run(&args, index));

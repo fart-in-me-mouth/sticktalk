@@ -422,18 +422,27 @@ impl Http {
         use tokio::io::AsyncWriteExt;
         let response = self
             .get(&format!("/files/{}", id.0))
+            .timeout(Duration::from_secs(3600))
             .send()
             .await
             .map_err(|_| "Download failed".to_string())?;
         if !response.status().is_success() {
             return Err("No longer allowed to download this file".into());
         }
+        let temporary = path.with_file_name(format!(".sticktalk-{}.part", nonce()));
+        struct Partial(PathBuf);
+        impl Drop for Partial {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+        let _partial = Partial(temporary.clone());
         let mut out = tokio::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&path)
+            .open(&temporary)
             .await
-            .map_err(|_| "Destination already exists or cannot be written".to_string())?;
+            .map_err(|_| "Destination cannot be written".to_string())?;
         let mut stream = response.bytes_stream();
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|_| "Download interrupted".to_string())?;
@@ -441,7 +450,13 @@ impl Http {
                 .await
                 .map_err(|_| "Could not save file".to_string())?;
         }
-        Ok(())
+        out.sync_all()
+            .await
+            .map_err(|_| "Could not save file".to_string())?;
+        drop(out);
+        tokio::fs::rename(temporary, path)
+            .await
+            .map_err(|_| "Could not replace destination".into())
     }
 }
 async fn json<T: DeserializeOwned>(response: reqwest::Response) -> Result<T, String> {

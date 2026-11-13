@@ -1,0 +1,4 @@
+    Blocking waiting for file lock on package cache
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-1503f294-d77270ccdf3a62c4\crates\client)
+    Finished `release` profile [optimized] target(s) in 15m 24s
