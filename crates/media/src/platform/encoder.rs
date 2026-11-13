@@ -209,6 +209,21 @@ impl Hardware {
             let manager = manager(gpu)?;
             transform.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize)?;
             let codec_api: ICodecAPI = transform.cast()?;
+            let out = media_type(MFVideoFormat_H264, size, options.quality.fps.get())?;
+            out.SetUINT32(&MF_MT_AVG_BITRATE, options.bitrate)?;
+            out.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)?;
+            transform
+                .SetOutputType(0, &out, 0)
+                .map_err(|e| Error::Platform(format!("encoder output type: {e}")))?;
+            transform
+                .SetInputType(
+                    0,
+                    &media_type(MFVideoFormat_NV12, size, options.quality.fps.get())?,
+                    0,
+                )
+                .map_err(|e| Error::Platform(format!("encoder NV12 input type: {e}")))?;
+            // Media types can reset a hardware MFT's rate-control defaults.
+            // Configure CodecAPI AFTER both types, before beginning streaming.
             property(
                 &codec_api,
                 &CODECAPI_AVLowLatencyMode,
@@ -262,19 +277,6 @@ impl Hardware {
             // mode above guarantees one input / one output without reordering.
             let _ =
                 codec_api.SetValue(&CODECAPI_AVEncMPVDefaultBPictureCount, &VARIANT::from(0u32));
-            let out = media_type(MFVideoFormat_H264, size, options.quality.fps.get())?;
-            out.SetUINT32(&MF_MT_AVG_BITRATE, options.bitrate)?;
-            out.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)?;
-            transform
-                .SetOutputType(0, &out, 0)
-                .map_err(|e| Error::Platform(format!("encoder output type: {e}")))?;
-            transform
-                .SetInputType(
-                    0,
-                    &media_type(MFVideoFormat_NV12, size, options.quality.fps.get())?,
-                    0,
-                )
-                .map_err(|e| Error::Platform(format!("encoder NV12 input type: {e}")))?;
             let events = transform.cast()?;
             transform.ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0)?;
             transform.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)?;
@@ -576,6 +578,15 @@ impl Encoder {
                 VARIANT::from(bitrate),
                 "dynamic bitrate",
             )?;
+            // Keep the explicitly bounded HRD duration invariant when the
+            // rate changes. Leaving its startup byte size at a lower rate can
+            // defeat the hardware driver's live rate-control adjustment.
+            let _ = property(
+                &hw.codec_api,
+                &CODECAPI_AVEncCommonBufferSize,
+                VARIANT::from((bitrate / 80).max(1)),
+                "dynamic 100 ms HRD buffer",
+            );
         } else if let Some(sw) = &mut self.software {
             let mut info = openh264_sys2::SBitrateInfo {
                 iLayer: openh264_sys2::SPATIAL_LAYER_ALL,
