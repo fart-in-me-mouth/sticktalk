@@ -26,6 +26,7 @@ pub fn icon(name: &str, size: f32, color: Color) -> svg::Svg<'static> {
         return svg::Svg::new(svg::Handle::from_memory(format!(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{path}"/></svg>"#).into_bytes())).width(size).height(size).style(crate::theme::svg(color));
     }
     let bytes: &'static [u8] = match name {
+        "refresh-cw" => include_bytes!("../assets/icons/refresh-cw.svg"),
         "mic" => include_bytes!("../assets/icons/mic.svg"),
         "mic-off" => include_bytes!("../assets/icons/mic-off.svg"),
         "headphones" => include_bytes!("../assets/icons/headphones.svg"),

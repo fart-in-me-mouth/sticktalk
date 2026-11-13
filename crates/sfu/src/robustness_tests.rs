@@ -52,6 +52,44 @@ fn join(s: &mut Sfu, n: u64, room: u64) {
     .unwrap();
     s.drain().for_each(drop);
 }
+
+#[test]
+fn viewer_pli_and_fir_are_aggregated_per_publisher_source_once_per_second() {
+    let mut s = sfu(Config::default());
+    join(&mut s, 1, 10);
+    let mid: Mid = "video".into();
+    s.peers
+        .get_mut(&key(1))
+        .unwrap()
+        .rtc
+        .direct_api()
+        .declare_media(mid, MediaKind::Video);
+    s.collect(key(1)).unwrap();
+    s.peers
+        .get_mut(&key(1))
+        .unwrap()
+        .rtc
+        .direct_api()
+        .expect_stream_rx(1234.into(), None, mid, None);
+    s.collect(key(1)).unwrap();
+    for _ in 0..100 {
+        s.keyframe(key(1), mid, None, KeyframeRequestKind::Pli)
+            .unwrap();
+        s.keyframe(key(1), mid, None, KeyframeRequestKind::Fir)
+            .unwrap();
+    }
+    assert_eq!(s.peers[&key(1)].keyframe_forwarded, 1);
+    assert_eq!(s.peers[&key(1)].keyframe_suppressed, 199);
+    s.now += Duration::from_millis(999);
+    s.keyframe(key(1), mid, None, KeyframeRequestKind::Pli)
+        .unwrap();
+    assert_eq!(s.peers[&key(1)].keyframe_forwarded, 1);
+    s.now += Duration::from_millis(1);
+    s.keyframe(key(1), mid, None, KeyframeRequestKind::Fir)
+        .unwrap();
+    assert_eq!(s.peers[&key(1)].keyframe_forwarded, 2);
+    assert_eq!(s.peers[&key(1)].keyframe_times.len(), 1);
+}
 fn fixture() -> &'static str {
     static SDP: OnceLock<String> = OnceLock::new();
     SDP.get_or_init(|| {

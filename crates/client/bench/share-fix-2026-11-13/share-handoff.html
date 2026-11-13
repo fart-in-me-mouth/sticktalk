@@ -1,0 +1,27 @@
+<style>
+#share-handoff{color:var(--foreground);display:grid;gap:16px}
+#share-handoff .plot{display:grid;grid-template-columns:minmax(140px,1.1fr) minmax(90px,2fr) 32px;gap:12px 8px;align-items:center}
+#share-handoff .track{height:16px;position:relative}
+#share-handoff .bar{height:16px;background:var(--chart-1)}
+#share-handoff .bad{background:var(--destructive)}
+#share-handoff .limit{position:absolute;left:83.3333%;top:-3px;height:22px;border-left:1px dashed var(--muted-foreground)}
+#share-handoff .value{text-align:right;font-variant-numeric:tabular-nums}
+#share-handoff .axis{display:flex;justify-content:space-between;color:var(--muted-foreground)}
+#share-handoff figure{margin:0;display:grid;gap:8px}
+#share-handoff img{display:block;width:100%;height:auto}
+</style>
+<div id="share-handoff">
+  <h3>Lowest 1-second viewer FPS</h3>
+  <div class="plot" role="img" aria-label="Earlier 1080p synthetic minimum 56 FPS, earlier real WGC 59, retained-code moving 1440p fails at 14, earlier Source WGC 59. Required minimum is 50 FPS.">
+    <span>1080p moving · earlier</span><div class="track"><div class="bar" style="width:93.3333%"></div><span class="limit"></span></div><span class="value">56</span>
+    <span>1080p WGC · earlier</span><div class="track"><div class="bar" style="width:98.3333%"></div><span class="limit"></span></div><span class="value">59</span>
+    <span>1440p moving · FAIL</span><div class="track"><div class="bar bad" style="width:23.3333%"></div><span class="limit"></span></div><span class="value">14</span>
+    <span>Source WGC · earlier</span><div class="track"><div class="bar" style="width:98.3333%"></div><span class="limit"></span></div><span class="value">59</span>
+    <span></span><div class="axis"><span>0</span><span>30</span><span>60</span></div><span>FPS</span>
+  </div>
+  <div class="text-small">Dashed line: 50 FPS minimum · 1080p long runs predate the final CodecAPI fix</div>
+  <figure>
+    <img src="C:/Users/dwhee/.t3/worktrees/discord clone/t3-df950d4e-fbcc9fdb63895d9c/crates/client/screenshots/share-fix/focused-stream-1280x800.png" alt="Headless modular StickTalk call and focused-stream UI, with participant strip and call controls">
+    <figcaption class="text-small">Reviewed offscreen focused-stream fixture · one of 22 PNGs</figcaption>
+  </figure>
+</div>

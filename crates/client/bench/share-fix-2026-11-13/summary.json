@@ -1,0 +1,1981 @@
+{
+  "qualification_complete": false,
+  "qualification_pass": false,
+  "endpoints": [
+    {
+      "case": "burst-wgc-1080-120-final",
+      "role": "sharer",
+      "duration": 120,
+      "fps": 60.0004226776061,
+      "minimum_1s_fps": 59,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.4133569599738738,
+      "working_set_delta_mib": 68.51171875,
+      "private_delta_mib": 88.453125,
+      "payload_mbps": 5.606056012221828,
+      "pass": true
+    },
+    {
+      "case": "burst-wgc-1080-120-final",
+      "role": "viewer_b",
+      "duration": 120,
+      "fps": 59.99986715029415,
+      "minimum_1s_fps": 59,
+      "drift_ms": -2.9353362345678664,
+      "cpu_machine_pct": 0.45165915620135166,
+      "working_set_delta_mib": 66.10546875,
+      "private_delta_mib": 89.10546875,
+      "payload_mbps": 5.605893320951205,
+      "pass": true
+    },
+    {
+      "case": "burst-wgc-1080-120-final",
+      "role": "viewer_c",
+      "duration": 120,
+      "fps": 59.999406855863725,
+      "minimum_1s_fps": 59,
+      "drift_ms": -2.935258873456727,
+      "cpu_machine_pct": 0.4475867210656067,
+      "working_set_delta_mib": 69.44140625,
+      "private_delta_mib": 90.73828125,
+      "payload_mbps": 5.60585031483143,
+      "pass": true
+    },
+    {
+      "case": "experimental-mq-1440-120",
+      "role": "sharer",
+      "duration": 120,
+      "fps": 59.99391746668271,
+      "minimum_1s_fps": 59,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.4923003481356206,
+      "working_set_delta_mib": 64.72265625,
+      "private_delta_mib": 118.23046875,
+      "payload_mbps": 11.885734754877097,
+      "pass": true
+    },
+    {
+      "case": "experimental-mq-1440-120",
+      "role": "viewer_b",
+      "duration": 120,
+      "fps": 55.40630790957578,
+      "minimum_1s_fps": 6,
+      "drift_ms": 1.0379419577296574,
+      "cpu_machine_pct": 0.615211885416852,
+      "working_set_delta_mib": 72.5390625,
+      "private_delta_mib": 109.4609375,
+      "payload_mbps": 10.696064263124143,
+      "pass": false
+    },
+    {
+      "case": "experimental-mq-1440-120",
+      "role": "viewer_c",
+      "duration": 120,
+      "fps": 56.18916325214658,
+      "minimum_1s_fps": 11,
+      "drift_ms": 5.087002002395745,
+      "cpu_machine_pct": 0.6567090226740099,
+      "working_set_delta_mib": 67.390625,
+      "private_delta_mib": 103.01171875,
+      "payload_mbps": 10.775595244646535,
+      "pass": false
+    },
+    {
+      "case": "failed-synthetic-1440-120",
+      "role": "sharer",
+      "duration": 120,
+      "fps": 59.99615579631414,
+      "minimum_1s_fps": 59,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.523241213338623,
+      "working_set_delta_mib": 64.234375,
+      "private_delta_mib": 117.90625,
+      "payload_mbps": 12.307681062259004,
+      "pass": true
+    },
+    {
+      "case": "failed-synthetic-1440-120",
+      "role": "viewer_b",
+      "duration": 120,
+      "fps": 59.99984840038304,
+      "minimum_1s_fps": 59,
+      "drift_ms": -0.2134685724345651,
+      "cpu_machine_pct": 0.5338528177985471,
+      "working_set_delta_mib": 67.36328125,
+      "private_delta_mib": 103.83203125,
+      "payload_mbps": 12.308640633501332,
+      "pass": true
+    },
+    {
+      "case": "failed-synthetic-1440-120",
+      "role": "viewer_c",
+      "duration": 120,
+      "fps": 59.49986622446744,
+      "minimum_1s_fps": 14,
+      "drift_ms": -10.45893536482112,
+      "cpu_machine_pct": 0.5102527590317134,
+      "working_set_delta_mib": 77.95703125,
+      "private_delta_mib": 113.56640625,
+      "payload_mbps": 12.226639310439284,
+      "pass": false
+    },
+    {
+      "case": "final-synthetic-1080-600",
+      "role": "sharer",
+      "duration": 600,
+      "fps": 59.99406673229792,
+      "minimum_1s_fps": 56,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.4772061182482912,
+      "working_set_delta_mib": 62.90625,
+      "private_delta_mib": 108.109375,
+      "payload_mbps": 8.081638148703625,
+      "pass": true
+    },
+    {
+      "case": "final-synthetic-1080-600",
+      "role": "viewer_b",
+      "duration": 600,
+      "fps": 59.99281115590504,
+      "minimum_1s_fps": 56,
+      "drift_ms": -0.533827203703349,
+      "cpu_machine_pct": 0.6481063380491003,
+      "working_set_delta_mib": 59.7890625,
+      "private_delta_mib": 90.46875,
+      "payload_mbps": 8.081527525051088,
+      "pass": true
+    },
+    {
+      "case": "final-synthetic-1080-600",
+      "role": "viewer_c",
+      "duration": 600,
+      "fps": 59.99321243701141,
+      "minimum_1s_fps": 56,
+      "drift_ms": -0.5422227037036468,
+      "cpu_machine_pct": 0.5797514358708982,
+      "working_set_delta_mib": 59.98046875,
+      "private_delta_mib": 93.40625,
+      "payload_mbps": 8.08158158093285,
+      "pass": true
+    },
+    {
+      "case": "final-wgc-1080-600",
+      "role": "sharer",
+      "duration": 600,
+      "fps": 60.000981465458494,
+      "minimum_1s_fps": 59,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.30533505479123013,
+      "working_set_delta_mib": 69.7578125,
+      "private_delta_mib": 90.1796875,
+      "payload_mbps": 1.1215979782046885,
+      "pass": true
+    },
+    {
+      "case": "final-wgc-1080-600",
+      "role": "viewer_b",
+      "duration": 600,
+      "fps": 60.00153861338301,
+      "minimum_1s_fps": 59,
+      "drift_ms": 0.16576564727740312,
+      "cpu_machine_pct": 0.331379501114248,
+      "working_set_delta_mib": 71.79296875,
+      "private_delta_mib": 92.80859375,
+      "payload_mbps": 1.1216086996334336,
+      "pass": true
+    },
+    {
+      "case": "final-wgc-1080-600",
+      "role": "viewer_c",
+      "duration": 600,
+      "fps": 60.001183127132045,
+      "minimum_1s_fps": 59,
+      "drift_ms": 0.1666753725925881,
+      "cpu_machine_pct": 0.3261692464564043,
+      "working_set_delta_mib": 71.7421875,
+      "private_delta_mib": 94.0625,
+      "payload_mbps": 1.1216020545293095,
+      "pass": true
+    },
+    {
+      "case": "final-wgc-1440-120",
+      "role": "sharer",
+      "duration": 120,
+      "fps": 59.99776263343326,
+      "minimum_1s_fps": 59,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.23436626028684868,
+      "working_set_delta_mib": 61.58203125,
+      "private_delta_mib": 99.60546875,
+      "payload_mbps": 1.6917829120053922,
+      "pass": true
+    },
+    {
+      "case": "final-wgc-1440-120",
+      "role": "viewer_b",
+      "duration": 120,
+      "fps": 59.999453854971286,
+      "minimum_1s_fps": 59,
+      "drift_ms": -0.6130199599321244,
+      "cpu_machine_pct": 0.3190075129007805,
+      "working_set_delta_mib": 72.3515625,
+      "private_delta_mib": 160.3046875,
+      "payload_mbps": 1.6918306001119625,
+      "pass": true
+    },
+    {
+      "case": "final-wgc-1440-120",
+      "role": "viewer_c",
+      "duration": 120,
+      "fps": 59.999427155469235,
+      "minimum_1s_fps": 59,
+      "drift_ms": -0.6236889266449681,
+      "cpu_machine_pct": 0.31819357663016046,
+      "working_set_delta_mib": 72.19921875,
+      "private_delta_mib": 162.55078125,
+      "payload_mbps": 1.6918298472545332,
+      "pass": true
+    },
+    {
+      "case": "final-wgc-source-120",
+      "role": "sharer",
+      "duration": 120,
+      "fps": 59.99801996534445,
+      "minimum_1s_fps": 59,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.29946928368118975,
+      "working_set_delta_mib": 61.09375,
+      "private_delta_mib": 98.578125,
+      "payload_mbps": 1.6917901681048022,
+      "pass": true
+    },
+    {
+      "case": "final-wgc-source-120",
+      "role": "viewer_b",
+      "duration": 120,
+      "fps": 59.991651168823445,
+      "minimum_1s_fps": 59,
+      "drift_ms": -0.2773092350484936,
+      "cpu_machine_pct": 0.3881834934692642,
+      "working_set_delta_mib": 72.39453125,
+      "private_delta_mib": 161.3125,
+      "payload_mbps": 1.691832362943306,
+      "pass": true
+    },
+    {
+      "case": "final-wgc-source-120",
+      "role": "viewer_c",
+      "duration": 120,
+      "fps": 59.99894401858528,
+      "minimum_1s_fps": 59,
+      "drift_ms": -0.2789363117283138,
+      "cpu_machine_pct": 0.38492161079631665,
+      "working_set_delta_mib": 66.8203125,
+      "private_delta_mib": 156.4140625,
+      "payload_mbps": 1.691816224034457,
+      "pass": true
+    },
+    {
+      "case": "quick-synthetic",
+      "role": "sharer",
+      "duration": 60,
+      "fps": 59.94173133787059,
+      "minimum_1s_fps": 58,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.25712598908876844,
+      "working_set_delta_mib": 61.328125,
+      "private_delta_mib": 106.6875,
+      "payload_mbps": 8.073283664218271,
+      "pass": true
+    },
+    {
+      "case": "quick-synthetic",
+      "role": "viewer_b",
+      "duration": 60,
+      "fps": 59.946539486097265,
+      "minimum_1s_fps": 58,
+      "drift_ms": -0.48620466049387406,
+      "cpu_machine_pct": 0.45570286045954184,
+      "working_set_delta_mib": 59.27734375,
+      "private_delta_mib": 86.8359375,
+      "payload_mbps": 8.07245787058199,
+      "pass": true
+    },
+    {
+      "case": "quick-synthetic",
+      "role": "viewer_c",
+      "duration": 60,
+      "fps": 59.945089997586784,
+      "minimum_1s_fps": 58,
+      "drift_ms": -0.480193827160579,
+      "cpu_machine_pct": 0.49312367156193515,
+      "working_set_delta_mib": 62.30859375,
+      "private_delta_mib": 92.16015625,
+      "payload_mbps": 8.072262681084231,
+      "pass": true
+    },
+    {
+      "case": "synthetic-1080-600",
+      "role": "sharer",
+      "duration": 600,
+      "fps": 59.96141402924223,
+      "minimum_1s_fps": 52,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.3543279341816373,
+      "working_set_delta_mib": 62.7421875,
+      "private_delta_mib": 107.44140625,
+      "payload_mbps": 8.076500771010085,
+      "pass": true
+    },
+    {
+      "case": "synthetic-1080-600",
+      "role": "viewer_b",
+      "duration": 600,
+      "fps": 59.96140278652657,
+      "minimum_1s_fps": 52,
+      "drift_ms": -0.47560331395530947,
+      "cpu_machine_pct": 0.6429008165339899,
+      "working_set_delta_mib": 62.87109375,
+      "private_delta_mib": 96.0703125,
+      "payload_mbps": 8.07641596370608,
+      "pass": true
+    },
+    {
+      "case": "synthetic-1080-600",
+      "role": "viewer_c",
+      "duration": 600,
+      "fps": 59.96120141771133,
+      "minimum_1s_fps": 52,
+      "drift_ms": -0.474211070268459,
+      "cpu_machine_pct": 0.6201123759447229,
+      "working_set_delta_mib": 63.5546875,
+      "private_delta_mib": 93.89453125,
+      "payload_mbps": 8.076388840619588,
+      "pass": true
+    },
+    {
+      "case": "wgc-1080-600",
+      "role": "sharer",
+      "duration": 600,
+      "fps": 59.994519013941975,
+      "minimum_1s_fps": 58,
+      "drift_ms": 0.0,
+      "cpu_machine_pct": 0.4046191519341557,
+      "working_set_delta_mib": 63.36328125,
+      "private_delta_mib": 93.08984375,
+      "payload_mbps": 7.414017880582982,
+      "pass": true
+    },
+    {
+      "case": "wgc-1080-600",
+      "role": "viewer_b",
+      "duration": 600,
+      "fps": 55.908235102564255,
+      "minimum_1s_fps": 0,
+      "drift_ms": -2.8185680287767245,
+      "cpu_machine_pct": 0.5825185077649819,
+      "working_set_delta_mib": 90.265625,
+      "private_delta_mib": 120.84765625,
+      "payload_mbps": 6.816830662828526,
+      "pass": false
+    },
+    {
+      "case": "wgc-1080-600",
+      "role": "viewer_c",
+      "duration": 600,
+      "fps": 56.32799937401305,
+      "minimum_1s_fps": 0,
+      "drift_ms": -2.6082309919875506,
+      "cpu_machine_pct": 0.5445931253647919,
+      "working_set_delta_mib": 89.765625,
+      "private_delta_mib": 121.890625,
+      "payload_mbps": 6.84028300510211,
+      "pass": false
+    }
+  ],
+  "sfu_diagnostics": {
+    "baseline-synthetic-debug": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246903204552376320), connection_id: Id(246903207664549888) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 0.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 41647.0,
+            "idr_starts": 24.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246903205957468160), connection_id: Id(246903207681327104) }": {
+          "bwe_min_after_10s": 1042718,
+          "bwe_max_after_10s": 4261155,
+          "last": {
+            "bwe": 1150393.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 4157327.0,
+            "idr_starts": 0.0,
+            "gated_packets": 52.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246903207362560000), connection_id: Id(246903207685521408) }": {
+          "bwe_min_after_10s": 1042718,
+          "bwe_max_after_10s": 3813701,
+          "last": {
+            "bwe": 1149724.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 4142838.0,
+            "idr_starts": 0.0,
+            "gated_packets": 52.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246903204552376320), connection_id: Id(246903207664549888) } mid=R6Z": {
+          "bytes": 3721622,
+          "packets": 3584,
+          "nack": 0,
+          "pli": 2,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246903205957468160), connection_id: Id(246903207681327104) } mid=Ipd": {
+          "bytes": 3648148,
+          "packets": 3511,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246903207362560000), connection_id: Id(246903207685521408) } mid=eVX": {
+          "bytes": 3648148,
+          "packets": 3511,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "baseline-wgc-debug": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246902417558339584), connection_id: Id(246902420720844800) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 8.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 39416.0,
+            "idr_starts": 39.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246902418988597248), connection_id: Id(246902420737622016) }": {
+          "bwe_min_after_10s": 417506,
+          "bwe_max_after_10s": 1970846,
+          "last": {
+            "bwe": 555664.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 8.0,
+            "wire_tx_bytes": 1895481.0,
+            "idr_starts": 0.0,
+            "gated_packets": 48.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246902420418854912), connection_id: Id(246902420741816320) }": {
+          "bwe_min_after_10s": 470965,
+          "bwe_max_after_10s": 1975374,
+          "last": {
+            "bwe": 518674.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 6.0,
+            "wire_tx_bytes": 1879551.0,
+            "idr_starts": 0.0,
+            "gated_packets": 47.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246902417558339584), connection_id: Id(246902420720844800) } mid=9O1": {
+          "bytes": 1600847,
+          "packets": 2381,
+          "nack": 0,
+          "pli": 2,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246902418988597248), connection_id: Id(246902420737622016) } mid=ele": {
+          "bytes": 1523480,
+          "packets": 2288,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246902420418854912), connection_id: Id(246902420741816320) } mid=2R9": {
+          "bytes": 1523480,
+          "packets": 2288,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "burst-wgc-1080-120-final": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(247085445651890176), connection_id: Id(247085446000017408) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 228437.0,
+            "idr_starts": 65.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247085445718999040), connection_id: Id(247085446004211712) }": {
+          "bwe_min_after_10s": 15355368,
+          "bwe_max_after_10s": 31998610,
+          "last": {
+            "bwe": 15355368.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 96946538.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247085445781913600), connection_id: Id(247085446016794624) }": {
+          "bwe_min_after_10s": 15550329,
+          "bwe_max_after_10s": 31986565,
+          "last": {
+            "bwe": 15550329.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 96917609.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(247085445651890176), connection_id: Id(247085446000017408) } mid=fy1": {
+          "bytes": 91940322,
+          "packets": 90602,
+          "nack": 0,
+          "pli": 1,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247085445718999040), connection_id: Id(247085446004211712) } mid=OLS": {
+          "bytes": 91830011,
+          "packets": 90465,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247085445781913600), connection_id: Id(247085446016794624) } mid=0Kf": {
+          "bytes": 91829877,
+          "packets": 90461,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "dynamic-only-synthetic-debug": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246904071582121984), connection_id: Id(246904074715267072) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 9.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 39913.0,
+            "idr_starts": 17.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246904072995602432), connection_id: Id(246904074732044288) }": {
+          "bwe_min_after_10s": 1759234,
+          "bwe_max_after_10s": 1921475,
+          "last": {
+            "bwe": 1921475.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 9.0,
+            "wire_tx_bytes": 4410624.0,
+            "idr_starts": 0.0,
+            "gated_packets": 73.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246904074413277184), connection_id: Id(246904074736238592) }": {
+          "bwe_min_after_10s": 1775124,
+          "bwe_max_after_10s": 1921475,
+          "last": {
+            "bwe": 1921475.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 10.0,
+            "wire_tx_bytes": 4422354.0,
+            "idr_starts": 0.0,
+            "gated_packets": 73.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246904071582121984), connection_id: Id(246904074715267072) } mid=b6A": {
+          "bytes": 4223250,
+          "packets": 4015,
+          "nack": 0,
+          "pli": 2,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246904072995602432), connection_id: Id(246904074732044288) } mid=Ygm": {
+          "bytes": 4133524,
+          "packets": 3927,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246904074413277184), connection_id: Id(246904074736238592) } mid=52s": {
+          "bytes": 4149706,
+          "packets": 3942,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "experimental-mq-1440-120": {
+      "max_cap_drops": 9183,
+      "max_queue_drops": 2267,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(247130798870757376), connection_id: Id(247130799256633344) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 318813.0,
+            "media_wire_bytes": 0.0,
+            "repair_wire_bytes": 0.0,
+            "idr_starts": 134.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247130798942060544), connection_id: Id(247130799273410560) }": {
+          "bwe_min_after_10s": 2167744,
+          "bwe_max_after_10s": 47768509,
+          "last": {
+            "bwe": 18323842.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 192613335.0,
+            "media_wire_bytes": 191834922.0,
+            "repair_wire_bytes": 753070.0,
+            "idr_starts": 0.0,
+            "gated_packets": 2328.0,
+            "cap_drops": 7849.0,
+            "media_cap_drops": 2848.0,
+            "queue_drops": 2267.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247130799009169408), connection_id: Id(247130799273410561) }": {
+          "bwe_min_after_10s": 4191678,
+          "bwe_max_after_10s": 31965759,
+          "last": {
+            "bwe": 11968755.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 61.0,
+            "wire_tx_bytes": 193555362.0,
+            "media_wire_bytes": 192752131.0,
+            "repair_wire_bytes": 777930.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1236.0,
+            "cap_drops": 9183.0,
+            "media_cap_drops": 3801.0,
+            "queue_drops": 1566.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(247130798870757376), connection_id: Id(247130799256633344) } mid=Xt8": {
+          "bytes": 193095892,
+          "packets": 175464,
+          "nack": 0,
+          "pli": 9,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247130798942060544), connection_id: Id(247130799273410560) } mid=poe": {
+          "bytes": 18314112,
+          "packets": 16741,
+          "nack": 12,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247130799009169408), connection_id: Id(247130799273410561) } mid=7TF": {
+          "bytes": 17465937,
+          "packets": 15936,
+          "nack": 16,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "expired-synthetic-debug": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 382,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246907281541693440), connection_id: Id(246907285429813248) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 2.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 48554.0,
+            "idr_starts": 22.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246907283223609344), connection_id: Id(246907285450784768) }": {
+          "bwe_min_after_10s": 780450,
+          "bwe_max_after_10s": 7076091,
+          "last": {
+            "bwe": 7076091.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 7.9,
+            "wire_tx_bytes": 7802312.0,
+            "idr_starts": 0.0,
+            "gated_packets": 735.0,
+            "cap_drops": 0.0,
+            "queue_drops": 382.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246907284981022720), connection_id: Id(246907285459173376) }": {
+          "bwe_min_after_10s": 665240,
+          "bwe_max_after_10s": 7344569,
+          "last": {
+            "bwe": 5798278.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 4.9,
+            "wire_tx_bytes": 7812456.0,
+            "idr_starts": 0.0,
+            "gated_packets": 752.0,
+            "cap_drops": 0.0,
+            "queue_drops": 380.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246907281541693440), connection_id: Id(246907285429813248) } mid=NDu": {
+          "bytes": 8643353,
+          "packets": 8362,
+          "nack": 0,
+          "pli": 9,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246907283223609344), connection_id: Id(246907285450784768) } mid=0R2": {
+          "bytes": 1633257,
+          "packets": 1548,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246907284981022720), connection_id: Id(246907285459173376) } mid=Xv5": {
+          "bytes": 1633257,
+          "packets": 1548,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "failed-synthetic-1440-120": {
+      "max_cap_drops": 352,
+      "max_queue_drops": 4310,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(247119312731504640), connection_id: Id(247119313146740736) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 317422.0,
+            "idr_starts": 133.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247119312811196416), connection_id: Id(247119313167712256) }": {
+          "bwe_min_after_10s": 47829334,
+          "bwe_max_after_10s": 47829334,
+          "last": {
+            "bwe": 47829334.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 203412240.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 352.0,
+            "media_cap_drops": 163.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247119312899276800), connection_id: Id(247119313188683776) }": {
+          "bwe_min_after_10s": 4461903,
+          "bwe_max_after_10s": 31539292,
+          "last": {
+            "bwe": 25785864.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 193381027.0,
+            "idr_starts": 0.0,
+            "gated_packets": 5342.0,
+            "cap_drops": 235.0,
+            "media_cap_drops": 103.0,
+            "queue_drops": 4310.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(247119312731504640), connection_id: Id(247119313146740736) } mid=KhX": {
+          "bytes": 195821920,
+          "packets": 177727,
+          "nack": 0,
+          "pli": 8,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247119312811196416), connection_id: Id(247119313167712256) } mid=ABo": {
+          "bytes": 195967563,
+          "packets": 177771,
+          "nack": 12,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247119312899276800), connection_id: Id(247119313188683776) } mid=NpU": {
+          "bytes": 181398871,
+          "packets": 164475,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "final-synthetic-1080-600": {
+      "max_cap_drops": 5,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(247088614897352704), connection_id: Id(247088615232897024) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 1218982.0,
+            "idr_starts": 305.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247088614964461568), connection_id: Id(247088615258062848) }": {
+          "bwe_min_after_10s": 19661057,
+          "bwe_max_after_10s": 31992374,
+          "last": {
+            "bwe": 25116368.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 645048612.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 2.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247088615027376128), connection_id: Id(247088615258062849) }": {
+          "bwe_min_after_10s": 19661057,
+          "bwe_max_after_10s": 31961382,
+          "last": {
+            "bwe": 28964171.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 645003008.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 5.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(247088614897352704), connection_id: Id(247088615232897024) } mid=rmg": {
+          "bytes": 615490088,
+          "packets": 576942,
+          "nack": 0,
+          "pli": 1,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247088614964461568), connection_id: Id(247088615258062848) } mid=lT7": {
+          "bytes": 614750729,
+          "packets": 576061,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247088615027376128), connection_id: Id(247088615258062849) } mid=UIY": {
+          "bytes": 614736863,
+          "packets": 576048,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "final-wgc-1080-600": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(247086055914733568), connection_id: Id(247086056262860800) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 791993.0,
+            "idr_starts": 305.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247086055981842432), connection_id: Id(247086056271249408) }": {
+          "bwe_min_after_10s": 18032218,
+          "bwe_max_after_10s": 31992039,
+          "last": {
+            "bwe": 23544800.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 61.0,
+            "wire_tx_bytes": 100027118.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247086056048951296), connection_id: Id(247086056275443712) }": {
+          "bwe_min_after_10s": 16612513,
+          "bwe_max_after_10s": 31987586,
+          "last": {
+            "bwe": 23132890.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 61.0,
+            "wire_tx_bytes": 99796997.0,
+            "idr_starts": 0.0,
+            "gated_packets": 63.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(247086055914733568), connection_id: Id(247086056262860800) } mid=HPM": {
+          "bytes": 86570977,
+          "packets": 142073,
+          "nack": 0,
+          "pli": 1,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247086055981842432), connection_id: Id(247086056271249408) } mid=ayB": {
+          "bytes": 85667922,
+          "packets": 141131,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247086056048951296), connection_id: Id(247086056275443712) } mid=UPR": {
+          "bytes": 85588117,
+          "packets": 141058,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "final-wgc-1440-120": {
+      "max_cap_drops": 11,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(247091173829640192), connection_id: Id(247091174177767424) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 176930.0,
+            "idr_starts": 65.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247091173896749056), connection_id: Id(247091174177767425) }": {
+          "bwe_min_after_10s": 17624132,
+          "bwe_max_after_10s": 27676305,
+          "last": {
+            "bwe": 17852356.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 30596077.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247091173963857920), connection_id: Id(247091174190350336) }": {
+          "bwe_min_after_10s": 15893967,
+          "bwe_max_after_10s": 30305631,
+          "last": {
+            "bwe": 17898468.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 30534002.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 11.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(247091173829640192), connection_id: Id(247091174177767424) } mid=t7Q": {
+          "bytes": 27263370,
+          "packets": 37335,
+          "nack": 0,
+          "pli": 1,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247091173896749056), connection_id: Id(247091174177767425) } mid=zd3": {
+          "bytes": 27245921,
+          "packets": 37301,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247091173963857920), connection_id: Id(247091174190350336) } mid=IXB": {
+          "bytes": 27246032,
+          "packets": 37303,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "final-wgc-source-120": {
+      "max_cap_drops": 15,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(247091717138808832), connection_id: Id(247091717482741760) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 176355.0,
+            "idr_starts": 65.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247091717205917696), connection_id: Id(247091717495324672) }": {
+          "bwe_min_after_10s": 18807754,
+          "bwe_max_after_10s": 28051802,
+          "last": {
+            "bwe": 21518413.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 30605348.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 3.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(247091717273026560), connection_id: Id(247091717495324673) }": {
+          "bwe_min_after_10s": 20192690,
+          "bwe_max_after_10s": 31733136,
+          "last": {
+            "bwe": 27745883.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 30357847.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 15.0,
+            "media_cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(247091717138808832), connection_id: Id(247091717482741760) } mid=O1u": {
+          "bytes": 27267596,
+          "packets": 37346,
+          "nack": 0,
+          "pli": 1,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247091717205917696), connection_id: Id(247091717495324672) } mid=QGM": {
+          "bytes": 27246143,
+          "packets": 37305,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(247091717273026560), connection_id: Id(247091717495324673) } mid=APD": {
+          "bytes": 27246254,
+          "packets": 37307,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "precision-synthetic-debug": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246908259376562176), connection_id: Id(246908262530678784) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 0.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 68466.0,
+            "idr_starts": 21.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246908260802625536), connection_id: Id(246908262551650304) }": {
+          "bwe_min_after_10s": 5123015,
+          "bwe_max_after_10s": 11147178,
+          "last": {
+            "bwe": 8644272.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 42.0,
+            "wire_tx_bytes": 25919860.0,
+            "idr_starts": 0.0,
+            "gated_packets": 24.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246908262228688896), connection_id: Id(246908262555844608) }": {
+          "bwe_min_after_10s": 5169459,
+          "bwe_max_after_10s": 11067771,
+          "last": {
+            "bwe": 9062753.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 38.0,
+            "wire_tx_bytes": 25901527.0,
+            "idr_starts": 0.0,
+            "gated_packets": 19.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246908259376562176), connection_id: Id(246908262530678784) } mid=K3H": {
+          "bytes": 24704795,
+          "packets": 23828,
+          "nack": 0,
+          "pli": 1,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246908260802625536), connection_id: Id(246908262551650304) } mid=unL": {
+          "bytes": 24597002,
+          "packets": 23658,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246908262228688896), connection_id: Id(246908262555844608) } mid=Ifg": {
+          "bytes": 24597002,
+          "packets": 23658,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "quick-synthetic": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246919437062504448), connection_id: Id(246919437402243072) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 138789.0,
+            "idr_starts": 35.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246919437129613312), connection_id: Id(246919437410631680) }": {
+          "bwe_min_after_10s": 20788870,
+          "bwe_max_after_10s": 31589334,
+          "last": {
+            "bwe": 25368358.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 71894679.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246919437192527872), connection_id: Id(246919437423214592) }": {
+          "bwe_min_after_10s": 19922667,
+          "bwe_max_after_10s": 29470089,
+          "last": {
+            "bwe": 22166212.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 61.0,
+            "wire_tx_bytes": 71884572.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246919437062504448), connection_id: Id(246919437402243072) } mid=svJ": {
+          "bytes": 68541491,
+          "packets": 64397,
+          "nack": 0,
+          "pli": 1,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246919437129613312), connection_id: Id(246919437410631680) } mid=mxs": {
+          "bytes": 68420437,
+          "packets": 64113,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246919437192527872), connection_id: Id(246919437423214592) } mid=9rf": {
+          "bytes": 68435124,
+          "packets": 64127,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "startup-synthetic-debug": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 156,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246905024024674304), connection_id: Id(246905027120070656) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 8.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 44081.0,
+            "idr_starts": 17.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246905025417183232), connection_id: Id(246905027124264960) }": {
+          "bwe_min_after_10s": 427636,
+          "bwe_max_after_10s": 3003386,
+          "last": {
+            "bwe": 427636.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 1.0,
+            "wire_tx_bytes": 3944145.0,
+            "idr_starts": 0.0,
+            "gated_packets": 614.0,
+            "cap_drops": 0.0,
+            "queue_drops": 156.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246905026809692160), connection_id: Id(246905027128459264) }": {
+          "bwe_min_after_10s": 611342,
+          "bwe_max_after_10s": 3297340,
+          "last": {
+            "bwe": 665830.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 2.0,
+            "wire_tx_bytes": 4162898.0,
+            "idr_starts": 0.0,
+            "gated_packets": 442.0,
+            "cap_drops": 0.0,
+            "queue_drops": 111.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246905024024674304), connection_id: Id(246905027120070656) } mid=egx": {
+          "bytes": 4402589,
+          "packets": 4174,
+          "nack": 0,
+          "pli": 9,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246905025417183232), connection_id: Id(246905027124264960) } mid=qJb": {
+          "bytes": 21871,
+          "packets": 22,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246905026809692160), connection_id: Id(246905027128459264) } mid=gVQ": {
+          "bytes": 300982,
+          "packets": 288,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "synthetic-1080-600": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 0,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246920699950661632), connection_id: Id(246920700290400256) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 1228435.0,
+            "idr_starts": 305.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246920700013576192), connection_id: Id(246920700294594560) }": {
+          "bwe_min_after_10s": 10047867,
+          "bwe_max_after_10s": 31873067,
+          "last": {
+            "bwe": 26193071.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 645955719.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246920700089073664), connection_id: Id(246920700302983168) }": {
+          "bwe_min_after_10s": 10047867,
+          "bwe_max_after_10s": 31715930,
+          "last": {
+            "bwe": 28433784.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 60.0,
+            "wire_tx_bytes": 645930345.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246920699950661632), connection_id: Id(246920700290400256) } mid=Qbt": {
+          "bytes": 615091862,
+          "packets": 576523,
+          "nack": 0,
+          "pli": 1,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246920700013576192), connection_id: Id(246920700294594560) } mid=sLu": {
+          "bytes": 614583772,
+          "packets": 575860,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246920700089073664), connection_id: Id(246920700302983168) } mid=XBu": {
+          "bytes": 614583772,
+          "packets": 575860,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "timer-synthetic-debug": {
+      "max_cap_drops": 0,
+      "max_queue_drops": 414,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246906406723125248), connection_id: Id(246906409927573504) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 11.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 44193.0,
+            "idr_starts": 19.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246906408178548736), connection_id: Id(246906409944350720) }": {
+          "bwe_min_after_10s": 163047,
+          "bwe_max_after_10s": 2450998,
+          "last": {
+            "bwe": 163996.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 2579301.0,
+            "idr_starts": 0.0,
+            "gated_packets": 1782.0,
+            "cap_drops": 0.0,
+            "queue_drops": 414.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246906409633972224), connection_id: Id(246906409948545024) }": {
+          "bwe_min_after_10s": 2145402,
+          "bwe_max_after_10s": 2487210,
+          "last": {
+            "bwe": 2450998.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 11.9,
+            "wire_tx_bytes": 4857044.0,
+            "idr_starts": 0.0,
+            "gated_packets": 45.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246906406723125248), connection_id: Id(246906409927573504) } mid=GvE": {
+          "bytes": 4542965,
+          "packets": 4315,
+          "nack": 0,
+          "pli": 11,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246906408178548736), connection_id: Id(246906409944350720) } mid=3R8": {
+          "bytes": 8324,
+          "packets": 11,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246906409633972224), connection_id: Id(246906409948545024) } mid=u9f": {
+          "bytes": 4512459,
+          "packets": 4283,
+          "nack": 0,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    },
+    "wgc-1080-600": {
+      "max_cap_drops": 12332,
+      "max_queue_drops": 2568,
+      "max_mtu_drops": 0,
+      "peers": {
+        "VoiceSession { user_id: Id(246923293322379264), connection_id: Id(246923293657923584) }": {
+          "bwe_min_after_10s": 8000000,
+          "bwe_max_after_10s": 8000000,
+          "last": {
+            "bwe": 8000000.0,
+            "target": 0.0,
+            "rx_fps": 60.0,
+            "tx_fps": 0.0,
+            "wire_tx_bytes": 1195130.0,
+            "idr_starts": 316.0,
+            "gated_packets": 0.0,
+            "cap_drops": 0.0,
+            "queue_drops": 0.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246923293389488128), connection_id: Id(246923293666312192) }": {
+          "bwe_min_after_10s": 346661,
+          "bwe_max_after_10s": 31997741,
+          "last": {
+            "bwe": 27325258.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 63.0,
+            "wire_tx_bytes": 574684334.0,
+            "idr_starts": 0.0,
+            "gated_packets": 9029.0,
+            "cap_drops": 10101.0,
+            "queue_drops": 2568.0,
+            "mtu_drops": 0.0
+          }
+        },
+        "VoiceSession { user_id: Id(246923293460791296), connection_id: Id(246923293678895104) }": {
+          "bwe_min_after_10s": 262984,
+          "bwe_max_after_10s": 31936675,
+          "last": {
+            "bwe": 29370066.0,
+            "target": 16000000.0,
+            "rx_fps": 0.0,
+            "tx_fps": 61.0,
+            "wire_tx_bytes": 574692081.0,
+            "idr_starts": 0.0,
+            "gated_packets": 6473.0,
+            "cap_drops": 12332.0,
+            "queue_drops": 1886.0,
+            "mtu_drops": 0.0
+          }
+        }
+      },
+      "last_per_hop_counters": {
+        "sfu_in VoiceSession { user_id: Id(246923293322379264), connection_id: Id(246923293657923584) } mid=qQ5": {
+          "bytes": 559144505,
+          "packets": 530378,
+          "nack": 0,
+          "pli": 23,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246923293389488128), connection_id: Id(246923293666312192) } mid=FkA": {
+          "bytes": 155655273,
+          "packets": 147347,
+          "nack": 81,
+          "pli": 0,
+          "fir": 0
+        },
+        "sfu_out VoiceSession { user_id: Id(246923293460791296), connection_id: Id(246923293678895104) } mid=1IZ": {
+          "bytes": 25009569,
+          "packets": 23567,
+          "nack": 28,
+          "pli": 0,
+          "fir": 0
+        }
+      }
+    }
+  },
+  "capture_counters": {
+    "baseline-synthetic-debug": {
+      "captured": 2301,
+      "encoded": 2301,
+      "dropped": 0,
+      "repeated": 0,
+      "bytes": 32029495,
+      "reconfigurations": 55,
+      "quality_requests": 97,
+      "keyframe_requests": 17,
+      "keyframes": 80,
+      "bitrate_updates": 0,
+      "bitrate_update_failures": 0
+    },
+    "baseline-wgc-debug": {
+      "captured": 1051,
+      "encoded": 2299,
+      "dropped": 0,
+      "repeated": 1316,
+      "bytes": 5649010,
+      "reconfigurations": 54,
+      "quality_requests": 114,
+      "keyframe_requests": 23,
+      "keyframes": 82,
+      "bitrate_updates": 0,
+      "bitrate_update_failures": 0
+    },
+    "burst-wgc-1080-120-final": {
+      "captured": 5746,
+      "encoded": 7703,
+      "dropped": 0,
+      "repeated": 4079,
+      "bytes": 92077397,
+      "max_access_unit_bytes": 93068,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 1,
+      "keyframes": 66,
+      "bitrate_updates": 0,
+      "bitrate_update_failures": 0
+    },
+    "dynamic-only-synthetic-debug": {
+      "captured": 2300,
+      "encoded": 2299,
+      "dropped": 0,
+      "repeated": 0,
+      "bytes": 35372543,
+      "reconfigurations": 0,
+      "quality_requests": 54,
+      "keyframe_requests": 18,
+      "keyframes": 34,
+      "bitrate_updates": 3,
+      "bitrate_update_failures": 0
+    },
+    "experimental-mq-1440-120": {
+      "captured": 7705,
+      "encoded": 7704,
+      "dropped": 0,
+      "repeated": 0,
+      "bytes": 193456322,
+      "max_access_unit_bytes": 133749,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 9,
+      "keyframes": 135,
+      "bitrate_updates": 29,
+      "bitrate_update_failures": 0
+    },
+    "expired-synthetic-debug": {
+      "captured": 2310,
+      "encoded": 2310,
+      "dropped": 0,
+      "repeated": 0,
+      "bytes": 32131259,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 25,
+      "keyframes": 37,
+      "bitrate_updates": 13,
+      "bitrate_update_failures": 0
+    },
+    "failed-synthetic-1440-120": {
+      "captured": 7712,
+      "encoded": 7711,
+      "dropped": 0,
+      "repeated": 0,
+      "bytes": 196768095,
+      "max_access_unit_bytes": 132247,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 8,
+      "keyframes": 134,
+      "bitrate_updates": 8,
+      "bitrate_update_failures": 0
+    },
+    "final-synthetic-1080-600": {
+      "captured": 36503,
+      "encoded": 36502,
+      "dropped": 4,
+      "repeated": 0,
+      "bytes": 614676212,
+      "max_access_unit_bytes": 69359,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 1,
+      "keyframes": 306,
+      "bitrate_updates": 0,
+      "bitrate_update_failures": 0
+    },
+    "final-wgc-1080-600": {
+      "captured": 774,
+      "encoded": 36510,
+      "dropped": 0,
+      "repeated": 36079,
+      "bytes": 86086312,
+      "max_access_unit_bytes": 90737,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 1,
+      "keyframes": 306,
+      "bitrate_updates": 0,
+      "bitrate_update_failures": 0
+    },
+    "final-wgc-1440-120": {
+      "captured": 1,
+      "encoded": 7701,
+      "dropped": 0,
+      "repeated": 7701,
+      "bytes": 27676548,
+      "max_access_unit_bytes": 140803,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 1,
+      "keyframes": 66,
+      "bitrate_updates": 0,
+      "bitrate_update_failures": 0
+    },
+    "final-wgc-source-120": {
+      "captured": 1,
+      "encoded": 7703,
+      "dropped": 0,
+      "repeated": 7703,
+      "bytes": 27676879,
+      "max_access_unit_bytes": 140803,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 1,
+      "keyframes": 66,
+      "bitrate_updates": 0,
+      "bitrate_update_failures": 0
+    },
+    "precision-synthetic-debug": {
+      "captured": 2303,
+      "encoded": 2303,
+      "dropped": 0,
+      "repeated": 0,
+      "bytes": 31795112,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 8,
+      "keyframes": 26,
+      "bitrate_updates": 8,
+      "bitrate_update_failures": 0
+    },
+    "quick-synthetic": {
+      "captured": 4102,
+      "encoded": 4101,
+      "dropped": 3,
+      "repeated": 0,
+      "bytes": 69214194,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 1,
+      "keyframes": 36,
+      "bitrate_updates": 0,
+      "bitrate_update_failures": 0
+    },
+    "startup-synthetic-debug": {
+      "captured": 2298,
+      "encoded": 2297,
+      "dropped": 0,
+      "repeated": 0,
+      "bytes": 35357900,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 25,
+      "keyframes": 40,
+      "bitrate_updates": 13,
+      "bitrate_update_failures": 0
+    },
+    "synthetic-1080-600": {
+      "captured": 36476,
+      "encoded": 36476,
+      "dropped": 24,
+      "repeated": 0,
+      "bytes": 614309293,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 1,
+      "keyframes": 305,
+      "bitrate_updates": 0,
+      "bitrate_update_failures": 0
+    },
+    "timer-synthetic-debug": {
+      "captured": 2302,
+      "encoded": 2301,
+      "dropped": 0,
+      "repeated": 0,
+      "bytes": 35458459,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 28,
+      "keyframes": 44,
+      "bitrate_updates": 13,
+      "bitrate_update_failures": 0
+    },
+    "wgc-1080-600": {
+      "captured": 19928,
+      "encoded": 36500,
+      "dropped": 3,
+      "repeated": 20049,
+      "bytes": 564445329,
+      "reconfigurations": 0,
+      "quality_requests": 0,
+      "keyframe_requests": 33,
+      "keyframes": 323,
+      "bitrate_updates": 32,
+      "bitrate_update_failures": 0
+    }
+  }
+}

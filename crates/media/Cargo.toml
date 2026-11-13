@@ -21,11 +21,13 @@ tract-pulse = "=0.21.4"
 neteq = { path = "vendor/neteq", version = "=0.9.1", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
+# Already used by openh264; direct access is for its in-place bitrate option.
+openh264-sys2 = "0.9.10"
 wasapi = "=0.27.0"
 windows-core = "0.61"
 windows = { version = "0.61", features = [
     "Foundation", "Graphics_Capture", "Graphics_DirectX_Direct3D11",
-    "Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11",
+    "Win32_Foundation", "Win32_Graphics_Direct3D_Fxc", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11",
     "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_Graphics_Gdi",
     "Win32_Media_MediaFoundation", "Win32_Media_DirectShow", "Win32_Media_Audio",
     "Win32_System_Com", "Win32_System_Com_StructuredStorage",

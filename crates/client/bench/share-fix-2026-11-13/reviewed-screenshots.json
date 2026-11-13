@@ -1,0 +1,147 @@
+{
+  "reviewed": "2026-11-13",
+  "renderer": "actual iced view tree, offscreen tiny-skia; no OS windows",
+  "screens": [
+    {
+      "file": "focused-stream-1280x800.png",
+      "height": 800,
+      "sha256": "c115538b251109b559c87972e540a6a88185694e309ff0fc119af0f037eb9b98",
+      "width": 1280
+    },
+    {
+      "file": "stream-stats-1280x800.png",
+      "height": 800,
+      "sha256": "1635e116c2c720420f40e62ffc1df4dde2ecee78e69055f03911b40f1f2dd049",
+      "width": 1280
+    },
+    {
+      "file": "share-picker-windows-1280x800.png",
+      "height": 800,
+      "sha256": "eb87f63e0878e7fe8ac71d0e42fda5998ff050195018cc84fa67a640c0a34662",
+      "width": 1280
+    },
+    {
+      "file": "share-quality-1280x800.png",
+      "height": 800,
+      "sha256": "4a616755cd700c6a45dd4df71f6b4714a0415e25615d75e3e5742bb920447045",
+      "width": 1280
+    },
+    {
+      "file": "controlling-banner-1280x800.png",
+      "height": 800,
+      "sha256": "bd3bc5d0431923a7ce158bd6d3ee1db9ac0b94e08c3b0dcd7f00d72e52314a8f",
+      "width": 1280
+    },
+    {
+      "file": "request-control-1280x800.png",
+      "height": 800,
+      "sha256": "c115538b251109b559c87972e540a6a88185694e309ff0fc119af0f037eb9b98",
+      "width": 1280
+    },
+    {
+      "file": "camera-tiles-1280x800.png",
+      "height": 800,
+      "sha256": "d1ab8538adaefdcbbd67fa015c4c475b62946faed2b7117b3d37621b1805da3d",
+      "width": 1280
+    },
+    {
+      "file": "camera-chooser-1280x800.png",
+      "height": 800,
+      "sha256": "e09e8ffa6ad3a0f777ee33c8405a37f92aefd86ec4312730f60b09e20306806e",
+      "width": 1280
+    },
+    {
+      "file": "voice-call-1280x800.png",
+      "height": 800,
+      "sha256": "7fe6eccece78e88868fd04a83029e0b605259a9ed3e9cf1bbfb6a96840549c71",
+      "width": 1280
+    },
+    {
+      "file": "share-picker-1280x800.png",
+      "height": 800,
+      "sha256": "371654eb6125fa904dcf0438b9d87877a8464a6cc15f20fe6387ebb0c94563b9",
+      "width": 1280
+    },
+    {
+      "file": "voice-consent-1280x800.png",
+      "height": 800,
+      "sha256": "3a648150ca924ff7b8f5b6aeca00f911e6b2cce529be3a0d66aee5583034f278",
+      "width": 1280
+    },
+    {
+      "file": "focused-stream-1920x1080.png",
+      "height": 1080,
+      "sha256": "3a0ba52b65d90e7d71f48a05d9f6ffce2122b2c3a03ae2070019e0eead432eca",
+      "width": 1920
+    },
+    {
+      "file": "stream-stats-1920x1080.png",
+      "height": 1080,
+      "sha256": "1cfd87847ce7efca629fa2b1b4ecc852d2a97db7b9b4f3c1d6a669b2d7a26fed",
+      "width": 1920
+    },
+    {
+      "file": "share-picker-windows-1920x1080.png",
+      "height": 1080,
+      "sha256": "fecee636bbbb066bfe060facf43a0d6f56f8d63294f9e6346adcd9bb03412372",
+      "width": 1920
+    },
+    {
+      "file": "share-quality-1920x1080.png",
+      "height": 1080,
+      "sha256": "ea1c650775d789a51180d861fbf0555e6ee591981148c226397865f5f3e8f06a",
+      "width": 1920
+    },
+    {
+      "file": "controlling-banner-1920x1080.png",
+      "height": 1080,
+      "sha256": "fdf4a564e81099211e1d73c95ed9728dde9005a1186867bf9c45e8872edb8084",
+      "width": 1920
+    },
+    {
+      "file": "request-control-1920x1080.png",
+      "height": 1080,
+      "sha256": "3a0ba52b65d90e7d71f48a05d9f6ffce2122b2c3a03ae2070019e0eead432eca",
+      "width": 1920
+    },
+    {
+      "file": "camera-tiles-1920x1080.png",
+      "height": 1080,
+      "sha256": "11b9e3c931326bcc48db482c72b55205f9f50b30028fb7b6cf0c0ea410f8a73d",
+      "width": 1920
+    },
+    {
+      "file": "camera-chooser-1920x1080.png",
+      "height": 1080,
+      "sha256": "cd079a4eec120cc1cf3ac186c905a43740ae7bd6b432d7dd6e1032284f0880cf",
+      "width": 1920
+    },
+    {
+      "file": "voice-call-1920x1080.png",
+      "height": 1080,
+      "sha256": "922876c5bf914cc5c7474ea687203c3a9c07f98683a4f7040c2d6085f19f4a39",
+      "width": 1920
+    },
+    {
+      "file": "share-picker-1920x1080.png",
+      "height": 1080,
+      "sha256": "d26815589186342c05b2cb4f6d79cf905bfd85c42919911a5c6f1195af3ffe0b",
+      "width": 1920
+    },
+    {
+      "file": "voice-consent-1920x1080.png",
+      "height": 1080,
+      "sha256": "fd2d17d1657bdac01dd57a7ba0531bd1e01d323a7f0e907476ac3fe95740fa07",
+      "width": 1920
+    }
+  ],
+  "checks": [
+    "UI_SPEC tokens/Inter/Lucide",
+    "1280x800 and 1920x1080",
+    "picker/consent/banner/camera text unclipped",
+    "modular sidebar roster consistent with call pane"
+  ],
+  "intentional_visual_deviations": [],
+  "screen_count": 22,
+  "security_master_rerender": "a9c0f13; all 22 PNGs byte-identical to individually reviewed images"
+}

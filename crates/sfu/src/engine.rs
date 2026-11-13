@@ -159,6 +159,12 @@ struct Route {
 
 struct Peer {
     failed: bool,
+    idr_starts: u64,
+    media_cap_drops: u64,
+    gated_packets: u64,
+    keyframe_times: BTreeMap<(Mid, Option<String>), Instant>,
+    keyframe_forwarded: u64,
+    keyframe_suppressed: u64,
     negotiation_times: VecDeque<Instant>,
     negotiated_mids: BTreeMap<String, String>,
     candidates: BTreeSet<String>,
@@ -187,6 +193,7 @@ struct Peer {
     rx_frames: u64,
     bwe: u64,
     bwe_target: u64,
+    video_active: bool,
     limits: BTreeMap<String, u64>,
 }
 impl Peer {
@@ -220,6 +227,7 @@ pub struct Sfu {
     // Used to reject abusive signaling independently of the chat command rate.
     signals: BTreeMap<VoiceSession, (Instant, u16)>,
     failure_epoch: u64,
+    video_trace: bool,
     overloaded_sessions: BTreeSet<VoiceSession>,
 }
 
@@ -322,6 +330,7 @@ impl Sfu {
             now,
             signals: BTreeMap::new(),
             failure_epoch: 0,
+            video_trace: std::env::var_os("STICKTALK_VIDEO_TRACE").is_some(),
             overloaded_sessions: BTreeSet::new(),
             room_budgets: BTreeMap::new(),
             room_negotiations: BTreeMap::new(),
@@ -712,6 +721,12 @@ impl Sfu {
             .build(self.now);
         let p = Peer {
             failed: false,
+            idr_starts: 0,
+            media_cap_drops: 0,
+            gated_packets: 0,
+            keyframe_times: BTreeMap::new(),
+            keyframe_forwarded: 0,
+            keyframe_suppressed: 0,
             negotiation_times: VecDeque::new(),
             negotiated_mids: BTreeMap::new(),
             candidates: BTreeSet::new(),
@@ -755,6 +770,7 @@ impl Sfu {
             rx_frames: 0,
             bwe: self.config.video_egress_bps,
             bwe_target: 0,
+            video_active: false,
             limits: BTreeMap::new(),
         };
         self.peers.insert(key, p);
@@ -962,6 +978,18 @@ impl Sfu {
         }
         // Remove subscriptions to withdrawn/reconfigured sources. Other sessions
         // receive the full publication set and can subscribe after their offer.
+        self.peers
+            .get_mut(&key)
+            .unwrap()
+            .keyframe_times
+            .retain(|(mid, rid), _| {
+                tracks.iter().any(|t| {
+                    t.mid == mid.to_string()
+                        && rid
+                            .as_ref()
+                            .is_none_or(|rid| t.layers.iter().any(|r| r == rid))
+                })
+            });
         let old = self.peers[&key].tracks.clone();
         let changed: Vec<_> = old
             .iter()
@@ -1189,8 +1217,18 @@ impl Sfu {
             return Ok(());
         }
         if let Some(p) = self.peers.get_mut(&key) {
+            let source = (mid, rid.map(|rid| rid.to_string()));
+            if p.keyframe_times
+                .get(&source)
+                .is_some_and(|at| self.now.saturating_duration_since(*at) < Duration::from_secs(1))
+            {
+                p.keyframe_suppressed += 1;
+                return Ok(());
+            }
             if let Some(s) = p.rtc.direct_api().stream_rx_by_mid(mid, rid) {
                 s.request_keyframe(kind);
+                p.keyframe_times.insert(source, self.now);
+                p.keyframe_forwarded += 1;
             }
             self.collect(key)?;
         }
@@ -1221,7 +1259,17 @@ impl Sfu {
             .collect();
         for (key, desired) in targets {
             let p = self.peers.get_mut(&key).unwrap();
-            if p.bwe_target != desired {
+            let video_active = p.routes.values().any(|r| r.video);
+            let starting = video_active && !p.video_active;
+            p.video_active = video_active;
+            if p.bwe_target != desired || starting {
+                if starting {
+                    // Do not let an audio-only estimate throttle a new video
+                    // subscription before feedback for its first frame arrives.
+                    let initial = desired.min(8_000_000);
+                    p.rtc.bwe().reset(str0m::bwe::Bitrate::bps(initial));
+                    p.bwe = initial;
+                }
                 p.bwe_target = desired;
                 p.rtc.bwe().set_bitrate(
                     str0m::bwe::Bitrate::bps(0),
@@ -1452,18 +1500,28 @@ impl Sfu {
                         // Unmapped/withdrawn SSRCs (including probes) cannot escape
                         // publication authorization via a paced or retransmit queue.
                         let video = route.video;
-                        // Final wire budget includes RTX and probes.
-                        if video
-                            && (!peer.video_budget.take(bytes.len(), self.now)
-                                || !self
-                                    .room_budgets
-                                    .get_mut(&peer.channel)
-                                    .ok_or(Error::Config)?
-                                    .take(bytes.len(), self.now)
-                                || !self.budget.take(bytes.len(), self.now))
-                        {
-                            peer.stats.cap_dropped_packets += 1;
-                            continue;
+                        // Probe padding uses RTX or the RTP padding bit. Preserve
+                        // original-media burst headroom without bypassing any cap.
+                        let repair = route.rtx.is_some_and(|r| *r == ssrc) || bytes[0] & 0x20 != 0;
+                        if video {
+                            let room = self
+                                .room_budgets
+                                .get_mut(&peer.channel)
+                                .ok_or(Error::Config)?;
+                            if !peer.video_budget.available(bytes.len(), repair, self.now)
+                                || !room.available(bytes.len(), repair, self.now)
+                                || !self.budget.available(bytes.len(), repair, self.now)
+                            {
+                                peer.stats.cap_dropped_packets += 1;
+                                if !repair {
+                                    peer.media_cap_drops += 1;
+                                }
+                                continue;
+                            }
+                            // Commit all three only after every preflight succeeds.
+                            peer.video_budget.take(bytes.len(), self.now);
+                            room.take(bytes.len(), self.now);
+                            self.budget.take(bytes.len(), self.now);
                         }
                         if video && bytes[1] & 0x80 != 0 {
                             peer.tx_frames += 1;
@@ -1533,7 +1591,17 @@ impl Sfu {
             }
             Event::PeerStats(stats) => self.stats(key, stats)?,
             // Refresh REMB after a newly started stream becomes known.
-            Event::MediaIngressStats(_) => self.allocate()?,
+            Event::MediaIngressStats(stats) => {
+                if self.video_trace {
+                    eprintln!("VIDEO_TRACE sfu_in peer={:?} mid={} seconds={:.3} bytes={} packets={} nack={} pli={} fir={}", key, stats.mid, self.now.saturating_duration_since(self.peers[&key].created).as_secs_f64(), stats.bytes, stats.packets, stats.nacks, stats.plis, stats.firs);
+                }
+                self.allocate()?;
+            }
+            Event::MediaEgressStats(stats) => {
+                if self.video_trace {
+                    eprintln!("VIDEO_TRACE sfu_out peer={:?} mid={} seconds={:.3} bytes={} packets={} nack={} pli={} fir={}", key, stats.mid, self.now.saturating_duration_since(self.peers[&key].created).as_secs_f64(), stats.bytes, stats.packets, stats.nacks, stats.plis, stats.firs);
+                }
+            }
             Event::ChannelOpen(id, label) => self.channel_open(key, id, &label)?,
             Event::ChannelClose(id) if self.peers[&key].control == Some(id) => {
                 self.peers.get_mut(&key).unwrap().control = None;
@@ -1578,6 +1646,9 @@ impl Sfu {
             return Ok(());
         };
         let video = is_video(track.kind);
+        if video && starts_keyframe(codec_of(&track), &packet.payload) {
+            self.peers.get_mut(&key).unwrap().idr_starts += 1;
+        }
         let p = &self.peers[&key];
         if !self
             .acl
@@ -1663,8 +1734,10 @@ impl Sfu {
                 .map(|q| (q.packet_count(), q.byte_size(), q.first_unsent()));
             self.collect(to)?;
             if queued.is_some_and(|(packets, bytes, first)| {
-                packets >= 128
-                    || bytes >= 128 * 1024
+                // A desktop IDR can exceed 128 KiB without being stale. Bound
+                // memory independently of the unchanged 250 ms latency ceiling.
+                packets >= 2048
+                    || bytes >= 2 * 1024 * 1024
                     || first.is_some_and(|t| {
                         self.now.saturating_duration_since(t) > Duration::from_millis(250)
                     })
@@ -1686,6 +1759,7 @@ impl Sfu {
             let config_packet = track.codec == Some(VideoCodec::H264)
                 && matches!(packet.payload.first().map(|b| b & 31), Some(7 | 8));
             if route.waiting_keyframe && !keyframe && !config_packet {
+                self.peers.get_mut(&to).unwrap().gated_packets += 1;
                 continue;
             }
             let peer = self.peers.get_mut(&to).unwrap();
@@ -1769,6 +1843,9 @@ impl Sfu {
             .saturating_duration_since(p.stats_at)
             .as_secs_f64()
             .max(0.001);
+        if self.video_trace {
+            eprintln!("VIDEO_TRACE sfu_peer peer={:?} seconds={:.3} bwe={} target={} rx_fps={:.1} tx_fps={:.1} wire_tx_bytes={} idr_starts={} gated_packets={} cap_drops={} media_cap_drops={} queue_drops={} mtu_drops={}", key, self.now.saturating_duration_since(p.created).as_secs_f64(), p.bwe, p.bwe_target, p.rx_frames as f64 / elapsed, p.tx_frames as f64 / elapsed, p.wire_tx_bytes, p.idr_starts, p.gated_packets, p.stats.cap_dropped_packets, p.media_cap_drops, p.stats.queue_dropped_packets, p.stats.mtu_dropped_packets);
+        }
         p.stats.tx_bps =
             ((p.wire_tx_bytes.saturating_sub(p.tx_bytes)) as f64 * 8.0 / elapsed) as u64;
         p.stats.rx_bps =
@@ -1793,6 +1870,12 @@ impl Sfu {
         p.tx_frames = 0;
         p.rx_frames = 0;
         p.stats_at = stats.timestamp;
+        if self.video_trace {
+            eprintln!(
+                "VIDEO_TRACE keyframe_requests peer={key:?} forwarded={} suppressed={}",
+                p.keyframe_forwarded, p.keyframe_suppressed
+            );
+        }
         let event = VoiceEvent::Stats(p.stats.clone());
         self.send(key, 0, event)
     }

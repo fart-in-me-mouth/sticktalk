@@ -92,3 +92,52 @@ pub fn source_process_id(source: &Source) -> Option<u32> {
     }
     (pid != 0).then_some(pid)
 }
+
+/// GPU-scaled, one-shot picker snapshot. All WGC resources close before return.
+pub fn source_gpu_thumbnail(source: &Source) -> Result<std::sync::Arc<super::DisplayFrame>> {
+    GpuThumbnailer::new()?.thumbnail(source)
+}
+/// Reuse one device for an entire bounded picker batch. Apartment-affine.
+pub struct GpuThumbnailer {
+    gpu: Gpu,
+    _runtime: Runtime,
+}
+impl GpuThumbnailer {
+    pub fn new() -> Result<Self> {
+        let runtime = Runtime::new()?;
+        Ok(Self {
+            gpu: Gpu::new()?,
+            _runtime: runtime,
+        })
+    }
+    pub fn thumbnail(&self, source: &Source) -> Result<std::sync::Arc<super::DisplayFrame>> {
+        let gpu = &self.gpu;
+        let mut capture = Capture::new(&gpu.device, source, false)?;
+        let deadline = Instant::now() + Duration::from_millis(250);
+        let (_lease, texture, _) = loop {
+            if let Some(frame) = capture.next()? {
+                break frame;
+            }
+            if Instant::now() >= deadline {
+                return Err(Error::Timeout("GPU source thumbnail"));
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        let mut desc = D3D11_TEXTURE2D_DESC::default();
+        unsafe {
+            texture.GetDesc(&mut desc);
+        }
+        let input = crate::Size {
+            width: desc.Width,
+            height: desc.Height,
+        };
+        input.validate()?;
+        let output = crate::Size {
+            width: 160,
+            height: (u64::from(desc.Height) * 160 / u64::from(desc.Width)).clamp(2, 160) as u32,
+        };
+        let converter = super::gpu::Converter::rgb(gpu, input, output)?;
+        converter.convert(&texture)?;
+        super::display::share_rgb(&gpu.device, &gpu.context, &converter.texture, output)
+    }
+}

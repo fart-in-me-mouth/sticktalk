@@ -183,6 +183,10 @@ fn pli_and_fir_reach_publisher_and_nack_rtx_repairs_loss() {
         n.advance(Duration::from_millis(20));
     }
     for fir in [false, true] {
+        // Subscription/viewer requests share a one-second per-source throttle.
+        // Verify both RTCP kinds outside that window; storm suppression itself
+        // is covered by the 200-request aggregation unit test.
+        n.advance(Duration::from_secs(1));
         n.clear();
         n.signal(
             b,

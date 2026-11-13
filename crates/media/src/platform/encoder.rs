@@ -209,6 +209,21 @@ impl Hardware {
             let manager = manager(gpu)?;
             transform.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize)?;
             let codec_api: ICodecAPI = transform.cast()?;
+            let out = media_type(MFVideoFormat_H264, size, options.quality.fps.get())?;
+            out.SetUINT32(&MF_MT_AVG_BITRATE, options.bitrate)?;
+            out.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)?;
+            transform
+                .SetOutputType(0, &out, 0)
+                .map_err(|e| Error::Platform(format!("encoder output type: {e}")))?;
+            transform
+                .SetInputType(
+                    0,
+                    &media_type(MFVideoFormat_NV12, size, options.quality.fps.get())?,
+                    0,
+                )
+                .map_err(|e| Error::Platform(format!("encoder NV12 input type: {e}")))?;
+            // Media types can reset a hardware MFT's rate-control defaults.
+            // Configure CodecAPI AFTER both types, before beginning streaming.
             property(
                 &codec_api,
                 &CODECAPI_AVLowLatencyMode,
@@ -230,6 +245,20 @@ impl Hardware {
                 VARIANT::from(options.bitrate),
                 "bitrate",
             )?;
+            // H.264 HRD is in BYTES (CodecAPI). Default hardware buffers can
+            // accumulate a second of bits into one desktop IDR, overwhelming a
+            // low-latency RTP queue. 100 ms bounds bursts, not the frame rate.
+            // Optional on third-party MFTs; never fall back to software solely
+            // because a vendor lacks this tuning property.
+            match property(
+                &codec_api,
+                &CODECAPI_AVEncCommonBufferSize,
+                VARIANT::from((options.bitrate / 80).max(1)),
+                "100 ms HRD buffer",
+            ) {
+                Ok(()) => eprintln!("video encoder HRD buffer={} bytes", options.bitrate / 80),
+                Err(error) => eprintln!("video encoder HRD tuning unavailable: {error}"),
+            }
             if options.rate_control == RateControl::Vbr {
                 property(
                     &codec_api,
@@ -248,19 +277,6 @@ impl Hardware {
             // mode above guarantees one input / one output without reordering.
             let _ =
                 codec_api.SetValue(&CODECAPI_AVEncMPVDefaultBPictureCount, &VARIANT::from(0u32));
-            let out = media_type(MFVideoFormat_H264, size, options.quality.fps.get())?;
-            out.SetUINT32(&MF_MT_AVG_BITRATE, options.bitrate)?;
-            out.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)?;
-            transform
-                .SetOutputType(0, &out, 0)
-                .map_err(|e| Error::Platform(format!("encoder output type: {e}")))?;
-            transform
-                .SetInputType(
-                    0,
-                    &media_type(MFVideoFormat_NV12, size, options.quality.fps.get())?,
-                    0,
-                )
-                .map_err(|e| Error::Platform(format!("encoder NV12 input type: {e}")))?;
             let events = transform.cast()?;
             transform.ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0)?;
             transform.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)?;
@@ -551,6 +567,46 @@ impl Encoder {
             software: None,
             kind,
         })
+    }
+    /// Update rate control without changing media types, flushing reference
+    /// frames, creating a transform or forcing an IDR.
+    pub fn set_bitrate(&mut self, bitrate: u32) -> Result<()> {
+        if let Some(hw) = &self.hardware {
+            property(
+                &hw.codec_api,
+                &CODECAPI_AVEncCommonMeanBitRate,
+                VARIANT::from(bitrate),
+                "dynamic bitrate",
+            )?;
+            // Keep the explicitly bounded HRD duration invariant when the
+            // rate changes. Leaving its startup byte size at a lower rate can
+            // defeat the hardware driver's live rate-control adjustment.
+            let _ = property(
+                &hw.codec_api,
+                &CODECAPI_AVEncCommonBufferSize,
+                VARIANT::from((bitrate / 80).max(1)),
+                "dynamic 100 ms HRD buffer",
+            );
+        } else if let Some(sw) = &mut self.software {
+            let mut info = openh264_sys2::SBitrateInfo {
+                iLayer: openh264_sys2::SPATIAL_LAYER_ALL,
+                iBitrate: bitrate as i32,
+            };
+            // SAFETY: correct C option/payload pair, borrowed synchronously on
+            // the encoder's owning worker; no concurrent codec access.
+            let result = unsafe {
+                sw.encoder.raw_api().set_option(
+                    openh264_sys2::ENCODER_OPTION_BITRATE,
+                    (&mut info as *mut openh264_sys2::SBitrateInfo).cast(),
+                )
+            };
+            if result != 0 {
+                return Err(Error::Platform(format!(
+                    "OpenH264 dynamic bitrate: {result}"
+                )));
+            }
+        }
+        Ok(())
     }
     pub fn keyframe(&mut self) -> Result<()> {
         if let Some(hw) = &self.hardware {

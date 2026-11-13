@@ -1,0 +1,30 @@
+burst-wgc-1080-120-final       sharer    60.000 fps min=59 drift=  +0.000ms CPU=0.413% WS+=68.51MiB private+=88.45MiB PASS
+burst-wgc-1080-120-final       viewer_b  60.000 fps min=59 drift=  -2.935ms CPU=0.452% WS+=66.11MiB private+=89.11MiB PASS
+burst-wgc-1080-120-final       viewer_c  59.999 fps min=59 drift=  -2.935ms CPU=0.448% WS+=69.44MiB private+=90.74MiB PASS
+experimental-mq-1440-120       sharer    59.994 fps min=59 drift=  +0.000ms CPU=0.492% WS+=64.72MiB private+=118.23MiB PASS
+experimental-mq-1440-120       viewer_b  55.406 fps min= 6 drift=  +1.038ms CPU=0.615% WS+=72.54MiB private+=109.46MiB FAIL
+experimental-mq-1440-120       viewer_c  56.189 fps min=11 drift=  +5.087ms CPU=0.657% WS+=67.39MiB private+=103.01MiB FAIL
+failed-synthetic-1440-120      sharer    59.996 fps min=59 drift=  +0.000ms CPU=0.523% WS+=64.23MiB private+=117.91MiB PASS
+failed-synthetic-1440-120      viewer_b  60.000 fps min=59 drift=  -0.213ms CPU=0.534% WS+=67.36MiB private+=103.83MiB PASS
+failed-synthetic-1440-120      viewer_c  59.500 fps min=14 drift= -10.459ms CPU=0.510% WS+=77.96MiB private+=113.57MiB FAIL
+final-synthetic-1080-600       sharer    59.994 fps min=56 drift=  +0.000ms CPU=0.477% WS+=62.91MiB private+=108.11MiB PASS
+final-synthetic-1080-600       viewer_b  59.993 fps min=56 drift=  -0.534ms CPU=0.648% WS+=59.79MiB private+=90.47MiB PASS
+final-synthetic-1080-600       viewer_c  59.993 fps min=56 drift=  -0.542ms CPU=0.580% WS+=59.98MiB private+=93.41MiB PASS
+final-wgc-1080-600             sharer    60.001 fps min=59 drift=  +0.000ms CPU=0.305% WS+=69.76MiB private+=90.18MiB PASS
+final-wgc-1080-600             viewer_b  60.002 fps min=59 drift=  +0.166ms CPU=0.331% WS+=71.79MiB private+=92.81MiB PASS
+final-wgc-1080-600             viewer_c  60.001 fps min=59 drift=  +0.167ms CPU=0.326% WS+=71.74MiB private+=94.06MiB PASS
+final-wgc-1440-120             sharer    59.998 fps min=59 drift=  +0.000ms CPU=0.234% WS+=61.58MiB private+=99.61MiB PASS
+final-wgc-1440-120             viewer_b  59.999 fps min=59 drift=  -0.613ms CPU=0.319% WS+=72.35MiB private+=160.30MiB PASS
+final-wgc-1440-120             viewer_c  59.999 fps min=59 drift=  -0.624ms CPU=0.318% WS+=72.20MiB private+=162.55MiB PASS
+final-wgc-source-120           sharer    59.998 fps min=59 drift=  +0.000ms CPU=0.299% WS+=61.09MiB private+=98.58MiB PASS
+final-wgc-source-120           viewer_b  59.992 fps min=59 drift=  -0.277ms CPU=0.388% WS+=72.39MiB private+=161.31MiB PASS
+final-wgc-source-120           viewer_c  59.999 fps min=59 drift=  -0.279ms CPU=0.385% WS+=66.82MiB private+=156.41MiB PASS
+quick-synthetic                sharer    59.942 fps min=58 drift=  +0.000ms CPU=0.257% WS+=61.33MiB private+=106.69MiB PASS
+quick-synthetic                viewer_b  59.947 fps min=58 drift=  -0.486ms CPU=0.456% WS+=59.28MiB private+=86.84MiB PASS
+quick-synthetic                viewer_c  59.945 fps min=58 drift=  -0.480ms CPU=0.493% WS+=62.31MiB private+=92.16MiB PASS
+synthetic-1080-600             sharer    59.961 fps min=52 drift=  +0.000ms CPU=0.354% WS+=62.74MiB private+=107.44MiB PASS
+synthetic-1080-600             viewer_b  59.961 fps min=52 drift=  -0.476ms CPU=0.643% WS+=62.87MiB private+=96.07MiB PASS
+synthetic-1080-600             viewer_c  59.961 fps min=52 drift=  -0.474ms CPU=0.620% WS+=63.55MiB private+=93.89MiB PASS
+wgc-1080-600                   sharer    59.995 fps min=58 drift=  +0.000ms CPU=0.405% WS+=63.36MiB private+=93.09MiB PASS
+wgc-1080-600                   viewer_b  55.908 fps min= 0 drift=  -2.819ms CPU=0.583% WS+=90.27MiB private+=120.85MiB FAIL
+wgc-1080-600                   viewer_c  56.328 fps min= 0 drift=  -2.608ms CPU=0.545% WS+=89.77MiB private+=121.89MiB FAIL

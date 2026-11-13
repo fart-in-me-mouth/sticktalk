@@ -1,0 +1,5 @@
+
+running 1 test
+stage after media startup: working_set_mib=58.82 private_mib=50.86
+stage after GPU counters: working_set_mib=63.43 private_mib=55.14
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds

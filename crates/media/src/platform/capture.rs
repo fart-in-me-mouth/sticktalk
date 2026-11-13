@@ -20,6 +20,18 @@ use windows::{
     },
 };
 
+// Keep enumeration dimensions aligned with WGC's visible frame rather than
+// GetWindowRect's invisible resize border. Stable Win32 ABI, no extra dependency.
+#[link(name = "dwmapi")]
+extern "system" {
+    #[link_name = "DwmGetWindowAttribute"]
+    fn dwm_attribute(
+        hwnd: *mut std::ffi::c_void,
+        attribute: u32,
+        out: *mut std::ffi::c_void,
+        bytes: u32,
+    ) -> i32;
+}
 /// Lists active monitors, then visible, non-minimized top-level windows.
 pub fn list_sources() -> Result<Vec<Source>> {
     let mut sources = Vec::<Source>::new();
@@ -81,7 +93,12 @@ unsafe extern "system" fn window(handle: HWND, data: LPARAM) -> windows::core::B
     let used = GetWindowTextW(handle, &mut text);
     let mut rect = RECT::default();
     if used > 0
-        && GetWindowRect(handle, &mut rect).is_ok()
+        && dwm_attribute(
+            handle.0,
+            9,
+            (&mut rect as *mut RECT).cast(),
+            std::mem::size_of::<RECT>() as u32,
+        ) >= 0
         && rect.right > rect.left
         && rect.bottom > rect.top
     {

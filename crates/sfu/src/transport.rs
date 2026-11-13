@@ -95,6 +95,7 @@ impl Sfu {
     ) -> Result<(), Error> {
         let socket = tokio::net::UdpSocket::from_std(self.socket.take().ok_or(Error::Config)?)?;
         let mut buf = vec![0u8; 65536];
+        let mut clock = None;
         loop {
             for session in self.take_overloaded() {
                 self.overloaded(session, &socket, &revoked).await;
@@ -132,6 +133,11 @@ impl Sfu {
                 continue;
             }
             let deadline = self.next_timeout();
+            if deadline.is_none() {
+                clock = None;
+            } else if clock.is_none() {
+                clock = Some(crate::pacing::Clock::new()?);
+            }
             tokio::select! {
                 biased;
                 Some(session) = disconnects.recv() => { self.overloaded(session,&socket,&revoked).await; }
@@ -171,12 +177,18 @@ impl Sfu {
                         Err(error) => return Err(error.into()),
                     }
                 }
-                _ = async {
+                timer = async {
                     match deadline {
-                        Some(t) => tokio::time::sleep_until(t.into()).await,
+                        Some(t) => clock.as_mut().unwrap().wait(t).await?,
                         None => std::future::pending::<()>().await,
                     }
-                } => {if let Err(error)=self.handle_timeout(Instant::now()) {if !matches!(error,Error::Backpressure){return Err(error);}}},
+                    Ok::<(), std::io::Error>(())
+                } => {
+                    timer?;
+                    if let Err(error) = self.handle_timeout(Instant::now()) {
+                        if !matches!(error, Error::Backpressure) { return Err(error); }
+                    }
+                },
             }
         }
         // Notify host and sharers before dropping all cryptographic sessions.

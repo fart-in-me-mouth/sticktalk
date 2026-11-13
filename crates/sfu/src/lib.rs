@@ -2,6 +2,7 @@
 mod boundary;
 mod control;
 mod engine;
+pub mod pacing;
 mod transport;
 mod validation;
 

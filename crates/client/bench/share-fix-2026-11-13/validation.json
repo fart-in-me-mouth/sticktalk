@@ -1,0 +1,17 @@
+{
+  "production_reference": "9e41815",
+  "production_diff_from_reference": "",
+  "normal_log": "tests-final.log",
+  "normal_passed": 321,
+  "explicit_hardware_passed": 3,
+  "clippy_log": "clippy-qualified.log",
+  "fmt_passed": true,
+  "acceptance_complete_on_final_code": false,
+  "latest_1440_failure": "failed-synthetic-1440-120",
+  "reverted_experiment": "experimental-mq-1440-120",
+  "security_master": "a9c0f13",
+  "ui_reviewed_pngs": 22,
+  "target_deleted": true,
+  "reverted_regression_commit": "3a24001",
+  "revert_commit": "8d0442c"
+}

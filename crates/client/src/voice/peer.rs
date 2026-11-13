@@ -39,6 +39,12 @@ struct Slot {
 }
 pub struct Peer {
     rtc: Rtc,
+    video_trace: bool,
+    offered_frames: u64,
+    gated_frames: u64,
+    timer_samples: u64,
+    timer_late_us: u64,
+    timer_max_us: u64,
     local: SocketAddr,
     pending: Option<SdpPendingOffer>,
     publications: Vec<(Mid, TrackKind, bool)>,
@@ -50,9 +56,27 @@ pub struct Peer {
     sequences: BTreeMap<String, u64>,
     surface: ShareSurface,
     queued_publications: Vec<(TrackKind, bool, ShareSurface)>,
+    send_budgets: BTreeMap<u8, u64>,
+    bwe_target: u64,
+    video_starting: bool,
+    video_gates: BTreeMap<String, VideoGate>,
+    staged_bytes: BTreeMap<String, usize>,
+    keyframes: Vec<TrackKind>,
 }
 fn err(e: impl std::fmt::Display) -> String {
     format!("Media transport: {e}")
+}
+/// H.264 IDRs arrive in bursts. Match the SFU's bounded socket buffers; a
+/// small OS-default receive buffer can lose an entire IDR even on loopback.
+#[cfg(windows)]
+pub fn configure_socket(
+    socket: &impl std::os::windows::io::AsSocket,
+) -> Result<(usize, usize), String> {
+    let socket = socket2::SockRef::from(socket);
+    let previous = socket.recv_buffer_size().map_err(err)?;
+    socket.set_recv_buffer_size(256 * 1024).map_err(err)?;
+    socket.set_send_buffer_size(256 * 1024).map_err(err)?;
+    Ok((previous, socket.recv_buffer_size().map_err(err)?))
 }
 impl Peer {
     pub fn new(local: SocketAddr, mtu: u16, now: Instant) -> Result<Self, String> {
@@ -100,6 +124,12 @@ impl Peer {
         let (offer, pending) = api.apply().ok_or("Missing media offer")?;
         Ok(Self {
             rtc,
+            video_trace: std::env::var_os("STICKTALK_VIDEO_TRACE").is_some(),
+            offered_frames: 0,
+            gated_frames: 0,
+            timer_samples: 0,
+            timer_late_us: 0,
+            timer_max_us: 0,
             local,
             pending: Some(pending),
             publications: vec![(audio, TrackKind::Audio, true)],
@@ -114,7 +144,37 @@ impl Peer {
             sequences: BTreeMap::new(),
             surface: ShareSurface::Monitor,
             queued_publications: vec![],
+            send_budgets: BTreeMap::new(),
+            bwe_target: 0,
+            video_starting: false,
+            video_gates: BTreeMap::new(),
+            staged_bytes: BTreeMap::new(),
+            keyframes: vec![],
         })
+    }
+    /// Desired encoder payload rate, not a bandwidth floor. Congestion control
+    /// remains authoritative; the desired rate enables probing after an idle call.
+    pub fn set_send_bitrate(&mut self, kind: TrackKind, bps: u64) {
+        self.send_budgets
+            .insert(kind as u8, bps.clamp(100_000, 100_000_000));
+    }
+    fn desired_send_bps(&self) -> u64 {
+        self.publications
+            .iter()
+            .filter(|(_, _, active)| *active)
+            .map(|(_, kind, _)| {
+                self.send_budgets.get(&(*kind as u8)).copied().unwrap_or(
+                    if media_kind(*kind) == MediaKind::Video {
+                        8_000_000
+                    } else {
+                        256_000
+                    },
+                )
+            })
+            .sum::<u64>()
+            .saturating_mul(12)
+            .saturating_div(10)
+            .min(100_000_000)
     }
     pub fn deadline(&self) -> Instant {
         self.deadline
@@ -138,6 +198,10 @@ impl Peer {
         }
     }
     pub fn timeout(&mut self, now: Instant) -> Result<(), String> {
+        let late = now.saturating_duration_since(self.deadline).as_micros() as u64;
+        self.timer_samples += 1;
+        self.timer_late_us += late;
+        self.timer_max_us = self.timer_max_us.max(late);
         self.rtc.handle_input(Input::Timeout(now)).map_err(err)
     }
     pub fn datagram(&mut self, from: SocketAddr, bytes: &[u8], now: Instant) -> Result<(), String> {
@@ -201,6 +265,15 @@ impl Peer {
             self.queued_publications.push((kind, enabled, surface));
             return Ok(());
         }
+        if enabled
+            && media_kind(kind) == MediaKind::Video
+            && !self
+                .publications
+                .iter()
+                .any(|(_, k, active)| *active && media_kind(*k) == MediaKind::Video)
+        {
+            self.video_starting = true;
+        }
         if kind == TrackKind::Screen {
             self.surface = surface;
         }
@@ -240,6 +313,22 @@ impl Peer {
     }
     /// Called only after draining RTC output. Serializes offers and reuses recv slots.
     pub fn reconcile(&mut self) -> Result<(), String> {
+        let desired = self.desired_send_bps();
+        if self.bwe_target != desired || self.video_starting {
+            if std::mem::take(&mut self.video_starting) {
+                // A fresh quality target, not the stale audio-only estimate.
+                // Reset once on startup; never pin a bandwidth floor or reset
+                // on feedback. Normal congestion control owns subsequent rates.
+                self.rtc.bwe().reset(str0m::bwe::Bitrate::bps(desired));
+            }
+            self.bwe_target = desired;
+            self.rtc.bwe().set_bitrate(
+                str0m::bwe::Bitrate::bps(0),
+                str0m::bwe::Bitrate::bps(desired),
+            );
+            // Caller drains output before the next SDP/RTP mutation.
+            return Ok(());
+        }
         if self.pending.is_some() {
             return Ok(());
         }
@@ -382,7 +471,48 @@ impl Peer {
                 Err("No media sender".into())
             };
         };
-        let seq = self.sequences.entry(mid.to_string()).or_default();
+        let key = mid.to_string();
+        if media_kind(kind) == MediaKind::Video {
+            self.offered_frames += u64::from(marker);
+            // RTX cache size does NOT bound str0m's unsent RTP queue. Use its
+            // refreshed pacer snapshot plus this undrained batch's bytes.
+            let queued = self.rtc.direct_api().stream_tx(&ssrc).and_then(|s| {
+                s.queue_info()
+                    .map(|q| (q.packet_count(), q.byte_size(), q.first_unsent()))
+            });
+            let staged = self.staged_bytes.get(&key).copied().unwrap_or(0);
+            let full = queued.is_some_and(|(packets, bytes, first)| {
+                packets >= 2048
+                    || bytes.saturating_add(staged) >= 2 * 1024 * 1024
+                    || first.is_some_and(|at| {
+                        now.saturating_duration_since(at) > Duration::from_millis(250)
+                    })
+            }) || staged >= 2 * 1024 * 1024;
+            let (admit, request) = self
+                .video_gates
+                .entry(key.clone())
+                .or_default()
+                .admit(timestamp, payload, full);
+            if request && self.video_trace {
+                eprintln!(
+                    "VIDEO_TRACE sender_gate timestamp={timestamp} queue={:?} staged={staged}",
+                    queued.map(|(p, b, t)| (
+                        p,
+                        b,
+                        t.map(|t| now.saturating_duration_since(t).as_millis())
+                    ))
+                );
+            }
+            if request && !self.keyframes.contains(&kind) {
+                self.keyframes.push(kind);
+            }
+            if !admit {
+                self.gated_frames += u64::from(marker);
+                return Ok(());
+            }
+            *self.staged_bytes.entry(key.clone()).or_default() += payload.len();
+        }
+        let seq = self.sequences.entry(key).or_default();
         let mut api = self.rtc.direct_api();
         let stream = api.stream_tx(&ssrc).ok_or("No RTP sender")?;
         if media_kind(kind) == MediaKind::Audio {
@@ -418,9 +548,13 @@ impl Peer {
     }
     pub fn drain(&mut self) -> Result<Vec<PeerOutput>, String> {
         let mut out: Vec<_> = self.signals.drain(..).map(PeerOutput::Signal).collect();
+        out.extend(self.keyframes.drain(..).map(PeerOutput::Keyframe));
         loop {
             match self.rtc.poll_output().map_err(err)? {
                 Output::Timeout(t) => {
+                    if !self.rtc.is_alive() {
+                        return Err("Media transport closed; release control".into());
+                    }
                     self.deadline = t;
                     break;
                 }
@@ -443,6 +577,9 @@ impl Peer {
                         out.push(PeerOutput::Packet(source, packet));
                     }
                 }
+                Output::Event(Event::ChannelClose(channel)) if channel == self.control => {
+                    return Err("Control channel closed; release control".into());
+                }
                 Output::Event(Event::ChannelData(data)) if data.binary => {
                     out.push(PeerOutput::Control(data.data))
                 }
@@ -455,12 +592,42 @@ impl Peer {
                         out.push(PeerOutput::Keyframe(*kind));
                     }
                 }
+                Output::Event(Event::MediaIngressStats(s)) if self.video_trace => {
+                    eprintln!(
+                        "VIDEO_TRACE viewer_in mid={} bytes={} packets={} nack={} pli={} fir={}",
+                        s.mid, s.bytes, s.packets, s.nacks, s.plis, s.firs
+                    );
+                }
+                Output::Event(Event::MediaEgressStats(s)) if self.video_trace => {
+                    eprintln!("VIDEO_TRACE encoder_transport_out mid={} bytes={} packets={} nack={} pli={} fir={}", s.mid, s.bytes, s.packets, s.nacks, s.plis, s.firs);
+                }
+                Output::Event(Event::PeerStats(s)) if self.video_trace => {
+                    eprintln!(
+                        "VIDEO_TRACE timer samples={} late_mean_us={} late_max_us={}",
+                        self.timer_samples,
+                        self.timer_late_us / self.timer_samples.max(1),
+                        self.timer_max_us
+                    );
+                    eprintln!(
+                        "VIDEO_TRACE sender_totals offered_frames={} gated_frames={}",
+                        self.offered_frames, self.gated_frames
+                    );
+                    eprintln!(
+                        "VIDEO_TRACE endpoint bwe={} target={} wire_rx={} wire_tx={} loss={:?}",
+                        s.bwe_tx.map_or(0, |b| b.as_u64()),
+                        self.bwe_target,
+                        s.peer_bytes_rx,
+                        s.peer_bytes_tx,
+                        s.ingress_loss_fraction
+                    );
+                }
                 _ => {}
             }
             if out.len() > 4096 {
                 return Err("Media output overload".into());
             }
         }
+        self.staged_bytes.clear();
         Ok(out)
     }
 }
@@ -477,5 +644,82 @@ fn track(mid: Mid, kind: TrackKind, surface: ShareSurface) -> PublishedTrack {
         codec: (media_kind(kind) == MediaKind::Video).then_some(VideoCodec::H264),
         layers: vec![],
         surface: (kind == TrackKind::Screen).then_some(surface),
+    }
+}
+
+/// Backpressure discards dependent frames until a fresh IDR, never a growing
+/// video queue. Local packetization emits single NALs or FU-A (not STAP-A).
+#[derive(Default)]
+struct VideoGate {
+    blocked_frame: Option<u32>,
+}
+impl VideoGate {
+    fn admit(&mut self, timestamp: u32, payload: &[u8], full: bool) -> (bool, bool) {
+        if full {
+            let request = self.blocked_frame.is_none();
+            self.blocked_frame = Some(timestamp);
+            return (false, request);
+        }
+        let Some(blocked) = self.blocked_frame else {
+            return (true, false);
+        };
+        if blocked == timestamp {
+            return (false, false);
+        }
+        let nal = payload.first().copied().unwrap_or(0) & 31;
+        let idr =
+            nal == 5 || (nal == 28 && payload.get(1).is_some_and(|b| b & 0x80 != 0 && b & 31 == 5));
+        if idr {
+            self.blocked_frame = None;
+            return (true, false);
+        }
+        (matches!(nal, 7 | 8), false)
+    }
+}
+#[cfg(test)]
+mod sender_tests {
+    use super::*;
+    #[test]
+    fn a_closed_transport_fails_the_actor_instead_of_retaining_control() {
+        let mut peer = Peer::new("127.0.0.1:23458".parse().unwrap(), 1200, Instant::now()).unwrap();
+        peer.drain().unwrap();
+        peer.rtc.disconnect();
+        assert!(peer.drain().is_err());
+    }
+    #[cfg(windows)]
+    #[test]
+    fn loopback_socket_reserves_a_bounded_idr_burst_buffer() {
+        let socket = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        let (_, after) = configure_socket(&socket).unwrap();
+        assert!((256 * 1024..=512 * 1024).contains(&after));
+        assert_eq!(
+            socket2::SockRef::from(&socket).send_buffer_size().unwrap(),
+            256 * 1024
+        );
+    }
+    #[test]
+    fn idle_to_video_declares_probe_capacity_without_a_bandwidth_floor() {
+        let mut peer = Peer::new("127.0.0.1:23456".parse().unwrap(), 1200, Instant::now()).unwrap();
+        peer.reconcile().unwrap();
+        assert_eq!(peer.bwe_target, 307_200);
+        peer.drain().unwrap();
+        peer.publications
+            .push(("video".into(), TrackKind::Screen, true));
+        peer.set_send_bitrate(TrackKind::Screen, 12_000_000);
+        peer.reconcile().unwrap();
+        assert_eq!(peer.bwe_target, 14_707_200);
+    }
+    #[test]
+    fn congestion_discards_the_damaged_frame_and_resumes_only_on_new_idr() {
+        let mut gate = VideoGate::default();
+        assert_eq!(gate.admit(1, &[0x61], false), (true, false));
+        assert_eq!(gate.admit(1, &[0x7c, 0x85], true), (false, true));
+        assert_eq!(gate.admit(1, &[0x65], false), (false, false));
+        assert_eq!(gate.admit(2, &[0x61], false), (false, false));
+        assert_eq!(gate.admit(3, &[0x67], false), (true, false));
+        assert_eq!(gate.admit(3, &[0x68], false), (true, false));
+        assert_eq!(gate.admit(3, &[0x7c, 0x05], false), (false, false));
+        assert_eq!(gate.admit(3, &[0x7c, 0x85], false), (true, false));
+        assert_eq!(gate.admit(3, &[0x7c, 0x45], false), (true, false));
     }
 }

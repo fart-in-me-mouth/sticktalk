@@ -22,6 +22,8 @@ use tokio_tungstenite::{
     tungstenite::{client::IntoClientRequest, Message as Frame},
     MaybeTlsStream, WebSocketStream,
 };
+#[path = "support/gpu.rs"]
+mod gpu_usage;
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 struct Server {
@@ -146,7 +148,11 @@ async fn command(ws: &mut Socket, command: Command) -> CommandResult {
         }
     }
 }
-async fn room(server: &Server, a: &AuthResponse, b: &AuthResponse) -> (Socket, Socket, Id) {
+async fn room_details(
+    server: &Server,
+    a: &AuthResponse,
+    b: &AuthResponse,
+) -> (Socket, Socket, Id, Id) {
     let mut aw = server.connect(a).await;
     let mut bw = server.connect(b).await;
     let CommandResult::Guild(g) = command(
@@ -194,9 +200,14 @@ async fn room(server: &Server, a: &AuthResponse, b: &AuthResponse) -> (Socket, S
     else {
         panic!()
     };
-    (aw, bw, c.summary.id)
+    (aw, bw, c.summary.id, id)
+}
+async fn room(server: &Server, a: &AuthResponse, b: &AuthResponse) -> (Socket, Socket, Id) {
+    let (aw, bw, channel, _) = room_details(server, a, b).await;
+    (aw, bw, channel)
 }
 enum Input {
+    Target(TrackKind, u64),
     Control(ControlData),
     Signal(VoiceSignal),
     Packet(TrackKind, u32, Arc<[u8]>, bool),
@@ -204,6 +215,7 @@ enum Input {
     Stop,
 }
 enum Received {
+    Keyframe(TrackKind),
     Control(Vec<u8>),
     Signal(VoiceEvent),
     Packet(TrackKind, u32, Vec<u8>, bool, u64),
@@ -220,12 +232,16 @@ impl Endpoint {
         let (output, received) = mpsc::channel(512);
         let task = tokio::spawn(async move {
             let socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+            let (before, after) = sticktalk::voice::peer::configure_socket(&socket).unwrap();
+            println!("bounded UDP receive buffer: before={before} after={after}; send=262144");
             let local = socket.local_addr().unwrap();
             let mut call = Call::default();
             let nonce = sticktalk::backend::nonce();
             let mut effects = call.join(channel, nonce);
             let mut peer: Option<Peer> = None;
+            let mut heartbeat = tokio::time::interval(Duration::from_secs(25));
             let mut buffer = [0; 65536];
+            let mut clock = sticktalk_sfu::pacing::Clock::new().unwrap();
             loop {
                 for e in effects.drain(..) {
                     match e {
@@ -246,61 +262,49 @@ impl Endpoint {
                     }
                 }
                 if let Some(p) = &mut peer {
-                    for e in p.drain().unwrap() {
-                        match e {
-                            PeerOutput::Signal(s) => {
-                                send(
-                                    &mut ws,
-                                    ClientMsg::Voice(
-                                        sticktalk_client_core::voice::encode(nonce, s).unwrap(),
-                                    ),
-                                )
-                                .await
-                            }
-                            PeerOutput::Datagram(to, b) => {
-                                socket.send_to(&b, to).await.unwrap();
-                            }
-                            PeerOutput::Connected => {
-                                output
-                                    .send(Received::Connected(call.own.unwrap()))
+                    for stage in 0..2 {
+                        for e in p.drain().unwrap() {
+                            match e {
+                                PeerOutput::Signal(s) => {
+                                    send(
+                                        &mut ws,
+                                        ClientMsg::Voice(
+                                            sticktalk_client_core::voice::encode(nonce, s).unwrap(),
+                                        ),
+                                    )
                                     .await
-                                    .unwrap();
+                                }
+                                PeerOutput::Datagram(to, b) => {
+                                    socket.send_to(&b, to).await.unwrap();
+                                }
+                                PeerOutput::Connected => {
+                                    output
+                                        .send(Received::Connected(call.own.unwrap()))
+                                        .await
+                                        .unwrap();
+                                }
+                                PeerOutput::Packet(remote, p) => {
+                                    output
+                                        .send(Received::Packet(
+                                            remote.track.kind,
+                                            p.header.timestamp,
+                                            p.payload.to_vec(),
+                                            p.header.marker,
+                                            *p.seq_no,
+                                        ))
+                                        .await
+                                        .unwrap();
+                                }
+                                PeerOutput::Keyframe(kind) => {
+                                    output.send(Received::Keyframe(kind)).await.unwrap();
+                                }
+                                PeerOutput::Control(data) => {
+                                    output.send(Received::Control(data)).await.unwrap()
+                                }
                             }
-                            PeerOutput::Packet(remote, p) => {
-                                output
-                                    .send(Received::Packet(
-                                        remote.track.kind,
-                                        p.header.timestamp,
-                                        p.payload.to_vec(),
-                                        p.header.marker,
-                                        *p.seq_no,
-                                    ))
-                                    .await
-                                    .unwrap();
-                            }
-                            PeerOutput::Control(data) => {
-                                output.send(Received::Control(data)).await.unwrap()
-                            }
-                            _ => {}
                         }
-                    }
-                    p.reconcile().unwrap();
-                    // Drain offers generated by reconcile before sleeping on deadlines.
-                    for e in p.drain().unwrap() {
-                        match e {
-                            PeerOutput::Signal(s) => {
-                                send(
-                                    &mut ws,
-                                    ClientMsg::Voice(
-                                        sticktalk_client_core::voice::encode(nonce, s).unwrap(),
-                                    ),
-                                )
-                                .await
-                            }
-                            PeerOutput::Datagram(to, b) => {
-                                socket.send_to(&b, to).await.unwrap();
-                            }
-                            _ => {}
+                        if stage == 0 {
+                            p.reconcile().unwrap();
                         }
                     }
                 }
@@ -308,6 +312,7 @@ impl Endpoint {
                     .as_ref()
                     .map_or(Instant::now() + Duration::from_secs(30), Peer::deadline);
                 tokio::select! {
+                    _=heartbeat.tick()=>send(&mut ws,ClientMsg::Heartbeat(Heartbeat{nonce:sticktalk::backend::nonce(),last_seq:0})).await,
                     frame=ws.next()=>{
                         let Some(Ok(Frame::Binary(b)))=frame else {break;};
                         if let ServerMsg::Voice(v)=sticktalk::backend::decode(&b).unwrap() {
@@ -323,13 +328,14 @@ impl Endpoint {
                     }
                     packet=socket.recv_from(&mut buffer)=>{let (n,from)=packet.unwrap();if let Some(p)=&mut peer {p.datagram(from,&buffer[..n],Instant::now()).unwrap();}}
                     c=commands.recv()=>match c {
+                        Some(Input::Target(kind,bps))=>if let Some(p)=&mut peer { p.set_send_bitrate(kind,bps); },
                         Some(Input::Control(data))=>peer.as_mut().unwrap().control(&rmp_serde::to_vec_named(&data).unwrap()).unwrap(),
                         Some(Input::Signal(s))=>send(&mut ws,ClientMsg::Voice(sticktalk_client_core::voice::encode(nonce,s).unwrap())).await,
                         Some(Input::Packet(kind,time,data,marker))=>if let Some(p)=&mut peer {p.send(kind,time,&data,marker,-24,Instant::now()).unwrap();},
                         Some(Input::Publish(kind))=>peer.as_mut().unwrap().publish(kind,true,ShareSurface::Monitor).unwrap(),
                         _=>break,
                     },
-                    _=tokio::time::sleep_until(deadline.into())=>if let Some(p)=&mut peer {p.timeout(Instant::now()).unwrap();},
+                    timer=clock.wait(deadline)=> { timer.unwrap(); if let Some(p)=&mut peer {p.timeout(Instant::now()).unwrap();} },
                 }
             }
         });
@@ -700,4 +706,427 @@ async fn file_1080p60_decodes_at_least_58_fps_for_sixty_seconds() {
     receiver.stop().await;
     server.stop().await;
     assert!(fps >= 58., "hardware decoded only {fps} fps");
+}
+
+struct BenchChild(std::process::Child);
+impl std::ops::Deref for BenchChild {
+    type Target = std::process::Child;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for BenchChild {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl Drop for BenchChild {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+/// Live monitor capture, real hardware encoder/SFU/two decoder *processes*.
+/// No windows, preview, camera, microphone, sounds, notifications or input injection.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "10-minute invisible live WGC acceptance; explicit invocation only"]
+async fn live_calls2_two_viewers_ten_minutes() {
+    if let Ok(role) = std::env::var("STICKTALK_CALLS2_ROLE") {
+        live_calls2_worker(&role).await;
+        return;
+    }
+    let server = Server::start().await;
+    let a = server.account("live_sharer").await;
+    let b = server.account("live_viewer_b").await;
+    let c = server.account("live_viewer_c").await;
+    let (mut aw, bw, channel, guild_id) = room_details(&server, &a, &b).await;
+    let mut cw = server.connect(&c).await;
+    let CommandResult::Invite(invite) = command(
+        &mut aw,
+        Command::CreateInvite {
+            guild_id,
+            ttl_seconds: 3600,
+            max_uses: 10,
+        },
+    )
+    .await
+    else {
+        panic!()
+    };
+    command(
+        &mut cw,
+        Command::JoinGuild {
+            invite_code: invite.code,
+        },
+    )
+    .await;
+    drop((aw, bw, cw));
+    let dir = tempfile::tempdir().unwrap();
+    let mut workers = vec![];
+    use std::os::windows::process::CommandExt;
+    for (role, auth) in [("sharer", a), ("viewer_b", b), ("viewer_c", c)] {
+        let log = std::fs::File::create(dir.path().join(format!("{role}.log"))).unwrap();
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "live_calls2_two_viewers_ten_minutes",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("STICKTALK_CALLS2_ROLE", role)
+            .env("STICKTALK_CALLS2_URL", &server.url)
+            .env(
+                "STICKTALK_CALLS2_AUTH",
+                serde_json::to_string(&auth).unwrap(),
+            )
+            .env("STICKTALK_CALLS2_CHANNEL", channel.0.to_string())
+            .env("STICKTALK_CALLS2_DIR", dir.path())
+            .creation_flags(0x08000000)
+            .stdout(log.try_clone().unwrap())
+            .stderr(log)
+            .spawn()
+            .unwrap();
+        workers.push((role, BenchChild(child)));
+    }
+    let deadline = Instant::now() + Duration::from_secs(90);
+    while !["sharer", "viewer_b", "viewer_c"]
+        .iter()
+        .all(|r| dir.path().join(format!("{r}.ready")).exists())
+    {
+        for (role, child) in &mut workers {
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "{role} stopped: {}",
+                std::fs::read_to_string(dir.path().join(format!("{role}.log"))).unwrap()
+            );
+        }
+        assert!(Instant::now() < deadline, "workers not ready");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    // GPU counters live ONLY in the coordinator. The provider has substantial
+    // allocations; charging those to a client would invalidate its RAM budget.
+    let mut gpu = gpu_usage::GpuCounters::new();
+    let pids: Vec<_> = workers.iter().map(|(_, c)| c.id()).collect();
+    let mut gpu_samples = std::collections::BTreeMap::<(u32, String), (f64, u64)>::new();
+    // Warm capture, negotiation, keyframes, hardware decoder and process caches.
+    tokio::time::sleep(Duration::from_secs(8)).await;
+    std::fs::write(dir.path().join("measure"), []).unwrap();
+    let seconds = bench_seconds();
+    let end = Instant::now() + Duration::from_secs(seconds + 30);
+    loop {
+        let mut done = true;
+        for (_, child) in &mut workers {
+            if child.try_wait().unwrap().is_none() {
+                done = false;
+            }
+        }
+        if done {
+            break;
+        }
+        if let Some(values) = gpu.as_mut().and_then(|g| g.sample(&pids)) {
+            for (key, value) in values {
+                let entry = gpu_samples.entry(key).or_default();
+                entry.0 += value;
+                entry.1 += 1;
+            }
+        }
+        assert!(Instant::now() < end, "acceptance process timed out");
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+    let output = std::env::var_os("STICKTALK_CALLS2_OUTPUT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("bench/share-fix-2026-11-13/default")
+        });
+    std::fs::create_dir_all(&output).unwrap();
+    let mut gpu_report=String::from("Per-process GPU engine means; GPU provider runs outside the measured clients. Values sum matching engines, not whole-adapter utilization.\n");
+    for (role, child) in &workers {
+        for ((pid, kind), (sum, n)) in &gpu_samples {
+            if *pid == child.id() {
+                gpu_report.push_str(&format!(
+                    "{role} {kind}: {:.4}% ({} samples)\n",
+                    sum / *n as f64,
+                    n
+                ));
+            }
+        }
+    }
+    println!("{gpu_report}");
+    std::fs::write(output.join("gpu-engines.log"), gpu_report).unwrap();
+    let mut failed = Vec::new();
+    for (role, mut child) in workers {
+        let log = std::fs::read_to_string(dir.path().join(format!("{role}.log"))).unwrap();
+        println!("{log}");
+        std::fs::write(output.join(format!("{role}.log")), log).unwrap();
+        let metrics = dir.path().join(format!("{role}.metrics.json"));
+        if metrics.exists() {
+            std::fs::copy(metrics, output.join(format!("{role}.metrics.json"))).unwrap();
+        }
+        if !child.wait().unwrap().success() {
+            failed.push(role);
+        }
+    }
+    server.stop().await;
+    assert!(failed.is_empty(), "acceptance failed for: {failed:?}");
+}
+
+fn bench_quality() -> sticktalk_media::Quality {
+    use sticktalk_media::{Quality, Resolution};
+    Quality {
+        resolution: match std::env::var("STICKTALK_CALLS2_QUALITY")
+            .as_deref()
+            .unwrap_or("1080")
+        {
+            "1080" => Resolution::P1080,
+            "1440" => Resolution::P1440,
+            "source" => Resolution::Source,
+            other => panic!("unknown quality {other}"),
+        },
+        ..Default::default()
+    }
+}
+fn bench_seconds() -> u64 {
+    let seconds = std::env::var("STICKTALK_CALLS2_SECONDS")
+        .map_or(600, |s| s.parse().expect("duration seconds"));
+    assert!((10..=600).contains(&seconds));
+    seconds
+}
+async fn live_calls2_worker(role: &str) {
+    use sticktalk_media::{process_usage, Decoder, EncodedFrame, ShareSession};
+    let url = std::env::var("STICKTALK_CALLS2_URL").unwrap();
+    assert!(url.starts_with("http://127.0.0.1:"));
+    let auth: AuthResponse =
+        serde_json::from_str(&std::env::var("STICKTALK_CALLS2_AUTH").unwrap()).unwrap();
+    let channel = Id(std::env::var("STICKTALK_CALLS2_CHANNEL")
+        .unwrap()
+        .parse()
+        .unwrap());
+    let dir = std::path::PathBuf::from(std::env::var("STICKTALK_CALLS2_DIR").unwrap());
+    let mut request = format!("{}/api/v1/ws", url.replace("http:", "ws:"))
+        .into_client_request()
+        .unwrap();
+    request
+        .headers_mut()
+        .insert("sec-websocket-protocol", "sticktalk.v1".parse().unwrap());
+    let (mut ws, _) = connect_async(request).await.unwrap();
+    assert!(matches!(read(&mut ws).await, ServerMsg::Hello(_)));
+    send(
+        &mut ws,
+        ClientMsg::Identify(Identify {
+            token: auth.token,
+            ..Default::default()
+        }),
+    )
+    .await;
+    assert!(matches!(read(&mut ws).await, ServerMsg::Ready(_)));
+    let mut endpoint = Endpoint::start(ws, auth.user.user.id, channel);
+    endpoint.connected().await;
+    let baseline = process_usage().unwrap();
+    let quality = bench_quality();
+    let share = if role == "sharer" {
+        let source = sticktalk_media::list_sources()
+            .unwrap()
+            .into_iter()
+            .find(|s| s.kind == sticktalk_media::SourceKind::Monitor && s.primary)
+            .unwrap();
+        let bitrate = quality.recommended_bitrate(source.size).unwrap();
+        let session = if std::env::var("STICKTALK_CALLS2_SOURCE").is_ok_and(|s| s == "synthetic") {
+            ShareSession::start_synthetic(
+                source.size,
+                sticktalk_media::ShareOptions {
+                    quality,
+                    bitrate,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        } else {
+            ShareSession::start(source, quality, bitrate).unwrap()
+        };
+        println!(
+            "capture source={} size={:?} quality={quality:?} hardware encoder={:?}, GPU={}",
+            std::env::var("STICKTALK_CALLS2_SOURCE").unwrap_or_else(|_| "WGC-primary".into()),
+            session.size,
+            session.encoder_kind,
+            session.gpu_name
+        );
+        endpoint
+            .input
+            .send(Input::Target(TrackKind::Screen, u64::from(bitrate)))
+            .await
+            .unwrap();
+        endpoint
+            .input
+            .send(Input::Publish(TrackKind::Screen))
+            .await
+            .unwrap();
+        Some(session)
+    } else {
+        None
+    };
+    let mut decoder = if share.is_none() {
+        Some(Decoder::new().unwrap())
+    } else {
+        None
+    };
+    let mut assembler = rtp::Reassembler::default();
+    let mut coded_size = sticktalk_media::Size {
+        width: 1920,
+        height: 1080,
+    };
+    std::fs::write(dir.join(format!("{role}.ready")), []).unwrap();
+    let mut measure: Option<(Instant, sticktalk_media::ProcessUsage)> = None;
+    let mut count = 0u64;
+    let seconds = bench_seconds();
+    let mut buckets = vec![0u32; seconds as usize];
+    let mut raw_packets = 0u64;
+    let mut raw_bytes = 0u64;
+    let mut access_units = 0u64;
+    let mut decode_errors = 0u64;
+    let mut decoded_keyframes = 0u64;
+    let mut traced_at = Instant::now();
+    let mut bytes = 0u64;
+    let mut timing = vec![];
+    let mut first: Option<(Instant, u32)> = None;
+    let mut last_usage = baseline;
+    println!(
+        "stage after media startup: working_set_mib={:.2} private_mib={:.2}",
+        process_usage().unwrap().rss_bytes as f64 / 1048576.,
+        process_usage().unwrap().private_bytes as f64 / 1048576.
+    );
+    // Sharer CPU/RAM do not need in-process GPU provider instrumentation.
+    let mut tick = tokio::time::interval(Duration::from_millis(1));
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let limit = Instant::now() + Duration::from_secs(seconds + 120);
+    loop {
+        assert!(Instant::now() < limit, "worker deadline");
+        if measure.is_none() && dir.join("measure").exists() {
+            measure = Some((Instant::now(), process_usage().unwrap()));
+            bytes = 0;
+        }
+        if measure
+            .as_ref()
+            .is_some_and(|(t, _)| t.elapsed() >= Duration::from_secs(seconds))
+        {
+            break;
+        }
+        tokio::select! {
+            _=tick.tick()=>{
+                if let Some(s)=&share {
+                    while let Ok(frame)=s.recv_timeout(Duration::ZERO) {
+                        let packets=rtp::packetize(&frame.data,1180).unwrap(); let n=packets.len();
+                        for (i,p) in packets.into_iter().enumerate() {
+                            endpoint.input.send(Input::Packet(TrackKind::Screen,(frame.timestamp as u64*9/1000) as u32,p.into(),i+1==n)).await.unwrap();
+                        }
+                        if let Some((t,_))=&measure {count+=1;buckets[(t.elapsed().as_secs() as usize).min(seconds as usize - 1)]+=1;bytes+=frame.data.len() as u64;}
+                    }
+                }
+            },
+            event=endpoint.received.recv()=>match event {
+                Some(Received::Signal(VoiceEvent::Bitrate {mid:_,bps})) if share.is_some() => {
+                    if let Some(s) = &share {
+                        s.set_bitrate(bps.clamp(100_000,100_000_000) as u32).unwrap();
+                        // The desired transport quality remains independent
+                        // of a temporary congestion ceiling.
+                    }
+                },
+                Some(Received::Keyframe(TrackKind::Screen)) => { if let Some(s)=&share { s.request_keyframe(); } },
+                Some(Received::Signal(VoiceEvent::Stats(stats))) => { if std::env::var_os("STICKTALK_VIDEO_TRACE").is_some() { println!("VIDEO_TRACE server_stats role={role} {stats:?}"); } },
+                Some(Received::Packet(TrackKind::Screen,ts,data,marker,seq)) => {
+                raw_packets += 1; raw_bytes += data.len() as u64;
+                if let Some((data,keyframe))=assembler.push(seq,ts,marker,&data) {
+                    access_units += 1; decoded_keyframes += u64::from(keyframe);
+                    if let Some(size) = rtp::dimensions(&data) { coded_size = size; }
+                    let frame=EncodedFrame {data,timestamp:i64::from(ts)*1000/9,duration:166_667,keyframe,size:coded_size,generation:0,encode_latency:Duration::ZERO};
+                    bytes+=frame.data.len() as u64;
+                    if let Some(decoder)=&mut decoder {
+                        match decoder.decode(frame) { Ok(frames) => {
+                            if let Some((t,_))=&measure {
+                                count+=frames.len() as u64; buckets[(t.elapsed().as_secs() as usize).min(seconds as usize - 1)]+=frames.len() as u32;
+                                if !frames.is_empty() {
+                                    let (at,origin)=*first.get_or_insert((Instant::now(),ts));
+                                    timing.push((t.elapsed().as_secs_f64(),at.elapsed().as_secs_f64()-f64::from(ts.wrapping_sub(origin))/90_000.));
+                                }
+                            }
+                        }, Err(error) => { decode_errors += 1; if decode_errors <= 3 { println!("decode error: {error}"); } } }
+                    }
+                }
+                },
+                _ => {},
+            },
+        }
+        if traced_at.elapsed() >= Duration::from_secs(1) {
+            traced_at = Instant::now();
+            last_usage = process_usage().unwrap();
+            if let Some(share) = &share {
+                println!(
+                    "VIDEO_TRACE encoder_out seconds={:.3} stats={:?}",
+                    measure
+                        .as_ref()
+                        .map_or(0., |(t, _)| t.elapsed().as_secs_f64()),
+                    share.stats()
+                );
+            }
+        }
+    }
+    let after = process_usage().unwrap();
+    let (start, before) = measure.unwrap();
+    let elapsed = start.elapsed().as_secs_f64();
+    let cpu = (after.cpu_seconds - before.cpu_seconds) / elapsed / after.logical_cpus as f64 * 100.;
+    let mean = |low: f64, high: f64| {
+        let s: Vec<_> = timing
+            .iter()
+            .filter(|(t, _)| *t >= low && *t < high)
+            .map(|(_, d)| *d)
+            .collect();
+        s.iter().sum::<f64>() / s.len().max(1) as f64
+    };
+    let window = seconds as f64 / 10.;
+    let drift = (mean(seconds as f64 - window, seconds as f64) - mean(0., window)) * 1000.;
+    let mut offsets = vec![(0.0, 0u32); seconds as usize];
+    for (time, offset) in &timing {
+        let bucket = &mut offsets[(*time as usize).min(seconds as usize - 1)];
+        bucket.0 += offset * 1000.;
+        bucket.1 += 1;
+    }
+    let offsets: Vec<Option<f64>> = offsets
+        .into_iter()
+        .map(|(sum, n)| (n != 0).then(|| sum / f64::from(n)))
+        .collect();
+    std::fs::write(dir.join(format!("{role}.metrics.json")), serde_json::to_vec_pretty(&serde_json::json!({
+        "role": role, "seconds": elapsed, "frames": count, "fps_by_second": buckets,
+        "latency_offset_ms_by_second": offsets, "drift_ms": drift, "cpu_machine_pct": cpu,
+        "rss_bytes": after.rss_bytes, "rss_delta_bytes": after.rss_bytes.saturating_sub(baseline.rss_bytes),
+        "private_bytes": after.private_bytes, "private_delta_bytes": after.private_bytes.saturating_sub(baseline.private_bytes),
+        "payload_bytes": bytes, "raw_packets_with_warmup": raw_packets, "raw_payload_bytes_with_warmup": raw_bytes,
+        "assembled_frames_with_warmup": access_units, "decode_errors": decode_errors,
+        "source": std::env::var("STICKTALK_CALLS2_SOURCE").unwrap_or_else(|_| "wgc".into()),
+        "quality": format!("{quality:?}"), "decoder_size": format!("{coded_size:?}")
+    })).unwrap()).unwrap();
+    println!("VIDEO_TRACE totals raw_packets={raw_packets} raw_payload_bytes={raw_bytes} assembled_access_units={access_units} received_keyframes={decoded_keyframes} decode_errors={decode_errors}");
+    println!("CALLS2 role={role} seconds={elapsed:.3} frames={count} avg_fps={:.3} min_1s_fps={} latency_drift_ms={drift:.3} cpu_machine_pct={cpu:.3} working_set_mib={:.2} working_set_delta_mib={:.2} peak_working_set_mib={:.2} bitrate_mbps={:.3} last_working_set_mib={:.2}",
+        count as f64/elapsed,buckets.iter().min().unwrap(),after.rss_bytes as f64/1048576.,(after.rss_bytes as f64-baseline.rss_bytes as f64)/1048576.,after.peak_rss_bytes as f64/1048576.,bytes as f64*8./elapsed/1_000_000.,last_usage.rss_bytes as f64/1048576.);
+    println!(
+        "private_bytes_mib={:.2} private_delta_mib={:.2}",
+        after.private_bytes as f64 / 1048576.,
+        (after.private_bytes as f64 - baseline.private_bytes as f64) / 1048576.
+    );
+    if let Some(share) = &share {
+        println!("capture stats: {:?}", share.stats());
+    }
+    drop(share);
+    drop(decoder);
+    endpoint.stop().await;
+    assert!(count as f64 / elapsed >= 58., "below 58fps");
+    assert!(drift.abs() < 20., "latency drift exceeds 20ms");
+    assert!(
+        *buckets.iter().min().unwrap() >= 50,
+        "one-second window below 50fps"
+    );
+    if role == "sharer" {
+        assert!(cpu < 5.);
+        assert!(after.rss_bytes.saturating_sub(baseline.rss_bytes) < 150_000_000);
+    }
 }

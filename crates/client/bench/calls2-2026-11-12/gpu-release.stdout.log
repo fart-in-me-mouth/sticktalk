@@ -1,0 +1,13 @@
+
+running 2 tests
+test gpu_picker_preview_and_measured_cpu_fallback ... picker GPU sample=0 wall_ms=59.279 cpu_ms=62.500 size=160x90
+picker CPU FALLBACK sample=0 wall_ms=67.343 cpu_ms=31.250 output_bytes=57600
+picker GPU sample=1 wall_ms=26.538 cpu_ms=0.000 size=160x90
+picker CPU FALLBACK sample=1 wall_ms=54.282 cpu_ms=15.625 output_bytes=57600
+picker GPU sample=2 wall_ms=24.806 cpu_ms=0.000 size=160x90
+picker CPU FALLBACK sample=2 wall_ms=54.846 cpu_ms=46.875 output_bytes=57600
+ok
+test shared_nv12_shader_reaches_iced_pipeline_without_cpu_fallback ... D3D11 NV12 -> RGB shader -> NT handle/fence -> DX12/wgpu -> iced pipeline pixel=[130, 130, 130, 255]; CPU pixel copies in production=0
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.28s

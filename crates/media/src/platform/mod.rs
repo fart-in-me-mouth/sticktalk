@@ -1,13 +1,19 @@
 mod capture;
 mod decoder;
+mod display;
+pub use display::{DisplayBridge, DisplayFrame};
 mod encoder;
 mod gpu;
 mod pacer;
+mod pattern;
 mod runtime;
 mod session;
+mod source;
 mod thumbnail;
 mod usage;
-pub use thumbnail::{source_process_id, source_thumbnail, SourceThumbnail};
+pub use thumbnail::{
+    source_gpu_thumbnail, source_process_id, source_thumbnail, GpuThumbnailer, SourceThumbnail,
+};
 
 pub use capture::list_sources;
 pub use decoder::{DecodedFrame, Decoder};

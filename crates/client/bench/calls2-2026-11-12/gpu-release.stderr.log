@@ -1,0 +1,3 @@
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+    Finished `release` profile [optimized] target(s) in 1.53s
+     Running tests\video.rs (C:/Users/dwhee/.cargo-target/sticktalk-calls2\release\deps\video-ae9d49cf39210e44.exe)

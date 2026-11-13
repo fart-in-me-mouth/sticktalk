@@ -35,6 +35,8 @@ use iced::{
 use sticktalk_proto::*;
 mod call;
 mod share_picker;
+#[cfg(feature = "wgpu")]
+mod stream_input;
 mod stream_view;
 pub(crate) fn purge_main_assets() {
     avatar_mask::clear();
@@ -322,6 +324,23 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     if app.main.avatar_gallery {
         return controls::avatar_gallery(app);
     }
+    if app.calls.preview_only {
+        return stream_view::video(
+            app,
+            VoiceSession {
+                user_id: Id(2),
+                connection_id: Id(902),
+            },
+            TrackKind::Screen,
+            app.height,
+        );
+    }
+
+    if app.calls.fullscreen && app.calls.popout.is_none() {
+        if let Some(session) = app.calls.focus {
+            return stream_view::view_at(app, session, app.height);
+        }
+    }
     if app.state.session.is_none() {
         return login(app);
     }
@@ -373,6 +392,15 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     let mut layers = vec![main];
     if let Some(overlay) = video::overlay(app) {
         layers.push(opaque(overlay));
+    }
+    if app.calls.camera_picker {
+        layers.push(
+            container(opaque(share_picker::cameras(app)))
+                .center_x(Fill)
+                .center_y(Fill)
+                .style(t::dim)
+                .into(),
+        );
     }
     if app.calls.picker {
         layers.push(
@@ -2725,6 +2753,20 @@ fn compose_editor<'a>(
     } else {
         editor.into()
     }
+}
+
+/// The pop-out shares the same bounded call/media lifetime; no second connection.
+pub fn view_window(app: &App, id: iced::window::Id) -> Element<'_, Msg> {
+    if app.calls.popout == Some(id) {
+        if let Some(session) = app.calls.focus {
+            return stream_view::view_at(
+                app,
+                session,
+                app.calls.popout_size.map_or(600., |s| s.height),
+            );
+        }
+    }
+    view(app)
 }
 
 #[cfg(test)]
