@@ -20,6 +20,9 @@ Section "StickTalk"
   ClearErrors
   File /oname=sticktalk.exe "${CLIENT}"
   File /oname=sticktalk-maintenance.exe "${MAINTENANCE}"
+  ; Emoji artwork attribution and full license travel with the desktop binary.
+  File /oname=Twemoji-NOTICE.txt "..\..\crates\client\assets\emoji\README.md"
+  File /oname=Twemoji-LICENSE.txt "..\..\crates\client\assets\emoji\LICENSE-GRAPHICS"
   IfErrors install_failed
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateShortcut "$SMPROGRAMS\StickTalk.lnk" "$INSTDIR\sticktalk.exe"
@@ -61,6 +64,8 @@ Section "Uninstall"
   Delete "$DESKTOP\StickTalk.lnk"
   Delete "$INSTDIR\sticktalk.exe"
   Delete "$INSTDIR\sticktalk-maintenance.exe"
+  Delete "$INSTDIR\Twemoji-NOTICE.txt"
+  Delete "$INSTDIR\Twemoji-LICENSE.txt"
   Delete "$INSTDIR\Uninstall.exe"
   ; Nonrecursive: retain user preferences, cache and unknown files.
   RMDir "$INSTDIR"

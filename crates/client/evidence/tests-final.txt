@@ -1,0 +1,104 @@
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-1503f294-d77270ccdf3a62c4\crates\client)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 57s
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-media-ui\debug\deps\sticktalk-38ffaf8eee4c864b.exe)
+
+running 9 tests
+test backend::tests::outgoing_queue_obeys_byte_budget_and_accepts_maximum_message ... ok
+test backend::tests::requires_secure_server ... ok
+test uploads::identity_tests::checkpoints_do_not_restart_an_in_flight_worker ... ok
+test platform::tests::dropping_a_spawned_task_cancels_its_work ... ok
+test backend::tests::inbound_budget_counts_large_non_frame_payloads_and_releases_on_drop ... ok
+test uploads::tests::restart_keeps_account_scoped_offset_and_no_token ... ok
+test oauth::flow_tests::full_oauth_exchange_uses_mock_authorization_and_token_servers_only ... ok
+test media::tests::decoded_lru_is_bounded_and_touches_preserve_recent_images ... ok
+test oauth::flow_tests::timeout_and_cancellation_drop_the_loopback_listener ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.14s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-media-ui\debug\deps\sticktalk-57610b4d904b3628.exe)
+
+running 25 tests
+test app::tests::high_refresh_drag_uses_velocity_not_only_single_event_distance ... ok
+test app::tests::composer_keyboard_contract ... ok
+test app::tests::mention_selection_and_editor_replacement ... ok
+test app::tests::virtualized_rows_are_bounded_and_measurements_override_estimates ... ok
+test features::picker_lifecycle_tests::cancel_cannot_delete_an_attachment_in_a_pending_send ... ok
+test app::tests::metadata_continuation_pages_append_instead_of_replacing ... ok
+test features::tests::closing_viewer_releases_original_and_ignores_late_results ... ok
+test app::tests::failed_history_request_does_not_leave_the_landing_loader_stuck ... ok
+test features::tests::ready_uploads_survive_channel_switches ... ok
+test app::tests::unrelated_stream_events_do_not_invalidate_message_geometry ... ok
+test app::tests::cancelled_server_icon_upload_cannot_apply_to_another_form ... ok
+test features::caret_tests::unicode_caret_in_middle_uses_cosmic_byte_index ... ok
+test app::tests::jump_to_unloaded_reply_replaces_only_the_region_and_ignores_stale_results ... ok
+test app::tests::subpixel_row_measurements_do_not_invalidate_layout_forever ... ok
+test features::picker_lifecycle_tests::search_clears_the_previous_hover_selection ... ok
+test features::tests::old_gif_queries_cannot_replace_new_results ... ok
+test ui::emoji_picker::tests::packed_art_index_is_sorted_and_common_sequences_render ... ok
+test app::tests::settings_escape_modal_return_and_google_cancel_are_local ... ok
+test ui::emoji_picker::tests::virtual_window_is_bounded ... ok
+test features::tests::shortcode_completion_preserves_tail_and_picker_inserts_at_caret ... ok
+test message_layout::tests::shaped_tree_and_layout_survive_leaving_the_visible_window ... ok
+test ui::integration_layout_tests::owner_and_member_reserve_the_same_action_column ... ok
+test app::tests::virtual_index_keeps_evicted_slots_and_only_builds_visible_rows ... ok
+test scroll_bench::input_tests::native_iced_fractional_wheel_and_scrollbar_drag_are_headless ... ok
+test headless::tests::offscreen_png_has_exact_size_and_neutral_rgba_tokens ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.52s
+
+     Running tests\live.rs (C:/Users/dwhee/.cargo-target/sticktalk-media-ui\debug\deps\live-ed45f9221d66bc82.exe)
+
+running 3 tests
+test native_upload_worker_checkpoints_completion_and_download_replaces_atomically ... ok
+test cut_socket_replays_into_the_real_client_reducer ... ok
+test phase_one_real_clients has been running for over 60 seconds
+test phase_one_real_clients ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 122.60s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-media-ui\debug\deps\sticktalk_client_core-652c2f14b9f43bf1.exe)
+
+running 28 tests
+test backend::tests::jump_targets_validate_dates_and_ids_without_a_timezone_or_clock ... ok
+test gifs::tests::playback_has_no_offscreen_or_background_exception ... ok
+test mock::google_tests::google_signup_collision_replay_and_last_method ... ok
+test backend::tests::rejects_trailing_and_large_frames ... ok
+test markdown::tests::cache_reuses_and_invalidates_edits ... ok
+test model::tests::ordered_upserts_and_duplicate_sequences ... ok
+test markdown::tests::discord_subset_and_escapes ... ok
+test model::tests::pagination_replays_deletion_and_edit ... ok
+test model::tests::read_counts_are_authoritative_and_idempotent ... ok
+test model::tests::reconnect_resume_backoff_and_terminal_close ... ok
+test emoji::tests::replacement_preserves_unknown_and_unicode ... ok
+test mock::tests::messages_reactions_and_receipt_replay ... ok
+test oauth::tests::pkce_rfc7636_vector_and_random_state ... ok
+test tests::http_upload_hashes_and_uses_durable_offset_then_finishes ... ok
+test oauth::tests::loopback_parser_rejects_spoofing_duplicates_and_denial ... ok
+test mock::tests::relationships_and_group_lifecycle ... ok
+test mock::tests::profile_presence_pagination_and_read ... ok
+test notifications::tests::dm_nothing_and_mentions_are_not_all ... ok
+test mock::tests::guild_channel_invite_and_moderation_flows ... ok
+test upload::tests::malformed_ack_cannot_spin_and_storage_full_is_preserved ... ok
+test notifications::tests::server_channel_expiry_and_focus ... ok
+test upload::tests::restart_uses_server_offset_not_stale_checkpoint ... ok
+test tests::state_read_permissions_mentions_and_timestamp_formatting_are_portable ... ok
+test emoji::tests::trigger_and_caret_are_utf8_safe ... ok
+test tests::injected_driver_correlates_heartbeats_retries_applied_cursor_and_expires_receipts ... ok
+test markdown::tests::unsafe_links_remain_text_and_nesting_is_bounded ... ok
+test model::tests::replay_budget_includes_reactions_and_mentions ... ok
+test model::tests::bounded_cache_and_purge ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.91s
+
+   Doc-tests sticktalk
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_client_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

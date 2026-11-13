@@ -1,0 +1,13 @@
+{
+  "allocator": "mimalloc",
+  "memory": {
+    "private_bytes": 232468480,
+    "working_set_bytes": 141729792
+  },
+  "method": "30 warm frames, 2s idle, live App/view/cache/renderer retained; one offscreen target; NO OS window or swapchain; not directly comparable to native-window working set",
+  "renderer": "dx12",
+  "size": [
+    1280,
+    800
+  ]
+}

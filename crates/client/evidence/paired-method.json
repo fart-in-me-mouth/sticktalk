@@ -1,0 +1,10 @@
+{
+  "base_commit": "f29af5fa9c02b8cfaaf96f400ceeb46a230c4fc3",
+  "implementation_commit": "43b7259f3eac8946210e97dcffbd0b87192ab65d",
+  "profile": "dev",
+  "backend": "dx12",
+  "allocator": "system",
+  "baseline": "original app/ui/main/theme from base commit; unchanged shared core and resource/scroll harness; no extra checkout or target directory",
+  "host": "owner-active shared PC, not isolated",
+  "restoration": "all four source files restored byte-for-byte and original mtimes; git diff --exit-code passed"
+}

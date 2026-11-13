@@ -1,0 +1,24 @@
+Command line defined: "CLIENT=C:\Users\dwhee\.cargo-target\sticktalk-media-ui\release\sticktalk.exe"
+Command line defined: "MAINTENANCE=C:\Users\dwhee\.cargo-target\sticktalk-media-ui\release\sticktalk-maintenance.exe"
+Command line defined: "OUTPUT=C:\Users\dwhee\.cargo-target\sticktalk-media-ui\StickTalk-0.1.0-Setup.exe"
+Command line defined: "VERSION=0.1.0"
+Processing config: C:\Users\dwhee\.cargo-target\sticktalk-media-ui\tools\nsis-3.13\nsisconf.nsh
+Processing script file: "tools/release/installer.nsi" (ACP)
+
+Processed 1 file, writing output (x86-unicode):
+
+Output: "C:\Users\dwhee\.cargo-target\sticktalk-media-ui\StickTalk-0.1.0-Setup.exe"
+Install: 3 pages (192 bytes), 1 section (2072 bytes), 386 instructions (10808 bytes), 183 strings (6250 bytes), 1 language table (278 bytes).
+Uninstall: 2 pages (192 bytes), 1 section (2072 bytes), 62 instructions (1736 bytes), 99 strings (2958 bytes), 1 language table (250 bytes).
+Datablock optimizer saved 26498 bytes (~0.1%).
+
+Using lzma (compress whole) compression.
+
+EXE header size:               51200 / 38912 bytes
+Install code:                          (20064 bytes)
+Install data:                          (23179591 bytes)
+Uninstall code+data:                   (21572 bytes)
+Compressed data:             9729072 / 23221227 bytes
+CRC (0x63C0C442):                  4 / 4 bytes
+
+Total size:                  9780276 / 23260143 bytes (42.0%)
