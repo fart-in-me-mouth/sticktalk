@@ -28,6 +28,7 @@ pub enum Msg {
     SettingsStored(Result<(), String>),
     SettingsPersist(u64),
     SettingsKey(keyboard::Key, keyboard::Modifiers),
+    Keyboard(keyboard::Key, keyboard::Modifiers, iced::event::Status),
     Server(String),
     Username(String),
     Password(String),
@@ -450,30 +451,8 @@ impl App {
                 UiEvent::Mouse(iced::mouse::Event::CursorMoved { position }) => {
                     Some(Msg::Main(crate::main_window::Message::Pointer(position)))
                 }
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    ref key, modifiers, ..
-                }) if crate::main_window::key(key, modifiers).is_some() => {
-                    crate::main_window::key(key, modifiers).map(Msg::Main)
-                }
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::Escape),
-                    ..
-                }) => Some(Msg::Escape),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::Tab),
-                    modifiers,
-                    ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::Tab(modifiers.shift())),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::ArrowDown),
-                    ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::MenuMove(false)),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::ArrowUp),
-                    ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::MenuMove(true)),
                 UiEvent::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
-                    Some(Msg::SettingsKey(key, modifiers))
+                    Some(Msg::Keyboard(key, modifiers, _status))
                 }
                 UiEvent::Mouse(iced::mouse::Event::ButtonPressed(_)) => Some(Msg::Activity),
                 UiEvent::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) => {
@@ -680,37 +659,62 @@ impl App {
             Msg::Main(m) => return self.main_update(m),
             Msg::Feature(event) => return crate::features::update(self, *event),
             Msg::Settings(action) => return self.settings_update(action),
+            Msg::Keyboard(key, modifiers, status) => {
+                // Record first: existing shortcuts must not consume the chord
+                // while the Keybinds page is waiting for a new binding.
+                if self.settings.binding.is_some() {
+                    if key == keyboard::Key::Named(Named::Escape) {
+                        self.settings.binding = None;
+                        return Task::none();
+                    }
+                    return self.update(Msg::SettingsKey(key, modifiers));
+                }
+                let binding = self
+                    .settings
+                    .preferences
+                    .keybinds
+                    .get("Quick Switcher")
+                    .map_or("Ctrl+K", String::as_str);
+                if let Some(action) = crate::main_window::key(&key, modifiers, binding) {
+                    return self.main_update(action);
+                }
+                let message = match key {
+                    keyboard::Key::Named(Named::Escape) => Msg::Escape,
+                    keyboard::Key::Named(Named::Tab) if status == iced::event::Status::Ignored => {
+                        Msg::Tab(modifiers.shift())
+                    }
+                    keyboard::Key::Named(Named::ArrowDown)
+                        if status == iced::event::Status::Ignored =>
+                    {
+                        Msg::MenuMove(false)
+                    }
+                    keyboard::Key::Named(Named::ArrowUp)
+                        if status == iced::event::Status::Ignored =>
+                    {
+                        Msg::MenuMove(true)
+                    }
+                    _ => Msg::SettingsKey(key, modifiers),
+                };
+                return self.update(message);
+            }
             Msg::SettingsKey(key, modifiers) => {
                 if let Some(index) = self.settings.binding {
-                    let name = match key {
-                        keyboard::Key::Character(s) => s.to_uppercase(),
-                        keyboard::Key::Named(
-                            Named::Control | Named::Shift | Named::Alt | Named::Meta,
-                        ) => return Task::none(),
-                        keyboard::Key::Named(n) => format!("{n:?}"),
-                        _ => return Task::none(),
+                    let Some(chord) = crate::main_window::chord(&key, modifiers) else {
+                        return Task::none();
                     };
-                    let mut parts = Vec::new();
-                    if modifiers.control() {
-                        parts.push("Ctrl".to_owned());
-                    }
-                    if modifiers.alt() {
-                        parts.push("Alt".to_owned());
-                    }
-                    if modifiers.shift() {
-                        parts.push("Shift".to_owned());
-                    }
-                    if modifiers.logo() {
-                        parts.push("Meta".to_owned());
-                    }
-                    parts.push(name);
                     self.settings.binding = None;
                     return self.settings_update(crate::settings_controller::Action::Text(
                         crate::settings_controller::TextField::Keybind(index),
-                        parts.join("+"),
+                        chord,
                     ));
                 }
-                if let Some(action) = crate::main_window::key(&key, modifiers) {
+                let binding = self
+                    .settings
+                    .preferences
+                    .keybinds
+                    .get("Quick Switcher")
+                    .map_or("Ctrl+K", String::as_str);
+                if let Some(action) = crate::main_window::key(&key, modifiers, binding) {
                     return self.main_update(action);
                 }
                 return crate::features::update(self, crate::features::Event::Key(key));
