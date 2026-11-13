@@ -397,6 +397,64 @@ impl Endpoint {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn simultaneous_native_screen_publications_keep_both_directions_live() {
+    let server = Server::start().await;
+    let a = server.account("two_stream_a").await;
+    let b = server.account("two_stream_b").await;
+    let (aw, bw, channel) = room(&server, &a, &b).await;
+    let mut alice = Endpoint::start(aw, a.user.user.id, channel);
+    let mut bob = Endpoint::start(bw, b.user.user.id, channel);
+    alice.connected().await;
+    bob.connected().await;
+    alice
+        .input
+        .send(Input::Publish(TrackKind::Screen))
+        .await
+        .unwrap();
+    bob.input
+        .send(Input::Publish(TrackKind::Screen))
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(750)).await;
+    let a_frame = vec![0x65, 0x11, 0x22, 0x33];
+    let b_frame = vec![0x65, 0x44, 0x55, 0x66];
+    alice
+        .input
+        .send(Input::Packet(
+            TrackKind::Screen,
+            90_000,
+            a_frame.clone().into(),
+            true,
+        ))
+        .await
+        .unwrap();
+    bob.input
+        .send(Input::Packet(
+            TrackKind::Screen,
+            90_000,
+            b_frame.clone().into(),
+            true,
+        ))
+        .await
+        .unwrap();
+    loop {
+        if let Received::Packet(TrackKind::Screen, _, bytes, _, _) = alice.recv().await {
+            assert_eq!(bytes, b_frame);
+            break;
+        }
+    }
+    loop {
+        if let Received::Packet(TrackKind::Screen, _, bytes, _, _) = bob.recv().await {
+            assert_eq!(bytes, a_frame);
+            break;
+        }
+    }
+    alice.stop().await;
+    bob.stop().await;
+    server.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn two_native_endpoints_exchange_file_opus_through_real_server() {
     file_audio_and_control(false).await;
 }
