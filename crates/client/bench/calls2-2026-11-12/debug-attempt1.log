@@ -1,0 +1,37 @@
+
+running 1 test
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds
+
+running 1 test
+live WGC hardware encoder=Hardware { name: "NVIDIA H.264 Encoder MFT" }, GPU=NVIDIA GeForce RTX 3060 Ti
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds
+CALLS2 role=sharer seconds=600.013 frames=35687 avg_fps=59.477 min_1s_fps=42 latency_drift_ms=0.000 cpu_machine_pct=1.741 working_set_mib=357.37 working_set_delta_mib=324.59 peak_working_set_mib=368.80 bitrate_mbps=3.622 last_working_set_mib=357.37 GPU_ENGINE_SUMS
+private_bytes_mib=358.21 private_delta_mib=354.55
+GPU engine means (sum of matching engines, percent): [("3D", 1.0411731081004787), ("Copy", 0.0), ("LegacyOverlay", 0.0), ("OFA_0", 0.0), ("Security", 0.0), ("VR", 0.0), ("VideoDecode", 0.0), ("VideoEncode", 22.502281927769513)]
+
+thread 'live_calls2_two_viewers_ten_minutes' (6240) panicked at crates\client\tests\voice.rs:1002:9:
+assertion failed: after.rss_bytes.saturating_sub(baseline.rss_bytes) < 150 * 1024 * 1024
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test live_calls2_two_viewers_ten_minutes ... FAILED
+
+failures:
+
+failures:
+    live_calls2_two_viewers_ten_minutes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 610.38s
+
+
+
+thread 'live_calls2_two_viewers_ten_minutes' (31096) panicked at crates\client\tests\voice.rs:836:9:
+sharer failed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test live_calls2_two_viewers_ten_minutes ... FAILED
+
+failures:
+
+failures:
+    live_calls2_two_viewers_ten_minutes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 616.59s
+

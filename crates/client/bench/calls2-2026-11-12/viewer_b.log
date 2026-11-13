@@ -1,0 +1,20 @@
+
+running 1 test
+bounded UDP receive buffer: before=65536 after=262144; send=262144
+stage after media startup: working_set_mib=46.56 private_mib=49.65
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds
+CALLS2 role=viewer_b seconds=600.008 frames=7702 avg_fps=12.837 min_1s_fps=0 latency_drift_ms=166.447 cpu_machine_pct=0.126 working_set_mib=84.53 working_set_delta_mib=66.22 peak_working_set_mib=85.70 bitrate_mbps=0.201 last_working_set_mib=84.53
+private_bytes_mib=87.43 private_delta_mib=84.76
+
+thread 'live_calls2_two_viewers_ten_minutes' (27708) panicked at crates\client\tests\voice.rs:1036:5:
+below 58fps
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test live_calls2_two_viewers_ten_minutes ... FAILED
+
+failures:
+
+failures:
+    live_calls2_two_viewers_ten_minutes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 608.88s
+

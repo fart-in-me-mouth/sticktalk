@@ -1,0 +1,6 @@
+
+running 1 test
+live WGC hardware encoder=Hardware { name: "NVIDIA H.264 Encoder MFT" }, GPU=NVIDIA GeForce RTX 3060 Ti
+stage after media startup: working_set_mib=82.91 private_mib=89.43
+stage after GPU counters: working_set_mib=82.94 private_mib=89.43
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds

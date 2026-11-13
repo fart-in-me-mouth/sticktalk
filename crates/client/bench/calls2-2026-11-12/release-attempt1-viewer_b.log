@@ -1,0 +1,19 @@
+
+running 1 test
+stage after media startup: working_set_mib=46.32 private_mib=50.04
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds
+CALLS2 role=viewer_b seconds=600.012 frames=8556 avg_fps=14.260 min_1s_fps=0 latency_drift_ms=379895.257 cpu_machine_pct=0.154 working_set_mib=76.23 working_set_delta_mib=58.02 peak_working_set_mib=76.23 bitrate_mbps=0.554 last_working_set_mib=76.23
+private_bytes_mib=88.76 private_delta_mib=86.16
+
+thread 'live_calls2_two_viewers_ten_minutes' (28092) panicked at crates\client\tests\voice.rs:1018:5:
+below 58fps
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test live_calls2_two_viewers_ten_minutes ... FAILED
+
+failures:
+
+failures:
+    live_calls2_two_viewers_ten_minutes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 608.94s
+
