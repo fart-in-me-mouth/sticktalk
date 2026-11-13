@@ -192,6 +192,8 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             }
             let screens = if args.iter().any(|v| v == "--main-only") {
                 MAIN_SCREENS
+            } else if args.iter().any(|v| v == "--settings-only") {
+                crate::ui::settings::SCREENS
             } else {
                 SCREENS
             };
@@ -244,7 +246,19 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
         iced::Pixels(t::BODY),
     ));
     // Native layout sensors settle actual virtual-row heights; no timer, browser or application Task is run.
-    for pass in 0..12 {
+    // Full-screen settings have no virtual chat-row measurement sensors. Two
+    // deterministic layout passes suffice; retain the chat settling budget elsewhere.
+    let passes = if matches!(
+        app.dialog,
+        crate::app::Dialog::UserSettings
+            | crate::app::Dialog::GuildSettings(_)
+            | crate::app::Dialog::ChannelSettings(_)
+    ) {
+        2
+    } else {
+        12
+    };
+    for pass in 0..passes {
         app.headless_scroll();
         let y = app.scroll_y;
         let mut ui = UserInterface::build(crate::ui::view(&app), size, cache, &mut renderer);
@@ -256,6 +270,47 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
             },
         );
         ui.operate(&renderer, &mut scroll);
+        // My Account is one page. These fixtures inspect its lower sections rather
+        // than recreating the removed sidebar sub-pages.
+        let settings_y = match screen {
+            "user-settings-voice-processing" => 650.,
+            "user-settings-voice-input" => 1050.,
+            "user-settings-password" => 560.,
+            "user-settings-sign-in"
+            | "sign-in-methods-unlinked"
+            | "sign-in-methods-google-only" => 700.,
+            "user-settings-account-status" => 880.,
+            _ => 0.,
+        };
+        if settings_y > 0. {
+            ui.operate(
+                &renderer,
+                &mut operation::scrollable::scroll_to::<()>(
+                    "settings-content".into(),
+                    operation::scrollable::AbsoluteOffset {
+                        x: Some(0.),
+                        y: Some(settings_y),
+                    },
+                ),
+            );
+        }
+        if matches!(
+            screen,
+            "user-settings-voice-processing" | "user-settings-voice-input"
+        ) {
+            let mut settings_scroll = operation::scrollable::scroll_to::<()>(
+                "settings-content".into(),
+                operation::scrollable::AbsoluteOffset {
+                    x: Some(0.),
+                    y: Some(if screen == "user-settings-voice-input" {
+                        1200.
+                    } else {
+                        640.
+                    }),
+                },
+            );
+            ui.operate(&renderer, &mut settings_scroll);
+        }
         let mut messages = Vec::new();
         let cursor = if screen == "main-tooltip" {
             mouse::Cursor::Available(iced::Point::new(
@@ -291,7 +346,7 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
             &mut iced::advanced::graphics::core::clipboard::Null,
             &mut messages,
         );
-        if pass == 11 {
+        if pass + 1 == passes {
             ui.draw(
                 &mut renderer,
                 &t::theme(&app),
@@ -435,6 +490,35 @@ fn idle_proof(_: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn delete_confirmation_backdrop_blocks_settings_navigation() {
+        load_fonts();
+        let size = Size::new(1280., 800.);
+        let app = App::headless("guild-settings-delete", size);
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            t::regular(),
+            iced::Pixels(t::BODY),
+        ));
+        let mut ui = UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+        let mut messages = Vec::new();
+        let _ = ui.update(
+            &[
+                iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+                iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+            ],
+            mouse::Cursor::Available(iced::Point::new(200., 198.)),
+            &mut renderer,
+            &mut iced::advanced::graphics::core::clipboard::Null,
+            &mut messages,
+        );
+        assert!(!messages.iter().any(|m| matches!(
+            m,
+            Msg::Settings(crate::settings_controller::Action::Server(_))
+        )));
+    }
     #[test]
     fn offscreen_png_has_exact_size_and_neutral_rgba_tokens() {
         load_fonts();

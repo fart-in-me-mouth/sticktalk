@@ -24,6 +24,10 @@ pub enum Msg {
     Call(crate::voice_ui::Action),
     Main(crate::main_window::Message),
     Feature(Box<crate::features::Event>),
+    Settings(crate::settings_controller::Action),
+    SettingsStored(Result<(), String>),
+    SettingsPersist(u64),
+    SettingsKey(keyboard::Key, keyboard::Modifiers),
     Server(String),
     Username(String),
     Password(String),
@@ -125,7 +129,6 @@ pub enum Msg {
     Escape,
     Hover(Option<Id>),
     ToggleMembers,
-    UserTab(u8),
     Copy(String),
     Emoji(String),
     Capture,
@@ -169,6 +172,7 @@ pub struct App {
     pub main: crate::main_window::State,
     pub extent: crate::history_extent::Window,
     pub features: crate::features::State,
+    pub settings: crate::settings_controller::State,
     pub state: ClientState,
     trace: Option<PathBuf>,
     trace_counts: BTreeMap<&'static str, u64>,
@@ -203,7 +207,7 @@ pub struct App {
     pub notice: String,
     pub dialog: Dialog,
     pub form: Form,
-    form_revision: u64,
+    pub(crate) form_revision: u64,
     pub editor: text_editor::Content,
     pub hovered_guild: Option<Option<Id>>,
     pub scroll_y: f32,
@@ -227,7 +231,7 @@ pub struct App {
     stats: Option<PathBuf>,
     heights: BTreeMap<Id, (u64, u32, u64, bool, f32)>,
     layout_cache: std::cell::RefCell<Option<RowCache>>,
-    layout_revision: u64,
+    pub(crate) layout_revision: u64,
     mock_mode: bool,
     typing_armed: bool,
     media_tasks: BTreeMap<Id, iced::task::Handle>,
@@ -269,6 +273,10 @@ impl App {
             main: crate::main_window::State::default(),
             extent: crate::history_extent::Window::default(),
             features: Default::default(),
+            settings: crate::settings_controller::State {
+                preferences: crate::settings_controller::State::load_preferences(mock),
+                ..Default::default()
+            },
             state: ClientState {
                 session,
                 ..ClientState::default()
@@ -452,13 +460,13 @@ impl App {
                     key: keyboard::Key::Named(Named::ArrowUp),
                     ..
                 }) if _status == iced::event::Status::Ignored => Some(Msg::MenuMove(true)),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed { key, .. })
-                    if _status == iced::event::Status::Ignored =>
-                {
-                    Some(Msg::feature(crate::features::Event::Key(key)))
+                UiEvent::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
+                    Some(Msg::SettingsKey(key, modifiers))
                 }
-                UiEvent::Keyboard(keyboard::Event::KeyPressed { .. })
-                | UiEvent::Mouse(iced::mouse::Event::ButtonPressed(_)) => Some(Msg::Activity),
+                UiEvent::Mouse(iced::mouse::Event::ButtonPressed(_)) => Some(Msg::Activity),
+                UiEvent::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) => {
+                    Some(Msg::Settings(crate::settings_controller::Action::DragEnd))
+                }
                 _ => None,
             }),
         ];
@@ -586,6 +594,48 @@ impl App {
             Msg::Call(action) => return self.call_update(action),
             Msg::Main(m) => return self.main_update(m),
             Msg::Feature(event) => return crate::features::update(self, *event),
+            Msg::Settings(action) => return self.settings_update(action),
+            Msg::SettingsKey(key, modifiers) => {
+                if let Some(index) = self.settings.binding {
+                    let name = match key {
+                        keyboard::Key::Character(s) => s.to_uppercase(),
+                        keyboard::Key::Named(
+                            Named::Control | Named::Shift | Named::Alt | Named::Meta,
+                        ) => return Task::none(),
+                        keyboard::Key::Named(n) => format!("{n:?}"),
+                        _ => return Task::none(),
+                    };
+                    let mut parts = Vec::new();
+                    if modifiers.control() {
+                        parts.push("Ctrl".to_owned());
+                    }
+                    if modifiers.alt() {
+                        parts.push("Alt".to_owned());
+                    }
+                    if modifiers.shift() {
+                        parts.push("Shift".to_owned());
+                    }
+                    if modifiers.logo() {
+                        parts.push("Meta".to_owned());
+                    }
+                    parts.push(name);
+                    self.settings.binding = None;
+                    return self.settings_update(crate::settings_controller::Action::Text(
+                        crate::settings_controller::TextField::Keybind(index),
+                        parts.join("+"),
+                    ));
+                }
+                if let Some(action) = crate::main_window::key(&key, modifiers) {
+                    return self.main_update(action);
+                }
+                return crate::features::update(self, crate::features::Event::Key(key));
+            }
+            Msg::SettingsPersist(revision) => return self.settings_persist(revision),
+            Msg::SettingsStored(result) => {
+                if let Err(e) = result {
+                    self.error = format!("Could not save settings: {e}");
+                }
+            }
             Msg::Hover(id) => {
                 self.hover_serial += 1;
                 self.hovered = id;
@@ -883,10 +933,7 @@ impl App {
                         "Could not open your browser. Check your default browser settings.".into();
                 }
             }
-            Msg::UserTab(tab) => {
-                self.user_tab = tab;
-                self.error.clear();
-            }
+
             Msg::Copy(code) => {
                 self.main.popover = None;
                 if self.mock_mode || crate::agent_window::enabled() {
@@ -1102,6 +1149,9 @@ impl App {
                     );
                 }
                 self.features.picker = crate::features::Picker::None;
+                if self.settings_dirty() {
+                    return self.settings_attention();
+                }
                 let field = if matches!(dialog, Dialog::JoinGuild) {
                     "dialog-field-2"
                 } else {
@@ -1125,6 +1175,23 @@ impl App {
                 return operation::focus(field);
             }
             Msg::Close | Msg::Escape => {
+                if self.settings.binding.take().is_some() {
+                    return Task::none();
+                }
+                if self.settings.delete_open {
+                    self.settings.delete_open = false;
+                    return Task::none();
+                }
+                if self.settings.role_menu.take().is_some() {
+                    return Task::none();
+                }
+                if self.settings.dragging.take().is_some() {
+                    self.settings.drag_over = None;
+                    return Task::none();
+                }
+                if self.settings_dirty() {
+                    return self.settings_attention();
+                }
                 if matches!(self.dialog, Dialog::None) && self.features.viewer.current().is_some() {
                     self.features.viewer.close();
                     return Task::none();
@@ -1832,6 +1899,12 @@ impl App {
                     self.history_slots.borrow_mut().clear();
                     self.layout_cache.borrow_mut().take();
                     self.state.model = Model::default();
+                    self.settings = crate::settings_controller::State {
+                        preferences: self.settings.preferences.clone(),
+                        preference_task: self.settings.preference_task.take(),
+                        preference_revision: self.settings.preference_revision,
+                        ..Default::default()
+                    };
                     self.settings_return = None;
                     self.state.manual_unread.clear();
                     self.methods = None;
@@ -1968,8 +2041,29 @@ impl App {
                     }
                 }
             }
+            Data::Settings {
+                snapshot,
+                generation,
+            } => {
+                if generation == self.form_revision
+                    && self.state.model.snapshot_valid(&snapshot.cursor)
+                {
+                    let data = snapshot.data.clone();
+                    if self.state.model.merge_settings(snapshot) {
+                        self.settings_snapshot(&data);
+                        self.settings_sync_profile();
+                        self.settings_sync_server();
+                    } else if matches!(
+                        data,
+                        sticktalk_client_core::settings::SnapshotData::Sessions(_)
+                    ) {
+                        self.settings_query(sticktalk_client_core::settings::Query::Sessions);
+                    }
+                }
+            }
             Data::Connected(tx) => self.tx = Some(tx),
             Data::Rejected { nonce, reason } => {
+                self.settings_response(nonce, false);
                 let files = self.state.pending_files.remove(&nonce).unwrap_or_default();
                 if let Some(Command::SendMessage(draft)) = self.state.pending.remove(&nonce) {
                     self.restore_send(draft, files);
@@ -1978,6 +2072,7 @@ impl App {
             }
             Data::Uncertain(nonces) => {
                 for n in nonces {
+                    self.settings_response(n, false);
                     self.state.pending.remove(&n);
                     self.state.pending_files.remove(&n);
                 }
@@ -2202,7 +2297,13 @@ impl App {
                         }
                     }
                     self.main_live_event(&envelope.event);
+                    let sessions_changed = matches!(envelope.event, Event::SessionsUpdated);
                     self.state.model.apply(*envelope);
+                    self.settings_sync_profile();
+                    self.settings_sync_server();
+                    if sessions_changed {
+                        self.settings_query(sticktalk_client_core::settings::Query::Sessions);
+                    }
                     self.ack();
                     if removed {
                         self.state.generation += 1;
@@ -2255,6 +2356,10 @@ impl App {
                     }
                 }
                 ServerMsg::Response(response) => {
+                    self.settings_response(
+                        response.nonce,
+                        matches!(response.outcome, CommandOutcome::Ok(_)),
+                    );
                     let command = self.state.pending.remove(&response.nonce);
                     let files = self
                         .state
@@ -2315,6 +2420,18 @@ impl App {
                                         ) {
                                             return self
                                                 .update(Msg::Guild(Some(d.summary.guild.id)));
+                                        }
+                                    }
+                                    CommandResult::Role(role) => {
+                                        if matches!(
+                                            command,
+                                            Some(Command::Launch(LaunchCommand::CreateRole { .. }))
+                                        ) {
+                                            return self.settings_update(
+                                                crate::settings_controller::Action::EditRole(
+                                                    role.id,
+                                                ),
+                                            );
                                         }
                                     }
                                     CommandResult::Invite(v) => {
@@ -2520,10 +2637,21 @@ impl App {
                         .channels
                         .contains_key(&snapshot.data.summary.id)
                 {
-                    self.state
+                    let channel = snapshot.data.summary.id;
+                    let old = self
+                        .state
                         .model
                         .topics
-                        .insert(snapshot.data.summary.id, snapshot.data.topic);
+                        .get(&channel)
+                        .cloned()
+                        .flatten()
+                        .unwrap_or_default();
+                    if self.settings.channel == Some(channel) && self.settings.channel_topic == old
+                    {
+                        self.settings.channel_topic =
+                            snapshot.data.topic.clone().unwrap_or_default();
+                    }
+                    self.state.model.topics.insert(channel, snapshot.data.topic);
                     self.state.model.reconcile_metadata(&snapshot.cursor);
                 }
             }
@@ -2534,6 +2662,15 @@ impl App {
                 generation,
             } => {
                 if self.state.member_page(guild, after, page, generation) {
+                    if matches!(self.dialog, Dialog::GuildSettings(GuildTab::Roles)) {
+                        if let Some(next) = self.state.member_after {
+                            self.request(Request::Members {
+                                guild,
+                                after: Some(next),
+                                generation,
+                            });
+                        }
+                    }
                     self.subscribe();
                     return self.load_images();
                 }
@@ -2586,13 +2723,9 @@ impl App {
                         } else if let (Dialog::GuildSettings(GuildTab::Overview), Some(guild_id)) =
                             (&self.dialog, self.state.guild)
                         {
-                            self.send(Command::UpdateGuild {
-                                guild_id,
-                                patch: GuildPatch {
-                                    name: Patch::Keep,
-                                    icon_id: Patch::Set(response.attachment.id),
-                                },
-                            });
+                            let _ = guild_id;
+                            self.settings.server.icon = Some(response.attachment.id);
+                            return self.load_images();
                         } else {
                             self.request(Request::DiscardUpload(response.attachment.id));
                         }
@@ -3007,6 +3140,17 @@ impl App {
         m.reactions.len().hash(&mut hash);
         self.row_decorations(m).hash(&mut hash);
         self.grouped_row(m).hash(&mut hash);
+        self.settings
+            .preferences
+            .chat_font_scale
+            .to_bits()
+            .hash(&mut hash);
+        matches!(
+            self.settings.preferences.density,
+            sticktalk_client_core::settings::Density::Compact
+        )
+        .hash(&mut hash);
+        self.settings.preferences.underline_links.hash(&mut hash);
         hash.finish()
     }
     fn ensure_rows(&self) {
@@ -3062,7 +3206,7 @@ impl App {
                 } else if crate::gifs::inline_url(&m.content) {
                     t::THUMB_H
                 } else {
-                    lines as f32 * t::BODY * t::LINE
+                    lines as f32 * t::BODY * self.settings.preferences.chat_font_scale * t::LINE
                 };
                 let (date, unread) = self.row_decorations(m);
                 let h = if grouped {
@@ -3409,6 +3553,7 @@ impl App {
         if let Some(me) = &self.state.model.me {
             ids.extend(me.user.avatar_id);
         }
+        ids.extend(self.settings.server.icon);
         ids.sort();
         ids.dedup();
         self.media_tasks.retain(|id, _| ids.contains(id));
@@ -3462,8 +3607,15 @@ impl App {
                 self.request(Request::DiscardUpload(id));
             }
         }
-        let is_settings = matches!(dialog, Dialog::UserSettings | Dialog::GuildSettings(_));
-        if matches!(self.dialog, Dialog::UserSettings | Dialog::GuildSettings(_)) && !is_settings {
+        let is_settings = matches!(
+            dialog,
+            Dialog::UserSettings | Dialog::GuildSettings(_) | Dialog::ChannelSettings(_)
+        );
+        if matches!(
+            self.dialog,
+            Dialog::UserSettings | Dialog::GuildSettings(_) | Dialog::ChannelSettings(_)
+        ) && !is_settings
+        {
             self.settings_return = Some(self.dialog.clone());
         }
         if is_settings {
@@ -3525,6 +3677,13 @@ impl App {
                             generation: self.state.generation,
                         });
                     }
+                    if *tab == GuildTab::Members || *tab == GuildTab::Roles {
+                        self.request(Request::Members {
+                            after: None,
+                            guild: g,
+                            generation: self.state.generation,
+                        });
+                    }
                     if *tab == GuildTab::Bans {
                         self.request(Request::Bans {
                             after: None,
@@ -3549,12 +3708,16 @@ impl App {
             }
             _ => {}
         }
+        self.settings_open(&dialog);
         self.dialog = dialog;
     }
     fn submit(&mut self) -> Task<Msg> {
         let name = self.form.name.trim().to_owned();
         let topic = self.form.topic.trim().to_owned();
-        let mut close = !matches!(self.dialog, Dialog::UserSettings | Dialog::GuildSettings(_));
+        let mut close = !matches!(
+            self.dialog,
+            Dialog::UserSettings | Dialog::GuildSettings(_) | Dialog::ChannelSettings(_)
+        );
         let command = match self.dialog.clone() {
             Dialog::HistoryJump => {
                 match backend::HistoryAnchor::parse(&name) {
@@ -4227,6 +4390,7 @@ impl App {
                 }
             }
         }
+        crate::ui::settings::configure(&mut app, screen);
         app.error.clear();
         app.mock_call_screen(screen);
         crate::features::fixture(&mut app, screen);

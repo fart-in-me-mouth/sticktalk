@@ -5,6 +5,92 @@ Uses pinned str0m 0.25.0 RTP mode with ICE/DTLS/SRTP/SCTP, Opus passthrough,
 independent camera/screen publications, receiver subscriptions/RID selection,
 per-hop TWCC/REMB/NACK/RTX and upstream PLI/FIR. No codec/capture/device/UI work.
 
+## Sparse-codec robustness / deployment requirement
+
+The High-only renegotiation panic was reproduced in str0m 0.25.0 at
+`format/payload_params.rs::Claimed::assert_claim_once` (`Pt locked multiple
+times: 112`). Our old configuration included both High level 3.1 (`64001f`)
+and High level 5.1 (`640033`). str0m treats levels as negotiable when matching
+H.264 **profiles**; a sparse recvonly/sendrecv offer lets both local entries claim the
+same remote PT. `rtc_config()` now configures one entry per profile and
+packetization mode, with a single High entry at level 5.1. No client codec
+ladder is required. The socket-free upstream reproduction intentionally
+panics; the actual SFU regression answers both initial and sparse re-offers.
+No dependency fork/upgrade or SDP capability fabrication is involved.
+
+The input policy rejects ambiguous bundled PT/profile/RTX mappings, invalid
+MID/RID identifiers and non-UDP/unspecified/multicast ICE endpoints before
+str0m mutation. MessagePack requires full consumption and depth <=32. SDP is
+bounded before parsing (64 KiB, 2048 lines, 2048 bytes/line); there are at most
+33 lifetime MIDs, 128 lifetime signaled SSRCs, and 128 retained ICE candidates
+per peer (embedded and trickled together). These are conservative policy
+limits, not a claim to accept every SDP extension or arbitrary codec. Offers
+that fail str0m negotiation terminate that peer because acceptance may have
+partially mutated its session. The SFU is always answerer; client answers
+are invalid signaling variants, not another negotiation entry point.
+
+Signaling, UDP input, timeout and data-channel event failures are contained
+per peer. A fatal peer gets a generic correlated `Unavailable` error **before**
+`Left`, so the host can deliver it before removing the lease. Its routes,
+grants and RTC are discarded; other peers/rooms keep running. Logs contain
+session identity only, never SDP, panic payloads or upstream SDP errors. The
+panic hook suppresses payloads only inside guarded SFU operations and preserves
+the prior hook outside them. This is a last-resort boundary, not validation.
+
+**Build servers with unwinding enabled**, including dependencies:
+
+```powershell
+$env:CARGO_PROFILE_RELEASE_PANIC = 'unwind'
+cargo build --release -p sticktalk-server
+```
+
+The workspace's existing default release profile uses `panic=abort`, which
+cannot implement an in-process error boundary. `Sfu::new` rejects such builds
+with typed `PanicStrategy` **before binding a socket** rather than silently
+providing false isolation. This does not change the client's abort profile.
+OOM/process termination cannot be recovered by an unwind boundary.
+
+### Additional quotas
+
+| Resource | Default enforcement |
+|---|---|
+| Peers | 64 globally, 16/room (existing configurable caps) |
+| Published tracks | 4/peer, 48/room; room moves also checked |
+| Video encrypted UDP egress | 32 Mbps/peer, 64 Mbps/room, existing 32 Mbps global; each has 100 ms burst, at least one MTU packet |
+| ICE candidates | 128/peer lifetime, 1024/room retained; duplicates do not consume another slot |
+| Offers, including invalid attempts | rolling 30/peer/minute, 120/room/minute |
+| Control messages | 512 bytes, named MessagePack, grant/session/replay validation, 1000 accepted inputs/server-second/grant |
+| Coordinates | unsigned 16-bit inclusive [0,65535]; out-of-range/negative wire values rejected; wheel [-4096,4096] |
+
+Audio/control are deliberately outside the **video** bitrate buckets. Bitrate
+feedback is capped per peer/room too, but final encrypted wire enforcement
+remains authoritative, including RTX. Room quota maps disappear when empty.
+Lifetime MID/SSRC/ICE limits intentionally require a fresh join when exhausted;
+repeated offers cannot grow str0m's retained session state indefinitely.
+
+### Robustness test modes
+
+Seven `prop_*` suites default to **3072 cases each** (21,504 total), without
+forking, UI, devices or non-loopback sockets. They cover SDP offers and answers,
+ICE, MessagePack control/coordinate parsing, control grants/rate/replay/bounds,
+layer selection, and stateful renegotiation sequences. Both arbitrary and
+structured valid/mutated inputs are exercised. CI can run the normal crate test
+command. `robustness-ci.toml` optimizes dependency arithmetic/parsing only;
+SFU/server code and dependency debug assertions remain enabled. Each stateful
+case has fresh RTC/ICE state; parser tests share a DTLS certificate, not a
+session. The longer local mode (6144 cases/suite, 43,008 total) is:
+
+```powershell
+$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-sfu-robust'
+$env:CARGO_INCREMENTAL = '0'
+$env:PROPTEST_CASES = '6144'
+cargo --config crates/sfu/robustness-ci.toml test -p sticktalk-sfu --lib prop_ -- --test-threads=1
+```
+
+Deterministic tests cover quota edges, a forced peer panic across two rooms,
+real encrypted per-peer/room cap enforcement, the existing global cap/1232-byte
+MTU paths, and host WS error/Left delivery while another real SRTP call survives.
+
 ## Embedding API
 
 ```rust,no_run
@@ -168,3 +254,16 @@ acknowledging ACL/mute/move changes, enqueue Refresh (Move for a room change),
 and fail closed if the command queue is full. Generation invalidates queued UDP
 output, including a driver batch. Offers, forwarding and encrypted RTP/RTX egress
 recheck track-specific permissions. Unmapped/withdrawn SSRCs are never sent.
+
+### Robustness validation — 2026-11-12
+
+- CI mode (`CI=true`, `PROPTEST_CASES=3072`): 134 tests passed across SFU/server;
+  seven property suites, **21,504 cases**. Existing global egress cap, RTX and
+  1232-byte MTU tests passed, as did the real encrypted peer/room caps.
+- Local long mode (`PROPTEST_CASES=6144`): seven suites passed, **43,008 cases**.
+  Total completed property cases: **64,512**. All sockets were loopback-only.
+- Commands passed (one dedicated target directory, removed after validation):
+  `cargo --config crates/sfu/robustness-ci.toml test -p sticktalk-sfu -p sticktalk-server --no-fail-fast`,
+  `cargo --config crates/sfu/robustness-ci.toml test -p sticktalk-sfu --lib prop_ -- --test-threads=1`,
+  `cargo clippy -p sticktalk-sfu -p sticktalk-server --all-targets -- -D warnings`,
+  `cargo fmt --all -- --check`.

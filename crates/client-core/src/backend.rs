@@ -25,6 +25,10 @@ pub enum Request<R = String> {
     },
     /// Ephemeral: never queued/replayed as a durable command.
     Voice(VoicePayload),
+    Settings {
+        query: crate::settings::Query,
+        generation: u64,
+    },
     Command(CommandRequest),
     Applied(ResumeCursor),
     View,
@@ -160,6 +164,10 @@ impl HistoryAnchor {
 pub enum Data<H = ()> {
     Launch {
         data: crate::launch::SnapshotData,
+        generation: u64,
+    },
+    Settings {
+        snapshot: Snapshot<crate::settings::SnapshotData>,
         generation: u64,
     },
     Connected(H),

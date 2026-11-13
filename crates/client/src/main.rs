@@ -21,6 +21,7 @@ mod scroll_bench;
 #[cfg(feature = "wgpu")]
 mod scroll_surface_bench;
 use sticktalk::storage;
+mod settings_controller;
 mod theme;
 mod ui;
 mod voice_ui;

@@ -37,6 +37,12 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
+# Server builds keep unwinding so the SFU can contain a failing peer session
+# (catch_unwind per peer) instead of aborting the whole process.
+[profile.server]
+inherits = "release"
+panic = "unwind"
+
 [profile.release-small]
 inherits = "release"
 opt-level = "s"

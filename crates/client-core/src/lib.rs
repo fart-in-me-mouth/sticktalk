@@ -13,6 +13,7 @@ pub mod model;
 pub mod notifications;
 pub mod oauth;
 pub mod protocol;
+pub mod settings;
 pub mod state;
 pub mod upload;
 pub mod voice;

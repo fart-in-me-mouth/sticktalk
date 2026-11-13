@@ -1,4 +1,7 @@
 pub use sticktalk_client_core::datetime::Parts;
+pub fn date(ms: u64) -> String {
+    sticktalk_client_core::datetime::calendar_date(local(ms))
+}
 #[cfg(windows)]
 pub fn local(ms: u64) -> Parts {
     use windows_sys::Win32::{

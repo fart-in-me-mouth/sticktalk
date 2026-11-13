@@ -187,6 +187,31 @@ impl<A: HttpTransport> Http<A> {
                 };
                 Ok(Data::Launch { data, generation })
             }
+            Request::Settings { query, generation } => {
+                use crate::settings::{Query, SnapshotData as S};
+                let path = query.path();
+                macro_rules! get {
+                    ($map:expr) => {{
+                        let v: Snapshot<_> = self.json(&path).await?;
+                        Snapshot {
+                            cursor: v.cursor,
+                            data: $map(v.data),
+                        }
+                    }};
+                }
+                let snapshot = match query {
+                    Query::Roles(_) => get!(S::Roles),
+                    Query::GuildProfile(_) => get!(S::GuildProfile),
+                    Query::Profile(_) => get!(S::Profile),
+                    Query::Overwrites(id) => get!(|v| S::Overwrites(id, v)),
+                    Query::Notifications => get!(S::Notifications),
+                    Query::Sessions => get!(S::Sessions),
+                };
+                Ok(Data::Settings {
+                    snapshot,
+                    generation,
+                })
+            }
             Request::NewerHistory {
                 seek,
                 channel,

@@ -5,15 +5,19 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::control::{Budget, Grant};
+use crate::validation::{self, valid_id};
 use sticktalk_proto::*;
 use str0m::bwe::BweKind;
-use str0m::change::SdpOffer;
 use str0m::channel::ChannelId as DataChannelId;
 use str0m::format::{Codec, PayloadParams};
 use str0m::media::{Direction, KeyframeRequestKind, MediaKind, Mid, Rid};
 use str0m::net::{Protocol, Receive};
 use str0m::rtp::{ExtensionValues, RtpPacket, RtpWrite, Ssrc};
 use str0m::{Candidate, Event, Input, Output, Rtc};
+
+#[cfg(test)]
+#[path = "robustness_tests.rs"]
+mod robustness_tests;
 
 /// Synchronous, fast host ACL check. Called for EVERY signaling/media/control
 /// action. The host must also disconnect on logout/WS loss and ACL revocation.
@@ -58,6 +62,12 @@ pub struct Config {
     pub max_datagram_bytes: u16,
     pub max_sessions: usize,
     pub max_channel_sessions: usize,
+    pub max_peer_tracks: usize,
+    pub max_room_tracks: usize,
+    pub peer_video_egress_bps: u64,
+    pub room_video_egress_bps: u64,
+    pub max_room_ice_candidates: usize,
+    pub max_room_renegotiations_per_minute: usize,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -69,12 +79,22 @@ impl Default for Config {
             max_datagram_bytes: DEFAULT_VOICE_UDP_BYTES,
             max_sessions: 64,
             max_channel_sessions: 16,
+            max_peer_tracks: 4,
+            max_room_tracks: 48,
+            peer_video_egress_bps: 32_000_000,
+            room_video_egress_bps: 64_000_000,
+            max_room_ice_candidates: 1024,
+            max_room_renegotiations_per_minute: 120,
         }
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("voice peer failed; leave and rejoin the call")]
+    PeerFailed,
+    #[error("SFU requires panic=unwind; build with CARGO_PROFILE_RELEASE_PANIC=unwind")]
+    PanicStrategy,
     #[error("invalid SFU configuration")]
     Config,
     #[error("UDP: {0}")]
@@ -99,6 +119,7 @@ impl Error {
             Self::Limit => ErrorCode::LimitExceeded,
             Self::Version => ErrorCode::VersionMismatch,
             Self::Backpressure => ErrorCode::Unavailable,
+            Self::PeerFailed | Self::PanicStrategy => ErrorCode::Unavailable,
             Self::Io(_) => ErrorCode::Unavailable,
             _ => ErrorCode::InvalidRequest,
         }
@@ -134,6 +155,12 @@ struct Route {
 }
 
 struct Peer {
+    failed: bool,
+    negotiation_times: VecDeque<Instant>,
+    negotiated_mids: BTreeMap<String, String>,
+    candidates: BTreeSet<String>,
+    ssrcs: BTreeSet<u32>,
+    video_budget: Budget,
     rtc: Rtc,
     channel: ChannelId,
     capabilities: VoiceCapabilities,
@@ -175,15 +202,21 @@ impl Peer {
 pub struct Sfu {
     pub(crate) socket: Option<UdpSocket>,
     config: Config,
+    // Private template also permits parser tests to reuse a DTLS identity
+    // without bypassing fresh ICE/session/negotiation state for each case.
+    rtc_template: str0m::RtcConfig,
     acl: Arc<dyn Authorizer>,
     local: SocketAddr,
     peers: BTreeMap<VoiceSession, Peer>,
     out: VecDeque<(u64, Out)>,
     events: VecDeque<(VoiceSession, Event)>,
     budget: Budget,
+    room_budgets: BTreeMap<ChannelId, Budget>,
+    room_negotiations: BTreeMap<ChannelId, VecDeque<Instant>>,
     now: Instant,
     // Used to reject abusive signaling independently of the chat command rate.
     signals: BTreeMap<VoiceSession, (Instant, u16)>,
+    failure_epoch: u64,
 }
 
 pub fn rtc_config() -> str0m::RtcConfig {
@@ -200,9 +233,19 @@ pub fn rtc_config() -> str0m::RtcConfig {
     let codecs = config.codec_config();
     codecs.clear();
     codecs.enable_opus(true, false);
-    codecs.enable_h264(true);
-    // High profile baseline for the native hardware path; browser baseline
-    // profiles above remain available for interoperability.
+    // One alternative per H.264 profile/packetization-mode, NOT per level.
+    // str0m matches across levels: two local High entries can both claim the
+    // same sparse remote PT in recvonly/sendrecv offers and panic.
+    for (pt, rtx, mode, profile) in [
+        (127, 121, true, 0x42001f),
+        (125, 107, false, 0x42001f),
+        (108, 109, true, 0x42e01f),
+        (124, 120, false, 0x42e01f),
+        (123, 119, true, 0x4d001f),
+        (35, 36, false, 0x4d001f),
+    ] {
+        codecs.add_h264(pt.into(), Some(rtx.into()), mode, profile);
+    }
     codecs.add_h264(112.into(), Some(113.into()), true, 0x640033);
     codecs.enable_h265(true);
     codecs.enable_av1(true);
@@ -211,6 +254,11 @@ pub fn rtc_config() -> str0m::RtcConfig {
 
 impl Sfu {
     pub fn new(config: Config, acl: Arc<dyn Authorizer>) -> Result<Self, Error> {
+        // catch_unwind cannot contain an aborting dependency. Refuse unsafe
+        // deployment rather than claiming peer isolation that doesn't exist.
+        if cfg!(panic = "abort") {
+            return Err(Error::PanicStrategy);
+        }
         if config.ports.is_empty()
             || *config.ports.start() == 0
             || config.bind_ip.is_ipv4() != config.advertised_ip.is_ipv4()
@@ -222,6 +270,15 @@ impl Sfu {
             || config.max_sessions > 256
             || config.max_channel_sessions == 0
             || config.max_channel_sessions > 32
+            || config.max_peer_tracks == 0
+            || config.max_peer_tracks > 4
+            || config.max_room_tracks == 0
+            || config.max_room_tracks > 128
+            || !(96_000..=1_000_000_000).contains(&config.video_egress_bps)
+            || !(96_000..=1_000_000_000).contains(&config.peer_video_egress_bps)
+            || !(96_000..=1_000_000_000).contains(&config.room_video_egress_bps)
+            || !(1..=4096).contains(&config.max_room_ice_candidates)
+            || !(1..=960).contains(&config.max_room_renegotiations_per_minute)
         {
             return Err(Error::Config);
         }
@@ -252,6 +309,7 @@ impl Sfu {
             socket: Some(socket),
             budget: Budget::new(config.video_egress_bps, config.max_datagram_bytes, now),
             config,
+            rtc_template: rtc_config(),
             acl,
             local,
             peers: BTreeMap::new(),
@@ -259,6 +317,9 @@ impl Sfu {
             events: VecDeque::new(),
             now,
             signals: BTreeMap::new(),
+            failure_epoch: 0,
+            room_budgets: BTreeMap::new(),
+            room_negotiations: BTreeMap::new(),
         })
     }
     pub fn local_addr(&self) -> SocketAddr {
@@ -345,11 +406,14 @@ impl Sfu {
         } else if envelope.payload.len() > 72 * 1024 {
             Err(Error::Limit)
         } else {
-            rmp_serde::from_slice(&envelope.payload).map_err(|_| Error::Invalid)
+            crate::boundary::run(|| validation::decode(&envelope.payload))
         };
         let signal = match decoded {
             Ok(signal) => signal,
             Err(error) => {
+                if matches!(error, Error::PeerFailed) {
+                    return self.peer_operation(key, envelope.nonce, |_| Err(error));
+                }
                 self.send(
                     key,
                     envelope.nonce,
@@ -377,7 +441,20 @@ impl Sfu {
             })
             .collect();
         for (s, ch) in moves {
-            self.move_session(s, ch)?;
+            if let Err(error) = self.move_session(s, ch) {
+                if matches!(error, Error::Backpressure) {
+                    return Err(error);
+                }
+                self.send(
+                    s,
+                    0,
+                    VoiceEvent::Error {
+                        code: error.code(),
+                        message: error.to_string(),
+                    },
+                )?;
+                self.disconnect(s)?;
+            }
         }
         Ok(())
     }
@@ -390,8 +467,11 @@ impl Sfu {
     ) -> Result<(), Error> {
         self.now = self.now.max(now);
         self.synchronize()?;
-        let result = self.signal(key, nonce, signal);
+        let result = self.peer_operation(key, nonce, |s| s.signal(key, nonce, signal));
         if let Err(error) = &result {
+            if matches!(error, Error::PeerFailed | Error::Rtc(_)) {
+                return result;
+            }
             self.send(
                 key,
                 nonce,
@@ -402,6 +482,34 @@ impl Sfu {
             )?;
         }
         self.pump()?;
+        result
+    }
+    fn peer_operation<T>(
+        &mut self,
+        key: VoiceSession,
+        nonce: Nonce,
+        operation: impl FnOnce(&mut Self) -> Result<T, Error>,
+    ) -> Result<T, Error> {
+        let epoch = self.failure_epoch;
+        let result = crate::boundary::run(|| operation(self));
+        if epoch == self.failure_epoch && matches!(result, Err(Error::PeerFailed | Error::Rtc(_))) {
+            self.failure_epoch = self.failure_epoch.wrapping_add(1);
+            // Never log the upstream error/panic payload: it may contain SDP.
+            tracing::warn!(?key, "SFU peer session failed; closing only this peer");
+            self.send(
+                key,
+                nonce,
+                VoiceEvent::Error {
+                    code: ErrorCode::Unavailable,
+                    message: Error::PeerFailed.to_string(),
+                },
+            )?;
+            if let Some(peer) = self.peers.get_mut(&key) {
+                peer.failed = true;
+                peer.control = None;
+            }
+            self.disconnect(key)?;
+        }
         result
     }
     fn signal(
@@ -430,19 +538,29 @@ impl Sfu {
             VoiceSignal::Leave => return self.disconnect(key),
             VoiceSignal::Offer { sdp, tracks } => return self.offer(key, nonce, sdp, tracks),
             VoiceSignal::Ice { candidate } => {
-                if candidate.len() > 1024 {
+                let parsed = validation::candidate(&candidate)?;
+                let channel = self.peers[&key].channel;
+                let room_ice: usize = self
+                    .peers
+                    .values()
+                    .filter(|p| p.channel == channel)
+                    .map(|p| p.candidates.len())
+                    .sum();
+                let peer = self.peers.get_mut(&key).unwrap();
+                if peer.candidates.contains(&candidate) {
+                    return self.send(key, nonce, VoiceEvent::Ack);
+                }
+                if peer.candidates.len() >= validation::MAX_ICE
+                    || room_ice >= self.config.max_room_ice_candidates
+                {
                     return Err(Error::Limit);
                 }
-                let candidate =
-                    Candidate::from_sdp_string(&candidate).map_err(|_| Error::Invalid)?;
-                if candidate.proto() != Protocol::Udp {
-                    return Err(Error::Invalid);
-                }
+                peer.candidates.insert(candidate);
                 self.peers
                     .get_mut(&key)
                     .unwrap()
                     .rtc
-                    .add_remote_candidate(candidate);
+                    .add_remote_candidate(parsed);
                 self.collect(key)?;
             }
             VoiceSignal::State { muted, deafened } => {
@@ -561,7 +679,9 @@ impl Sfu {
             .filter(|(_, p)| p.channel == channel)
             .map(|(s, p)| p.participant(*s))
             .collect();
-        let rtc = rtc_config()
+        let rtc = self
+            .rtc_template
+            .clone()
             .set_mtu(
                 usize::from(self.config.max_datagram_bytes)
                     ..=usize::from(self.config.max_datagram_bytes),
@@ -569,6 +689,16 @@ impl Sfu {
             .set_ice_lite(true)
             .build(self.now);
         let p = Peer {
+            failed: false,
+            negotiation_times: VecDeque::new(),
+            negotiated_mids: BTreeMap::new(),
+            candidates: BTreeSet::new(),
+            ssrcs: BTreeSet::new(),
+            video_budget: Budget::new(
+                self.config.peer_video_egress_bps,
+                self.config.max_datagram_bytes,
+                self.now,
+            ),
             rtc,
             channel,
             capabilities,
@@ -606,6 +736,13 @@ impl Sfu {
             limits: BTreeMap::new(),
         };
         self.peers.insert(key, p);
+        self.room_budgets.entry(channel).or_insert_with(|| {
+            Budget::new(
+                self.config.room_video_egress_bps,
+                self.config.max_datagram_bytes,
+                self.now,
+            )
+        });
         self.peers
             .get_mut(&key)
             .unwrap()
@@ -671,9 +808,39 @@ impl Sfu {
         sdp: String,
         tracks: Vec<PublishedTrack>,
     ) -> Result<(), Error> {
-        if sdp.len() > 65536
-            || sdp.lines().filter(|l| l.starts_with("m=")).count() > 33
-            || tracks.len() > 4
+        let peer = self.peers.get_mut(&key).ok_or(Error::Forbidden)?;
+        while peer
+            .negotiation_times
+            .front()
+            .is_some_and(|t| self.now.saturating_duration_since(*t) >= Duration::from_secs(60))
+        {
+            peer.negotiation_times.pop_front();
+        }
+        if peer.negotiation_times.len() >= validation::MAX_RENEGOTIATIONS {
+            return Err(Error::Limit);
+        }
+        // Count attempts, including malformed offers; don't allow parse-CPU abuse.
+        peer.negotiation_times.push_back(self.now);
+        let channel = peer.channel;
+        let room_times = self.room_negotiations.entry(channel).or_default();
+        while room_times
+            .front()
+            .is_some_and(|t| self.now.saturating_duration_since(*t) >= Duration::from_secs(60))
+        {
+            room_times.pop_front();
+        }
+        if room_times.len() >= self.config.max_room_renegotiations_per_minute {
+            return Err(Error::Limit);
+        }
+        room_times.push_back(self.now);
+        let room_tracks: usize = self
+            .peers
+            .iter()
+            .filter(|(s, p)| **s != key && p.channel == channel)
+            .map(|(_, p)| p.tracks.len())
+            .sum();
+        if tracks.len() > self.config.max_peer_tracks
+            || room_tracks + tracks.len() > self.config.max_room_tracks
         {
             return Err(Error::Limit);
         }
@@ -709,7 +876,41 @@ impl Sfu {
                 return Err(Error::Invalid);
             }
         }
-        let offer = SdpOffer::from_sdp_string(&sdp).map_err(|_| Error::Invalid)?;
+        let (offer, description) = validation::offer(&sdp)?;
+        let peer = &self.peers[&key];
+        let other_ice: usize = self
+            .peers
+            .iter()
+            .filter(|(s, p)| **s != key && p.channel == channel)
+            .map(|(_, p)| p.candidates.len())
+            .sum();
+        // str0m retains historical media slots. Bound lifetime MID growth, not
+        // just m-lines in a single offer, and disallow changing a MID's kind.
+        if peer
+            .negotiated_mids
+            .keys()
+            .chain(description.mids.keys())
+            .collect::<BTreeSet<_>>()
+            .len()
+            > validation::MAX_MEDIA
+            || peer.candidates.union(&description.candidates).count() > validation::MAX_ICE
+            || peer.ssrcs.union(&description.ssrcs).count() > validation::MAX_SSRC
+            || other_ice + peer.candidates.union(&description.candidates).count()
+                > self.config.max_room_ice_candidates
+        {
+            return Err(Error::Limit);
+        }
+        if description
+            .mids
+            .iter()
+            .any(|(mid, kind)| peer.negotiated_mids.get(mid).is_some_and(|old| old != kind))
+        {
+            return Err(Error::Invalid);
+        }
+        let peer = self.peers.get_mut(&key).unwrap();
+        peer.negotiated_mids.extend(description.mids);
+        peer.candidates.extend(description.candidates);
+        peer.ssrcs.extend(description.ssrcs);
         // Re-negotiation invalidates grants even when the same MID is reused.
         self.revoke(key)?;
         self.cancel_request(key)?;
@@ -735,8 +936,7 @@ impl Sfu {
             })
         });
         if !valid {
-            self.disconnect(key)?;
-            return Err(Error::Invalid);
+            return Err(Error::PeerFailed);
         }
         // Remove subscriptions to withdrawn/reconfigured sources. Other sessions
         // receive the full publication set and can subscribe after their offer.
@@ -778,13 +978,9 @@ impl Sfu {
         for mid in stale {
             self.remove_route(key, &mid)?;
         }
-        self.send(
-            key,
-            nonce,
-            VoiceEvent::Answer {
-                sdp: answer.to_sdp_string(),
-            },
-        )?;
+        let sdp = answer.to_sdp_string();
+        validation::answer(&sdp).map_err(|_| Error::PeerFailed)?;
+        self.send(key, nonce, VoiceEvent::Answer { sdp })?;
         self.broadcast(
             self.peers[&key].channel,
             VoiceEvent::Participant(self.peers[&key].participant(key)),
@@ -824,11 +1020,7 @@ impl Sfu {
         {
             return Err(Error::Invalid);
         }
-        if (track.layers.is_empty() && rid.is_some())
-            || (!track.layers.is_empty() && !rid.as_ref().is_some_and(|r| track.layers.contains(r)))
-        {
-            return Err(Error::Invalid);
-        }
+        validation::layer(&source_mid, &receiver_mid, &track.layers, rid.as_deref())?;
         if target.routes.len() >= 32 && !target.routes.contains_key(&receiver_mid) {
             return Err(Error::Limit);
         }
@@ -956,8 +1148,10 @@ impl Sfu {
         }
         if let Some(p) = self.peers.get_mut(&key) {
             if let Some(r) = p.routes.remove(mid) {
-                p.rtc.direct_api().remove_stream_tx(r.ssrc);
-                self.collect(key)?;
+                if !p.failed {
+                    p.rtc.direct_api().remove_stream_tx(r.ssrc);
+                    self.collect(key)?;
+                }
             }
         }
         Ok(())
@@ -997,7 +1191,9 @@ impl Sfu {
             .map(|(key, p)| {
                 (
                     *key,
-                    share * p.routes.values().filter(|r| r.video).count() as u64,
+                    (share * p.routes.values().filter(|r| r.video).count() as u64)
+                        .min(self.config.peer_video_egress_bps)
+                        .min(self.config.room_video_egress_bps),
                 )
             })
             .collect();
@@ -1017,7 +1213,18 @@ impl Sfu {
             let videos = p.routes.values().filter(|r| r.video).count() as u64;
             for r in p.routes.values().filter(|r| r.video) {
                 // Encoder payload must leave headroom for SRTP/RTP/RTX.
-                let bps = share.min(p.bwe / videos.max(1)).saturating_mul(9) / 10;
+                let room_routes = self
+                    .peers
+                    .values()
+                    .filter(|other| other.channel == p.channel)
+                    .flat_map(|other| other.routes.values())
+                    .filter(|r| r.video)
+                    .count() as u64;
+                let bps = share
+                    .min(p.bwe.min(self.config.peer_video_egress_bps) / videos.max(1))
+                    .min(self.config.room_video_egress_bps / room_routes.max(1))
+                    .saturating_mul(9)
+                    / 10;
                 limits
                     .entry((r.publisher, r.source.to_string()))
                     .and_modify(|b| *b = (*b).min(bps))
@@ -1082,15 +1289,26 @@ impl Sfu {
     ) -> Result<(), Error> {
         self.now = self.now.max(now);
         self.synchronize()?;
-        let Ok(receive) = Receive::new(Protocol::Udp, from, self.local, bytes) else {
+        let Ok(receive) = crate::boundary::run(|| {
+            Receive::new(Protocol::Udp, from, self.local, bytes).map_err(|_| Error::Invalid)
+        }) else {
             return Ok(());
         };
         let input = Input::Receive(self.now, receive);
-        let key = self
-            .peers
-            .iter()
-            .find(|(_, p)| p.rtc.accepts(&input))
-            .map(|(k, _)| *k);
+        let mut key = None;
+        for candidate in self.sessions() {
+            let result = self.peer_operation(candidate, 0, |s| {
+                Ok(s.peers[&candidate].rtc.accepts(&input))
+            });
+            match result {
+                Ok(true) => {
+                    key = Some(candidate);
+                    break;
+                }
+                Err(Error::Backpressure) => return Err(Error::Backpressure),
+                _ => {}
+            }
+        }
         if let Some(key) = key {
             if self.authorized(key).is_err() {
                 self.disconnect(key)?;
@@ -1101,11 +1319,16 @@ impl Sfu {
                 self.peers.get_mut(&key).unwrap().stats.mtu_dropped_packets += 1;
                 return Ok(());
             }
-            let result = self.peers.get_mut(&key).unwrap().rtc.handle_input(input);
-            self.collect(key)?;
-            // Malformed network packets must not terminate the whole SFU.
-            if result.is_err() {
-                return Ok(());
+            let result = self.peer_operation(key, 0, |s| {
+                s.peers
+                    .get_mut(&key)
+                    .ok_or(Error::Forbidden)?
+                    .rtc
+                    .handle_input(input)?;
+                s.collect(key)
+            });
+            if matches!(result, Err(Error::Backpressure)) {
+                return result;
             }
             self.pump()?;
         }
@@ -1134,26 +1357,37 @@ impl Sfu {
                 self.stop_speaking(key)?;
             }
             if self.peers[&key].deadline <= self.now {
-                let result = self
-                    .peers
-                    .get_mut(&key)
-                    .unwrap()
-                    .rtc
-                    .handle_input(Input::Timeout(self.now));
-                self.collect(key)?;
-                if result.is_err() || !self.peers[&key].rtc.is_alive() {
-                    self.disconnect(key)?;
+                let result = self.peer_operation(key, 0, |s| {
+                    s.peers
+                        .get_mut(&key)
+                        .ok_or(Error::Forbidden)?
+                        .rtc
+                        .handle_input(Input::Timeout(s.now))?;
+                    s.collect(key)?;
+                    if s.peers.get(&key).is_some_and(|p| !p.rtc.is_alive()) {
+                        s.disconnect(key)?;
+                    }
+                    Ok(())
+                });
+                if matches!(result, Err(Error::Backpressure)) {
+                    return result;
                 }
             }
         }
         self.pump()
     }
     fn collect(&mut self, key: VoiceSession) -> Result<(), Error> {
+        self.peer_operation(key, 0, |s| s.collect_inner(key))
+    }
+    fn collect_inner(&mut self, key: VoiceSession) -> Result<(), Error> {
         loop {
             let generation = self.acl.generation();
             let Some(peer) = self.peers.get_mut(&key) else {
                 return Ok(());
             };
+            if peer.failed {
+                return Ok(());
+            }
             match peer.rtc.poll_output()? {
                 Output::Timeout(deadline) => {
                     peer.deadline = deadline;
@@ -1197,7 +1431,15 @@ impl Sfu {
                         // publication authorization via a paced or retransmit queue.
                         let video = route.video;
                         // Final wire budget includes RTX and probes.
-                        if video && !self.budget.take(bytes.len(), self.now) {
+                        if video
+                            && (!peer.video_budget.take(bytes.len(), self.now)
+                                || !self
+                                    .room_budgets
+                                    .get_mut(&peer.channel)
+                                    .ok_or(Error::Config)?
+                                    .take(bytes.len(), self.now)
+                                || !self.budget.take(bytes.len(), self.now))
+                        {
                             peer.stats.cap_dropped_packets += 1;
                             continue;
                         }
@@ -1223,50 +1465,69 @@ impl Sfu {
             if !self.peers.contains_key(&key) {
                 continue;
             }
-            match event {
-                Event::Connected => {
-                    self.peers.get_mut(&key).unwrap().connected = true;
-                }
-                Event::Closed => {
-                    self.disconnect(key)?;
-                }
-                Event::RtpPacket(packet) => self.forward(key, packet)?,
-                Event::KeyframeRequest(req) => {
-                    if let Some(route) = self.peers[&key]
-                        .routes
-                        .values()
-                        .find(|r| r.target == req.mid)
-                        .cloned()
-                    {
-                        self.keyframe(route.publisher, route.source, route.rid, req.kind)?;
-                    }
-                }
-                Event::EgressBitrateEstimate(
-                    BweKind::Twcc { estimate, .. } | BweKind::Remb { estimate, .. },
-                ) => {
-                    self.peers.get_mut(&key).unwrap().bwe = estimate.as_u64();
-                    self.allocate()?;
-                }
-                Event::PeerStats(stats) => self.stats(key, stats)?,
-                // Refresh REMB after a newly started stream becomes known.
-                Event::MediaIngressStats(_) => self.allocate()?,
-                Event::ChannelOpen(id, label) => self.channel_open(key, id, &label)?,
-                Event::ChannelClose(id) if self.peers[&key].control == Some(id) => {
-                    self.peers.get_mut(&key).unwrap().control = None;
-                    self.revoke(key)?;
-                    let sharers: Vec<_> = self
-                        .peers
-                        .iter()
-                        .filter(|(_, p)| p.grant.as_ref().is_some_and(|g| g.controller == key))
-                        .map(|(k, _)| *k)
-                        .collect();
-                    for sharer in sharers {
-                        self.revoke(sharer)?;
-                    }
-                }
-                Event::ChannelData(data) => self.control_data(key, data)?,
-                _ => {}
+            let result = self.peer_operation(key, 0, |s| s.peer_event(key, event));
+            if matches!(result, Err(Error::Backpressure)) {
+                return result;
             }
+            if let Err(error) = result {
+                if !matches!(error, Error::PeerFailed | Error::Rtc(_)) {
+                    self.send(
+                        key,
+                        0,
+                        VoiceEvent::Error {
+                            code: error.code(),
+                            message: error.to_string(),
+                        },
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn peer_event(&mut self, key: VoiceSession, event: Event) -> Result<(), Error> {
+        match event {
+            Event::Connected => {
+                self.peers.get_mut(&key).unwrap().connected = true;
+            }
+            Event::Closed => {
+                self.disconnect(key)?;
+            }
+            Event::RtpPacket(packet) => self.forward(key, packet)?,
+            Event::KeyframeRequest(req) => {
+                if let Some(route) = self.peers[&key]
+                    .routes
+                    .values()
+                    .find(|r| r.target == req.mid)
+                    .cloned()
+                {
+                    self.keyframe(route.publisher, route.source, route.rid, req.kind)?;
+                }
+            }
+            Event::EgressBitrateEstimate(
+                BweKind::Twcc { estimate, .. } | BweKind::Remb { estimate, .. },
+            ) => {
+                self.peers.get_mut(&key).unwrap().bwe = estimate.as_u64();
+                self.allocate()?;
+            }
+            Event::PeerStats(stats) => self.stats(key, stats)?,
+            // Refresh REMB after a newly started stream becomes known.
+            Event::MediaIngressStats(_) => self.allocate()?,
+            Event::ChannelOpen(id, label) => self.channel_open(key, id, &label)?,
+            Event::ChannelClose(id) if self.peers[&key].control == Some(id) => {
+                self.peers.get_mut(&key).unwrap().control = None;
+                self.revoke(key)?;
+                let sharers: Vec<_> = self
+                    .peers
+                    .iter()
+                    .filter(|(_, p)| p.grant.as_ref().is_some_and(|g| g.controller == key))
+                    .map(|(k, _)| *k)
+                    .collect();
+                for sharer in sharers {
+                    self.revoke(sharer)?;
+                }
+            }
+            Event::ChannelData(data) => self.control_data(key, data)?,
+            _ => {}
         }
         Ok(())
     }
@@ -1666,17 +1927,28 @@ impl Sfu {
         sender: VoiceSession,
         data: str0m::channel::ChannelData,
     ) -> Result<(), Error> {
-        if self.authorized(sender).is_err()
-            || self.peers[&sender].control != Some(data.id)
-            || !data.binary
-            || data.data.len() > 512
-        {
-            return Ok(());
+        if self.authorized(sender).is_err() || self.peers[&sender].control != Some(data.id) {
+            return Err(Error::Forbidden);
         }
-        let Ok(message @ ControlData::Input { .. }) =
-            rmp_serde::from_slice::<ControlData>(&data.data)
-        else {
-            return Ok(());
+        let parsed = if data.binary {
+            validation::control(&data.data)
+        } else {
+            Err(Error::Invalid)
+        };
+        let message = match parsed {
+            Ok(message) => message,
+            Err(error) => {
+                let sharers: Vec<_> = self
+                    .peers
+                    .iter()
+                    .filter(|(_, p)| p.grant.as_ref().is_some_and(|g| g.controller == sender))
+                    .map(|(s, _)| *s)
+                    .collect();
+                for sharer in sharers {
+                    self.revoke(sharer)?;
+                }
+                return Err(error);
+            }
         };
         let ControlData::Input {
             sharer,
@@ -1691,14 +1963,14 @@ impl Sfu {
             || self.peers[&sharer].channel != self.peers[&sender].channel
             || !self.screen_active(sharer)
         {
-            return Ok(());
+            return Err(Error::Forbidden);
         }
         let matching = self.peers[&sharer]
             .grant
             .as_ref()
             .is_some_and(|g| g.controller == sender && g.id == grant);
         if !matching {
-            return Ok(());
+            return Err(Error::Forbidden);
         }
         let accepted = self
             .peers
@@ -1709,13 +1981,20 @@ impl Sfu {
             .unwrap()
             .accept(sender, grant, sequence, input, self.now);
         // Never silently drop a key-up while leaving control active.
-        if !accepted || !self.write_control(sharer, &message)? {
+        if accepted.is_err() || !self.write_control(sharer, &message)? {
             self.revoke(sharer)?;
+            return Err(accepted.err().unwrap_or(Error::PeerFailed));
         }
         Ok(())
     }
     /// Apply host policy immediately; withdrawing a screen also revokes remote control.
     pub fn refresh_policy(&mut self, key: VoiceSession) -> Result<(), Error> {
+        match self.peer_operation(key, 0, |s| s.refresh_policy_inner(key)) {
+            Err(Error::PeerFailed | Error::Rtc(_)) => Ok(()),
+            result => result,
+        }
+    }
+    fn refresh_policy_inner(&mut self, key: VoiceSession) -> Result<(), Error> {
         let Some(peer) = self.peers.get(&key) else {
             return Ok(());
         };
@@ -1761,6 +2040,9 @@ impl Sfu {
     }
     /// Move the established transport; discard all old-room subscriptions and grants.
     pub fn move_session(&mut self, key: VoiceSession, channel: ChannelId) -> Result<(), Error> {
+        self.peer_operation(key, 0, |s| s.move_session_inner(key, channel))
+    }
+    fn move_session_inner(&mut self, key: VoiceSession, channel: ChannelId) -> Result<(), Error> {
         let old = self.peers.get(&key).ok_or(Error::Forbidden)?.channel;
         if old == channel {
             return Ok(());
@@ -1770,6 +2052,23 @@ impl Sfu {
         }
         if self.peers.values().filter(|p| p.channel == channel).count()
             >= self.config.max_channel_sessions
+        {
+            return Err(Error::Limit);
+        }
+        let tracks: usize = self
+            .peers
+            .values()
+            .filter(|p| p.channel == channel)
+            .map(|p| p.tracks.len())
+            .sum();
+        let candidates: usize = self
+            .peers
+            .values()
+            .filter(|p| p.channel == channel)
+            .map(|p| p.candidates.len())
+            .sum();
+        if tracks + self.peers[&key].tracks.len() > self.config.max_room_tracks
+            || candidates + self.peers[&key].candidates.len() > self.config.max_room_ice_candidates
         {
             return Err(Error::Limit);
         }
@@ -1808,6 +2107,17 @@ impl Sfu {
             self.cancel_request(sharer)?;
         }
         self.peers.get_mut(&key).unwrap().channel = channel;
+        self.room_budgets.entry(channel).or_insert_with(|| {
+            Budget::new(
+                self.config.room_video_egress_bps,
+                self.config.max_datagram_bytes,
+                self.now,
+            )
+        });
+        self.room_budgets
+            .retain(|ch, _| self.peers.values().any(|p| p.channel == *ch));
+        self.room_negotiations
+            .retain(|ch, _| self.peers.values().any(|p| p.channel == *ch));
         self.broadcast(old, VoiceEvent::Left { session: key })?;
         self.refresh_policy(key)?;
         let participants = self
@@ -1828,6 +2138,12 @@ impl Sfu {
     }
     /// Call on WS disconnect, logout, kick or ACL change; idempotent.
     pub fn disconnect(&mut self, key: VoiceSession) -> Result<(), Error> {
+        match self.peer_operation(key, 0, |s| s.disconnect_inner(key)) {
+            Err(Error::PeerFailed | Error::Rtc(_)) => Ok(()),
+            result => result,
+        }
+    }
+    fn disconnect_inner(&mut self, key: VoiceSession) -> Result<(), Error> {
         if !self.peers.contains_key(&key) {
             return Ok(());
         }
@@ -1865,9 +2181,15 @@ impl Sfu {
         for (s, mid) in routes {
             self.remove_route(s, &mid)?;
         }
-        self.peers.get_mut(&key).unwrap().rtc.disconnect();
-        self.collect(key)?;
+        if !self.peers[&key].failed {
+            self.peers.get_mut(&key).unwrap().rtc.disconnect();
+            self.collect(key)?;
+        }
         let p = self.peers.remove(&key).unwrap();
+        if !self.peers.values().any(|peer| peer.channel == p.channel) {
+            self.room_budgets.remove(&p.channel);
+            self.room_negotiations.remove(&p.channel);
+        }
         self.signals.remove(&key);
         self.events.retain(|(s, _)| *s != key);
         self.broadcast(p.channel, VoiceEvent::Left { session: key })?;
@@ -1876,13 +2198,6 @@ impl Sfu {
     }
 }
 
-fn valid_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 16
-        && id
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
-}
 fn track_permission(kind: TrackKind) -> Permissions {
     match kind {
         TrackKind::Audio => Permissions::SPEAK,

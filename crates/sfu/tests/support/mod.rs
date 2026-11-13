@@ -65,6 +65,9 @@ impl Network {
             max_datagram_bytes: mtu,
             ..Config::default()
         };
+        Self::with_config(config, acl)
+    }
+    pub fn with_config(config: Config, acl: Arc<dyn sticktalk_sfu::Authorizer>) -> Self {
         Self {
             sfu: Sfu::new(config, acl).unwrap(),
             peers: vec![],

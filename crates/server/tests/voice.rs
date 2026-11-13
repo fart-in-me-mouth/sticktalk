@@ -1006,3 +1006,85 @@ async fn role_overwrites_and_moderation_stop_real_media_and_move_without_reconne
     drop(pb);
     s.stop().await;
 }
+
+#[tokio::test]
+async fn failed_sfu_negotiation_reports_clean_error_and_other_calls_continue() {
+    let s = TestServer::start().await;
+    let a = s.register("robust_owner").await;
+    let b = s.register("robust_receiver").await;
+    let c = s.register("robust_bad").await;
+    let (mut pa, _) = Peer::connect(&s, &a, None).await;
+    let (mut pb, _) = Peer::connect(&s, &b, None).await;
+    let (mut pc, _) = Peer::connect(&s, &c, None).await;
+    let (_, channel) = guild(&mut pa, &mut [&mut pb, &mut pc]).await;
+    let ma = pa.join(a.user.user.id, channel).await;
+    let mut mb = pb.join(b.user.user.id, channel).await;
+    let mc = pc.join(c.user.user.id, channel).await;
+    pb.subscribe(&mb, &ma, 0).await;
+    let mut rtc = sticktalk_sfu::rtc_config().build(std::time::Instant::now());
+    drain_initial(&mut rtc);
+    let mut api = rtc.sdp_api();
+    api.add_media(
+        str0m::media::MediaKind::Audio,
+        str0m::media::Direction::RecvOnly,
+        None,
+        None,
+        None,
+    );
+    let (offer, _) = api.apply().unwrap();
+    let sdp = offer
+        .to_sdp_string()
+        .lines()
+        .map(|line| {
+            if line.starts_with("a=group:BUNDLE") {
+                "a=group:BUNDLE private_invalid_mid"
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\r\n")
+        + "\r\n";
+    pc.signal(VoiceSignal::Offer {
+        sdp,
+        tracks: vec![],
+    })
+    .await;
+    let event = pc
+        .voice(|event| {
+            matches!(
+                event,
+                VoiceEvent::Error {
+                    code: ErrorCode::Unavailable,
+                    ..
+                }
+            )
+        })
+        .await;
+    let VoiceEvent::Error { message, .. } = event else {
+        unreachable!()
+    };
+    assert_eq!(message, "voice peer failed; leave and rejoin the call");
+    pc.voice(|event| matches!(event,VoiceEvent::Left {session} if *session==mc.session))
+        .await;
+    ma.send(0, 1, &[0xf8, 0x11, 0x22]).await;
+    mb.wait(|event| matches!(event,MediaEvent::Rtp(bytes) if bytes==&[0xf8,0x11,0x22]))
+        .await;
+    pa.ack(VoiceSignal::State {
+        muted: false,
+        deafened: false,
+    })
+    .await;
+    pb.ack(VoiceSignal::State {
+        muted: false,
+        deafened: false,
+    })
+    .await;
+    drop(ma);
+    drop(mb);
+    drop(mc);
+    pa.close().await;
+    pb.close().await;
+    pc.close().await;
+    s.stop().await;
+}

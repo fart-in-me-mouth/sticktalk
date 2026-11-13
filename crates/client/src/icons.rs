@@ -40,6 +40,10 @@ pub fn icon(name: &str, size: f32, color: Color) -> svg::Svg<'static> {
         "lightbulb" => include_bytes!("../assets/icons/lightbulb.svg"),
         "heart" => include_bytes!("../assets/icons/heart.svg"),
         "flag" => include_bytes!("../assets/icons/flag.svg"),
+        "monitor" => include_bytes!("../assets/icons/monitor.svg"),
+        "keyboard" => include_bytes!("../assets/icons/keyboard.svg"),
+        "accessibility" => include_bytes!("../assets/icons/accessibility.svg"),
+
         "arrow-down" => include_bytes!("../assets/icons/arrow-down.svg"),
         "arrow-left" => include_bytes!("../assets/icons/arrow-left.svg"),
         "arrow-right" => include_bytes!("../assets/icons/arrow-right.svg"),
