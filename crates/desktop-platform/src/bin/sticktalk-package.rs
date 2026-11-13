@@ -29,6 +29,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // sign <private-key> <installer> <version> <origin> <envelope-output>
             outside_repository(Path::new(&args[1]))?;
             let key = Ed25519KeyPair::from_pkcs8(&std::fs::read(&args[1])?).map_err(|_| "invalid key")?;
+            let public = option_env!("STICKTALK_UPDATE_PUBLIC_KEY").map(|p| STANDARD.decode(p)).transpose()?;
+            if public.is_some_and(|bytes| bytes.as_slice() != key.public_key().as_ref()) {
+                return Err("Signing key does not match the public key compiled into this release tool/client bundle".into());
+            }
             let mut file = std::fs::File::open(&args[2])?;
             let byte_size = file.metadata()?.len();
             let mut hash = Sha256::new();

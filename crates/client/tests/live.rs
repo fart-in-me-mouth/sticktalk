@@ -194,7 +194,7 @@ impl Fixture {
             .await
             .unwrap()
     }
-    async fn google(&self) -> AuthResponse {
+    async fn google_id_token(&self) -> String {
         // The opener is an HTTP script, never open::that/system browser.
         let challenge = Http::new(&self.url, "")
             .unwrap()
@@ -202,7 +202,7 @@ impl Fixture {
             .google_challenge(AccountOperation::SignIn)
             .await
             .unwrap();
-        let id_token = tokio::time::timeout(
+        tokio::time::timeout(
             DEADLINE,
             sticktalk::oauth::flow(
                 CLIENT_ID.into(),
@@ -221,7 +221,10 @@ impl Fixture {
         )
         .await
         .unwrap()
-        .unwrap();
+        .unwrap()
+    }
+    async fn google(&self) -> AuthResponse {
+        let id_token = self.google_id_token().await;
         let http = Http::new(&self.url, "").unwrap();
         for token in [
             self.mock
@@ -274,6 +277,17 @@ impl Fixture {
                 .await
                 .is_err()
         );
+        // A nonce challenge is one-use: a returning user must begin a fresh
+        // installed-app flow, never replay the token consumed during signup.
+        assert!(post_retry::<GoogleAuthResponse>(
+            &http,
+            "/auth/google",
+            &GoogleAuthRequest { id_token }
+        )
+        .await
+        .unwrap_err()
+        .starts_with("InvalidCredentials"));
+        let id_token = self.google_id_token().await;
         let result: GoogleAuthResponse =
             post_retry(&http, "/auth/google", &GoogleAuthRequest { id_token })
                 .await

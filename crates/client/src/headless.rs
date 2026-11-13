@@ -600,6 +600,34 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
     #[test]
+    fn first_run_cards_fit_and_dpi_renders_at_native_resolution() {
+        load_fonts();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("register.png");
+        render("register", 1280, 800, &path).unwrap();
+        let png = image::open(&path).unwrap().into_rgba8();
+        assert_eq!(
+            png.get_pixel(640, 16).0,
+            [0x11, 0x11, 0x13, 255],
+            "registration card clips the top margin"
+        );
+        assert_eq!(
+            png.get_pixel(640, 784).0,
+            [0x11, 0x11, 0x13, 255],
+            "registration card clips the bottom margin"
+        );
+        for scale in [1., 1.25, 1.5, 2.] {
+            let path = dir.path().join(format!("dpi-{scale}.png"));
+            render_scaled("login", 1280, 800, &path, scale).unwrap();
+            let png = image::open(path).unwrap();
+            use image::GenericImageView;
+            assert_eq!(
+                png.dimensions(),
+                ((1280. * scale) as u32, (800. * scale) as u32)
+            );
+        }
+    }
+    #[test]
     fn tooltip_is_anchored_to_the_icon_not_the_viewport() {
         load_fonts();
         let path =

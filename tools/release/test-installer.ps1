@@ -25,6 +25,7 @@ foreach ($path in @((Join-Path $InstallDir 'sticktalk.exe'), (Join-Path $Install
 if (Get-ItemProperty -LiteralPath $runKey -Name StickTalk -ErrorAction SilentlyContinue) { throw 'Existing StickTalk autostart preference: refusing test.' }
 New-Item -ItemType Directory -Force -Path $Scratch | Out-Null
 $uninstallCopy = Join-Path (Resolve-Path -LiteralPath $Scratch).Path 'test-uninstall.exe'
+Assert (!(Test-Path -LiteralPath $InstallDir)) 'Test prefix must not already exist.'
 $installed = $false
 try {
     $p = Start-Process -FilePath $Installer -ArgumentList "/S /DESKTOP=1 /D=$InstallDir" -WindowStyle Hidden -Wait -PassThru
@@ -32,6 +33,9 @@ try {
     Assert ($p.ExitCode -eq 0) "Silent install failed: $($p.ExitCode)"
     Assert ((Get-FileHash -LiteralPath (Join-Path $InstallDir 'sticktalk.exe')).Hash -eq (Get-FileHash -LiteralPath $Client).Hash) 'Installed client differs from built binary.'
     Assert (Test-Path -LiteralPath (Join-Path $InstallDir 'sticktalk-maintenance.exe')) 'Maintenance helper missing.'
+    foreach ($name in @('sticktalk.ico','vcruntime140.dll','vcruntime140_1.dll','msvcp140.dll')) {
+        Assert (Test-Path -LiteralPath (Join-Path $InstallDir $name)) "App-local runtime/icon missing: $name"
+    }
     $shell = New-Object -ComObject Shell.Application
     foreach ($lnk in @($start,$desktop)) {
         Assert (Test-Path -LiteralPath $lnk) "Shortcut missing: $lnk"
@@ -55,6 +59,7 @@ try {
         foreach ($path in @((Join-Path $InstallDir 'sticktalk.exe'),(Join-Path $InstallDir 'sticktalk-maintenance.exe'),(Join-Path $InstallDir 'Uninstall.exe'),$start,$desktop,$uninstallKey,$protocolKey,$aumidKey)) {
             Assert (!(Test-Path -LiteralPath $path)) "Uninstall left $path"
         }
+        Assert (!(Test-Path -LiteralPath $InstallDir)) 'Uninstall left an installation directory or payload files.'
         Remove-Item -LiteralPath $uninstallCopy -Force
         Write-Output 'PASS silent uninstall: binaries, shortcuts and registrations removed; existing cache preserved.'
     }

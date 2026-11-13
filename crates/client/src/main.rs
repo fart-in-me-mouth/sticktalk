@@ -77,8 +77,8 @@ fn main() -> iced::Result {
         use std::os::windows::process::CommandExt;
         if let Ok(exe) = std::env::current_exe() {
             let runner = storage::root().join("Updates/recover.exe");
-            if std::fs::copy(exe.with_file_name("sticktalk-maintenance.exe"), &runner).is_ok() {
-                if std::process::Command::new(runner)
+            if std::fs::copy(exe.with_file_name("sticktalk-maintenance.exe"), &runner).is_ok()
+                && std::process::Command::new(runner)
                     .arg("recover")
                     .arg(&exe)
                     .arg(storage::root().join("Updates"))
@@ -86,9 +86,8 @@ fn main() -> iced::Result {
                     .creation_flags(0x08000000)
                     .spawn()
                     .is_ok()
-                {
-                    return Ok(());
-                }
+            {
+                return Ok(());
             }
         }
     }

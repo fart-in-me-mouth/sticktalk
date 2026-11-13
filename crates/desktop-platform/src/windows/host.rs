@@ -35,7 +35,11 @@ pub fn install(hwnd: HWND, tx: Sender<TrayAction>) -> Result<()> {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)
         .join("StickTalk");
-    let minimized = std::fs::read(root.join("desktop.json")).is_ok_and(|v| v == b"true");
+    let minimized = std::fs::read(root.join("desktop.json"))
+        .ok()
+        .filter(|v| v.len() <= 128)
+        .and_then(|v| serde_json::from_slice::<bool>(&v).ok())
+        .unwrap_or(false);
     super::placement::restore(
         hwnd,
         &root,

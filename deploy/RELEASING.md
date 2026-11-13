@@ -6,7 +6,8 @@ One `StickTalk-Setup-<version>.exe`. Setup never asks for administrator access:
 it installs in `%LOCALAPPDATA%\Programs\StickTalk`, adds a Start menu shortcut,
 offers an optional desktop shortcut, and registers `sticktalk://` in HKCU.
 The first run shows a server address, sign-in/register, and Google when enabled
-by that server. Google uses a temporary **loopback callback**, not a custom URI.
+by that server **and included in the build configuration below**. Google uses a
+temporary **loopback callback**, not a custom URI.
 Uninstall keeps local settings by default; uncheck the keep-data box to remove
 the app-owned `%LOCALAPPDATA%\StickTalk` directory. Silent uninstall supports
 `/PURGE=1`; saved Windows credentials are separate (remove StickTalk entries
@@ -70,6 +71,14 @@ $env:STICKTALK_DEFAULT_SERVER = 'https://chat.your-domain.example'
 $env:STICKTALK_UPDATE_ORIGIN = 'https://chat.your-domain.example'
 ./deploy/windows/build-installer.ps1 -Version 0.1.1
 ```
+
+For Google sign-in, also set `STICKTALK_GOOGLE_CLIENT_ID` and
+`STICKTALK_GOOGLE_CLIENT_SECRET` in this shell to the Desktop OAuth credentials
+configured for the server (see `docs/GOOGLE_LOGIN.md`). Never put the secret in
+git or scripts. Both must be present, and the client ID must match the server's
+capability response. Without them, password login/register still work and Google
+is hidden; the engineering test build deliberately contains no real credentials.
+The local mock OAuth/PKCE/state tests require no real Google account or browser.
 
 These are compiled in. The update origin stays pinned even when someone changes
 chat servers. The public key is compiled into **both** client and maintenance

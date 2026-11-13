@@ -320,7 +320,9 @@ fn empty<'a>(name: &str, label: impl Into<String>, button: Button<'a>) -> Elemen
 }
 pub fn view(app: &App) -> Element<'_, Msg> {
     let content = content_view(app);
-    let content: Element<'_, Msg> = if app.state.model.me.is_none() && app.features.confirm_update {
+    let content: Element<'_, Msg> = if (app.state.session.is_none() || app.state.model.me.is_none())
+        && app.features.confirm_update
+    {
         if let Some(overlay) = crate::features::overlay(app) {
             stack![content, overlay].into()
         } else {
@@ -378,14 +380,25 @@ fn content_view(app: &App) -> Element<'_, Msg> {
     }
     if app.state.model.me.is_none() {
         return container(
-            column![
-                icon("message-circle", t::AVATAR, t::ACCENT),
-                title("Connecting…"),
-                connection_banner(app),
-                skeleton(),
-                action("Sign in instead", Msg::Logout)
-            ]
-            .spacing(t::S24),
+            container(
+                column![
+                    icon("message-circle", t::AVATAR, t::ACCENT),
+                    title(
+                        if matches!(app.state.connection, ConnectionState::Connecting) {
+                            "Connecting…"
+                        } else {
+                            "Reconnecting…"
+                        }
+                    ),
+                    connection_banner(app),
+                    skeleton(),
+                    action("Sign in instead", Msg::Logout)
+                ]
+                .spacing(t::S24),
+            )
+            .width(t::LOGIN_W)
+            .padding(t::S32)
+            .style(t::modal),
         )
         .center_x(Fill)
         .center_y(Fill)
@@ -533,7 +546,6 @@ fn login(app: &App) -> Element<'_, Msg> {
         ]
         .spacing(t::S12)
         .align_y(Center),
-        space().height(t::S8),
         title(if signup {
             "Pick a username"
         } else if app.register {
@@ -542,9 +554,9 @@ fn login(app: &App) -> Element<'_, Msg> {
             "Sign in"
         })
     ]
-    .spacing(t::S16);
+    .spacing(if app.register { t::S8 } else { t::S12 });
     if !signup {
-        form = form.push(line()).push(
+        form = form.push(
             column![
                 section("SERVER ADDRESS"),
                 text_input("https://chat.example.com", &app.server)
@@ -687,7 +699,7 @@ fn login(app: &App) -> Element<'_, Msg> {
     let body = column![container(scroller(form).height(Length::Shrink))
         .padding(t::S32)
         .width(t::LOGIN_W)
-        .max_height(app.height - t::MODAL_INSET)
+        .max_height(app.height - t::MODAL_INSET - t::S32 * 2.)
         .style(t::modal)]
     .spacing(t::S12)
     .align_x(Center);
@@ -712,6 +724,7 @@ fn connection_banner(app: &App) -> Element<'_, Msg> {
         icon("wifi-off", t::INLINE_ICON, t::WARNING),
         hint(match &app.state.connection {
             ConnectionState::Stopped(v) => v.clone(),
+            ConnectionState::Connecting => "Connecting to the server…".into(),
             _ => "Reconnecting… Your conversation will resume automatically.".into(),
         })
         .color(t::WARNING),

@@ -15,6 +15,9 @@ assert repo not in key.parents, 'Never use a key inside the repo'
 release = target/'release'
 work = target/'update-e2e'
 work.mkdir(exist_ok=True)
+test_data = work/'isolated-uninstall-data'
+test_data.mkdir(exist_ok=True)
+(test_data/'keep-me.txt').write_text('test-only settings')
 installer_key = r'Software\Microsoft\Windows\CurrentVersion\Uninstall\StickTalk'
 registry_keys = [installer_key, r'Software\Classes\sticktalk', r'Software\Classes\AppUserModelId\StickTalk.Desktop']
 for name in registry_keys:
@@ -57,7 +60,7 @@ for version, fail in [('0.0.1', False), ('0.0.2', False), ('0.0.3', True)]:
     if a.real_client and version == '0.0.2': shutil.copy2(release/'sticktalk.exe',folder/'sticktalk.exe')
     shutil.copy2(release/'sticktalk-maintenance.exe', folder/'sticktalk-maintenance.exe')
     setup = folder/f'StickTalk-Setup-{version}.exe'
-    run([a.nsis, f'/DCLIENT={folder / "sticktalk.exe"}', f'/DMAINTENANCE={folder / "sticktalk-maintenance.exe"}', f'/DOUTPUT={setup}', f'/DVERSION={version}', repo/'tools/release/installer.nsi'])
+    run([a.nsis, f'/DCLIENT={folder / "sticktalk.exe"}', f'/DMAINTENANCE={folder / "sticktalk-maintenance.exe"}', f'/DOUTPUT={setup}', f'/DVERSION={version}', '/DTESTFIXTURE', f'/DTEST_DATA_DIR={test_data}', repo/'tools/release/installer.nsi'])
     payload[version] = (folder, setup)
 
 state = {'manifest':b'', 'artifact':b'', 'ranges':[], 'checks':0, 'downloads':0}
@@ -149,6 +152,9 @@ def stop_fixtures():
 try:
     subprocess.run(f'"{payload["0.0.1"][1]}" /S /D={install}',creationflags=flags,check=True)
     assert installed_version() == '0.0.1'
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER,installer_key) as k:
+        assert pathlib.Path(winreg.QueryValueEx(k,'InstallLocation')[0]).resolve() == install.resolve()
+    assert (install/'sticktalk.exe').read_bytes() == (payload['0.0.1'][0]/'sticktalk.exe').read_bytes()
     publish('0.0.2')
     # Prove real interrupted download resumes via Range rather than restarting.
     manifest = json.loads(json.loads(state['manifest'])['manifest'])
@@ -212,6 +218,20 @@ finally:
         except FileNotFoundError: pass
     assert not any(install.iterdir()) if install.exists() else True
     if install.exists(): install.rmdir()
+# Exercise keep/purge against an injected TEST-only data root. The owner's
+# existing LocalAppData profile is never recursively deleted by these tests.
+assert (test_data/'keep-me.txt').exists()
+subprocess.run(f'"{payload["0.0.1"][1]}" /S /D={install}',creationflags=flags,check=True)
+uninstaller = work/'purge-uninstall.exe'
+shutil.copy2(install/'Uninstall.exe',uninstaller)
+subprocess.run(f'"{uninstaller}" /S /PURGE=1 _?={install}',creationflags=flags,check=True)
+assert not test_data.exists()
+assert not install.exists()
+for name in registry_keys:
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,name): raise RuntimeError('Purge uninstall left registry key '+name)
+    except FileNotFoundError: pass
+report['checks'].append('uninstall retains data by default and /PURGE=1 removes isolated test data')
 report['http_checks'] = state['checks']
 report['artifact_requests'] = state['downloads']
 (work/'results.json').write_text(json.dumps(report,indent=2))

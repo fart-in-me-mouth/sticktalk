@@ -21,6 +21,14 @@ SetCompressor /SOLID lzma
 UninstPage custom un.DataPage un.DataLeave
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
+!ifdef TEST_DATA_DIR
+  !ifndef TESTFIXTURE
+    !error "TEST_DATA_DIR is only permitted in explicit test fixtures"
+  !endif
+  !define DATA_ROOT "${TEST_DATA_DIR}"
+!else
+  !define DATA_ROOT "$LOCALAPPDATA\StickTalk"
+!endif
 Var KeepData
 Var KeepDataControl
 Var Options
@@ -38,6 +46,9 @@ Section "StickTalk (required)" Main
   File "${CRT}\*.dll"
 !endif
   File /oname=sticktalk.ico "..\..\crates\client\assets\sticktalk.ico"
+  File /oname=Inter-OFL.txt "..\..\crates\client\assets\fonts\Inter-OFL.txt"
+  File /oname=JetBrainsMono-OFL.txt "..\..\crates\client\assets\fonts\JetBrainsMono-OFL.txt"
+  File /oname=Lucide-LICENSE.txt "..\..\crates\client\assets\icons\LICENSE"
   File /oname=Twemoji-NOTICE.txt "..\..\crates\client\assets\emoji\README.md"
   File /oname=Twemoji-LICENSE.txt "..\..\crates\client\assets\emoji\LICENSE-GRAPHICS"
   IfErrors install_failed
@@ -136,13 +147,16 @@ Section "Uninstall"
   Delete "$INSTDIR\vcruntime140_threads.dll"
   Delete "$INSTDIR\vcruntime140.dll"
   Delete "$INSTDIR\sticktalk.ico"
+  Delete "$INSTDIR\Inter-OFL.txt"
+  Delete "$INSTDIR\JetBrainsMono-OFL.txt"
+  Delete "$INSTDIR\Lucide-LICENSE.txt"
   Delete "$INSTDIR\Twemoji-NOTICE.txt"
   Delete "$INSTDIR\Twemoji-LICENSE.txt"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
   ${If} $KeepData == ${BST_UNCHECKED}
     ; Fixed application-owned data root, never an argument-derived deletion target.
-    RMDir /r "$LOCALAPPDATA\StickTalk"
+    RMDir /r "${DATA_ROOT}"
   ${EndIf}
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "StickTalk"
   DeleteRegKey HKCU "Software\Classes\sticktalk"

@@ -26,6 +26,8 @@ try {
     if (!$SkipBuild) {
         if (!$env:STICKTALK_UPDATE_PUBLIC_KEY) { throw 'Set STICKTALK_UPDATE_PUBLIC_KEY before building. See deploy/RELEASING.md.' }
         if (!$env:STICKTALK_DEFAULT_SERVER) { throw 'Set STICKTALK_DEFAULT_SERVER before building.' }
+        if ($env:STICKTALK_UPDATE_PUBLIC_KEY -notmatch '^[A-Za-z0-9+/]{43}=$' -or [Convert]::FromBase64String($env:STICKTALK_UPDATE_PUBLIC_KEY).Length -ne 32) { throw 'Update public key must be exactly 32 bytes in base64.' }
+        if ([bool]$env:STICKTALK_GOOGLE_CLIENT_ID -ne [bool]$env:STICKTALK_GOOGLE_CLIENT_SECRET) { throw 'Google sign-in needs both STICKTALK_GOOGLE_CLIENT_ID and STICKTALK_GOOGLE_CLIENT_SECRET in the build shell, or neither to disable it.' }
         if (!$env:STICKTALK_UPDATE_ORIGIN) { $env:STICKTALK_UPDATE_ORIGIN = $env:STICKTALK_DEFAULT_SERVER }
         foreach ($value in @($env:STICKTALK_DEFAULT_SERVER,$env:STICKTALK_UPDATE_ORIGIN)) {
             $uri = $null

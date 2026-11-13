@@ -2304,6 +2304,10 @@ impl App {
                         }
                     }
                     match self.initial_screen.as_str() {
+                        "connecting" => {
+                            app.state.model.me = None;
+                            app.state.connection = ConnectionState::Connecting;
+                        }
                         "home-online" | "empty-home" => {
                             self.state.guild = None;
                             self.state.screen = Screen::Friends(FriendTab::Online);
@@ -4208,8 +4212,15 @@ impl App {
             rgba: image.into_raw(),
         });
         match screen {
-            "login" | "register" | "google-login" | "pick-username" | "login-error"
-            | "login-connecting" | "crash-recovery" => {
+            "login"
+            | "register"
+            | "google-login"
+            | "pick-username"
+            | "login-error"
+            | "login-connecting"
+            | "crash-recovery"
+            | "login-update"
+            | "login-update-confirm" => {
                 app.state.session = None;
                 app.register = screen == "register";
                 if matches!(
@@ -4220,6 +4231,10 @@ impl App {
                 }
                 app.meta_loading = screen == "login-connecting";
                 app.features.crash_notice = screen == "crash-recovery";
+                if matches!(screen, "login-update" | "login-update-confirm") {
+                    app.features.update_ready = Some("0.2.0".into());
+                }
+                app.features.confirm_update = screen == "login-update-confirm";
                 if screen == "login-error" {
                     app.meta_error =
                         "Could not connect. Check the server address and try again.".into();
