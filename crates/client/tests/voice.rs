@@ -825,7 +825,8 @@ async fn live_calls2_two_viewers_ten_minutes() {
     // Warm capture, negotiation, keyframes, hardware decoder and process caches.
     tokio::time::sleep(Duration::from_secs(8)).await;
     std::fs::write(dir.path().join("measure"), []).unwrap();
-    let end = Instant::now() + Duration::from_secs(630);
+    let seconds = bench_seconds();
+    let end = Instant::now() + Duration::from_secs(seconds + 30);
     loop {
         let mut done = true;
         for (_, child) in &mut workers {
@@ -846,8 +847,12 @@ async fn live_calls2_two_viewers_ten_minutes() {
         assert!(Instant::now() < end, "acceptance process timed out");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    let output =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bench/calls2-2026-11-12");
+    let output = std::env::var_os("STICKTALK_CALLS2_OUTPUT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("bench/share-fix-2026-11-13/default")
+        });
     std::fs::create_dir_all(&output).unwrap();
     let mut gpu_report=String::from("Per-process GPU engine means; GPU provider runs outside the measured clients. Values sum matching engines, not whole-adapter utilization.\n");
     for (role, child) in &workers {
@@ -876,8 +881,29 @@ async fn live_calls2_two_viewers_ten_minutes() {
     assert!(failed.is_empty(), "acceptance failed for: {failed:?}");
 }
 
+fn bench_quality() -> sticktalk_media::Quality {
+    use sticktalk_media::{Quality, Resolution};
+    Quality {
+        resolution: match std::env::var("STICKTALK_CALLS2_QUALITY")
+            .as_deref()
+            .unwrap_or("1080")
+        {
+            "1080" => Resolution::P1080,
+            "1440" => Resolution::P1440,
+            "source" => Resolution::Source,
+            other => panic!("unknown quality {other}"),
+        },
+        ..Default::default()
+    }
+}
+fn bench_seconds() -> u64 {
+    let seconds = std::env::var("STICKTALK_CALLS2_SECONDS")
+        .map_or(600, |s| s.parse().expect("duration seconds"));
+    assert!((10..=600).contains(&seconds));
+    seconds
+}
 async fn live_calls2_worker(role: &str) {
-    use sticktalk_media::{process_usage, Decoder, EncodedFrame, Quality, ShareSession};
+    use sticktalk_media::{process_usage, Decoder, EncodedFrame, ShareSession};
     let url = std::env::var("STICKTALK_CALLS2_URL").unwrap();
     assert!(url.starts_with("http://127.0.0.1:"));
     let auth: AuthResponse =
@@ -907,16 +933,33 @@ async fn live_calls2_worker(role: &str) {
     let mut endpoint = Endpoint::start(ws, auth.user.user.id, channel);
     endpoint.connected().await;
     let baseline = process_usage().unwrap();
+    let quality = bench_quality();
     let share = if role == "sharer" {
         let source = sticktalk_media::list_sources()
             .unwrap()
             .into_iter()
             .find(|s| s.kind == sticktalk_media::SourceKind::Monitor && s.primary)
             .unwrap();
-        let session = ShareSession::start(source, Quality::default(), 8_000_000).unwrap();
+        let bitrate = quality.recommended_bitrate(source.size).unwrap();
+        let session = if std::env::var("STICKTALK_CALLS2_SOURCE").is_ok_and(|s| s == "synthetic") {
+            ShareSession::start_synthetic(
+                source.size,
+                sticktalk_media::ShareOptions {
+                    quality,
+                    bitrate,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        } else {
+            ShareSession::start(source, quality, bitrate).unwrap()
+        };
         println!(
-            "live WGC hardware encoder={:?}, GPU={}",
-            session.encoder_kind, session.gpu_name
+            "capture source={} size={:?} quality={quality:?} hardware encoder={:?}, GPU={}",
+            std::env::var("STICKTALK_CALLS2_SOURCE").unwrap_or_else(|_| "WGC-primary".into()),
+            session.size,
+            session.encoder_kind,
+            session.gpu_name
         );
         endpoint
             .input
@@ -936,7 +979,14 @@ async fn live_calls2_worker(role: &str) {
     std::fs::write(dir.join(format!("{role}.ready")), []).unwrap();
     let mut measure: Option<(Instant, sticktalk_media::ProcessUsage)> = None;
     let mut count = 0u64;
-    let mut buckets = [0u32; 600];
+    let seconds = bench_seconds();
+    let mut buckets = vec![0u32; seconds as usize];
+    let mut raw_packets = 0u64;
+    let mut raw_bytes = 0u64;
+    let mut access_units = 0u64;
+    let mut decode_errors = 0u64;
+    let mut decoded_keyframes = 0u64;
+    let mut traced_at = Instant::now();
     let mut bytes = 0u64;
     let mut timing = vec![];
     let mut first: Option<(Instant, u32)> = None;
@@ -949,7 +999,7 @@ async fn live_calls2_worker(role: &str) {
     // Sharer CPU/RAM do not need in-process GPU provider instrumentation.
     let mut tick = tokio::time::interval(Duration::from_millis(1));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let limit = Instant::now() + Duration::from_secs(720);
+    let limit = Instant::now() + Duration::from_secs(seconds + 120);
     loop {
         assert!(Instant::now() < limit, "worker deadline");
         if measure.is_none() && dir.join("measure").exists() {
@@ -958,7 +1008,7 @@ async fn live_calls2_worker(role: &str) {
         }
         if measure
             .as_ref()
-            .is_some_and(|(t, _)| t.elapsed() >= Duration::from_secs(600))
+            .is_some_and(|(t, _)| t.elapsed() >= Duration::from_secs(seconds))
         {
             break;
         }
@@ -970,41 +1020,54 @@ async fn live_calls2_worker(role: &str) {
                         for (i,p) in packets.into_iter().enumerate() {
                             endpoint.input.send(Input::Packet(TrackKind::Screen,(frame.timestamp as u64*9/1000) as u32,p.into(),i+1==n)).await.unwrap();
                         }
-                        if let Some((t,_))=&measure {count+=1;buckets[(t.elapsed().as_secs() as usize).min(599)]+=1;bytes+=frame.data.len() as u64;}
+                        if let Some((t,_))=&measure {count+=1;buckets[(t.elapsed().as_secs() as usize).min(seconds as usize - 1)]+=1;bytes+=frame.data.len() as u64;}
                     }
                 }
             },
             event=endpoint.received.recv()=>match event {
                 Some(Received::Signal(VoiceEvent::Bitrate {mid,bps})) if share.is_some() => {
                     if let Some(s) = &share {
-                        s.set_quality(Quality::default(), bps.clamp(100_000,100_000_000) as u32).unwrap();
+                        s.set_quality(quality, bps.clamp(100_000,100_000_000) as u32).unwrap();
                         // Configure the transport actor on its own thread.
                         endpoint.input.send(Input::Budget(mid, bps)).await.unwrap();
                     }
                 },
                 Some(Received::Keyframe(TrackKind::Screen)) => { if let Some(s)=&share { s.request_keyframe(); } },
+                Some(Received::Signal(VoiceEvent::Stats(stats))) => { if std::env::var_os("STICKTALK_VIDEO_TRACE").is_some() { println!("VIDEO_TRACE server_stats role={role} {stats:?}"); } },
                 Some(Received::Packet(TrackKind::Screen,ts,data,marker,seq)) => {
+                raw_packets += 1; raw_bytes += data.len() as u64;
                 if let Some((data,keyframe))=assembler.push(seq,ts,marker,&data) {
+                    access_units += 1; decoded_keyframes += u64::from(keyframe);
                     let frame=EncodedFrame {data,timestamp:i64::from(ts)*1000/9,duration:166_667,keyframe,size:sticktalk_media::Size {width:1920,height:1080},generation:0,encode_latency:Duration::ZERO};
                     bytes+=frame.data.len() as u64;
                     if let Some(decoder)=&mut decoder {
-                        if let Ok(frames)=decoder.decode(frame) {
+                        match decoder.decode(frame) { Ok(frames) => {
                             if let Some((t,_))=&measure {
-                                count+=frames.len() as u64; buckets[(t.elapsed().as_secs() as usize).min(599)]+=frames.len() as u32;
+                                count+=frames.len() as u64; buckets[(t.elapsed().as_secs() as usize).min(seconds as usize - 1)]+=frames.len() as u32;
                                 if !frames.is_empty() {
                                     let (at,origin)=*first.get_or_insert((Instant::now(),ts));
                                     timing.push((t.elapsed().as_secs_f64(),at.elapsed().as_secs_f64()-f64::from(ts.wrapping_sub(origin))/90_000.));
                                 }
                             }
-                        }
+                        }, Err(error) => { decode_errors += 1; if decode_errors <= 3 { println!("decode error: {error}"); } } }
                     }
                 }
                 },
                 _ => {},
             },
         }
-        if count.is_multiple_of(60) {
+        if traced_at.elapsed() >= Duration::from_secs(1) {
+            traced_at = Instant::now();
             last_usage = process_usage().unwrap();
+            if let Some(share) = &share {
+                println!(
+                    "VIDEO_TRACE encoder_out seconds={:.3} stats={:?}",
+                    measure
+                        .as_ref()
+                        .map_or(0., |(t, _)| t.elapsed().as_secs_f64()),
+                    share.stats()
+                );
+            }
         }
     }
     let after = process_usage().unwrap();
@@ -1019,7 +1082,9 @@ async fn live_calls2_worker(role: &str) {
             .collect();
         s.iter().sum::<f64>() / s.len().max(1) as f64
     };
-    let drift = (mean(540., 600.) - mean(0., 60.)) * 1000.;
+    let window = seconds as f64 / 10.;
+    let drift = (mean(seconds as f64 - window, seconds as f64) - mean(0., window)) * 1000.;
+    println!("VIDEO_TRACE totals raw_packets={raw_packets} raw_payload_bytes={raw_bytes} assembled_access_units={access_units} received_keyframes={decoded_keyframes} decode_errors={decode_errors}");
     println!("CALLS2 role={role} seconds={elapsed:.3} frames={count} avg_fps={:.3} min_1s_fps={} latency_drift_ms={drift:.3} cpu_machine_pct={cpu:.3} working_set_mib={:.2} working_set_delta_mib={:.2} peak_working_set_mib={:.2} bitrate_mbps={:.3} last_working_set_mib={:.2}",
         count as f64/elapsed,buckets.iter().min().unwrap(),after.rss_bytes as f64/1048576.,(after.rss_bytes as f64-baseline.rss_bytes as f64)/1048576.,after.peak_rss_bytes as f64/1048576.,bytes as f64*8./elapsed/1_000_000.,last_usage.rss_bytes as f64/1048576.);
     println!(
@@ -1034,7 +1099,11 @@ async fn live_calls2_worker(role: &str) {
     drop(decoder);
     endpoint.stop().await;
     assert!(count as f64 / elapsed >= 58., "below 58fps");
-    assert!(drift < 50., "growing latency");
+    assert!(drift.abs() < 20., "latency drift exceeds 20ms");
+    assert!(
+        *buckets.iter().min().unwrap() >= 50,
+        "one-second window below 50fps"
+    );
     if role == "sharer" {
         assert!(cpu < 5.);
         assert!(after.rss_bytes.saturating_sub(baseline.rss_bytes) < 150_000_000);

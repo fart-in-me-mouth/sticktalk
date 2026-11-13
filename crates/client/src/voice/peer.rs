@@ -39,6 +39,9 @@ struct Slot {
 }
 pub struct Peer {
     rtc: Rtc,
+    video_trace: bool,
+    offered_frames: u64,
+    gated_frames: u64,
     local: SocketAddr,
     pending: Option<SdpPendingOffer>,
     publications: Vec<(Mid, TrackKind, bool)>,
@@ -117,6 +120,9 @@ impl Peer {
         let (offer, pending) = api.apply().ok_or("Missing media offer")?;
         Ok(Self {
             rtc,
+            video_trace: std::env::var_os("STICKTALK_VIDEO_TRACE").is_some(),
+            offered_frames: 0,
+            gated_frames: 0,
             local,
             pending: Some(pending),
             publications: vec![(audio, TrackKind::Audio, true)],
@@ -440,6 +446,7 @@ impl Peer {
         };
         let key = mid.to_string();
         if media_kind(kind) == MediaKind::Video {
+            self.offered_frames += u64::from(marker);
             // RTX cache size does NOT bound str0m's unsent RTP queue. Use its
             // refreshed pacer snapshot plus this undrained batch's bytes.
             let queued = self.rtc.direct_api().stream_tx(&ssrc).and_then(|s| {
@@ -459,10 +466,21 @@ impl Peer {
                 .entry(key.clone())
                 .or_default()
                 .admit(timestamp, payload, full);
+            if request && self.video_trace {
+                eprintln!(
+                    "VIDEO_TRACE sender_gate timestamp={timestamp} queue={:?} staged={staged}",
+                    queued.map(|(p, b, t)| (
+                        p,
+                        b,
+                        t.map(|t| now.saturating_duration_since(t).as_millis())
+                    ))
+                );
+            }
             if request && !self.keyframes.contains(&kind) {
                 self.keyframes.push(kind);
             }
             if !admit {
+                self.gated_frames += u64::from(marker);
                 return Ok(());
             }
             *self.staged_bytes.entry(key.clone()).or_default() += payload.len();
@@ -546,6 +564,25 @@ impl Peer {
                     {
                         out.push(PeerOutput::Keyframe(*kind));
                     }
+                }
+                Output::Event(Event::MediaIngressStats(s)) if self.video_trace => {
+                    eprintln!(
+                        "VIDEO_TRACE viewer_in mid={} bytes={} packets={} nack={} pli={} fir={}",
+                        s.mid, s.bytes, s.packets, s.nacks, s.plis, s.firs
+                    );
+                }
+                Output::Event(Event::MediaEgressStats(s)) if self.video_trace => {
+                    eprintln!("VIDEO_TRACE encoder_transport_out mid={} bytes={} packets={} nack={} pli={} fir={}", s.mid, s.bytes, s.packets, s.nacks, s.plis, s.firs);
+                }
+                Output::Event(Event::PeerStats(s)) if self.video_trace => {
+                    eprintln!(
+                        "VIDEO_TRACE endpoint bwe={} target={} wire_rx={} wire_tx={} loss={:?}",
+                        s.bwe_tx.map_or(0, |b| b.as_u64()),
+                        self.bwe_target,
+                        s.peer_bytes_rx,
+                        s.peer_bytes_tx,
+                        s.ingress_loss_fraction
+                    );
                 }
                 _ => {}
             }

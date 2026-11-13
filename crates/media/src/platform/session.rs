@@ -1,8 +1,8 @@
 use super::{
-    capture::Capture,
     encoder::Encoder,
     gpu::{Converter, Gpu},
     runtime::Runtime,
+    source::Input,
 };
 use crate::{
     annexb, quality::validate_bitrate, EncodedFrame, EncoderKind, EncoderSelection, Error, Quality,
@@ -64,6 +64,25 @@ impl ShareSession {
         )
     }
     pub fn start_with_options(source: Source, options: ShareOptions) -> Result<Self> {
+        Self::start_input(source, options, false)
+    }
+    /// Headless GPU-generated moving frames through the production paced
+    /// BGRA -> NV12 -> hardware MFT path. Never opens WGC or an OS window.
+    pub fn start_synthetic(size: Size, options: ShareOptions) -> Result<Self> {
+        size.validate()?;
+        Self::start_input(
+            Source {
+                kind: crate::SourceKind::Monitor,
+                id: 0,
+                name: "Synthetic GPU motion".into(),
+                size,
+                primary: false,
+            },
+            options,
+            true,
+        )
+    }
+    fn start_input(source: Source, options: ShareOptions, synthetic: bool) -> Result<Self> {
         validate_bitrate(options.bitrate)?;
         if options.gop_frames == 0 || options.gop_frames > 36_000 {
             return Err(Error::Invalid("GOP must be 1..36000 frames".into()));
@@ -76,7 +95,14 @@ impl ShareSession {
         let worker = thread::Builder::new()
             .name("sticktalk-share".into())
             .spawn(move || {
-                let result = run(source, options, state.clone(), &sender, &ready_tx);
+                let result = run(
+                    source,
+                    options,
+                    state.clone(),
+                    &sender,
+                    &ready_tx,
+                    synthetic,
+                );
                 if let Err(error) = result {
                     // Preserve terminal failures even if the bounded frame queue
                     // is full or start() has not yet dropped its handshake receiver.
@@ -132,10 +158,12 @@ impl ShareSession {
         }
         validate_bitrate(bitrate)?;
         quality.output_size(self.size)?;
+        self.shared.stats.lock().unwrap().quality_requests += 1;
         self.shared.controls.lock().unwrap().quality = Some((quality, bitrate));
         Ok(())
     }
     pub fn request_keyframe(&self) {
+        self.shared.stats.lock().unwrap().keyframe_requests += 1;
         self.shared.keyframe.store(true, Ordering::Release);
     }
     pub fn set_cursor(&self, enabled: bool) {
@@ -236,11 +264,12 @@ fn run(
     shared: Arc<Shared>,
     sender: &std::sync::mpsc::SyncSender<Result<EncodedFrame>>,
     ready: &std::sync::mpsc::SyncSender<Result<Started>>,
+    synthetic: bool,
 ) -> Result<()> {
     let _runtime = Runtime::new()?;
     let gpu = Gpu::new()?;
-    let mut capture = Capture::new(&gpu.device, &source, options.cursor)?;
-    let mut size = options.quality.output_size(capture.size)?;
+    let mut capture = Input::new(&gpu, &source, options.cursor, synthetic)?;
+    let mut size = options.quality.output_size(capture.size())?;
     let mut notice = None;
     let mut software = options.encoder_selection == EncoderSelection::SoftwareOnly;
     let mut encoder = crate::selection::select_with_fallback(
@@ -249,7 +278,7 @@ fn run(
         |error| {
             let mut fallback = options.clone();
             fallback.quality = fallback.quality.software_cap();
-            let fallback_size = fallback.quality.software_output_size(capture.size)?;
+            let fallback_size = fallback.quality.software_output_size(capture.size())?;
             notice = Some(match error {
                 Some(error) => {
                     format!("Hardware unavailable ({error}); OpenH264 fallback capped to 720p30")
@@ -262,9 +291,9 @@ fn run(
     if encoder.kind == EncoderKind::Software {
         software = true;
         options.quality = options.quality.software_cap();
-        size = options.quality.software_output_size(capture.size)?;
+        size = options.quality.software_output_size(capture.size())?;
     }
-    let mut converter = Converter::new(&gpu, capture.size, size, options.quality.fps.get())?;
+    let mut converter = Converter::new(&gpu, capture.size(), size, options.quality.fps.get())?;
     ready
         .send(Ok(Started {
             kind: encoder.kind.clone(),
@@ -285,14 +314,13 @@ fn run(
     let mut revision = 0;
     let mut pending: Option<Preparation> = None;
     let mut candidate: Option<Prepared> = None;
-    let mut native = capture.size;
+    let mut native = capture.size();
     let mut failed_revision = None;
     let mut retired: Option<Retirement> = None;
     while !shared.stop.load(Ordering::Acquire) {
         pacer.until(tick)?;
         // WGC notifications coalesce; frame acquisition is paced, not a second
         // high-refresh wake loop. The free-threaded frame pool owns arrivals.
-        let _ = capture.signals.try_recv();
         if shared.stop.load(Ordering::Acquire) {
             break;
         }
@@ -321,8 +349,8 @@ fn run(
         } else {
             shared.stats.lock().unwrap().repeated += 1;
         }
-        if converter.input_size != capture.size {
-            native = capture.size;
+        if converter.input_size != capture.size() {
+            native = capture.size();
             revision += 1;
             // Keep the old output format streaming while the new encoder is
             // built. Only the converter's source rectangle must follow resize.
@@ -447,6 +475,7 @@ fn run(
                 let keyframe = annexb::contains(&bytes, 5);
                 let mut stats = shared.stats.lock().unwrap();
                 stats.encoded += 1;
+                stats.keyframes += u64::from(keyframe);
                 stats.bytes += bytes.len() as u64;
                 drop(stats);
                 let frame = EncodedFrame {

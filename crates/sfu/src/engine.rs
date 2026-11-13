@@ -156,6 +156,8 @@ struct Route {
 
 struct Peer {
     failed: bool,
+    idr_starts: u64,
+    gated_packets: u64,
     negotiation_times: VecDeque<Instant>,
     negotiated_mids: BTreeMap<String, String>,
     candidates: BTreeSet<String>,
@@ -217,6 +219,7 @@ pub struct Sfu {
     // Used to reject abusive signaling independently of the chat command rate.
     signals: BTreeMap<VoiceSession, (Instant, u16)>,
     failure_epoch: u64,
+    video_trace: bool,
 }
 
 pub fn rtc_config() -> str0m::RtcConfig {
@@ -318,6 +321,7 @@ impl Sfu {
             now,
             signals: BTreeMap::new(),
             failure_epoch: 0,
+            video_trace: std::env::var_os("STICKTALK_VIDEO_TRACE").is_some(),
             room_budgets: BTreeMap::new(),
             room_negotiations: BTreeMap::new(),
         })
@@ -690,6 +694,8 @@ impl Sfu {
             .build(self.now);
         let p = Peer {
             failed: false,
+            idr_starts: 0,
+            gated_packets: 0,
             negotiation_times: VecDeque::new(),
             negotiated_mids: BTreeMap::new(),
             candidates: BTreeSet::new(),
@@ -1511,7 +1517,17 @@ impl Sfu {
             }
             Event::PeerStats(stats) => self.stats(key, stats)?,
             // Refresh REMB after a newly started stream becomes known.
-            Event::MediaIngressStats(_) => self.allocate()?,
+            Event::MediaIngressStats(stats) => {
+                if self.video_trace {
+                    eprintln!("VIDEO_TRACE sfu_in peer={:?} mid={} seconds={:.3} bytes={} packets={} nack={} pli={} fir={}", key, stats.mid, self.now.saturating_duration_since(self.peers[&key].created).as_secs_f64(), stats.bytes, stats.packets, stats.nacks, stats.plis, stats.firs);
+                }
+                self.allocate()?;
+            }
+            Event::MediaEgressStats(stats) => {
+                if self.video_trace {
+                    eprintln!("VIDEO_TRACE sfu_out peer={:?} mid={} seconds={:.3} bytes={} packets={} nack={} pli={} fir={}", key, stats.mid, self.now.saturating_duration_since(self.peers[&key].created).as_secs_f64(), stats.bytes, stats.packets, stats.nacks, stats.plis, stats.firs);
+                }
+            }
             Event::ChannelOpen(id, label) => self.channel_open(key, id, &label)?,
             Event::ChannelClose(id) if self.peers[&key].control == Some(id) => {
                 self.peers.get_mut(&key).unwrap().control = None;
@@ -1556,6 +1572,9 @@ impl Sfu {
             return Ok(());
         };
         let video = is_video(track.kind);
+        if video && starts_keyframe(codec_of(&track), &packet.payload) {
+            self.peers.get_mut(&key).unwrap().idr_starts += 1;
+        }
         let p = &self.peers[&key];
         if !self
             .acl
@@ -1664,6 +1683,7 @@ impl Sfu {
             let config_packet = track.codec == Some(VideoCodec::H264)
                 && matches!(packet.payload.first().map(|b| b & 31), Some(7 | 8));
             if route.waiting_keyframe && !keyframe && !config_packet {
+                self.peers.get_mut(&to).unwrap().gated_packets += 1;
                 continue;
             }
             let peer = self.peers.get_mut(&to).unwrap();
@@ -1747,6 +1767,9 @@ impl Sfu {
             .saturating_duration_since(p.stats_at)
             .as_secs_f64()
             .max(0.001);
+        if self.video_trace {
+            eprintln!("VIDEO_TRACE sfu_peer peer={:?} seconds={:.3} bwe={} target={} rx_fps={:.1} tx_fps={:.1} wire_tx_bytes={} idr_starts={} gated_packets={} cap_drops={} queue_drops={} mtu_drops={}", key, self.now.saturating_duration_since(p.created).as_secs_f64(), p.bwe, p.bwe_target, p.rx_frames as f64 / elapsed, p.tx_frames as f64 / elapsed, p.wire_tx_bytes, p.idr_starts, p.gated_packets, p.stats.cap_dropped_packets, p.stats.queue_dropped_packets, p.stats.mtu_dropped_packets);
+        }
         p.stats.tx_bps =
             ((p.wire_tx_bytes.saturating_sub(p.tx_bytes)) as f64 * 8.0 / elapsed) as u64;
         p.stats.rx_bps =

@@ -133,6 +133,11 @@ pub struct SessionStats {
     pub repeated: u64,
     pub bytes: u64,
     pub reconfigurations: u64,
+    pub quality_requests: u64,
+    pub keyframe_requests: u64,
+    pub keyframes: u64,
+    pub bitrate_updates: u64,
+    pub bitrate_update_failures: u64,
 }
 
 #[cfg(windows)]

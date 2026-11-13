@@ -5,8 +5,10 @@ pub use display::{DisplayBridge, DisplayFrame};
 mod encoder;
 mod gpu;
 mod pacer;
+mod pattern;
 mod runtime;
 mod session;
+mod source;
 mod thumbnail;
 mod usage;
 pub use thumbnail::{
