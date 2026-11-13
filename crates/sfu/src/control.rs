@@ -91,7 +91,14 @@ impl Budget {
             + now.saturating_duration_since(self.last).as_secs_f64() * self.bps as f64 / 8.0)
             .min(self.capacity);
         self.last = now;
-        self.tokens >= bytes as f64 + if repair { self.capacity * 0.5 } else { 0.0 }
+        // Tiny configured buckets must still admit one full-MTU repair when
+        // full; otherwise probes can never discover capacity from a low floor.
+        let reserve = if repair {
+            (self.capacity * 0.5).min((self.capacity - bytes as f64).max(0.0))
+        } else {
+            0.0
+        };
+        self.tokens >= bytes as f64 + reserve
     }
 }
 
@@ -112,5 +119,16 @@ mod budget_tests {
         assert!(!b.available(1001, false, now + Duration::from_secs(1)));
         assert!(b.take(1000, now + Duration::from_secs(1)));
         assert!(!b.take(1, now + Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn a_low_rate_bucket_can_still_send_one_full_mtu_repair() {
+        let now = Instant::now();
+        let mut b = Budget::new(80_000, 1232, now);
+        assert!(b.available(1232, true, now));
+        assert!(b.take(1232, now));
+        assert!(!b.available(1, true, now));
+        assert!(!b.available(1233, true, now + Duration::from_secs(1)));
+        assert!(b.available(1232, true, now + Duration::from_secs(1)));
     }
 }
