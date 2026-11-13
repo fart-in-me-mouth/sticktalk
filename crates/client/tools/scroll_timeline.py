@@ -3,7 +3,6 @@ Usage: python scroll_timeline.py before.json after.json timeline.png
 Requires Pillow; no client dependency or visible preview window.
 """
 import json
-import math
 import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
@@ -59,4 +58,3 @@ p = panel((100, 655, 1520, 840), (1.2, 2.2), (ymin - 10, ymax + 10), "Wheel traj
 for points, color in zip(trajectories, colors):
     draw.line([p(x, y) for x, y in points], fill=color, width=3)
 image.save(sys.argv[3])
-
