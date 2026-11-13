@@ -21,6 +21,7 @@ use sticktalk_client_core::state::ClientState;
 pub use sticktalk_client_core::state::{Dialog, Form, FriendTab, GuildTab, Screen};
 #[derive(Debug, Clone)]
 pub enum Msg {
+    Feature(Box<crate::features::Event>),
     Server(String),
     Username(String),
     Password(String),
@@ -157,6 +158,7 @@ struct RowCache {
 }
 
 pub struct App {
+    pub features: crate::features::State,
     pub state: ClientState,
     trace: Option<PathBuf>,
     trace_counts: BTreeMap<&'static str, u64>,
@@ -253,6 +255,7 @@ impl App {
             None
         };
         let state = Self {
+            features: Default::default(),
             state: ClientState {
                 session,
                 ..ClientState::default()
@@ -385,11 +388,18 @@ impl App {
         } else {
             Task::none()
         };
-        (state, Task::batch([task, meta_task, agent_task]))
+        let activation = crate::platform_glue::initial_activation().map_or_else(Task::none, |a| {
+            Task::done(Msg::feature(crate::features::Event::Activation(a)))
+        });
+        (
+            state,
+            Task::batch([task, meta_task, agent_task, activation]),
+        )
     }
     pub fn subscription(&self) -> Subscription<Msg> {
-        let mut subs = vec![iced::event::listen_with(
-            |event, _status, _id| match event {
+        let mut subs = vec![
+            crate::features::subscription(self),
+            iced::event::listen_with(|event, _status, _id| match event {
                 UiEvent::Window(window::Event::Resized(size)) => Some(Msg::Resize(size)),
                 UiEvent::Window(window::Event::Focused) => Some(Msg::Focus(true)),
                 UiEvent::Window(window::Event::Unfocused) => Some(Msg::Focus(false)),
@@ -411,11 +421,16 @@ impl App {
                     key: keyboard::Key::Named(Named::ArrowUp),
                     ..
                 }) if _status == iced::event::Status::Ignored => Some(Msg::MenuMove(true)),
+                UiEvent::Keyboard(keyboard::Event::KeyPressed { key, .. })
+                    if _status == iced::event::Status::Ignored =>
+                {
+                    Some(Msg::feature(crate::features::Event::Key(key)))
+                }
                 UiEvent::Keyboard(keyboard::Event::KeyPressed { .. })
                 | UiEvent::Mouse(iced::mouse::Event::ButtonPressed(_)) => Some(Msg::Activity),
                 _ => None,
-            },
-        )];
+            }),
+        ];
         let toast = if !self.error.is_empty()
             && matches!(self.dialog, Dialog::None)
             && self.state.session.is_some()
@@ -440,6 +455,27 @@ impl App {
         Subscription::batch(subs)
     }
     pub fn update(&mut self, message: Msg) -> Task<Msg> {
+        if matches!(
+            message,
+            Msg::Activity | Msg::Editor(_) | Msg::Scroll(_) | Msg::Focus(_)
+        ) {
+            self.features.trim_epoch = self.features.trim_epoch.wrapping_add(1);
+            self.features.trim_done = false;
+        }
+        // Row-height reports and hover cosmetics cannot change media eligibility.
+        // Do not rescan/rebuild the history index once for every measured row.
+        let reconcile = !matches!(
+            message,
+            Msg::Measured { .. } | Msg::Hover(_) | Msg::HoverLeave(_) | Msg::HoverClear(_)
+        );
+        let task = self.update_main(message);
+        if reconcile {
+            Task::batch([task, crate::features::reconcile(self)])
+        } else {
+            task
+        }
+    }
+    fn update_main(&mut self, message: Msg) -> Task<Msg> {
         if let Some(path) = &self.trace {
             let name = match &message {
                 Msg::Measured { .. } => "Measured",
@@ -464,6 +500,7 @@ impl App {
             }
         }
         match message {
+            Msg::Feature(event) => return crate::features::update(self, *event),
             Msg::Hover(id) => {
                 self.hover_serial += 1;
                 self.hovered = id;
@@ -503,7 +540,10 @@ impl App {
             }
             Msg::Meta(server, result) => {
                 if server.trim_end_matches('/') == self.server.trim().trim_end_matches('/') {
-                    self.google_id = result.ok().and_then(|m| m.google_client_id);
+                    if let Ok(meta) = result {
+                        self.google_id = meta.google_client_id;
+                        self.features.gifs.capability = meta.gifs;
+                    }
                 }
             }
             Msg::GoogleStart(link) => {
@@ -701,7 +741,10 @@ impl App {
             Msg::MemberSearch(value) => self.member_search = value,
             Msg::ReactPicker(id) => {
                 self.reaction_target = Some(id);
-                self.open(Dialog::EmojiPicker);
+                return crate::features::update(
+                    self,
+                    crate::features::Event::Picker(crate::features::Picker::Emoji),
+                );
             }
             Msg::Reveal(id, index) => {
                 self.revealed.insert((id, index));
@@ -728,6 +771,16 @@ impl App {
                 }
             }
             Msg::MenuMove(previous) => {
+                if self.features.picker != crate::features::Picker::None {
+                    return crate::features::update(
+                        self,
+                        crate::features::Event::Key(keyboard::Key::Named(if previous {
+                            Named::ArrowUp
+                        } else {
+                            Named::ArrowDown
+                        })),
+                    );
+                }
                 if matches!(
                     self.dialog,
                     Dialog::MessageActions(_) | Dialog::GuildMenu | Dialog::MemberMenu(_)
@@ -746,16 +799,26 @@ impl App {
                 self.error.clear();
             }
             Msg::Copy(code) => {
+                if self.mock_mode || crate::agent_window::enabled() {
+                    self.notice = "Copied!".into();
+                    return Task::none();
+                }
                 self.notice = "Copied!".into();
                 return iced::clipboard::write(code);
             }
             Msg::Emoji(value) => {
+                self.features.picker = crate::features::Picker::None;
+                self.features.emoji.record(&value);
+                let saved = crate::features::persist(self);
                 if let Some(id) = self.reaction_target.take() {
-                    return self.update(Msg::Reaction(id, value, false));
+                    return Task::batch([saved, self.update(Msg::Reaction(id, value, false))]);
                 }
-                let content = self.editor.text();
-                replace_editor(&mut self.editor, &format!("{content}{value}"));
+                self.editor
+                    .perform(text_editor::Action::Edit(text_editor::Edit::Paste(
+                        std::sync::Arc::new(value),
+                    )));
                 self.dialog = Dialog::None;
+                return Task::batch([saved, operation::focus("composer-editor")]);
             }
             Msg::Server(v) => {
                 self.google_id = None;
@@ -912,6 +975,14 @@ impl App {
                 });
             }
             Msg::Open(dialog) => {
+                if matches!(dialog, Dialog::EmojiPicker) {
+                    self.reaction_target = None;
+                    return crate::features::update(
+                        self,
+                        crate::features::Event::Picker(crate::features::Picker::Emoji),
+                    );
+                }
+                self.features.picker = crate::features::Picker::None;
                 let field = if matches!(dialog, Dialog::JoinGuild) {
                     "dialog-field-2"
                 } else {
@@ -935,6 +1006,16 @@ impl App {
                 return operation::focus(field);
             }
             Msg::Close | Msg::Escape => {
+                if matches!(self.dialog, Dialog::None) && self.features.viewer.current().is_some() {
+                    self.features.viewer.close();
+                    return Task::none();
+                }
+                if self.features.picker != crate::features::Picker::None {
+                    return crate::features::update(
+                        self,
+                        crate::features::Event::Picker(crate::features::Picker::None),
+                    );
+                }
                 self.form_revision = self.form_revision.wrapping_add(1);
                 if matches!(self.dialog, Dialog::CreateGuild) {
                     if let Some(id) = self.form.icon.take() {
@@ -1006,7 +1087,7 @@ impl App {
             }
             Msg::Send => {
                 if let Screen::Channel(channel_id) = self.state.screen {
-                    let content = self.editor.text();
+                    let content = sticktalk_client_core::emoji::prepare_send(&self.editor.text());
                     if content.chars().count() > MAX_MESSAGE_CHARS {
                         self.error = "Messages can have up to 4,000 characters.".into();
                         return Task::none();
@@ -1118,13 +1199,22 @@ impl App {
                 }
             }
             Msg::Suggest(delta) => {
-                let count = self.mention_candidates().len();
+                let count = self
+                    .mention_candidates()
+                    .len()
+                    .max(self.emoji_candidates().len());
                 if count > 0 {
                     self.suggestion =
                         (self.suggestion as i32 + delta).rem_euclid(count as i32) as usize;
                 }
             }
             Msg::CompleteMention => {
+                if let Some(e) = self.emoji_candidates().get(self.suggestion) {
+                    return crate::features::update(
+                        self,
+                        crate::features::Event::EmojiComplete(e.emoji().into()),
+                    );
+                }
                 if let Some(id) = self.mention_candidates().get(self.suggestion).copied() {
                     return self.update(Msg::Mention(id));
                 }
@@ -1368,6 +1458,10 @@ impl App {
                 }
             }
             Msg::PickUpload(purpose) => {
+                if self.mock_mode || crate::agent_window::enabled() {
+                    self.notice = "File selection mocked.".into();
+                    return Task::none();
+                }
                 let form_revision = self.form_revision;
                 return Task::perform(
                     async move {
@@ -1381,6 +1475,14 @@ impl App {
                 );
             }
             Msg::Picked(purpose, Some(path), form_revision) => {
+                if purpose == UploadPurpose::Message && !self.mock_mode {
+                    if let Screen::Channel(channel) = self.state.screen {
+                        return crate::features::update(
+                            self,
+                            crate::features::Event::UploadStart(channel, path, false),
+                        );
+                    }
+                }
                 if purpose == UploadPurpose::GuildIcon && form_revision != self.form_revision {
                     return Task::none();
                 }
@@ -1416,6 +1518,18 @@ impl App {
                 ))
             }
             Msg::RemoveUpload(id) => {
+                if let Some(job) = self
+                    .features
+                    .uploads
+                    .iter()
+                    .find(|(_, t)| t.job.attachment.as_ref().is_some_and(|a| a.id == id))
+                    .map(|(id, _)| *id)
+                {
+                    return crate::features::update(
+                        self,
+                        crate::features::Event::UploadCancel(job),
+                    );
+                }
                 self.state.attachments.retain(|v| v.id != id);
                 self.request(Request::DiscardUpload(id));
             }
@@ -1436,6 +1550,10 @@ impl App {
                 }
             }
             Msg::Download(a) => {
+                if self.mock_mode || crate::agent_window::enabled() {
+                    self.notice = "Save dialog mocked.".into();
+                    return Task::none();
+                }
                 return Task::perform(
                     async move {
                         let path = rfd::AsyncFileDialog::new()
@@ -1518,6 +1636,7 @@ impl App {
                 self.send(Command::SetPresence { status });
             }
             Msg::Logout => {
+                self.features = Default::default();
                 if let Some(s) = self.state.session.take() {
                     let account = self.me();
                     self.tx = None;
@@ -1664,6 +1783,7 @@ impl App {
             }
             Data::Frame(frame) => match frame {
                 ServerMsg::Ready(ready) => {
+                    self.features.desktop.settings = ready.notification_settings.clone();
                     let old = self.state.screen;
                     self.state.model.ready(*ready);
                     self.markdown.clear();
@@ -1809,6 +1929,31 @@ impl App {
                     return Task::batch(tasks);
                 }
                 ServerMsg::Event(envelope) => {
+                    if self
+                        .state
+                        .model
+                        .cursor
+                        .as_ref()
+                        .is_some_and(|c| envelope.seq > c.seq)
+                    {
+                        self.features.desktop.observe(&envelope.event);
+                        if let Event::MessageCreated { message, .. } = &envelope.event {
+                            crate::features::committed(self, message);
+                            if let Some(toast) = self.features.desktop.notification(
+                                &self.state.model,
+                                message,
+                                self.focused,
+                                self.state.screen == Screen::Channel(message.channel_id),
+                            ) {
+                                self.features.flash_pending =
+                                    message.mention_ids.contains(&self.me().unwrap_or(Id(0)));
+                                crate::platform_glue::dispatch(
+                                    toast,
+                                    self.features.desktop.dry_run,
+                                );
+                            }
+                        }
+                    }
                     let removed = matches!(
                         envelope.event,
                         Event::GuildRemoved { .. } | Event::ChannelRemoved { .. }
@@ -2312,10 +2457,17 @@ impl App {
             nonce,
             command: command.clone(),
         })) {
-            if matches!(command, Command::SendMessage(_)) && !self.state.attachments.is_empty() {
-                self.state
-                    .pending_files
-                    .insert(nonce, self.state.attachments.clone());
+            if let Command::SendMessage(draft) = &command {
+                let files: Vec<_> = self
+                    .state
+                    .attachments
+                    .iter()
+                    .filter(|a| draft.attachment_ids.contains(&a.id))
+                    .cloned()
+                    .collect();
+                if !files.is_empty() {
+                    self.state.pending_files.insert(nonce, files);
+                }
             }
             self.state.pending.insert(nonce, command);
             true
@@ -2349,6 +2501,14 @@ impl App {
             }
         }
         for a in std::mem::take(&mut self.state.attachments) {
+            if self
+                .features
+                .uploads
+                .values()
+                .any(|t| t.job.attachment.as_ref().is_some_and(|v| v.id == a.id))
+            {
+                continue;
+            }
             self.request(Request::DiscardUpload(a.id));
         }
         let old_guild = self.state.guild;
@@ -2356,6 +2516,8 @@ impl App {
         self.state.manual_unread.remove(&id);
         self.state.screen = Screen::Channel(id);
         self.dialog = Dialog::None;
+        self.features.picker = crate::features::Picker::None;
+        self.features.viewer.close();
         self.state.generation += 1;
         self.media_tasks.clear();
         self.resolving.clear();
@@ -2621,6 +2783,8 @@ impl App {
                     .max(1);
                 let body = if self.state.editing == Some(m.id) {
                     t::COMPOSER_MIN + t::S24 + t::S24 + t::HINT * t::LINE + t::S4
+                } else if crate::gifs::inline_url(&m.content) {
+                    t::THUMB_H
                 } else {
                     lines as f32 * t::BODY * t::LINE
                 };
@@ -3514,6 +3678,7 @@ impl App {
             app.fast_scrolling = true;
         }
         app.error.clear();
+        crate::features::fixture(&mut app, screen);
         app
     }
     pub(crate) fn headless_scroll(&mut self) {

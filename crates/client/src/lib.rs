@@ -7,3 +7,10 @@ pub mod model;
 pub mod oauth;
 pub mod platform;
 pub mod storage;
+
+pub mod animated;
+pub mod gifs;
+pub mod platform_glue;
+pub mod uploads;
+
+pub mod resources;

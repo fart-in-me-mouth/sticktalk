@@ -1,3 +1,8 @@
+pub mod emoji_picker;
+pub mod gif_picker;
+pub mod media_settings;
+pub mod uploads;
+pub mod viewer;
 use crate::{
     app::{editor_binding, App, Dialog, FriendTab, GuildTab, Msg, Screen},
     focus_button::{button, Button},
@@ -20,7 +25,7 @@ fn txt<'a>(value: impl Into<String>) -> widget::Text<'a> {
         .size(t::BODY)
         .style(t::primary_text)
 }
-fn hint<'a>(value: impl Into<String>) -> widget::Text<'a> {
+pub(crate) fn hint<'a>(value: impl Into<String>) -> widget::Text<'a> {
     text(value.into())
         .font(t::regular())
         .size(t::HINT)
@@ -29,10 +34,10 @@ fn hint<'a>(value: impl Into<String>) -> widget::Text<'a> {
 fn section<'a>(value: impl Into<String>) -> widget::Text<'a> {
     hint(value).font(t::semibold())
 }
-fn title<'a>(value: impl Into<String>) -> widget::Text<'a> {
+pub(crate) fn title<'a>(value: impl Into<String>) -> widget::Text<'a> {
     txt(value).size(t::TITLE).font(t::semibold())
 }
-fn action<'a>(label: impl Into<String>, message: Msg) -> Button<'a> {
+pub(crate) fn action<'a>(label: impl Into<String>, message: Msg) -> Button<'a> {
     button(
         text(label.into())
             .font(t::regular())
@@ -44,7 +49,7 @@ fn action<'a>(label: impl Into<String>, message: Msg) -> Button<'a> {
     .padding([t::S8, t::S16])
     .style(t::button)
 }
-fn primary<'a>(label: impl Into<String>, message: Msg) -> Button<'a> {
+pub(crate) fn primary<'a>(label: impl Into<String>, message: Msg) -> Button<'a> {
     button(
         text(label.into())
             .font(t::semibold())
@@ -305,26 +310,7 @@ fn avatar<'a>(app: &App, id: Id, size: f32, presence: bool) -> Element<'a, Msg> 
     .into()
 }
 fn emoji<'a>(value: &str, size: f32) -> Element<'a, Msg> {
-    let bytes: Option<&'static [u8]> = match value {
-        "🌱" => Some(include_bytes!("../assets/emoji/1f331.png")),
-        "❤️" | "❤" => Some(include_bytes!("../assets/emoji/2764.png")),
-        "👍" => Some(include_bytes!("../assets/emoji/1f44d.png")),
-        "✨" => Some(include_bytes!("../assets/emoji/2728.png")),
-        "🎉" => Some(include_bytes!("../assets/emoji/1f389.png")),
-        "👀" => Some(include_bytes!("../assets/emoji/1f440.png")),
-        "🔥" => Some(include_bytes!("../assets/emoji/1f525.png")),
-        "🙌" => Some(include_bytes!("../assets/emoji/1f64c.png")),
-        "👋" => Some(include_bytes!("../assets/emoji/1f44b.png")),
-        _ => None,
-    };
-    if let Some(b) = bytes {
-        image(image::Handle::from_bytes(b))
-            .width(size)
-            .height(size)
-            .into()
-    } else {
-        txt(value).size(size).into()
-    }
+    emoji_picker::glyph(value, size)
 }
 fn empty<'a>(name: &str, label: impl Into<String>, button: Button<'a>) -> Element<'a, Msg> {
     container(
@@ -378,6 +364,9 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         .into()
     };
     let mut layers = vec![main];
+    if let Some(overlay) = crate::features::overlay(app) {
+        layers.push(overlay);
+    }
     if !matches!(
         app.dialog,
         Dialog::None | Dialog::UserSettings | Dialog::GuildSettings(_)
@@ -941,6 +930,7 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
             .height(Fill)
             .padding([t::S8, t::S8])
             .style(t::bare),
+        crate::features::update_pill(app),
         footer
     ])
     .width(t::SIDEBAR)
@@ -1348,6 +1338,12 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
 }
 fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
     let mut body = column![].spacing(t::S8);
+    if let Some(cards) = uploads::cards(app) {
+        body = body.push(cards);
+    }
+    if let Some(completion) = emoji_picker::autocomplete(app) {
+        body = body.push(completion);
+    }
     let raw = app.editor.text();
     // Nonce-keyed optimistic previews disappear only when the correlated
     // response arrives; real message IDs are never fabricated or duplicated.
@@ -1506,6 +1502,23 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                         Msg::PickUpload(UploadPurpose::Message)
                     ),
                     editor,
+                    if !matches!(app.features.gifs.capability, GifCapability::Disabled) {
+                        Element::from(
+                            button(
+                                text("GIF")
+                                    .font(t::semibold())
+                                    .size(t::HINT)
+                                    .style(t::inherit_text),
+                            )
+                            .on_press(Msg::feature(crate::features::Event::Picker(
+                                crate::features::Picker::Gif,
+                            )))
+                            .padding(t::S8)
+                            .style(t::icon),
+                        )
+                    } else {
+                        Element::from(space().width(0))
+                    },
                     icon_button("smile", "Choose an emoji", Msg::Open(Dialog::EmojiPicker)),
                     icon_button("send", "Send message", Msg::Send)
                 ]
@@ -1737,7 +1750,8 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
             )
             .push(hint("escape to cancel • enter to save"));
     } else if !m.content.is_empty() {
-        content = content.push(linked_content(app, m));
+        content =
+            content.push(gif_picker::inline(app, m).unwrap_or_else(|| linked_content(app, m)));
     }
     let mut attachments = column![].spacing(t::S8);
     for a in &m.attachments {
@@ -1760,7 +1774,7 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
                     .into()
             };
             button(image)
-                .on_press(Msg::Download(a.clone()))
+                .on_press(Msg::feature(crate::features::Event::ViewerOpen(a.clone())))
                 .padding(0)
                 .style(t::icon)
                 .into()
@@ -3391,7 +3405,7 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                     .push(footer("Save changes", Msg::Submit));
             }
             _ => {
-                content=content.push(title("Appearance")).push(txt("Dark theme")).push(hint("More appearance options are not available yet.")).push(chip("DARK THEME · ACTIVE",t::ACCENT)).push(line()).push(section("CREDITS")).push(hint("Inter by Rasmus Andersson (SIL OFL). JetBrains Mono by JetBrains (SIL OFL). Lucide icons (ISC). Twemoji artwork by Twitter and contributors (CC BY 4.0)."));
+                content=content.push(title("Appearance")).push(txt("Dark theme")).push(hint("More appearance options are not available yet.")).push(chip("DARK THEME · ACTIVE",t::ACCENT)).push(line()).push(media_settings::view(app)).push(line()).push(section("CREDITS")).push(hint("Inter by Rasmus Andersson (SIL OFL). JetBrains Mono by JetBrains (SIL OFL). Lucide icons (ISC). Twemoji artwork by Twitter and contributors (CC BY 4.0)."));
             }
         }
     }
@@ -3463,10 +3477,20 @@ fn compose_editor<'a>(
     autocomplete: bool,
 ) -> Element<'a, Msg> {
     let empty = app.editor.text().trim().is_empty();
+    let autocomplete = autocomplete || !app.emoji_candidates().is_empty();
+    let viewing_image = app.features.viewer.current().is_some();
     let editor = text_editor(&app.editor)
         .id("composer-editor")
         .placeholder(placeholder)
-        .key_binding(move |e| editor_binding(e, empty, autocomplete))
+        .key_binding(move |e| {
+            if viewing_image {
+                Some(text_editor::Binding::Custom(Msg::feature(
+                    crate::features::Event::Key(e.key),
+                )))
+            } else {
+                editor_binding(e, empty, autocomplete)
+            }
+        })
         .font(t::regular())
         .size(t::BODY)
         .line_height(t::LINE)

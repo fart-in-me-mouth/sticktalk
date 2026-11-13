@@ -1,7 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod agent_window;
 mod app;
+mod features;
 use sticktalk::backend;
+use sticktalk::{animated, gifs, platform_glue, uploads};
 mod datetime;
 mod focus_button;
 mod headless;
@@ -16,10 +18,13 @@ mod scroll_bench;
 use sticktalk::storage;
 mod theme;
 mod ui;
+#[cfg(feature = "compact-allocator")]
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 fn main() -> iced::Result {
     std::env::set_var("TOKIO_WORKER_THREADS", "2");
-    // Avoid loading both Vulkan and D3D driver stacks on Windows. iced's compositor
-    // still falls back to tiny-skia if D3D12 initialization fails. Respect overrides.
+    // Keep DX12: Vulkan reduced commit but regressed the text-scroll benchmark. iced's compositor
+    // still falls back to tiny-skia if initialization fails. Respect overrides.
     #[cfg(all(windows, feature = "wgpu"))]
     if std::env::var_os("WGPU_BACKEND").is_none() {
         std::env::set_var("WGPU_BACKEND", "dx12");
@@ -31,7 +36,18 @@ fn main() -> iced::Result {
         }
         return Ok(());
     }
+    let _host = match platform_glue::bootstrap() {
+        Ok(h) => h,
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    };
+    if !_host.should_run {
+        return Ok(());
+    }
     iced::application(app::App::new, app::App::update, ui::view)
+        .executor::<platform_glue::Executor>()
         .title("StickTalk")
         .theme(theme::theme)
         .subscription(app::App::subscription)

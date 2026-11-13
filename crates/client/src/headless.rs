@@ -7,6 +7,20 @@ use iced::{advanced::widget::operation, mouse, Size};
 use iced_runtime::user_interface::{Cache, UserInterface};
 use std::{path::Path, time::Instant};
 pub const SCREENS: &[&str] = &[
+    "emoji-picker",
+    "emoji-search",
+    "emoji-autocomplete",
+    "reaction-picker",
+    "gif-picker",
+    "gif-search",
+    "gif-favorites",
+    "image-viewer",
+    "image-viewer-loading",
+    "image-viewer-zoom",
+    "upload-progress",
+    "upload-storage-full",
+    "upload-other-channel",
+    "restart-update",
     "login",
     "register",
     "home-online",
@@ -60,6 +74,9 @@ pub const SCREENS: &[&str] = &[
 ];
 pub fn run_if_requested() -> Option<Result<(), String>> {
     let args: Vec<_> = std::env::args().collect();
+    if let Some(index) = args.iter().position(|v| v == "--bench-resources") {
+        return Some(crate::scroll_bench::resources(&args, index));
+    }
     if let Some(index) = args.iter().position(|v| v == "--bench-scroll") {
         return Some(crate::scroll_bench::run(&args, index));
     }
