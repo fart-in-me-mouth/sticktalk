@@ -4,6 +4,7 @@ mod fixtures;
 mod roles;
 mod server;
 mod user;
+mod voice;
 mod widgets;
 use super::{
     avatar, ellipsis, hint, icon_button, line, member_action, scroller, section, title, txt,
@@ -26,7 +27,7 @@ use iced::{
     },
     Border, Element, Fill,
 };
-use sticktalk_client_core::settings::{Density, NoiseSuppressionMode, TriState};
+use sticktalk_client_core::settings::{Density, TriState};
 use sticktalk_proto::*;
 use widgets::*;
 

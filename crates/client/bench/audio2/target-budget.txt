@@ -1,0 +1,4 @@
+Debug peak before cleanup: 7365942469 bytes
+Release before measurements: 2337300718 bytes
+Release cleaned after measurements.
+Whole target deleted after final validation.

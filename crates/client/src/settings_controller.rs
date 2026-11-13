@@ -295,8 +295,7 @@ impl State {
     }
 }
 impl App {
-    // Merge adapter only: keep the existing call reducer authoritative until the
-    // audio-owned page replaces this form. No device discovery or new DSP here.
+    // Legacy settings actions forward to the authoritative, persisted call model.
     fn settings_voice_action(
         &self,
         action: &Action,
@@ -353,6 +352,13 @@ impl App {
             NoiseSuppression::Off => settings::NoiseSuppressionMode::Off,
             NoiseSuppression::Standard => settings::NoiseSuppressionMode::Standard,
             NoiseSuppression::High => settings::NoiseSuppressionMode::High,
+            NoiseSuppression::Auto => {
+                if s.auto_high_quality == Some(true) {
+                    settings::NoiseSuppressionMode::High
+                } else {
+                    settings::NoiseSuppressionMode::Standard
+                }
+            }
         };
     }
     pub(crate) fn settings_dirty(&self) -> bool {

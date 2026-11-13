@@ -42,3 +42,15 @@ the actual packet sample count for decoding, FEC/PLC and jitter timestamps.
 
 Vendored dependencies are excluded from first-party workspace targets, avoiding
 unrelated demo/audio-server dependencies and device-opening upstream examples.
+
+Audio round 2 adds a `NetEq::set_base_minimum_delay` delegation. The host lowers
+the otherwise hard-coded 20 ms floor only after validating a 10 ms Opus packet,
+and restores 20 ms for 20 ms packets. Explicit jitter multipliers remain separate.
+This avoids silently clamping a requested 10 ms startup floor back to 20 ms.
+The histogram uses 5 ms buckets (not a hidden 20 ms quantile floor). Buffer
+filtering, duration reporting and RTP clocks count per-channel samples; decode
+and time-stretch storage count interleaved samples. Accelerate allocations and
+concealment overlap now respect this distinction. Stretch splice positions and
+lengths are channel-aligned. A complete 10 ms leftover from a 20 ms packet is
+played normally rather than spuriously concealed. First-party tests exercise
+both packet durations through the native stereo decoder/mixer without devices.

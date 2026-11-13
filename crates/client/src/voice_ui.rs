@@ -41,6 +41,10 @@ pub enum Action {
     ToggleCamera,
     Cameras(Result<Vec<sticktalk_media::CameraDevice>, String>),
     Settings(VoiceSettings),
+    Audio(crate::audio_settings::Event),
+    MicTest,
+    RecordKey,
+    RecordedKey(u32),
     UserVolume(Id, u16),
     UserMute(Id, bool),
     RequestControl(VoiceSession),
@@ -69,12 +73,29 @@ pub struct State {
     pub settings_path: Option<std::path::PathBuf>,
     pub save_revision: u64,
     pub save_dirty: bool,
+    pub audio_devices: Vec<sticktalk_media::AudioDevice>,
+    pub audio_handle: Option<crate::audio_settings::Handle>,
+    pub audio_error: Option<String>,
+    pub audio_cameras: Vec<sticktalk_media::CameraDevice>,
+    pub mic_test: bool,
+    pub mic_level: Option<sticktalk_media::MicLevel>,
+    pub recording_key: bool,
 }
 impl App {
     pub(crate) fn mock_call_screen(&mut self, screen: &str) {
         if !matches!(
             screen,
-            "voice-call" | "share-picker" | "voice-consent" | "voice-settings"
+            "voice-call"
+                | "share-picker"
+                | "voice-consent"
+                | "voice-settings"
+                | "audio-default"
+                | "audio-mic-test"
+                | "audio-manual"
+                | "audio-ptt"
+                | "audio-devices"
+                | "audio-bluetooth"
+                | "audio-processing"
         ) {
             return;
         }
@@ -161,7 +182,30 @@ impl App {
                 30_000,
             );
         }
-        if screen == "voice-settings" {
+        if screen == "voice-settings" || screen.starts_with("audio-") {
+            self.calls.audio_devices = crate::audio_settings::fixture_devices();
+            self.calls.call.settings.auto_high_quality = Some(true);
+            if screen == "audio-mic-test" || screen == "audio-manual" {
+                self.calls.mic_test = true;
+                self.calls.mic_level = Some(sticktalk_media::MicLevel {
+                    rms_dbfs: -28.0,
+                    peak_dbfs: -16.0,
+                    threshold_dbfs: -50.0,
+                    clipping: false,
+                });
+            }
+            if screen == "audio-manual" {
+                self.calls.call.settings.sensitivity_auto = false;
+            }
+            if screen == "audio-ptt" {
+                self.calls.call.settings.push_to_talk = true;
+                self.calls.recording_key = true;
+            }
+            if screen == "audio-bluetooth" {
+                self.calls.call.settings.output_device_id = Some("headphones".into());
+                self.calls.call.settings.input_device_id = Some("usb-mic".into());
+            }
+
             self.dialog = crate::app::Dialog::UserSettings;
             self.user_tab = crate::settings_controller::UserPage::Voice.index();
         }
@@ -467,18 +511,83 @@ impl App {
                 }
             }
             Action::Cameras(Ok(cameras)) => {
-                if let Some(camera) = cameras.first() {
+                if let Some(camera) = cameras
+                    .iter()
+                    .find(|c| Some(&c.id) == self.calls.call.settings.camera_device_id.as_ref())
+                    .or_else(|| cameras.first())
+                {
                     self.call_command(MediaCommand::Camera(Some(camera.clone())));
                 } else {
                     self.error = "No camera found.".into();
                 }
             }
             Action::Cameras(Err(e)) => self.error = e,
+            Action::Audio(event) => match event {
+                crate::audio_settings::Event::Ready(handle) => {
+                    handle.configure(self.calls.call.settings.clone());
+                    self.calls.audio_handle = Some(handle);
+                }
+                crate::audio_settings::Event::Devices(devices, cameras) => {
+                    self.calls.audio_devices = devices;
+                    self.calls.audio_cameras = cameras;
+                }
+                crate::audio_settings::Event::Level(level) => {
+                    if self.calls.mic_test {
+                        self.calls.mic_level = Some(level);
+                    }
+                }
+                crate::audio_settings::Event::Probe(high) => {
+                    self.calls.call.settings.auto_high_quality = Some(high);
+                    if let Some(handle) = &self.calls.audio_handle {
+                        handle.configure(self.calls.call.settings.clone());
+                    }
+                    self.call_save();
+                }
+                crate::audio_settings::Event::Error(e) => {
+                    self.calls.mic_test = false;
+                    eprintln!("Audio settings: {e}");
+                    self.calls.audio_error = Some("Audio is unavailable. Check your device and Windows microphone permissions, then try again.".into());
+                }
+            },
+            Action::MicTest => {
+                self.calls.audio_error = None;
+                self.calls.mic_test = !self.calls.mic_test;
+                self.calls.mic_level = None;
+            }
+            Action::RecordKey => {
+                self.calls.recording_key = !self.calls.recording_key;
+                self.call_command(MediaCommand::PushToTalk(false));
+                let mut live = self.calls.call.settings.clone();
+                if self.calls.recording_key {
+                    live.push_to_talk_key = None;
+                }
+                self.call_command(MediaCommand::Configure(live));
+            }
+            Action::RecordedKey(key) => {
+                if self.calls.recording_key {
+                    self.calls.recording_key = false;
+                    if key != 0x1b {
+                        self.calls.call.settings.push_to_talk_key = Some(key);
+                        self.call_apply_settings();
+                    } else {
+                        self.call_command(MediaCommand::Configure(
+                            self.calls.call.settings.clone(),
+                        ));
+                    }
+                }
+            }
             Action::Settings(s) => {
                 if let Err(e) = s.validate() {
                     self.error = e;
                 } else {
+                    // Clicking another setting ends key capture and restores
+                    // the saved hook, rather than leaving a hidden recorder.
+                    self.calls.recording_key = false;
                     self.calls.call.settings = s.clone();
+                    self.calls.audio_error = None;
+                    if let Some(handle) = &self.calls.audio_handle {
+                        handle.configure(s.clone());
+                    }
                     self.call_command(MediaCommand::Configure(s));
                     self.call_save();
                 }

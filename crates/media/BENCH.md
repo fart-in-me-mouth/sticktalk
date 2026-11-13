@@ -1,5 +1,11 @@
 # StickTalk media: Windows benchmarks
 
+**Audio round 2 (2026-11-12):** current device-free silence CPU, per-chirp
+full-pipeline timing, DFN3-LL delay and objective NS scores are in
+[`../client/bench/audio2/REPORT.md`](../client/bench/audio2/REPORT.md).
+That report supersedes the historical voice figures/limitations below, not the
+screen/video measurements. No physical/audio-device acceptance is claimed.
+
 The original screen proof below is historical (2026-11-11). The call-media
 implementation changed twice on 2026-11-12. **The final HQ qualification section
 at the end supersedes the earlier voice results, jitter/device limitations and

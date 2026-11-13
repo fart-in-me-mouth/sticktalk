@@ -6,6 +6,15 @@ use crate::{
 use iced::{advanced::widget::operation, mouse, Size};
 use iced_runtime::user_interface::{Cache, UserInterface};
 use std::{path::Path, time::Instant};
+pub const AUDIO_SCREENS: &[&str] = &[
+    "audio-default",
+    "audio-mic-test",
+    "audio-manual",
+    "audio-ptt",
+    "audio-devices",
+    "audio-bluetooth",
+    "audio-processing",
+];
 pub const SCREENS: &[&str] = &[
     "voice-call",
     "share-picker",
@@ -218,7 +227,9 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             if !(940..=3840).contains(&w) || !(600..=2160).contains(&h) {
                 return Err("Screenshot size is out of range".into());
             }
-            let screens = if args.iter().any(|v| v == "--main-only") {
+            let screens = if args.iter().any(|v| v == "--audio-only") {
+                AUDIO_SCREENS
+            } else if args.iter().any(|v| v == "--main-only") {
                 MAIN_SCREENS
             } else if args.iter().any(|v| v == "--media-only") {
                 MEDIA_SCREENS
@@ -305,8 +316,9 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
         // My Account is one page. These fixtures inspect its lower sections rather
         // than recreating the removed sidebar sub-pages.
         let settings_y = match screen {
-            "user-settings-voice-processing" => 650.,
-            "user-settings-voice-input" => 1050.,
+            "audio-processing" => 950.,
+            "user-settings-voice-processing" => 720.,
+            "user-settings-voice-input" => 320.,
             "user-settings-password" => 560.,
             "user-settings-sign-in"
             | "sign-in-methods-unlinked"
@@ -326,25 +338,14 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
                 ),
             );
         }
-        if matches!(
-            screen,
-            "user-settings-voice-processing" | "user-settings-voice-input"
-        ) {
-            let mut settings_scroll = operation::scrollable::scroll_to::<()>(
-                "settings-content".into(),
-                operation::scrollable::AbsoluteOffset {
-                    x: Some(0.),
-                    y: Some(if screen == "user-settings-voice-input" {
-                        1200.
-                    } else {
-                        640.
-                    }),
-                },
-            );
-            ui.operate(&renderer, &mut settings_scroll);
-        }
         let mut messages = Vec::new();
-        let cursor = if screen == "main-tooltip" {
+        let cursor = if screen == "audio-devices" {
+            let (left, _) = t::settings::columns(w as f32);
+            mouse::Cursor::Available(iced::Point::new(
+                left + t::settings::CONTENT_GAP + t::S32,
+                t::settings::TOP + t::S32 * 2. + t::S8,
+            ))
+        } else if screen == "main-tooltip" {
             mouse::Cursor::Available(iced::Point::new(
                 t::RAIL + t::SIDEBAR - t::S16,
                 h as f32 - t::USER_HEIGHT / 2.,
@@ -363,6 +364,17 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
                 &[iced::Event::Mouse(mouse::Event::CursorMoved {
                     position: cursor.position().unwrap(),
                 })],
+                cursor,
+                &mut renderer,
+                &mut iced::advanced::graphics::core::clipboard::Null,
+                &mut messages,
+            );
+        }
+        if screen == "audio-devices" && pass == 0 {
+            let _ = ui.update(
+                &[iced::Event::Mouse(mouse::Event::ButtonPressed(
+                    mouse::Button::Left,
+                ))],
                 cursor,
                 &mut renderer,
                 &mut iced::advanced::graphics::core::clipboard::Null,

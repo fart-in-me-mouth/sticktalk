@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod agent_window;
 mod app;
+mod audio_settings;
 mod desktop_host;
 mod features;
 mod video;

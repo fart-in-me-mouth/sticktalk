@@ -10,6 +10,7 @@ pub struct ProcessUsage {
     pub cpu_seconds: f64,
     pub rss_bytes: u64,
     pub peak_rss_bytes: u64,
+    pub private_bytes: u64,
     pub logical_cpus: usize,
 }
 
@@ -24,19 +25,20 @@ pub fn process_usage() -> Result<ProcessUsage> {
         let seconds = |t: FILETIME| {
             ((u64::from(t.dwHighDateTime) << 32) | u64::from(t.dwLowDateTime)) as f64 / 10_000_000.0
         };
-        let mut memory = PROCESS_MEMORY_COUNTERS {
-            cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+        let mut memory = PROCESS_MEMORY_COUNTERS_EX {
+            cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
             ..Default::default()
         };
         GetProcessMemoryInfo(
             process,
-            &mut memory,
-            std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+            (&mut memory as *mut PROCESS_MEMORY_COUNTERS_EX).cast(),
+            std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
         )?;
         Ok(ProcessUsage {
             cpu_seconds: seconds(kernel) + seconds(user),
             rss_bytes: memory.WorkingSetSize as u64,
             peak_rss_bytes: memory.PeakWorkingSetSize as u64,
+            private_bytes: memory.PrivateUsage as u64,
             logical_cpus: std::thread::available_parallelism().map_or(1, usize::from),
         })
     }

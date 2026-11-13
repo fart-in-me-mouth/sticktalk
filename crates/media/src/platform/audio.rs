@@ -20,6 +20,12 @@ fn audio_error(e: impl std::fmt::Display) -> Error {
     Error::Platform(format!("WASAPI: {e}"))
 }
 struct Apartment;
+pub fn initialize_audio_apartment() -> Result<()> {
+    wasapi::initialize_mta().ok().map_err(audio_error)
+}
+pub fn uninitialize_audio_apartment() {
+    wasapi::deinitialize();
+}
 impl Apartment {
     fn new() -> Result<Self> {
         wasapi::initialize_mta().ok().map_err(audio_error)?;
@@ -73,7 +79,31 @@ pub struct AudioDevice {
     pub default_console: bool,
 }
 /// Enumeration does not open a stream; call from a media worker, not STA UI.
+pub trait AudioDeviceBackend {
+    fn enumerate(&mut self) -> Result<Vec<AudioDevice>>;
+}
+pub struct NativeAudioDeviceBackend;
+impl AudioDeviceBackend for NativeAudioDeviceBackend {
+    fn enumerate(&mut self) -> Result<Vec<AudioDevice>> {
+        enumerate_native()
+    }
+}
+/// Shared real/fake enumeration path; bounds and direction data are identical.
+pub fn enumerate_audio_devices(backend: &mut impl AudioDeviceBackend) -> Result<Vec<AudioDevice>> {
+    let mut devices = backend.enumerate()?;
+    devices.truncate(256);
+    devices.retain(|d| {
+        !d.id.is_empty() && d.id.len() <= 4096 && !d.id.contains('\0') && d.name.len() <= 4096
+    });
+    devices.sort_by(|a, b| a.id.cmp(&b.id));
+    devices.dedup_by(|a, b| a.id == b.id && a.direction == b.direction);
+    devices.sort_by(|a, b| a.name.cmp(&b.name).then(a.id.cmp(&b.id)));
+    Ok(devices)
+}
 pub fn audio_devices() -> Result<Vec<AudioDevice>> {
+    enumerate_audio_devices(&mut NativeAudioDeviceBackend)
+}
+fn enumerate_native() -> Result<Vec<AudioDevice>> {
     let _apartment = Apartment::new()?;
     let enumerator = DeviceEnumerator::new().map_err(audio_error)?;
     let mut found = Vec::new();
@@ -130,6 +160,9 @@ pub struct AudioDeviceWatcher {
 }
 impl AudioDeviceWatcher {
     pub fn start() -> Result<Self> {
+        Self::start_with_callback(None)
+    }
+    pub fn start_with_callback(callback: Option<Arc<dyn Fn() + Send + Sync>>) -> Result<Self> {
         let (tx, receiver) = mpsc::sync_channel(32);
         let (stop, stopped) = mpsc::sync_channel(1);
         let (ready_tx, ready) = mpsc::sync_channel(1);
@@ -144,6 +177,9 @@ impl AudioDeviceWatcher {
                     let emit = move |event| {
                         if tx.try_send(event).is_err() {
                             lost.store(true, Ordering::Release);
+                        }
+                        if let Some(callback) = &callback {
+                            callback();
                         }
                     };
                     let emit = Arc::new(emit);
@@ -243,6 +279,15 @@ impl Stream {
                 .map_err(audio_error)?;
         }
         let event = client.set_get_eventhandle().map_err(audio_error)?;
+        if direction == Direction::Render {
+            // Opt out of Windows communications ducking. The explicit
+            // attenuation control owns any changes to other applications.
+            client
+                .get_audiosessioncontrol()
+                .map_err(audio_error)?
+                .set_ducking_preference(true)
+                .map_err(audio_error)?;
+        }
         Ok(Self { client, event })
     }
     fn handle(&self) -> HANDLE {
@@ -274,7 +319,7 @@ pub struct VoiceDevices {
 }
 enum Command {
     Configure(VoiceOptions),
-    Feedback(u8, u32),
+    Feedback(u8, u32, Option<u32>),
     Add(u64, bool),
     Remove(u64),
     Volume(u64, u16),
@@ -294,8 +339,10 @@ struct Shared {
     device_events: Mutex<VecDeque<AudioSessionEvent>>,
     meter: Mutex<Option<SyncSender<MicLevel>>>,
     monitor_gain: std::sync::atomic::AtomicU32,
+    notifier: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     input_gain: std::sync::atomic::AtomicU32,
     output_gain: std::sync::atomic::AtomicU32,
+    jitter_ms: std::sync::atomic::AtomicU32,
 }
 /// A call owns exactly one WASAPI capture/render worker. Stop/Drop signals a
 /// Win32 event, joins, then all clients close. No idle singleton audio engine.
@@ -334,6 +381,9 @@ impl VoiceSession {
                 if let Err(error) = result {
                     *state.failure.lock().unwrap() = Some(error.clone());
                     let _ = ready_tx.try_send(Err(error));
+                    if let Some(notify) = state.notifier.lock().unwrap().as_ref() {
+                        notify();
+                    }
                 }
             })
             .map_err(audio_error)?;
@@ -365,6 +415,9 @@ impl VoiceSession {
         self.wake.signal();
         Ok(())
     }
+    pub fn set_notifier(&self, notify: Arc<dyn Fn() + Send + Sync>) {
+        *self.shared.notifier.lock().unwrap() = Some(notify);
+    }
     pub fn set_devices(&self, devices: VoiceDevices) -> Result<()> {
         for id in [&devices.input, &devices.output].into_iter().flatten() {
             if id.len() > 4096 || id.contains('\0') {
@@ -388,7 +441,25 @@ impl VoiceSession {
         if loss_percent > 100 {
             return Err(Error::Invalid("loss must be 0..100%".into()));
         }
-        self.command(Command::Feedback(loss_percent, available_bitrate))
+        self.command(Command::Feedback(loss_percent, available_bitrate, None))
+    }
+    pub fn network_feedback(
+        &self,
+        loss_percent: u8,
+        available_bitrate: u32,
+        jitter_ms: u32,
+    ) -> Result<()> {
+        if loss_percent > 100 {
+            return Err(Error::Invalid("loss must be 0..100%".into()));
+        }
+        self.command(Command::Feedback(
+            loss_percent,
+            available_bitrate,
+            Some(jitter_ms),
+        ))
+    }
+    pub fn network_jitter_ms(&self) -> u32 {
+        self.shared.jitter_ms.load(Ordering::Acquire)
     }
     pub fn configure(&self, options: VoiceOptions) -> Result<()> {
         options.validate()?;
@@ -519,6 +590,16 @@ pub struct MicLevel {
     pub threshold_dbfs: f32,
     pub clipping: bool,
 }
+/// Shared real/fake capture measurement. Never starts a capture or render client.
+pub fn measure_mic_level(frame: &[f32], threshold_dbfs: f32) -> MicLevel {
+    let peak = frame.iter().fold(0.0f32, |p, s| p.max(s.abs()));
+    MicLevel {
+        rms_dbfs: rms_dbfs(frame),
+        peak_dbfs: 20.0 * peak.max(1e-6).log10(),
+        threshold_dbfs,
+        clipping: peak >= 0.999,
+    }
+}
 /// Explicit settings-test lifetime. Default monitor gain is ZERO: no sound until
 /// the user enables loopback. The meter exists only while this object is open.
 pub struct MicTestSession {
@@ -543,6 +624,9 @@ impl MicTestSession {
             .store(gain.to_bits(), Ordering::Release);
         self.voice.wake.signal();
         Ok(())
+    }
+    pub fn set_gains(&self, input: u16, output: u16) -> Result<()> {
+        self.voice.set_gains(input, output)
     }
     pub fn configure(&self, mut options: VoiceOptions) -> Result<()> {
         options.mode = InputMode::PushToTalk;
@@ -574,8 +658,11 @@ fn device_event(shared: &Shared, event: AudioSessionEvent) {
         events.pop_front();
     }
     events.push_back(event);
+    if let Some(notify) = shared.notifier.lock().unwrap().as_ref() {
+        notify();
+    }
 }
-fn choose_device(
+pub fn choose_audio_device(
     devices: &[AudioDevice],
     direction: AudioDirection,
     pinned: Option<&str>,
@@ -609,7 +696,10 @@ fn commands(
             Command::Configure(o) => mixer
                 .set_jitter_packets(o.jitter_packets)
                 .and_then(|_| processor.configure(o)),
-            Command::Feedback(loss, available) => {
+            Command::Feedback(loss, available, jitter) => {
+                if let Some(jitter) = jitter {
+                    processor.adapt_packet_duration(loss, jitter);
+                }
                 processor.adapt_bitrate(loss, available).map(|_| ())
             }
             Command::Add(id, stereo) => {
@@ -627,6 +717,9 @@ fn commands(
             Command::Volume(id, v) => mixer.set_volume(id, v),
             Command::Packet(id, p, arrival) => {
                 let _ = mixer.push_at(id, p, arrival);
+                shared
+                    .jitter_ms
+                    .store(mixer.network_jitter_ms(), Ordering::Release);
                 Ok(())
             }
         };
@@ -701,13 +794,13 @@ fn voice_loop(
             force_default = false;
         }
         let available = audio_devices()?;
-        let input = choose_device(
+        let input = choose_audio_device(
             &available,
             AudioDirection::Input,
             devices.input.as_deref(),
             force_default,
         );
-        let output = choose_device(
+        let output = choose_audio_device(
             &available,
             AudioDirection::Output,
             devices.output.as_deref(),
@@ -881,13 +974,13 @@ fn voice_loop(
                         force_default = false;
                     }
                     let all = audio_devices()?;
-                    let next_in = choose_device(
+                    let next_in = choose_audio_device(
                         &all,
                         AudioDirection::Input,
                         devices.input.as_deref(),
                         force_default,
                     );
-                    let next_out = choose_device(
+                    let next_out = choose_audio_device(
                         &all,
                         AudioDirection::Output,
                         devices.output.as_deref(),
@@ -923,9 +1016,6 @@ fn voice_loop(
                     } else {
                         (percent - 1) as f32 / 100.0
                     };
-                    for sample in &mut mixed {
-                        *sample = (*sample * output_gain).clamp(-1.0, 1.0);
-                    }
                     let gain = f32::from_bits(shared.monitor_gain.load(Ordering::Acquire));
                     if gain > 0.0 {
                         for i in 0..TICK {
@@ -935,11 +1025,14 @@ fn voice_loop(
                             mixed[i * 2 + 1] = (mixed[i * 2 + 1] + right).clamp(-1.0, 1.0);
                         }
                     }
+                    for sample in &mut mixed {
+                        *sample = (*sample * output_gain).clamp(-1.0, 1.0);
+                    }
                     processor.render(&std::array::from_fn(|i| {
                         (mixed[i * 2] + mixed[i * 2 + 1]) * 0.5
                     }))?;
                     for sample in mixed {
-                        playback.extend(sample.to_le_bytes());
+                        playback.extend(encode_device_float(sample));
                     }
                 }
                 if let Some(render) = &render {
@@ -965,7 +1058,7 @@ fn voice_loop(
                         let (frames, _) =
                             capture.read_from_device(&mut raw).map_err(audio_error)?;
                         for b in raw[..frames as usize * 8].as_chunks::<4>().0 {
-                            pcm.push_back(f32::from_le_bytes(*b));
+                            pcm.push_back(decode_device_float(*b));
                         }
                         while pcm.len() >= TICK * 2 {
                             if shared.stop.load(Ordering::Acquire) {
@@ -986,6 +1079,9 @@ fn voice_loop(
                             }
                             if let Some(packet) = processor.capture_stereo(&frame)? {
                                 let _ = packets.try_send(packet);
+                                if let Some(notify) = shared.notifier.lock().unwrap().as_ref() {
+                                    notify();
+                                }
                             }
                             if let Some(event) = processor.take_speaking_event() {
                                 shared
@@ -993,17 +1089,17 @@ fn voice_loop(
                                     .lock()
                                     .unwrap()
                                     .insert(event.user, event.speaking);
+                                if let Some(notify) = shared.notifier.lock().unwrap().as_ref() {
+                                    notify();
+                                }
                             }
                             meter_ticks = (meter_ticks + 1) % 3;
                             if let Some(meter) = shared.meter.lock().unwrap().as_ref() {
                                 if meter_ticks == 0 {
-                                    let peak = frame.iter().fold(0.0f32, |p, s| p.max(s.abs()));
-                                    let _ = meter.try_send(MicLevel {
-                                        rms_dbfs: rms_dbfs(&frame),
-                                        peak_dbfs: 20.0 * peak.max(1e-6).log10(),
-                                        threshold_dbfs: processor.sensitivity_dbfs(),
-                                        clipping: peak >= 0.999,
-                                    });
+                                    let _ = meter.try_send(measure_mic_level(
+                                        &frame,
+                                        processor.sensitivity_dbfs(),
+                                    ));
                                 }
                                 if shared.monitor_gain.load(Ordering::Acquire) != 0 {
                                     monitor.extend(processor.last_processed_stereo());
@@ -1021,6 +1117,9 @@ fn voice_loop(
                         .lock()
                         .unwrap()
                         .insert(event.user, event.speaking);
+                    if let Some(notify) = shared.notifier.lock().unwrap().as_ref() {
+                        notify();
+                    }
                 }
             }
             Ok(())
@@ -1225,32 +1324,32 @@ mod recovery_tests {
             d("other-mic", AudioDirection::Input, false),
         ];
         assert_eq!(
-            choose_device(&devices, AudioDirection::Input, None, false)
+            choose_audio_device(&devices, AudioDirection::Input, None, false)
                 .unwrap()
                 .id,
             "usb"
         );
         assert_eq!(
-            choose_device(&devices, AudioDirection::Input, Some("other-mic"), false)
+            choose_audio_device(&devices, AudioDirection::Input, Some("other-mic"), false)
                 .unwrap()
                 .id,
             "other-mic"
         );
         assert_eq!(
-            choose_device(&devices, AudioDirection::Output, None, false)
+            choose_audio_device(&devices, AudioDirection::Output, None, false)
                 .unwrap()
                 .id,
             "bluetooth-a2dp"
         );
         devices.retain(|d| d.id != "other-mic");
         assert_eq!(
-            choose_device(&devices, AudioDirection::Input, Some("other-mic"), false)
+            choose_audio_device(&devices, AudioDirection::Input, Some("other-mic"), false)
                 .unwrap()
                 .id,
             "usb"
         );
         devices.retain(|d| d.direction != AudioDirection::Input);
-        assert!(choose_device(&devices, AudioDirection::Input, None, false).is_none());
-        assert!(choose_device(&devices, AudioDirection::Output, None, false).is_some());
+        assert!(choose_audio_device(&devices, AudioDirection::Input, None, false).is_none());
+        assert!(choose_audio_device(&devices, AudioDirection::Output, None, false).is_some());
     }
 }

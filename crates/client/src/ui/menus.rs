@@ -130,6 +130,11 @@ pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {
                         false,
                     ));
             }
+            if Some(*id) != app.me() && app.calls.call.channel.is_some() {
+                list = list
+                    .push(separator())
+                    .push(container(super::call::user_audio(app, *id)).padding([t::S8, t::S8]));
+            }
             if app.state.guild.is_some()
                 && (Some(*id) == app.me()
                     && app.permissions().contains(Permissions::CHANGE_NICKNAME)

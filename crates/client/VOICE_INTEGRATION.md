@@ -21,7 +21,7 @@ used by the automated qualification.
   Bounded command/event queues fail closed; sockets bind loopback by default.
   `STICKTALK_CLIENT_VOICE_BIND_IP` permits an explicitly chosen unicast local
   address; wildcard, multicast, broadcast and hostname binds are rejected.
-- `voice_ui` + `ui/{call,share_picker,stream_view,voice_settings}` are additive
+- `voice_ui` + `ui/{call,share_picker,stream_view}` + `ui/settings/voice` are additive
   main-window hooks for the parallel shell/settings work. Voice rows, speaking
   rings, LIVE flags, connected panel, call controls and local audio context menu
   are driven by this projection. Preferences are bounded and validated, with
@@ -52,9 +52,10 @@ used by the automated qualification.
    address (`STICKTALK_CLIENT_VOICE_BIND_IP`) and deployment acceptance; only
    loopback was tested. No wildcard bind or unsafe automatic interface
    enumeration is hidden in tests.
-4. Voice settings model and live Configure binding exist. Full device dropdowns,
-   live mic-test meter/loopback UI, PTT rebinding UI, split-button menus and final
-   settings parity remain for integration with the parallel settings agent.
+4. Audio round 2 completes the Voice & Video audio controls, live IMM device
+   dropdowns, explicit mic-test meter/loopback, PTT recorder and persistent
+   per-user controls. See `bench/audio2/REPORT.md` and `screenshots/audio2/`.
+   Camera rendering remains the separate video integration's responsibility.
    Studio profile changes require rejoining; the engine rejects silent channel
    layout changes. Headless tests never start the native device driver.
 5. Process loopback is wired for window shares (PID from HWND); a monitor share
@@ -75,14 +76,13 @@ used by the automated qualification.
 9. Actual desktop idle working set/private bytes, physical call CPU, acoustic
    mouth-to-ear latency and DNSMOS/PESQ were not measured. The included numbers
    are explicitly file-only DSP or whole synthetic transport/decode harnesses.
-10. **The <=80 ms mouth-to-ear requirement is not met/qualified by this work.**
-    Off/Standard synthetic digital tone delay improved substantially, but the
-    speech-window diagnostic failed its correlation-coverage gate (52/109
-    voiced windows, below 70%). Adaptive time stretching makes a single global
-    fixed-lag speech estimate unreliable. Full DFN3 also suppresses the tone,
-    making its 154.667 ms tone result unsuitable as speech qualification. A
-    robust speech timing harness and controlled acoustic/device measurement
-    remain required. See `bench/voice-2026-11-12/REPORT.md` and raw evidence.
+10. **The <=80 ms physical mouth-to-ear requirement remains unqualified.**
+    Audio round 2 replaces unreliable global speech-window timing with a full
+    digital-pipeline chirp train and per-marker correlation/coverage checks.
+    High now uses the official low-latency DFN3-LL model (10 ms overlap delay).
+    Clean/impaired distributions, CPU budget misses and objective SI-SDR scores
+    are reported without claiming acoustic/device acceptance or superiority to
+    Discord. See `bench/audio2/REPORT.md`; the earlier report is historical.
 
 ## Reproduce safely
 

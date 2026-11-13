@@ -35,13 +35,30 @@ pub fn run(
     config: Config,
     commands: Receiver<Command>,
     output: &Sender<Event>,
+    wake: std::sync::Arc<std::sync::Mutex<Option<UdpSocket>>>,
 ) -> Result<(), String> {
     let mut settings: sticktalk_client_core::voice::VoiceSettings =
         serde_json::from_str(&config.settings_json).map_err(error)?;
     settings.validate()?;
+    let active_studio = settings.studio_mode;
     // Default/test hosts are loopback-only. Production may explicitly select a
     // reachable unicast/Tailscale interface; never bind wildcard or auto-detect.
     let socket = UdpSocket::bind((super::bind_address(&config.bind_ip)?, 0)).map_err(error)?;
+    *wake.lock().unwrap() = Some(socket.try_clone().map_err(error)?);
+    struct Clear(std::sync::Arc<std::sync::Mutex<Option<UdpSocket>>>);
+    impl Drop for Clear {
+        fn drop(&mut self) {
+            self.0.lock().unwrap().take();
+        }
+    }
+    let _clear = Clear(wake.clone());
+    let notify: std::sync::Arc<dyn Fn() + Send + Sync> = std::sync::Arc::new(move || {
+        if let Some(socket) = wake.lock().unwrap().as_ref() {
+            if let Ok(address) = socket.local_addr() {
+                let _ = socket.send_to(&[], address);
+            }
+        }
+    });
     let mut peer = Peer::new(
         socket.local_addr().map_err(error)?,
         config.mtu,
@@ -55,10 +72,23 @@ pub fn run(
         super::options(&settings)?,
     )
     .map_err(error)?;
+    voice.set_notifier(notify.clone());
     voice
         .set_gains(settings.input_volume, settings.output_volume)
         .map_err(error)?;
     let hooks = hotkeys::Hooks::start(settings.push_to_talk_key)?;
+    hooks.set_notifier(notify);
+    // Initializes COM only on this already-active media thread. No device open.
+    media::initialize_audio_apartment().map_err(error)?;
+    struct Apartment;
+    impl Drop for Apartment {
+        fn drop(&mut self) {
+            media::uninitialize_audio_apartment();
+        }
+    }
+    let _apartment = Apartment;
+    let mut attenuation = media::AppAttenuation::default();
+    let mut remote_speaking = std::collections::BTreeSet::new();
     let mut share: Option<media::ShareSession> = None;
     let mut loopback: Option<media::LoopbackSession> = None;
     let mut camera: Option<media::CameraSession> = None;
@@ -67,6 +97,7 @@ pub fn run(
     let mut next_key = 1u64;
     let mut speaking = false;
     let mut gated = true;
+    let mut local_deafened = false;
     let mut buffer = [0; 65536];
     loop {
         for _ in 0..128 {
@@ -79,6 +110,7 @@ pub fn run(
                 match command {
                     Command::Stop => return Err("__stop".into()),
                     Command::Gate(muted, deafened) => {
+                        local_deafened = deafened;
                         gated = muted || deafened;
                         voice.set_muted(muted).map_err(error)?;
                         voice.set_deafened(deafened).map_err(error)?;
@@ -87,7 +119,19 @@ pub fn run(
                         voice.set_push_to_talk(pressed).map_err(error)?
                     }
                     Command::Configure(s) => {
-                        voice.configure(super::options(&s)?).map_err(error)?;
+                        // Persist the requested profile, but retain negotiated
+                        // channel layout until rejoin. All other controls remain
+                        // live even while a profile change is pending.
+                        let mut live = s.clone();
+                        live.studio_mode = active_studio;
+                        let mut previous = settings.clone();
+                        previous.studio_mode = active_studio;
+                        let next_options = super::options(&live)?;
+                        // Faders, local mutes and device changes must not reset
+                        // Opus's network adaptation or neural processing state.
+                        if next_options != super::options(&previous)? {
+                            voice.configure(next_options).map_err(error)?;
+                        }
                         if s.push_to_talk_key != settings.push_to_talk_key {
                             voice.set_push_to_talk(false).map_err(error)?;
                             hooks.set_ptt_key(s.push_to_talk_key);
@@ -158,13 +202,14 @@ pub fn run(
                     }
                     Command::Event(VoiceEvent::Stats(stats)) => {
                         voice
-                            .adapt_bitrate(
+                            .network_feedback(
                                 stats
                                     .loss_per_million
                                     .unwrap_or(0)
                                     .div_ceil(10_000)
                                     .min(100) as u8,
                                 128_000,
+                                voice.network_jitter_ms(),
                             )
                             .map_err(error)?;
                     }
@@ -268,8 +313,32 @@ pub fn run(
         for event in voice.take_speaking_events() {
             if event.user.is_none() {
                 speaking = event.speaking;
+            } else if let Some(user) = event.user {
+                if event.speaking {
+                    remote_speaking.insert(user);
+                } else {
+                    remote_speaking.remove(&user);
+                }
             }
             emit(output, Event::Speaking(event.user, event.speaking))?;
+        }
+        // Departed streams must neither accumulate forever nor leave other
+        // apps ducked after the last audible speaker leaves the channel.
+        remote_speaking.retain(|id| remote.values().any(|(_, key)| key == id));
+        let audible = super::attenuation_active(
+            &settings,
+            local_deafened,
+            remote
+                .values()
+                .filter(|(_, key)| remote_speaking.contains(key))
+                .map(|(source, _)| source.publisher.user_id),
+        );
+        if let Err(e) = attenuation.set(
+            audible,
+            settings.attenuation,
+            settings.output_device_id.as_deref(),
+        ) {
+            emit(output, Event::Toast(e.to_string()))?;
         }
         for error in voice.take_control_errors() {
             emit(output, Event::Toast(error.to_string()))?;
@@ -380,12 +449,20 @@ pub fn run(
         let wait = peer
             .deadline()
             .saturating_duration_since(now)
-            .min(Duration::from_millis(5))
+            .min(
+                if share.is_some() || camera.is_some() || loopback.is_some() {
+                    Duration::from_millis(5)
+                } else {
+                    Duration::MAX
+                },
+            )
             .max(Duration::from_micros(100));
         socket.set_read_timeout(Some(wait)).map_err(error)?;
         match socket.recv_from(&mut buffer) {
             Ok((n, from)) => {
-                let _ = peer.datagram(from, &buffer[..n], Instant::now());
+                if n != 0 {
+                    let _ = peer.datagram(from, &buffer[..n], Instant::now());
+                }
             }
             Err(e)
                 if matches!(

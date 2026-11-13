@@ -5,7 +5,7 @@ use crate::{Error, Result};
 use std::collections::BTreeMap;
 mod effects;
 mod playout;
-pub use effects::{benchmark_noise_quality, NoiseCpuProbe};
+pub use effects::{benchmark_noise_quality, NoiseCpuProbe, DEEP_FILTER_ALGORITHMIC_DELAY_MS};
 use effects::{DeepDenoiser, NativeApm};
 pub use playout::{PlayoutStatistics, RepairStatistics, VoiceMixer};
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -28,6 +28,16 @@ pub const TICK: usize = 480;
 pub const PACKET_SAMPLES: usize = 960;
 pub const MAX_PACKET_BYTES: usize = 1275;
 pub const MAX_REMOTES: usize = 128;
+/// Negotiated WASAPI shared-mode ingress/egress sample representation. These
+/// exact helpers are also used by the device-free end-to-end timing harness.
+#[inline]
+pub fn decode_device_float(bytes: [u8; 4]) -> f32 {
+    f32::from_le_bytes(bytes)
+}
+#[inline]
+pub fn encode_device_float(sample: f32) -> [u8; 4] {
+    sample.to_le_bytes()
+}
 const MAX_JITTER_PACKETS: usize = 12;
 
 #[cfg(test)]
@@ -62,7 +72,7 @@ mod low_latency_tests {
         }
         assert!(energy > 1.);
         mixer.flush();
-        assert_eq!(mixer.statistics(1).unwrap().target_delay_ms, 20);
+        assert_eq!(mixer.statistics(1).unwrap().target_delay_ms, 10);
     }
 }
 
@@ -77,9 +87,10 @@ pub enum InputMode {
     PushToTalk,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VoiceOptions {
-    /// 10 ms for low-latency calls, 20 ms for legacy/file/share-audio clients.
+    /// Initial packetization. Network feedback prefers 10 ms on clean links and
+    /// 20 ms under loss/jitter, with recovery hysteresis.
     pub packet_duration_ms: u16,
     pub bitrate: u32,
     pub profile: VoiceProfile,
@@ -95,7 +106,7 @@ pub struct VoiceOptions {
     pub sensitivity_dbfs: f32,
     /// NN VAD confidence, 0..1; active even when denoising is disabled.
     pub vad_probability: f32,
-    /// Fixed bounded jitter target: 1..6 packets, 20..120 ms.
+    /// Minimum adaptive jitter target: 1..6 packets, using their 10/20 ms duration.
     pub jitter_packets: usize,
 }
 impl Default for VoiceOptions {
@@ -274,6 +285,12 @@ pub struct VoiceProcessor {
     hangover: u8,
     speaking: bool,
     event: Option<SpeakingEvent>,
+    quiet_ticks: u32,
+    render_quiet_ticks: u16,
+    fade: f32,
+    wire_sequence: u64,
+    packet_policy: PacketPolicy,
+    ns_tail: u8,
 }
 fn selected_noise(options: &VoiceOptions) -> NoiseSuppressionMode {
     if !options.noise_suppression || options.profile == VoiceProfile::Studio {
@@ -323,6 +340,12 @@ impl VoiceProcessor {
             hangover: 0,
             speaking: false,
             event: None,
+            quiet_ticks: 0,
+            render_quiet_ticks: 0,
+            fade: 0.0,
+            wire_sequence: 0,
+            packet_policy: PacketPolicy::default(),
+            ns_tail: 0,
         })
     }
     pub fn configure(&mut self, options: VoiceOptions) -> Result<()> {
@@ -355,6 +378,9 @@ impl VoiceProcessor {
         Ok(())
     }
     pub fn set_muted(&mut self, muted: bool) {
+        if self.muted == muted {
+            return;
+        }
         self.muted = muted;
         self.apm.muted(muted);
         if muted {
@@ -363,6 +389,9 @@ impl VoiceProcessor {
             self.ptt_release_ticks = 0;
             self.hangover = 0;
             self.set_speaking(false);
+        } else {
+            self.apm.reset();
+            self.fade = 0.0;
         }
     }
     pub fn set_push_to_talk(&mut self, pressed: bool) {
@@ -430,7 +459,14 @@ impl VoiceProcessor {
             return Err(Error::Invalid("non-finite render samples".into()));
         }
         let pcm = pcm.map(|s| s.clamp(-1.0, 1.0));
-        if self.options.profile != VoiceProfile::Studio {
+        self.render_quiet_ticks = if rms_dbfs(&pcm) < -90.0 {
+            self.render_quiet_ticks.saturating_add(1)
+        } else {
+            0
+        };
+        if self.options.profile != VoiceProfile::Studio
+            && (self.render_quiet_ticks < 10 || self.quiet_ticks <= 6)
+        {
             self.apm.render(&pcm)?;
         }
         Ok(())
@@ -494,28 +530,96 @@ impl VoiceProcessor {
         }
         let pcm = pcm.map(|s| s.clamp(-1.0, 1.0));
         let level = rms_dbfs(&pcm);
-        let mut processed = pcm;
-        self.apm.capture_echo(&mut processed)?;
-        // nnnoiseless expects i16-scale floats, not normalized [-1,1].
-        let mut scaled = [0.0; TICK];
-        for (o, i) in scaled.iter_mut().zip(processed) {
-            *o = i * 32768.0;
-        }
-        let mut clean = [0.0; TICK];
-        let probability = self.noise.process_frame(&mut clean, &scaled);
-        if self.options.automatic_sensitivity && probability < 0.2 {
+        // Cheap energy gate precedes APM, neural VAD and DFN. Six tail hops
+        // drain overlap/lookahead; a 20 ms fade prevents a gate-edge click.
+        let floor = if self.options.mode == InputMode::PushToTalk {
+            // A saved Voice Activity threshold must never silently mute PTT.
+            // Only an inaudible noise floor may suspend the held-open path.
+            (self.noise_floor + 6.0).min(-65.0)
+        } else if self.options.automatic_sensitivity {
+            (self.noise_floor + 6.0).min(self.sensitivity_dbfs() - 6.0)
+        } else {
+            self.options.sensitivity_dbfs - 6.0
+        };
+        let below = level < floor;
+        if below {
             self.noise_floor =
                 (self.noise_floor * 0.99 + level.clamp(-90.0, 0.0) * 0.01).clamp(-80.0, -25.0);
         }
-        if self.selected_noise == NoiseSuppressionMode::Standard {
-            for i in 0..TICK {
-                processed[i] = clean[i] / 32768.0;
+        let permitted = !self.muted
+            && (self.options.mode != InputMode::PushToTalk
+                || self.ptt
+                || self.ptt_release_ticks > 0);
+        self.quiet_ticks = if below || !permitted {
+            self.quiet_ticks.saturating_add(1)
+        } else {
+            0
+        };
+        let awake = self.quiet_ticks <= 6 && permitted;
+        let mut processed = if awake { pcm } else { [0.0; TICK] };
+        let probability = if awake {
+            self.apm.capture_echo(&mut processed)?;
+            // nnnoiseless expects i16-scale floats, not normalized [-1,1].
+            let mut scaled = [0.0; TICK];
+            for (o, i) in scaled.iter_mut().zip(processed) {
+                *o = i * 32768.0;
             }
+            let mut clean = [0.0; TICK];
+            // PTT already supplies activity. Only Standard needs the RNNoise
+            // pass for actual suppression; High does not run a second neural
+            // model just to rediscover the user's held key.
+            let probability = if self.selected_noise != NoiseSuppressionMode::Standard
+                && (self.options.mode == InputMode::PushToTalk
+                    || self.options.vad_probability == 0.0)
+            {
+                if level >= floor {
+                    1.0
+                } else {
+                    0.0
+                }
+            } else {
+                self.noise.process_frame(&mut clean, &scaled)
+            };
+            if (self.options.automatic_sensitivity || self.options.mode == InputMode::PushToTalk)
+                && probability < 0.2
+            {
+                self.noise_floor =
+                    (self.noise_floor * 0.99 + level.clamp(-90.0, 0.0) * 0.01).clamp(-80.0, -25.0);
+            }
+            if self.selected_noise == NoiseSuppressionMode::Standard {
+                for i in 0..TICK {
+                    processed[i] = clean[i] / 32768.0;
+                }
+            }
+            if probability >= 0.1 {
+                self.ns_tail = 6;
+            } else {
+                self.ns_tail = self.ns_tail.saturating_sub(1);
+            }
+            if let Some(df) = &mut self.deep {
+                if self.ns_tail > 0 {
+                    processed = df.process(&processed)?;
+                } else {
+                    processed.fill(0.0);
+                }
+            }
+            self.apm.capture_gain(&mut processed)?;
+            probability
+        } else {
+            0.0
+        };
+        let neural_closing = self.deep.is_some()
+            && self.options.mode == InputMode::VoiceActivity
+            && self.ns_tail <= 2;
+        let target = if below || !permitted || neural_closing {
+            0.0
+        } else {
+            1.0
+        };
+        for sample in &mut processed {
+            self.fade += (target - self.fade).clamp(-1.0 / 960.0, 1.0 / 240.0);
+            *sample *= self.fade;
         }
-        if let Some(df) = &mut self.deep {
-            processed = df.process(&processed)?;
-        }
-        self.apm.capture_gain(&mut processed)?;
         self.last_processed = processed;
         self.last_stereo = std::array::from_fn(|i| processed[i / 2]);
         let threshold = self.sensitivity_dbfs();
@@ -531,7 +635,12 @@ impl VoiceProcessor {
                 InputMode::VoiceActivity => self.hangover != 0,
             };
         self.ptt_release_ticks = self.ptt_release_ticks.saturating_sub(1);
-        self.set_speaking(open && level >= threshold);
+        let speaking_threshold = if self.options.mode == InputMode::PushToTalk {
+            floor
+        } else {
+            threshold
+        };
+        self.set_speaking(open && level >= speaking_threshold);
         let offset = if self.half { TICK } else { 0 };
         for (n, sample) in processed.iter().enumerate() {
             self.packet_pcm[offset + n] = if open { sample.clamp(-1.0, 1.0) } else { 0.0 };
@@ -539,18 +648,66 @@ impl VoiceProcessor {
         self.clock += TICK as u64;
         if self.options.packet_duration_ms == 10 {
             self.half = false;
-            return self
-                .encoder
-                .encode(&self.packet_pcm[..TICK], self.clock - TICK as u64)
-                .map(Some);
+            return self.encode_voice(TICK);
         }
         self.half = !self.half;
         if self.half {
             Ok(None)
         } else {
-            self.encoder
-                .encode(&self.packet_pcm, self.clock - PACKET_SAMPLES as u64)
-                .map(Some)
+            self.encode_voice(PACKET_SAMPLES)
+        }
+    }
+    fn encode_voice(&mut self, samples: usize) -> Result<Option<AudioPacket>> {
+        // Prime Opus DTX, then only encode a comfort update every 400 ms.
+        // Timestamp continues during silence. Wire sequence counts SENT packets,
+        // so a DTX interval is never misrepresented as packet loss/FEC work.
+        if self.quiet_ticks > 30 && !self.quiet_ticks.is_multiple_of(40) {
+            return Ok(None);
+        }
+        let mut packet = self
+            .encoder
+            .encode(&self.packet_pcm[..samples], self.clock - samples as u64)?;
+        packet.sequence = self.wire_sequence;
+        self.wire_sequence += 1;
+        Ok(Some(packet))
+    }
+    /// Feedback intervals are one second; degradation is immediate, recovery
+    /// requires five consecutive clean intervals. Never discards a half packet.
+    pub fn adapt_packet_duration(&mut self, loss_percent: u8, jitter_ms: u32) -> u16 {
+        let duration = self.packet_policy.observe(loss_percent, jitter_ms);
+        if !self.half {
+            self.options.packet_duration_ms = duration;
+        }
+        self.options.packet_duration_ms
+    }
+    pub fn packet_duration_ms(&self) -> u16 {
+        self.options.packet_duration_ms
+    }
+}
+/// 10 ms buys 10 ms packetization at ~32 kbit/s extra IPv4/UDP/RTP/SRTP
+/// overhead (80 bytes x 50 extra packets/s); 20 ms is safer on impaired links.
+#[derive(Default)]
+pub struct PacketPolicy {
+    clean: u8,
+    degraded: bool,
+}
+impl PacketPolicy {
+    pub fn observe(&mut self, loss: u8, jitter_ms: u32) -> u16 {
+        if loss >= 3 || jitter_ms >= 15 {
+            self.degraded = true;
+            self.clean = 0;
+        } else if loss <= 1 && jitter_ms <= 5 {
+            self.clean = self.clean.saturating_add(1);
+            if self.clean >= 5 {
+                self.degraded = false;
+            }
+        } else {
+            self.clean = 0;
+        }
+        if self.degraded {
+            20
+        } else {
+            10
         }
     }
 }
@@ -560,6 +717,102 @@ pub fn rms_dbfs(pcm: &[f32]) -> f32 {
     }
     let power = pcm.iter().map(|s| s * s).sum::<f32>() / pcm.len() as f32;
     10.0 * power.max(1e-12).log10()
+}
+
+#[cfg(test)]
+mod silence_tests {
+    use super::*;
+    #[test]
+    fn ptt_does_not_inherit_a_hidden_voice_activity_threshold() {
+        for noise_mode in [NoiseSuppressionMode::Off, NoiseSuppressionMode::Standard] {
+            let mut p = VoiceProcessor::new(VoiceOptions {
+                noise_mode,
+                mode: InputMode::PushToTalk,
+                automatic_sensitivity: false,
+                sensitivity_dbfs: 0.,
+                echo_cancellation: false,
+                automatic_gain: false,
+                packet_duration_ms: 10,
+                ..Default::default()
+            })
+            .unwrap();
+            for _ in 0..200 {
+                p.capture(&[0.; TICK]).unwrap();
+            }
+            p.set_push_to_talk(true);
+            for tick in 0..8 {
+                let pcm = std::array::from_fn(|i| ((tick * TICK + i) as f32 * 0.07).sin() * 0.2);
+                p.capture(&pcm).unwrap();
+            }
+            assert!(p.speaking);
+            assert!(p.last_processed.iter().any(|s| *s != 0.));
+        }
+    }
+    #[test]
+    fn silent_unmuted_ptt_skips_dsp_and_bounds_dtx_packets() {
+        for noise_mode in [NoiseSuppressionMode::Off, NoiseSuppressionMode::Standard] {
+            let mut p = VoiceProcessor::new(VoiceOptions {
+                noise_mode,
+                packet_duration_ms: 10,
+                mode: InputMode::PushToTalk,
+                ..Default::default()
+            })
+            .unwrap();
+            p.set_push_to_talk(true);
+            let mut count = 0;
+            let mut sequence = 0;
+            for _ in 0..1000 {
+                if let Some(packet) = p.capture(&[0.; TICK]).unwrap() {
+                    assert_eq!(packet.sequence, sequence);
+                    sequence += 1;
+                    count += 1;
+                }
+            }
+            assert!(count <= 55, "{count}");
+            assert_eq!(p.quiet_ticks, 1000);
+            assert!(p.last_processed().iter().all(|s| *s == 0.));
+            let pcm = std::array::from_fn(|i| (i as f32 * 0.03).sin() * 0.2);
+            let resumed = p.capture(&pcm).unwrap().unwrap();
+            assert_eq!(resumed.timestamp, 480000);
+            assert!(p.last_processed().iter().all(|s| s.is_finite()));
+        }
+    }
+    #[test]
+    fn adaptation_has_degrade_and_recovery_hysteresis() {
+        let mut p = PacketPolicy::default();
+        assert_eq!(p.observe(0, 1), 10);
+        assert_eq!(p.observe(3, 1), 20);
+        for _ in 0..4 {
+            assert_eq!(p.observe(0, 1), 20);
+        }
+        assert_eq!(p.observe(0, 1), 10);
+        assert_eq!(p.observe(0, 16), 20);
+        for _ in 0..8 {
+            assert_eq!(p.observe(2, 8), 20);
+        }
+    }
+    #[test]
+    fn ptt_release_delay_retains_exact_capture_hops() {
+        let mut p = VoiceProcessor::new(VoiceOptions {
+            noise_mode: NoiseSuppressionMode::Off,
+            packet_duration_ms: 10,
+            mode: InputMode::PushToTalk,
+            automatic_sensitivity: false,
+            ptt_release_delay_ms: 30,
+            ..Default::default()
+        })
+        .unwrap();
+        let pcm = std::array::from_fn(|i| (i as f32 * 0.07).sin() * 0.2);
+        p.set_push_to_talk(true);
+        p.capture(&pcm).unwrap();
+        p.set_push_to_talk(false);
+        for _ in 0..3 {
+            p.capture(&pcm).unwrap();
+            assert!(p.packet_pcm[..TICK].iter().any(|s| *s != 0.));
+        }
+        p.capture(&pcm).unwrap();
+        assert!(p.packet_pcm[..TICK].iter().all(|s| *s == 0.));
+    }
 }
 
 struct Remote {
