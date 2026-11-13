@@ -12,6 +12,12 @@ impl Parts {
         (self.year, self.month, self.day)
     }
 }
+pub fn calendar_date(value: Parts) -> String {
+    let month = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ][(value.month as usize).saturating_sub(1).min(11)];
+    format!("{month} {}, {}", value.day, value.year)
+}
 pub fn label(value: Parts, today: Parts, yesterday: Parts, short: bool) -> String {
     let time = format!(
         "{}:{:02} {}",
@@ -31,7 +37,38 @@ pub fn label(value: Parts, today: Parts, yesterday: Parts, short: bool) -> Strin
     } else if value.date() == yesterday.date() {
         "Yesterday".into()
     } else {
-        format!("{:02}/{:02}/{}", value.month, value.day, value.year)
+        calendar_date(value)
     };
     format!("{date} at {time}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn calendar_dates_use_month_names_without_zero_padding() {
+        let day = Parts {
+            year: 2025,
+            month: 4,
+            day: 18,
+            hour: 12,
+            minute: 0,
+        };
+        assert_eq!(calendar_date(day), "Apr 18, 2025");
+        assert_eq!(calendar_date(Parts { day: 3, ..day }), "Apr 3, 2025");
+        assert_eq!(label(day, day, day, false), "Today at 12:00 PM");
+        assert_eq!(
+            label(day, Parts { year: 2026, ..day }, day, false),
+            "Yesterday at 12:00 PM"
+        );
+        assert_eq!(
+            label(
+                day,
+                Parts { year: 2026, ..day },
+                Parts { day: 17, ..day },
+                false
+            ),
+            "Apr 18, 2025 at 12:00 PM"
+        );
+    }
 }

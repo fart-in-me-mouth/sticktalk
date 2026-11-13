@@ -19,6 +19,11 @@ pub enum Screen {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuildTab {
+    Engagement,
+    Roles,
+    Emoji,
+    Access,
+    AuditLog,
     Overview,
     Channels,
     Members,
@@ -36,6 +41,7 @@ pub enum Dialog {
     GuildMenu,
     EmojiPicker,
     UserSettings,
+    Notifications(Id),
     GuildSettings(GuildTab),
     NewChannel(ChannelKind, Option<Id>),
     ChannelSettings(Id),

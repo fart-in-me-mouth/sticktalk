@@ -163,7 +163,7 @@ impl App {
         }
         if screen == "voice-settings" {
             self.dialog = crate::app::Dialog::UserSettings;
-            self.user_tab = 3;
+            self.user_tab = crate::settings_controller::UserPage::Voice.index();
         }
     }
     pub fn call_effects(&mut self, effects: Vec<Effect>, nonce: Option<u64>) {

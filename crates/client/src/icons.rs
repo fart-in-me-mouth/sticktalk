@@ -10,6 +10,11 @@ pub fn icon(name: &str, size: f32, color: Color) -> svg::Svg<'static> {
         "phone-off" => include_bytes!("../assets/icons/phone-off.svg"),
         "volume-2" => include_bytes!("../assets/icons/volume-2.svg"),
         "signal" => include_bytes!("../assets/icons/signal.svg"),
+        "minus" => include_bytes!("../assets/icons/minus.svg"),
+        "monitor" => include_bytes!("../assets/icons/monitor.svg"),
+        "keyboard" => include_bytes!("../assets/icons/keyboard.svg"),
+        "accessibility" => include_bytes!("../assets/icons/accessibility.svg"),
+
         "arrow-down" => include_bytes!("../assets/icons/arrow-down.svg"),
         "arrow-left" => include_bytes!("../assets/icons/arrow-left.svg"),
         "arrow-right" => include_bytes!("../assets/icons/arrow-right.svg"),
