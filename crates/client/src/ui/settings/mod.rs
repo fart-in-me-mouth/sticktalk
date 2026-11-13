@@ -317,7 +317,7 @@ pub(crate) fn notifications(app: &App) -> Element<'_, Msg> {
     let Some(s) = &app.settings.notification else {
         return hint("Loading notification settings…").into();
     };
-    let mut c = column![
+    let header = column![
         row![
             title("Notification Settings").width(Fill),
             icon_button("x", "Close", Msg::Close)
@@ -330,10 +330,17 @@ pub(crate) fn notifications(app: &App) -> Element<'_, Msg> {
                 .get(&s.guild_id.unwrap())
                 .map_or("Server", |g| &g.guild.name)
         ),
-        line(),
-        label_text("Server Notification Settings")
+        line()
     ]
     .spacing(t::S16);
+    let mut c =
+        column![label_text("Server Notification Settings")].spacing(if app.height < t::DEFAULT_H {
+            // Keep the complete mute-duration row visible at the minimum size.
+            // The fixed footer must not bisect a native dropdown's text.
+            t::S4
+        } else {
+            t::S16
+        });
     for (label, level) in [
         ("All Messages", NotificationLevel::All),
         ("Only @mentions", NotificationLevel::Mentions),
@@ -387,10 +394,22 @@ pub(crate) fn notifications(app: &App) -> Element<'_, Msg> {
             .menu_style(st::menu),
         );
     }
-    container(c.push(row![
+    let footer = container(row![
         space().width(Fill),
         primary("Done", A::SaveNotifications, true)
-    ]))
+    ])
+    .id("notification-footer");
+    container(
+        column![
+            header,
+            container(scroller(c).height(iced::Length::Shrink)).max_height(
+                (app.height - t::S32 * 2. - t::HEADER - t::S24 * 4. - t::BUTTON)
+                    .max(t::ATTACHMENT_CARD)
+            ),
+            footer
+        ]
+        .spacing(t::S16),
+    )
     .width(t::MODAL_W)
     .padding(t::S24)
     .style(t::modal)

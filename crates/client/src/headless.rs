@@ -601,6 +601,20 @@ fn idle_proof(_: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
+    fn first_launch_requires_an_explicit_server_and_keeps_its_field_visible() {
+        let mut app = App::headless("audit-first-launch", Size::new(940., 600.));
+        assert!(app.server.is_empty());
+        assert!(app.change_server);
+        let _ = app.update(Msg::ChangeServer);
+        assert!(app.change_server);
+        app.username = "river".into();
+        app.password = "a sufficiently long password".into();
+        let _ = app.update(Msg::Login);
+        assert!(app.state.session.is_none());
+        assert!(!app.busy);
+        assert!(app.error.contains("server address"));
+    }
+    #[test]
     fn audit_inventory_covers_each_settings_page_without_duplicates_or_call_surfaces() {
         let screens = audit_screens();
         let unique: std::collections::BTreeSet<_> = screens.iter().collect();
@@ -695,6 +709,41 @@ mod tests {
                 names.0
             );
         }
+    }
+    #[test]
+    fn muted_notification_modal_keeps_its_footer_inside_the_minimum_window() {
+        use iced::advanced::widget::{self, Operation};
+        #[derive(Default)]
+        struct Footer(iced::Rectangle);
+        impl Operation for Footer {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn container(&mut self, id: Option<&widget::Id>, bounds: iced::Rectangle) {
+                if id == Some(&widget::Id::new("notification-footer")) {
+                    self.0 = bounds;
+                }
+            }
+        }
+        load_fonts();
+        let size = Size::new(940., 600.);
+        let app = App::headless("notification-settings-muted", size);
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            t::regular(),
+            iced::Pixels(t::BODY),
+        ));
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+        let mut ui = UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+        let mut footer = Footer::default();
+        ui.operate(&renderer, &mut footer);
+        assert!(footer.0.height >= t::BUTTON);
+        assert!(
+            footer.0.y + footer.0.height < size.height - t::S8,
+            "footer clipped: {:?}",
+            footer.0
+        );
     }
     #[test]
     fn popup_tab_order_wraps_without_reaching_the_background() {

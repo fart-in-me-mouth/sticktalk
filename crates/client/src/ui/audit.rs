@@ -13,6 +13,7 @@ pub(crate) const SCREENS: &[&str] = &[
     "audit-search-empty",
     "audit-profile-long",
     "audit-login-error",
+    "audit-first-launch",
     "audit-register-error",
     "audit-login-busy",
     "audit-connecting",
@@ -49,6 +50,12 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
     use crate::main_window::{mm, Message as Main};
     let long = "WWWW Wide names with a very long descriptive suffix";
     match screen {
+        "audit-first-launch" => {
+            app.state.session = None;
+            app.google_id = None;
+            app.server.clear();
+            app.change_server = true;
+        }
         "audit-update-confirm" => app.features.confirm_update = true,
         "audit-image-forward" | "audit-image-more" => {
             crate::features::fixture(app, "image-viewer");

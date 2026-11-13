@@ -260,7 +260,11 @@ impl App {
             })
             .map(PathBuf::from);
         let initial_screen = flag("--screen").unwrap_or_default();
-        let server = storage::server();
+        let server = if mock {
+            "https://chat.example.com".into()
+        } else {
+            storage::server()
+        };
         let session = if mock
             && !matches!(
                 initial_screen.as_str(),
@@ -306,7 +310,7 @@ impl App {
             password: String::new(),
             display: String::new(),
             register: initial_screen == "register",
-            change_server: false,
+            change_server: server.trim().is_empty(),
             google_id: mock.then(|| "mock-desktop".into()),
             signup: (initial_screen == "pick-username").then(|| GoogleSignupRequired {
                 ticket: "mock-signup-ticket".into(),
@@ -372,7 +376,7 @@ impl App {
             resolving: BTreeSet::new(),
             preview: None,
         };
-        let task = if !mock {
+        let task = if !mock && !server.trim().is_empty() {
             Task::perform(
                 async move {
                     tokio::task::spawn_blocking(move || {
@@ -404,7 +408,7 @@ impl App {
         if mock && state.signup.is_some() {
             let _ = state.mock_account.lock().unwrap().google("mock-new");
         }
-        let meta_task = if mock {
+        let meta_task = if mock || state.server.trim().is_empty() {
             Task::none()
         } else {
             let server = state.server.clone();
@@ -754,12 +758,20 @@ impl App {
                 if self.busy {
                     return Task::none();
                 }
+                if self.server.trim().is_empty() {
+                    self.change_server = true;
+                    return operation::focus("login-server");
+                }
                 self.change_server = !self.change_server;
                 if !self.change_server {
                     return self.update(Msg::RefreshMeta);
                 }
             }
             Msg::RefreshMeta => {
+                if self.server.trim().is_empty() {
+                    self.change_server = true;
+                    return operation::focus("login-server");
+                }
                 self.google_id = None;
                 self.features.gifs.capability = GifCapability::Disabled;
                 let server = self.server.trim().trim_end_matches('/').to_owned();
@@ -1208,6 +1220,11 @@ impl App {
             Msg::Login => {
                 if self.busy {
                     return Task::none();
+                }
+                if self.server.trim().is_empty() {
+                    self.change_server = true;
+                    self.error = "Enter the server address from your administrator.".into();
+                    return operation::focus("login-server");
                 }
                 if self.mock_mode {
                     if self.username.trim().len() < 3 || self.password.len() < 12 {
@@ -4216,14 +4233,15 @@ impl App {
         app.signup = None;
         app.state.session = Some(Session {
             config: Config {
-                server: storage::DEFAULT_SERVER.into(),
+                server: "https://chat.example.com".into(),
                 token: "river".into(),
                 mock: true,
                 generation: 1,
                 scenario: screen.into(),
             },
         });
-        app.server = storage::DEFAULT_SERVER.into();
+        app.server = "https://chat.example.com".into();
+        app.change_server = false;
         app.dialog = Dialog::None;
         app.typing_armed = false;
         for id in [Id(2), Id(3)] {

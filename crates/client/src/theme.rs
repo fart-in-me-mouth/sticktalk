@@ -240,7 +240,7 @@ fn button_variant(status: button_widget::Status, bg: Color, fg: Color) -> button
     button_widget::Style {
         background: Some(
             if disabled {
-                alpha(bg, 0.4)
+                alpha(bg, bg.a * 0.4)
             } else if (hover || pressed) && bg == ACCENT {
                 ACCENT_HOVER
             } else if (hover || pressed) && bg == DANGER_BUTTON {
@@ -634,5 +634,9 @@ mod audit_style_tests {
         };
         assert_eq!(bg.a, 0.4);
         assert_eq!(style.text_color.a, 0.4);
+        assert_eq!(
+            icon(&Theme::Dark, button_widget::Status::Disabled).background,
+            Some(TRANSPARENT.into())
+        );
     }
 }
