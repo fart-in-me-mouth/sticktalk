@@ -10,6 +10,45 @@ let saved,
   typingTimer,
   lastChannel,
   media;
+let viewer;
+const closeViewer = () => viewer?.closeViewer();
+const openViewer = async (target) => {
+  viewer ??= await import('/public/viewer.js');
+  viewer.openViewer(target);
+};
+export async function directSearch(key, query) {
+  return (await import('/public/gifs.js')).directSearch(key, query);
+}
+export async function recoverSession() {
+  const pending = globalThis.__sticktalkSession;
+  delete globalThis.__sticktalkSession;
+  return pending ? await pending : '';
+}
+export function chatReady() {
+  if (!performance.getEntriesByName('sticktalk-chat-ready').length)
+    setTimeout(() => performance.mark('sticktalk-chat-ready'), 0);
+}
+let completionRange, completionRequest = '';
+function complete(input) {
+  const before = input.value.slice(0, input.selectionStart);
+  const match = before.match(/(?:^|\s)([@#:])([^\s@#:]*)$/u);
+  const request = match ? `${match[1]}|${match[2]}` : '';
+  completionRange = match ? [input.selectionStart - match[2].length - 1, input.selectionStart] : null;
+  if (request !== completionRequest) {
+    completionRequest = request;
+    emit(request ? `complete:${request}` : 'complete-close');
+  }
+}
+function acceptCompletion(row) {
+  const input = $('#live-input');
+  if (!input || !completionRange) return;
+  input.setRangeText(`${row.dataset.completion} `, ...completionRange, 'end');
+  remember($('#live-messages').dataset.channel, input.value);
+  completionRange = null;
+  completionRequest = '';
+  input.focus();
+  emit('complete-close');
+}
 const drafts = new Map();
 function remember(channel, text) {
   if (!drafts.has(channel) && drafts.size >= 64)
@@ -21,19 +60,27 @@ export function beforeRender() {
     input = $("#live-input"),
     focus = document.activeElement;
   if (input && list) remember(list.dataset.channel, input.value);
+  const anchor = list && [...list.querySelectorAll('[data-live-message]')].find(row => row.getBoundingClientRect().bottom > list.getBoundingClientRect().top);
   saved = {
     channel: list?.dataset.channel,
     top: list?.scrollTop,
     bottom: list && list.scrollHeight - list.scrollTop - list.clientHeight < 96,
+    anchor: anchor?.dataset.liveMessage,
+    anchorOffset: anchor && anchor.getBoundingClientRect().top - list.getBoundingClientRect().top,
     id: focus?.id,
     start: focus?.selectionStart,
     end: focus?.selectionEnd,
     dialog: $(".live-modal")?.dataset.dialog,
+    completion: $('#live-completions [aria-selected="true"]')?.dataset.completion,
     fields: [
       ...document.querySelectorAll(
-        ".live-modal input:not([type=password]),.live-modal select,.live-modal textarea",
+        ".live-modal input:not([type=password]):not([type=file]),.live-modal select,.live-modal textarea",
       ),
-    ].map((e) => [e.id, e.value, e.type === "checkbox" ? e.checked : null]),
+    ].map((e) => {
+      const selector = e.id ? `#${CSS.escape(e.id)}` :
+        ['group-user','member-role','role-bit','settings-search'].map(key => e.hasAttribute(`data-${key}`) ? `[data-${key}="${CSS.escape(e.getAttribute(`data-${key}`))}"]` : null).find(Boolean);
+      return [selector, e.value, e.type === 'checkbox' ? e.checked : null];
+    }),
   };
 }
 let mediaQueue = Promise.resolve();
@@ -50,6 +97,7 @@ export function mediaEvent(raw) {
 }
 export function mediaAction(action) {
   if (action.startsWith("purge-channel:")) {
+    completionRequest = ''; completionRange = null;
     const channel = action.slice(14);
     drafts.delete(channel);
     if ($("#live-messages")?.dataset.channel === channel) {
@@ -91,6 +139,7 @@ export function mediaAction(action) {
     return;
   }
   if (action === "present") {
+    clearTimeout(seekTimer);
     const list = $("#live-messages");
     if (list) list.scrollTop = list.scrollHeight;
     if (saved) saved.bottom = true;
@@ -130,17 +179,25 @@ function restore() {
       lastChannel = list.dataset.channel;
     } else if (saved?.channel === list.dataset.channel) {
       list.scrollTop = saved.bottom ? list.scrollHeight : saved.top;
+      const anchor = saved.anchor && list.querySelector(`[data-live-message="${saved.anchor}"]`);
+      if (!saved.bottom && anchor)
+        list.scrollTop += anchor.getBoundingClientRect().top - list.getBoundingClientRect().top - saved.anchorOffset;
     }
   }
   if (saved) {
     if ($(".live-modal")?.dataset.dialog === saved.dialog)
-      for (const [id, value, checked] of saved.fields) {
-        const e = document.getElementById(id);
+      for (const [selector, value, checked] of saved.fields) {
+        const e = selector && $('.live-modal')?.querySelector(selector);
         if (e) {
           e.value = value;
           if (checked !== null) e.checked = checked;
         }
       }
+    if (saved.completion) {
+      const rows = [...document.querySelectorAll('#live-completions [role=option]')];
+      if (rows.some(row => row.dataset.completion === saved.completion))
+        rows.forEach(row => row.setAttribute('aria-selected',String(row.dataset.completion === saved.completion)));
+    }
     const focus = document.getElementById(saved.id);
     if (focus && !composing) {
       focus.focus({ preventScroll: true });
@@ -151,10 +208,14 @@ function restore() {
     }
     saved = null;
   }
+  const modal = $('.live-modal');
+  if (modal && !modal.contains(document.activeElement)) modal.focus({preventScroll:true});
   media?.mount();
 }
 function send() {
   const input = $("#live-input");
+  clearTimeout(typingTimer);
+  completionRequest = ''; completionRange = null;
   if (input) emit(`send:${input.value}`);
 }
 export function installPlatform() {
@@ -181,6 +242,8 @@ export function installPlatform() {
   });
   observer.observe(document.body, { childList: true, subtree: true });
   document.addEventListener("click", (e) => {
+    const completion = e.target.closest('[data-completion]');
+    if (completion) { e.preventDefault(); acceptCompletion(completion); return; }
     const target = e.target.closest("[data-live]");
     if (target) {
       e.preventDefault();
@@ -198,6 +261,7 @@ export function installPlatform() {
     if (copy) {
       e.preventDefault();
       navigator.clipboard?.writeText(copy.dataset.copy).catch(() => {});
+      copy.textContent = 'Copied!';
     }
     if (e.target.closest("[data-spoiler]"))
       e.target.closest("[data-spoiler]").classList.add("revealed");
@@ -229,11 +293,19 @@ export function installPlatform() {
     }
   });
   document.addEventListener("input", (e) => {
+    if (e.target.matches('[data-settings-search]')) {
+      const query = e.target.value.toLowerCase();
+      document.querySelectorAll('.settings-nav-row').forEach(row => row.hidden = !row.textContent.toLowerCase().includes(query));
+    }
     if (e.target.id === "live-input") {
       const c = $("#live-messages")?.dataset.channel;
       if (c) remember(c, e.target.value);
+      if (!composing) complete(e.target);
       clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => emit("typing"), 200);
+      typingTimer = setTimeout(() => {
+        if (c && $('#live-messages')?.dataset.channel === c && $('#live-input')?.value)
+          emit('typing');
+      }, 200);
     }
     if (e.target.matches("[data-emoji-query]")) {
       clearTimeout(typingTimer);
@@ -243,6 +315,12 @@ export function installPlatform() {
   });
   document.addEventListener("change", (e) => {
     if (e.target.id === "live-file") emit("upload");
+    if (e.target.id === 'live-avatar') emit('avatar-upload');
+    if (e.target.dataset.groupUser) {
+      const selected = [...document.querySelectorAll('[data-group-user]:checked')];
+      if (selected.length > 15) { e.target.checked = false; return; }
+      $('#f-value').value = selected.map(e => e.dataset.groupUser).join(',');
+    }
     if (e.target.dataset.roleBit) {
       const field = $("#f-permissions"),
         bit = BigInt(e.target.dataset.roleBit),
@@ -258,8 +336,23 @@ export function installPlatform() {
     }
   });
   document.addEventListener("keydown", (e) => {
+    if (!e.isComposing && e.target.id === 'live-input') {
+      const rows = [...document.querySelectorAll('#live-completions [role=option]')];
+      if (rows.length && ['ArrowUp','ArrowDown','Tab','Enter','Escape'].includes(e.key)) {
+        e.preventDefault();
+        const selected = Math.max(0, rows.findIndex(r => r.getAttribute('aria-selected') === 'true'));
+        if (e.key === 'Escape') { completionRequest = ''; completionRange = null; emit('complete-close'); }
+        else if (e.key === 'Tab' || e.key === 'Enter') acceptCompletion(rows[selected]);
+        else {
+          const index = (selected + (e.key === 'ArrowUp' ? -1 : 1) + rows.length) % rows.length;
+          rows.forEach((r,i) => r.setAttribute('aria-selected', String(i === index)));
+          e.target.setAttribute('aria-activedescendant', rows[index].id);
+        }
+        return;
+      }
+    }
     if (e.key === "Escape") {
-      if (!$("#live-viewer")?.hidden) closeViewer();
+      if ($("#live-viewer")) closeViewer();
       else emit("close");
     }
     if (
@@ -300,17 +393,26 @@ export function installPlatform() {
     (e) => {
       const list = e.target;
       if (list.id !== "live-messages") return;
-      const rank = Math.floor(list.scrollTop / 88),
-        start = Number(list.dataset.windowStart),
+      const start = Number(list.dataset.windowStart),
         end = Number(list.dataset.windowEnd),
         total = Number(list.dataset.total);
-      if (
-        total > 50 &&
-        (rank < start || rank + Math.ceil(list.clientHeight / 88) > end + 5) &&
-        rank < total - 5
-      ) {
-        clearTimeout(seekTimer);
-        seekTimer = setTimeout(() => emit(`seek:${rank}`), 120);
+      clearTimeout(seekTimer);
+      // Only spacers use estimated heights. Mounted grouped rows are measured;
+      // interpreting their 21px continuation rows as 88px loses the live tail.
+      const rows = list.querySelectorAll('[data-live-message]');
+      const first = rows[0], last = rows[rows.length-1], top = list.getBoundingClientRect().top;
+      let rank;
+      if (first && first.getBoundingClientRect().top > top + 32 && start > 0)
+        rank = Math.min(start-1, Math.max(0, Math.floor(list.scrollTop / 88)));
+      else if (last && last.getBoundingClientRect().bottom < top + list.clientHeight - 32 && end < total)
+        rank = Math.min(total-1, end + Math.floor(Math.max(0, top-last.getBoundingClientRect().bottom) / 88));
+      if (rank !== undefined && total > 50) {
+        const {channel, historyGeneration, windowStart, windowEnd} = list.dataset;
+        seekTimer = setTimeout(() => {
+          const current = $('#live-messages');
+          if (current?.dataset.channel === channel && current.dataset.historyGeneration === historyGeneration && current.dataset.windowStart === windowStart && current.dataset.windowEnd === windowEnd)
+            emit(`seek:${rank}`);
+        }, 120);
       }
       if (list.scrollHeight - list.scrollTop - list.clientHeight < 80)
         emit("read");
@@ -361,119 +463,25 @@ export function installPlatform() {
     const register = () =>
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
+        .then(registration => {
+          const offer = () => {
+            if (!registration.waiting || !navigator.serviceWorker.controller || $('#app-update')) return;
+            const toast = document.createElement('div'); toast.id = 'app-update'; toast.className = 'update-toast';
+            const text = document.createElement('span'); text.textContent = 'Update ready.';
+            const reload = document.createElement('button'); reload.className = 'button secondary'; reload.textContent = 'Reload';
+            reload.onclick = () => {
+              if ($('#live-input')?.value) {text.textContent = 'Send or clear your draft before reloading.'; return;}
+              navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), {once:true});
+              registration.waiting?.postMessage('activate-update');
+            };
+            toast.append(text,reload); document.body.append(toast);
+          };
+          offer();
+          registration.addEventListener('updatefound', () => registration.installing?.addEventListener('statechange',offer));
+        })
         .catch(() => {});
     if ("requestIdleCallback" in window)
       requestIdleCallback(register, { timeout: 2000 });
     else setTimeout(register, 0);
   }
-}
-let viewerScale = 1,
-  viewerX = 0,
-  viewerY = 0,
-  drag;
-function transform() {
-  const img = $("#live-viewer img");
-  if (img)
-    img.style.transform = `translate(${viewerX}px,${viewerY}px) scale(${viewerScale})`;
-}
-function closeViewer() {
-  const v = $("#live-viewer");
-  if (v) {
-    v.replaceChildren();
-    v.hidden = true;
-  }
-}
-function openViewer(target) {
-  const viewer = $("#live-viewer");
-  if (!viewer) return;
-  viewerScale = 1;
-  viewerX = viewerY = 0;
-  viewer.replaceChildren();
-  viewer.hidden = false;
-  viewer.dataset.channel = $("#live-messages")?.dataset.channel ?? "";
-  const img = new Image();
-  img.alt = target.dataset.filename;
-  const original = target.dataset.viewImage;
-  const thumb = target.querySelector("img");
-  if (thumb) img.src = thumb.src;
-  const full = new Image();
-  full.onload = () => {
-    if (!viewer.hidden) img.src = full.src;
-  };
-  full.src = original;
-  const toolbar = document.createElement("div");
-  toolbar.className = "live-viewer-toolbar";
-  for (const [label, fn] of [
-    [
-      "Zoom In",
-      () => {
-        viewerScale = Math.min(8, viewerScale * 1.25);
-        transform();
-      },
-    ],
-    [
-      "Zoom Out",
-      () => {
-        viewerScale = Math.max(0.1, viewerScale / 1.25);
-        transform();
-      },
-    ],
-    [
-      "Reset",
-      () => {
-        viewerScale = 1;
-        viewerX = viewerY = 0;
-        transform();
-      },
-    ],
-    ["Close", closeViewer],
-  ]) {
-    const b = document.createElement("button");
-    b.className = "button secondary";
-    b.textContent = label;
-    b.onclick = fn;
-    toolbar.append(b);
-  }
-  const link = document.createElement("a");
-  link.href = original;
-  link.target = "_blank";
-  link.rel = "noopener";
-  link.textContent = `${target.dataset.filename} · Open original`;
-  const footer = document.createElement("footer");
-  footer.append(link);
-  viewer.append(toolbar, img, footer);
-  viewer.onclick = (e) => {
-    if (e.target === viewer) closeViewer();
-  };
-  viewer.onwheel = (e) => {
-    e.preventDefault();
-    const old = viewerScale;
-    viewerScale = Math.max(
-      0.1,
-      Math.min(8, viewerScale * (e.deltaY < 0 ? 1.2 : 1 / 1.2)),
-    );
-    viewerX =
-      (viewerX - (e.clientX - innerWidth / 2)) * (viewerScale / old) +
-      (e.clientX - innerWidth / 2);
-    viewerY =
-      (viewerY - (e.clientY - innerHeight / 2)) * (viewerScale / old) +
-      (e.clientY - innerHeight / 2);
-    transform();
-  };
-  img.ondblclick = () => {
-    viewerScale = viewerScale === 1 ? 2 : 1;
-    transform();
-  };
-  img.onpointerdown = (e) => {
-    drag = { x: e.clientX - viewerX, y: e.clientY - viewerY };
-    img.setPointerCapture(e.pointerId);
-  };
-  img.onpointermove = (e) => {
-    if (drag) {
-      viewerX = e.clientX - drag.x;
-      viewerY = e.clientY - drag.y;
-      transform();
-    }
-  };
-  img.onpointerup = () => (drag = null);
 }

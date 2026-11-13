@@ -29,7 +29,7 @@ const server = spawn(
     "--data-dir",
     data,
     "--web-root",
-    join(target, "web-dist"),
+    (process.env.STICKTALK_WEB_DIST ?? join(target, "web-dist")),
     "--min-free-disk-gb",
     "0",
     "--voice-bind-ip",
@@ -108,7 +108,7 @@ try {
   const chat = await memory();
   const report = {
     bundleRevision: JSON.parse(
-      await readFile(join(target, "web-dist/sizes.json"), "utf8"),
+      await readFile(join(process.env.STICKTALK_WEB_DIST ?? join(target, "web-dist"), "sizes.json"), "utf8"),
     ).revision,
     headless: true,
     realServer: true,

@@ -29,6 +29,10 @@ extern "C" {
     fn media_action(action: &str);
     #[wasm_bindgen(js_name = installPlatform)]
     fn install_platform();
+    #[wasm_bindgen(js_name = recoverSession)]
+    fn recover_session() -> js_sys::Promise;
+    #[wasm_bindgen(js_name = chatReady)]
+    fn chat_ready();
 }
 
 /// The shared fetch adapter enforces response/chunk bounds and cancellation. The
@@ -85,12 +89,21 @@ struct App {
     typing_sent: u64,
     typing_expiry_active: bool,
     query: String,
+    completions: Vec<(String, String, String)>,
+    completion_query: String,
+    completion_busy: bool,
     gifs: Vec<GifItem>,
     gif_capability: GifCapability,
+    preparing_send: bool,
     uploading: bool,
     upload_progress: String,
     upload_cancel: bool,
     revision: RwSignal<u64>,
+    owner: std::rc::Weak<RefCell<App>>,
+    dialog_render: Option<fn(&App) -> AnyView>,
+    voice_render: Option<fn(&App) -> AnyView>,
+    loading_dialog: std::cell::Cell<bool>,
+    loading_voice: std::cell::Cell<bool>,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -126,7 +139,11 @@ impl App {
         self.channel_attachments.clear();
         self.gifs.clear();
         self.query.clear();
+        self.completions.clear();
+        self.completion_query.clear();
+        self.completion_busy = false;
         self.upload_cancel = true;
+        self.preparing_send = false;
         self.uploading = false;
         self.upload_progress.clear();
         self.dialog.clear();
@@ -137,6 +154,32 @@ impl App {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
     }
     fn touch(&self) {
+        if !self.dialog.is_empty()
+            && self.dialog_render.is_none()
+            && !self.loading_dialog.replace(true)
+        {
+            let owner = self.owner.clone();
+            spawn_local(async move {
+                let render = ui::load_dialog().await;
+                if let Some(app) = owner.upgrade() {
+                    app.borrow_mut().dialog_render = Some(render);
+                    app.borrow().touch();
+                }
+            });
+        }
+        if self.screen == "voice"
+            && self.voice_render.is_none()
+            && !self.loading_voice.replace(true)
+        {
+            let owner = self.owner.clone();
+            spawn_local(async move {
+                let render = ui::load_call().await;
+                if let Some(app) = owner.upgrade() {
+                    app.borrow_mut().voice_render = Some(render);
+                    app.borrow().touch();
+                }
+            });
+        }
         before_render();
         self.revision.update(|v| *v = v.wrapping_add(1));
     }
@@ -229,13 +272,23 @@ pub fn mount() {
             typing_sent: 0,
             typing_expiry_active: false,
             query: String::new(),
+            completions: vec![],
+            completion_query: String::new(),
+            completion_busy: false,
             gifs: vec![],
             gif_capability: GifCapability::Disabled,
+            preparing_send: false,
             uploading: false,
             upload_progress: String::new(),
             upload_cancel: false,
             revision,
+            owner: std::rc::Weak::new(),
+            dialog_render: None,
+            voice_render: None,
+            loading_dialog: std::cell::Cell::new(false),
+            loading_voice: std::cell::Cell::new(false),
         }));
+        app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
         let listener = Closure::<dyn Fn(web_sys::Event)>::new(move |event: web_sys::Event| {
             let Some(event) = event.dyn_ref::<web_sys::CustomEvent>() else {
@@ -253,18 +306,33 @@ pub fn mount() {
         let boot = app.clone();
         spawn_local(async move {
             let http = boot.borrow().http();
-            if let Ok(c) = http
-                .json::<BrowserCapabilities>("/browser/capabilities")
+            let metadata = boot.clone();
+            let metadata_http = boot.borrow().http();
+            spawn_local(async move {
+                let http = metadata_http;
+                if let Ok(c) = http
+                    .json::<BrowserCapabilities>("/browser/capabilities")
+                    .await
+                {
+                    let mut a = metadata.borrow_mut();
+                    a.google = c.google_redirect;
+                    a.push = c.web_push;
+                }
+                if let Ok(meta) = http.json::<MetaResponse>("/meta").await {
+                    metadata.borrow_mut().gif_capability = meta.gifs;
+                }
+            });
+            let recovered = wasm_bindgen_futures::JsFuture::from(recover_session())
                 .await
-            {
-                let mut a = boot.borrow_mut();
-                a.google = c.google_redirect;
-                a.push = c.web_push;
-            }
-            if let Ok(meta) = http.json::<MetaResponse>("/meta").await {
-                boot.borrow_mut().gif_capability = meta.gifs;
-            }
-            if let Ok(session) = http.json::<BrowserSession>("/browser/session").await {
+                .ok()
+                .and_then(|v| v.as_string())
+                .and_then(|s| serde_json::from_str::<BrowserSession>(&s).ok());
+            let session = if let Some(session) = recovered {
+                Ok(session)
+            } else {
+                http.json::<BrowserSession>("/browser/session").await
+            };
+            if let Ok(session) = session {
                 start_session(boot.clone(), session);
             } else {
                 let mut a = boot.borrow_mut();
@@ -539,6 +607,8 @@ async fn socket(app: Shared, epoch: u64) {
                                 let applied = a.model.apply(*event);
                                 if applied && revoked {
                                     a.privacy_generation = a.privacy_generation.wrapping_add(1);
+                                    a.completions.clear();
+                                    a.completion_query.clear();
                                     a.profile = None;
                                     a.pins.clear();
                                     a.dialog.clear();
@@ -604,13 +674,7 @@ async fn socket(app: Shared, epoch: u64) {
                             }
                             ServerMsg::Voice(payload) => {
                                 if payload.version == VOICE_VERSION && payload.kind == "event" {
-                                    if let Ok(event) =
-                                        rmp_serde::from_slice::<VoiceEvent>(&payload.payload)
-                                    {
-                                        let mut v = serde_json::to_value(event).unwrap_or_default();
-                                        stringify_ids(&mut v);
-                                        media_event(&v.to_string());
-                                    }
+                                    forward_voice(app.clone(), epoch, payload).await;
                                 }
                             }
                             ServerMsg::Error(e) => {
@@ -696,4 +760,17 @@ fn id(value: &str) -> Option<Id> {
         .ok()
         .filter(|v| *v > 0 && *v <= i64::MAX as u64)
         .map(Id)
+}
+
+// Large voice DTO decoding/JSON projection is never on cold-chat's path.
+#[lazy]
+fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
+    if app.borrow().epoch != epoch {
+        return;
+    }
+    if let Ok(event) = rmp_serde::from_slice::<VoiceEvent>(&payload.payload) {
+        let mut v = serde_json::to_value(event).unwrap_or_default();
+        stringify_ids(&mut v);
+        media_event(&v.to_string());
+    }
 }

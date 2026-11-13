@@ -84,6 +84,21 @@ pub fn legible_role_color(rgb: u32) -> u32 {
     }
     0xffffff
 }
+/// A virtual window always starts with a group head; subsequent rows use the
+/// adjacent message, not the original group head, for the seven-minute rule.
+pub fn continues_group(author: u64, at: u64, previous: Option<(u64, u64)>) -> bool {
+    previous.is_some_and(|(who, when)| who == author && at >= when && at - when <= 420_000)
+}
+
+#[test]
+fn message_group_boundaries() {
+    assert!(!continues_group(1, 1, None));
+    assert!(continues_group(1, 420_001, Some((1, 1))));
+    assert!(!continues_group(1, 420_002, Some((1, 1))));
+    assert!(!continues_group(2, 2, Some((1, 1))));
+    assert!(!continues_group(1, 1, Some((1, 2))));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

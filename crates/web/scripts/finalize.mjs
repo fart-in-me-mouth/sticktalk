@@ -2,6 +2,7 @@ import { readFile, writeFile, readdir, stat, unlink } from "node:fs/promises";
 import { resolve, join, relative } from "node:path";
 import { createHash } from "node:crypto";
 import { brotliCompressSync, constants } from "node:zlib";
+await import('./split.mjs');
 const dist = resolve(process.env.TRUNK_STAGING_DIR ?? "dist");
 async function hashedAsset(prefix, extension, content) {
   const digest = createHash("sha256")
@@ -45,11 +46,16 @@ for (const match of [
   ...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi),
 ]) {
   if (/\bsrc\s*=/i.test(match[1]) || !match[2].trim()) continue;
-  const dynamic = match[2].replace(
+  let dynamic = match[2].replace(
     /import init, \* as bindings from (['"][^'"]+['"]);/,
     "const bindings = await import($1); const init = bindings.default;",
   );
   if (dynamic === match[2]) throw new Error("Unexpected Trunk bootstrap shape");
+  // Compile the core in parallel with loading its JS imports and recovering the
+  // session, not at the bottom of that waterfall. Kept behind loadApp on login.
+  const core = dynamic.match(/(['"])(\.\/[^'"]+\.wasm)\1/);
+  if (!core) throw new Error('Missing Trunk core WASM URL');
+  dynamic = `const coreModule = WebAssembly.compileStreaming(fetch(${JSON.stringify(core[2])}));\n` + dynamic.replace(core[0], 'coreModule');
   const progressive = (
     await readFile(new URL("../public/boot.js", import.meta.url), "utf8")
   ).replace("__WASM_BOOTSTRAP__", dynamic);
@@ -116,6 +122,8 @@ const assets = (await files(dist)).filter(
     !p.endsWith(".br") && !p.endsWith("sw.js") && !p.endsWith("sizes.json"),
 );
 const hash = createHash("sha256");
+// Worker-policy changes are version changes too, even with identical assets.
+hash.update(await readFile(new URL('./finalize.mjs', import.meta.url)));
 let raw = 0,
   compressed = 0;
 const sizes = [];
@@ -146,12 +154,17 @@ const paths = sizes
       !p.includes("mock-") &&
       !p.includes("/emoji/") &&
       !p.includes("media.js") &&
-      !p.includes("push.js"),
+      !p.includes("push.js") &&
+      !p.includes("viewer.js") &&
+      !p.includes("gifs.js") &&
+      !(p.endsWith(".wasm") && !p.endsWith("_bg.wasm")) &&
+      !p.includes("__wasm_split_manifest"),
   );
-const sw = `const CACHE='sticktalk-shell-${revision}';const SHELL=${JSON.stringify(paths)};
-self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));});
+const sw = `const CACHE='sticktalk-shell-${revision}';const SHELL=${JSON.stringify(paths)};const ASSETS=${JSON.stringify(sizes.map(s=>'/'+s.file))};
+self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)));});
+self.addEventListener('message',event=>{if(event.data==='activate-update')self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('sticktalk-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
-self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/'))return;if(event.request.mode==='navigate'){event.respondWith(fetch(event.request).catch(()=>caches.match('/index.html')));return;}if(SHELL.includes(url.pathname))event.respondWith(caches.open(CACHE).then(async cache=>(await cache.match(url.pathname))||fetch(event.request)));});`;
+self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/'))return;const path=event.request.mode==='navigate'?'/index.html':url.pathname;if(!ASSETS.includes(path))return;event.respondWith(caches.open(CACHE).then(async cache=>{const cached=await cache.match(path);if(cached&&path!=='/index.html')return cached;const refresh=fetch(event.request).then(async response=>{if(response.ok){let compatible=true;if(path==='/index.html'){const html=await response.clone().text();const references=[...html.matchAll(/(?:src|href)=["']([^"']+)["']/g)].map(m=>new URL(m[1],url).pathname).filter(p=>!p.startsWith('/api/'));compatible=references.every(p=>ASSETS.includes(p));}if(compatible)await cache.put(path,response.clone());}return response;});event.waitUntil(refresh.catch(()=>{}));return cached||refresh;}));});`;
 const pushHandlers = await readFile(
   new URL("../public/push-worker.js", import.meta.url),
   "utf8",

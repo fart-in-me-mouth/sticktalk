@@ -1,5 +1,5 @@
 {
-  "bundleRevision": "5470c80f88a389066a73",
+  "bundleRevision": "4ad95a5c0079c5550716",
   "headless": true,
   "realServer": true,
   "page": "Cold progressive login; authenticated chat measured separately",
@@ -13,11 +13,11 @@
     "metrics": {
       "first-contentful-paint": {
         "display": "0.9 s",
-        "value": 903.316
+        "value": 905.586
       },
       "largest-contentful-paint": {
         "display": "1.4 s",
-        "value": 1429.9740000000002
+        "value": 1433.379
       },
       "total-blocking-time": {
         "display": "0 ms",
@@ -29,9 +29,10 @@
       },
       "interactive": {
         "display": "1.4 s",
-        "value": 1437.4740000000002
+        "value": 1440.879
       }
     },
+    "appReady": [],
     "failures": [
       {
         "id": "image-delivery-insight",
@@ -87,7 +88,7 @@
                 "snippet": "<img class=\"auth-logo\" src=\"/public/icons/icon-192.png\" alt=\"StickTalk\" width=\"48\" height=\"48\">",
                 "nodeLabel": "StickTalk"
               },
-              "url": "http://127.0.0.1:51196/public/icons/icon-192.png",
+              "url": "http://127.0.0.1:56239/public/icons/icon-192.png",
               "totalBytes": 5072,
               "wastedBytes": 4101,
               "subItems": {
@@ -162,55 +163,55 @@
               "value": {
                 "type": "network-tree",
                 "chains": {
-                  "F30C640FA8FD0C7BBCD8168B76D1FB49": {
-                    "url": "http://127.0.0.1:51196/",
-                    "navStartToEndTime": 74,
-                    "transferSize": 1569,
+                  "6DB86F67FDF15B5E214B92A824F5C922": {
+                    "url": "http://127.0.0.1:56239/",
+                    "navStartToEndTime": 82,
+                    "transferSize": 1654,
                     "isLongest": true,
                     "children": {
-                      "17148.3": {
-                        "url": "http://127.0.0.1:51196/live-ea4884973c7d9faa.css",
-                        "navStartToEndTime": 83,
-                        "transferSize": 4441,
+                      "20320.2": {
+                        "url": "http://127.0.0.1:56239/bootstrap-0a9cf17e727ba60e7383.js",
+                        "navStartToEndTime": 91,
+                        "transferSize": 2180,
                         "isLongest": true,
                         "children": {
-                          "17148.18": {
-                            "url": "http://127.0.0.1:51196/public/fonts/Inter-Medium.woff2",
-                            "navStartToEndTime": 109,
-                            "transferSize": 19334,
+                          "20320.16": {
+                            "url": "http://127.0.0.1:56239/api/v1/browser/capabilities",
+                            "navStartToEndTime": 124,
+                            "transferSize": 761,
                             "isLongest": true,
                             "children": {}
+                          }
+                        }
+                      },
+                      "20320.3": {
+                        "url": "http://127.0.0.1:56239/live-1df3f92318bf9d4790a8.css",
+                        "navStartToEndTime": 95,
+                        "transferSize": 6227,
+                        "children": {
+                          "20320.18": {
+                            "url": "http://127.0.0.1:56239/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 123,
+                            "transferSize": 19334,
+                            "children": {}
                           },
-                          "17148.19": {
-                            "url": "http://127.0.0.1:51196/public/fonts/Inter-SemiBold.woff2",
-                            "navStartToEndTime": 109,
+                          "20320.19": {
+                            "url": "http://127.0.0.1:56239/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 123,
                             "transferSize": 19422,
                             "children": {}
                           }
                         }
                       },
-                      "17148.2": {
-                        "url": "http://127.0.0.1:51196/bootstrap-7290cbf7e9f6c39a0f17.js",
-                        "navStartToEndTime": 80,
-                        "transferSize": 2023,
-                        "children": {
-                          "17148.16": {
-                            "url": "http://127.0.0.1:51196/api/v1/browser/capabilities",
-                            "navStartToEndTime": 92,
-                            "transferSize": 761,
-                            "children": {}
-                          }
-                        }
-                      },
-                      "17148.6": {
-                        "url": "http://127.0.0.1:51196/ui-tokens-500c88b5b36ff764fdd6.css",
-                        "navStartToEndTime": 84,
+                      "20320.6": {
+                        "url": "http://127.0.0.1:56239/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 96,
                         "transferSize": 1172,
                         "children": {}
                       },
-                      "17148.5": {
-                        "url": "http://127.0.0.1:51196/boot-c066202c08c28b10f232.css",
-                        "navStartToEndTime": 84,
+                      "20320.5": {
+                        "url": "http://127.0.0.1:56239/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 95,
                         "transferSize": 900,
                         "children": {}
                       }
@@ -218,7 +219,7 @@
                   }
                 },
                 "longestChain": {
-                  "duration": 109
+                  "duration": 124
                 }
               }
             },
@@ -268,19 +269,19 @@
           ],
           "items": [
             {
-              "url": "http://127.0.0.1:51196/ui-tokens-500c88b5b36ff764fdd6.css",
+              "url": "http://127.0.0.1:56239/ui-tokens-500c88b5b36ff764fdd6.css",
               "totalBytes": 1172,
-              "wastedMs": 302
+              "wastedMs": 303
             },
             {
-              "url": "http://127.0.0.1:51196/boot-c066202c08c28b10f232.css",
+              "url": "http://127.0.0.1:56239/boot-c066202c08c28b10f232.css",
               "totalBytes": 900,
-              "wastedMs": 302
+              "wastedMs": 303
             },
             {
-              "url": "http://127.0.0.1:51196/live-ea4884973c7d9faa.css",
-              "totalBytes": 4441,
-              "wastedMs": 152
+              "url": "http://127.0.0.1:56239/live-1df3f92318bf9d4790a8.css",
+              "totalBytes": 6227,
+              "wastedMs": 153
             }
           ]
         }
@@ -290,42 +291,49 @@
   "authenticatedChatMobile": {
     "version": "13.6.0",
     "categories": {
-      "performance": 85,
+      "performance": 87,
       "accessibility": 100,
       "best-practices": 100
     },
     "metrics": {
       "first-contentful-paint": {
         "display": "0.9 s",
-        "value": 903.0106000000001
+        "value": 905.0721000000001
       },
       "largest-contentful-paint": {
-        "display": "4.4 s",
-        "value": 4435.77915
+        "display": "4.0 s",
+        "value": 4010.912225
       },
       "total-blocking-time": {
-        "display": "10 ms",
-        "value": 13
+        "display": "40 ms",
+        "value": 39.00000000000023
       },
       "cumulative-layout-shift": {
         "display": "0",
         "value": 0
       },
       "interactive": {
-        "display": "4.4 s",
-        "value": 4435.77915
+        "display": "4.0 s",
+        "value": 4017.8890275000003
       }
     },
+    "appReady": [
+      {
+        "name": "sticktalk-chat-ready",
+        "startTime": 183.839,
+        "timingType": "Mark"
+      }
+    ],
     "failures": [
       {
         "id": "largest-contentful-paint",
         "title": "Largest Contentful Paint",
-        "score": 0.38
+        "score": 0.49
       },
       {
         "id": "interactive",
         "title": "Time to Interactive",
-        "score": 0.83
+        "score": 0.87
       },
       {
         "id": "valid-source-maps",
@@ -350,7 +358,7 @@
           ],
           "items": [
             {
-              "scriptUrl": "http://127.0.0.1:51196/sticktalk-web-2992444879860484_bg.wasm",
+              "scriptUrl": "http://127.0.0.1:56239/pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a_bg.wasm",
               "subItems": {
                 "type": "subitems",
                 "items": [
@@ -388,14 +396,14 @@
           ],
           "items": [
             {
-              "url": "http://127.0.0.1:51196/sticktalk-web-a5e69f688320f169.js",
-              "totalBytes": 7213,
-              "wastedBytes": 2349,
-              "wastedPercent": 32.56345384803721
+              "url": "http://127.0.0.1:56239/pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a.js",
+              "totalBytes": 7445,
+              "wastedBytes": 2410,
+              "wastedPercent": 32.377391511873036
             }
           ],
           "overallSavingsMs": 0,
-          "overallSavingsBytes": 2349,
+          "overallSavingsBytes": 2410,
           "sortedBy": [
             "wastedBytes"
           ],
@@ -405,64 +413,6 @@
               "FCP": 0,
               "LCP": 0
             }
-          }
-        }
-      },
-      {
-        "id": "image-delivery-insight",
-        "title": "Improve image delivery",
-        "score": 0.5,
-        "details": {
-          "type": "table",
-          "headings": [
-            {
-              "key": "node",
-              "valueType": "node",
-              "label": ""
-            },
-            {
-              "key": "url",
-              "valueType": "url",
-              "label": "URL",
-              "subItemsHeading": {
-                "key": "reason",
-                "valueType": "text"
-              }
-            },
-            {
-              "key": "totalBytes",
-              "valueType": "bytes",
-              "label": "Resource Size"
-            },
-            {
-              "key": "wastedBytes",
-              "valueType": "bytes",
-              "label": "Est Savings",
-              "subItemsHeading": {
-                "key": "wastedBytes",
-                "valueType": "bytes"
-              }
-            }
-          ],
-          "items": [
-            {
-              "url": "http://127.0.0.1:51196/public/icons/icon-192.png",
-              "totalBytes": 5072,
-              "wastedBytes": 4101,
-              "subItems": {
-                "type": "subitems",
-                "items": [
-                  {
-                    "reason": "This image file is larger than it needs to be (192x192) for its displayed dimensions (84x84). Use responsive images to reduce the image download size.",
-                    "wastedBytes": 4101
-                  }
-                ]
-              }
-            }
-          ],
-          "debugData": {
-            "type": "debugdata",
-            "wastedBytes": 4101
           }
         }
       },
@@ -478,108 +428,113 @@
               "value": {
                 "type": "network-tree",
                 "chains": {
-                  "50385CFB6DF08E6CEBD1D417B664495F": {
-                    "url": "http://127.0.0.1:51196/?channel=246799557403344897",
-                    "navStartToEndTime": 20,
-                    "transferSize": 1569,
+                  "9DA4423E67E7F1181C893BA4E44C8DBA": {
+                    "url": "http://127.0.0.1:56239/?channel=246837039985590273",
+                    "navStartToEndTime": 37,
+                    "transferSize": 1654,
                     "isLongest": true,
                     "children": {
-                      "6712.2": {
-                        "url": "http://127.0.0.1:51196/bootstrap-7290cbf7e9f6c39a0f17.js",
-                        "navStartToEndTime": 26,
-                        "transferSize": 2023,
+                      "31580.2": {
+                        "url": "http://127.0.0.1:56239/bootstrap-0a9cf17e727ba60e7383.js",
+                        "navStartToEndTime": 39,
+                        "transferSize": 2180,
                         "isLongest": true,
                         "children": {
-                          "6712.16": {
-                            "url": "http://127.0.0.1:51196/sticktalk-web-a5e69f688320f169.js",
-                            "navStartToEndTime": 32,
-                            "transferSize": 8032,
+                          "31580.19": {
+                            "url": "http://127.0.0.1:56239/pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a.js",
+                            "navStartToEndTime": 54,
+                            "transferSize": 8264,
                             "isLongest": true,
                             "children": {
-                              "6712.22": {
-                                "url": "http://127.0.0.1:51196/public/live.js",
-                                "navStartToEndTime": 37,
-                                "transferSize": 4635,
+                              "31580.25": {
+                                "url": "http://127.0.0.1:56239/public/live.js",
+                                "navStartToEndTime": 65,
+                                "transferSize": 5692,
                                 "isLongest": true,
                                 "children": {
-                                  "31700.55": {
-                                    "url": "http://127.0.0.1:51196/public/media.js",
-                                    "navStartToEndTime": 1587,
-                                    "transferSize": 6828,
+                                  "31580.35": {
+                                    "url": "http://127.0.0.1:56239/api/v1/channels/246837039985590273/history-extent",
+                                    "navStartToEndTime": 184,
+                                    "transferSize": 836,
                                     "isLongest": true,
                                     "children": {}
-                                  }
-                                }
-                              },
-                              "6712.23": {
-                                "url": "http://127.0.0.1:51196/sticktalk-web-2992444879860484_bg.wasm",
-                                "navStartToEndTime": 64,
-                                "transferSize": 527104,
-                                "children": {
-                                  "6712.31": {
-                                    "url": "http://127.0.0.1:51196/api/v1/channels/246799557403344897/history-extent",
-                                    "navStartToEndTime": 136,
-                                    "transferSize": 836,
-                                    "children": {}
                                   },
-                                  "6712.30": {
-                                    "url": "http://127.0.0.1:51196/api/v1/channels/246799557403344897/messages?limit=50",
-                                    "navStartToEndTime": 132,
+                                  "31580.34": {
+                                    "url": "http://127.0.0.1:56239/api/v1/channels/246837039985590273/messages?limit=50",
+                                    "navStartToEndTime": 182,
                                     "transferSize": 840,
                                     "children": {}
                                   },
-                                  "6712.27": {
-                                    "url": "http://127.0.0.1:51196/api/v1/browser/session",
-                                    "navStartToEndTime": 101,
-                                    "transferSize": 1068,
+                                  "31580.33": {
+                                    "url": "http://127.0.0.1:56239/api/v1/guilds/246837039985590272/members?limit=50",
+                                    "navStartToEndTime": 182,
+                                    "transferSize": 1103,
                                     "children": {}
                                   },
-                                  "6712.26": {
-                                    "url": "http://127.0.0.1:51196/api/v1/meta",
-                                    "navStartToEndTime": 83,
-                                    "transferSize": 774,
-                                    "children": {}
-                                  },
-                                  "6712.25": {
-                                    "url": "http://127.0.0.1:51196/api/v1/browser/capabilities",
-                                    "navStartToEndTime": 80,
+                                  "31580.28": {
+                                    "url": "http://127.0.0.1:56239/api/v1/browser/capabilities",
+                                    "navStartToEndTime": 109,
                                     "transferSize": 761,
                                     "children": {}
                                   }
                                 }
+                              },
+                              "31580.30": {
+                                "url": "http://127.0.0.1:56239/api/v1/meta",
+                                "navStartToEndTime": 121,
+                                "transferSize": 774,
+                                "children": {}
+                              },
+                              "31580.26": {
+                                "url": "http://127.0.0.1:56239/pkg/26b0e168068a8453309a/__wasm_split.js",
+                                "navStartToEndTime": 65,
+                                "transferSize": 1893,
+                                "children": {}
                               }
                             }
+                          },
+                          "31580.18": {
+                            "url": "http://127.0.0.1:56239/pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a_bg.wasm",
+                            "navStartToEndTime": 78,
+                            "transferSize": 422315,
+                            "children": {}
+                          },
+                          "31580.17": {
+                            "url": "http://127.0.0.1:56239/api/v1/browser/session",
+                            "navStartToEndTime": 51,
+                            "transferSize": 1068,
+                            "children": {}
                           }
                         }
                       },
-                      "6712.3": {
-                        "url": "http://127.0.0.1:51196/live-ea4884973c7d9faa.css",
-                        "navStartToEndTime": 24,
-                        "transferSize": 4441,
+                      "31580.3": {
+                        "url": "http://127.0.0.1:56239/live-1df3f92318bf9d4790a8.css",
+                        "navStartToEndTime": 42,
+                        "transferSize": 6227,
                         "children": {
-                          "6712.18": {
-                            "url": "http://127.0.0.1:51196/public/fonts/Inter-Medium.woff2",
-                            "navStartToEndTime": 39,
+                          "31580.21": {
+                            "url": "http://127.0.0.1:56239/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 178,
                             "transferSize": 19334,
                             "children": {}
                           },
-                          "6712.19": {
-                            "url": "http://127.0.0.1:51196/public/fonts/Inter-SemiBold.woff2",
-                            "navStartToEndTime": 35,
+                          "31580.22": {
+                            "url": "http://127.0.0.1:56239/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 58,
                             "transferSize": 19422,
                             "children": {}
                           }
                         }
                       },
-                      "6712.6": {
-                        "url": "http://127.0.0.1:51196/ui-tokens-500c88b5b36ff764fdd6.css",
-                        "navStartToEndTime": 25,
+                      "31580.6": {
+                        "url": "http://127.0.0.1:56239/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 42,
                         "transferSize": 1172,
                         "children": {}
                       },
-                      "6712.5": {
-                        "url": "http://127.0.0.1:51196/boot-c066202c08c28b10f232.css",
-                        "navStartToEndTime": 25,
+                      "31580.5": {
+                        "url": "http://127.0.0.1:56239/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 41,
                         "transferSize": 900,
                         "children": {}
                       }
@@ -587,7 +542,7 @@
                   }
                 },
                 "longestChain": {
-                  "duration": 1587
+                  "duration": 184
                 }
               }
             },
@@ -637,19 +592,363 @@
           ],
           "items": [
             {
-              "url": "http://127.0.0.1:51196/ui-tokens-500c88b5b36ff764fdd6.css",
+              "url": "http://127.0.0.1:56239/ui-tokens-500c88b5b36ff764fdd6.css",
               "totalBytes": 1172,
-              "wastedMs": 301
+              "wastedMs": 302
             },
             {
-              "url": "http://127.0.0.1:51196/boot-c066202c08c28b10f232.css",
+              "url": "http://127.0.0.1:56239/live-1df3f92318bf9d4790a8.css",
+              "totalBytes": 6227,
+              "wastedMs": 152
+            },
+            {
+              "url": "http://127.0.0.1:56239/boot-c066202c08c28b10f232.css",
               "totalBytes": 900,
-              "wastedMs": 301
+              "wastedMs": 302
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "warmAuthenticatedChatMobile": {
+    "version": "13.6.0",
+    "categories": {
+      "performance": 95,
+      "accessibility": 100,
+      "best-practices": 100
+    },
+    "metrics": {
+      "first-contentful-paint": {
+        "display": "0.2 s",
+        "value": 211.813
+      },
+      "largest-contentful-paint": {
+        "display": "1.0 s",
+        "value": 970.104
+      },
+      "total-blocking-time": {
+        "display": "250 ms",
+        "value": 249.24699999618537
+      },
+      "cumulative-layout-shift": {
+        "display": "0",
+        "value": 0
+      },
+      "interactive": {
+        "display": "0.9 s",
+        "value": 948.8579999961853
+      }
+    },
+    "appReady": [
+      {
+        "name": "sticktalk-chat-ready",
+        "startTime": 1098.761,
+        "timingType": "Mark"
+      }
+    ],
+    "failures": [
+      {
+        "id": "total-blocking-time",
+        "title": "Total Blocking Time",
+        "score": 0.84
+      },
+      {
+        "id": "max-potential-fid",
+        "title": "Max Potential First Input Delay",
+        "score": 0.52
+      },
+      {
+        "id": "valid-source-maps",
+        "title": "Missing source maps for large first-party JavaScript",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "scriptUrl",
+              "valueType": "url",
+              "subItemsHeading": {
+                "key": "error"
+              },
+              "label": "URL"
             },
             {
-              "url": "http://127.0.0.1:51196/live-ea4884973c7d9faa.css",
-              "totalBytes": 4441,
-              "wastedMs": 151
+              "key": "sourceMapUrl",
+              "valueType": "url",
+              "label": "Map URL"
+            }
+          ],
+          "items": [
+            {
+              "scriptUrl": "http://127.0.0.1:56239/pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a_bg.wasm",
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "error": "Large JavaScript file is missing a source map"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "forced-reflow-insight",
+        "title": "Forced reflow",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "source",
+                  "valueType": "source-location",
+                  "label": "Top function call"
+                },
+                {
+                  "key": "reflowTime",
+                  "valueType": "ms",
+                  "granularity": 1,
+                  "label": "Total reflow time"
+                }
+              ],
+              "items": [
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:56239/public/live.js",
+                    "urlProvider": "network",
+                    "line": 226,
+                    "column": 35
+                  },
+                  "reflowTime": 73.823
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "source",
+                  "valueType": "source-location",
+                  "label": "Source"
+                },
+                {
+                  "key": "reflowTime",
+                  "valueType": "ms",
+                  "granularity": 1,
+                  "label": "Total reflow time"
+                }
+              ],
+              "items": [
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:56239/public/live.js",
+                    "urlProvider": "network",
+                    "line": 177,
+                    "column": 28
+                  },
+                  "reflowTime": 73.823
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "network-dependency-tree-insight",
+        "title": "Network dependency tree",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "list-section",
+              "value": {
+                "type": "network-tree",
+                "chains": {
+                  "94809A757B4C0285EDB41279896CBEAA": {
+                    "url": "http://127.0.0.1:56239/?channel=246837039985590273",
+                    "navStartToEndTime": 105,
+                    "transferSize": 0,
+                    "isLongest": true,
+                    "children": {
+                      "6108.2": {
+                        "url": "http://127.0.0.1:56239/bootstrap-0a9cf17e727ba60e7383.js",
+                        "navStartToEndTime": 107,
+                        "transferSize": 0,
+                        "isLongest": true,
+                        "children": {
+                          "6108.20": {
+                            "url": "http://127.0.0.1:56239/pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a.js",
+                            "navStartToEndTime": 202,
+                            "transferSize": 0,
+                            "isLongest": true,
+                            "children": {
+                              "6108.25": {
+                                "url": "http://127.0.0.1:56239/public/live.js",
+                                "navStartToEndTime": 257,
+                                "transferSize": 0,
+                                "isLongest": true,
+                                "children": {
+                                  "6108.34": {
+                                    "url": "http://127.0.0.1:56239/api/v1/channels/246837039985590273/history-extent",
+                                    "navStartToEndTime": 1097,
+                                    "transferSize": 836,
+                                    "isLongest": true,
+                                    "children": {}
+                                  },
+                                  "6108.33": {
+                                    "url": "http://127.0.0.1:56239/api/v1/channels/246837039985590273/messages?limit=50",
+                                    "navStartToEndTime": 1081,
+                                    "transferSize": 840,
+                                    "children": {}
+                                  },
+                                  "6108.32": {
+                                    "url": "http://127.0.0.1:56239/api/v1/guilds/246837039985590272/members?limit=50",
+                                    "navStartToEndTime": 1076,
+                                    "transferSize": 1103,
+                                    "children": {}
+                                  },
+                                  "6108.28": {
+                                    "url": "http://127.0.0.1:56239/api/v1/browser/capabilities",
+                                    "navStartToEndTime": 556,
+                                    "transferSize": 761,
+                                    "children": {}
+                                  }
+                                }
+                              },
+                              "6108.30": {
+                                "url": "http://127.0.0.1:56239/api/v1/meta",
+                                "navStartToEndTime": 979,
+                                "transferSize": 774,
+                                "children": {}
+                              },
+                              "6108.26": {
+                                "url": "http://127.0.0.1:56239/pkg/26b0e168068a8453309a/__wasm_split.js",
+                                "navStartToEndTime": 259,
+                                "transferSize": 0,
+                                "children": {}
+                              }
+                            }
+                          },
+                          "6108.18": {
+                            "url": "http://127.0.0.1:56239/api/v1/browser/session",
+                            "navStartToEndTime": 366,
+                            "transferSize": 1068,
+                            "children": {}
+                          },
+                          "6108.19": {
+                            "url": "http://127.0.0.1:56239/pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a_bg.wasm",
+                            "navStartToEndTime": 249,
+                            "transferSize": 0,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "6108.3": {
+                        "url": "http://127.0.0.1:56239/live-1df3f92318bf9d4790a8.css",
+                        "navStartToEndTime": 80,
+                        "transferSize": 0,
+                        "children": {
+                          "6108.22": {
+                            "url": "http://127.0.0.1:56239/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 951,
+                            "transferSize": 0,
+                            "children": {}
+                          },
+                          "6108.23": {
+                            "url": "http://127.0.0.1:56239/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 194,
+                            "transferSize": 0,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "6108.6": {
+                        "url": "http://127.0.0.1:56239/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 84,
+                        "transferSize": 0,
+                        "children": {}
+                      },
+                      "6108.5": {
+                        "url": "http://127.0.0.1:56239/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 82,
+                        "transferSize": 0,
+                        "children": {}
+                      }
+                    }
+                  }
+                },
+                "longestChain": {
+                  "duration": 1097
+                }
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnected origins",
+              "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.",
+              "value": {
+                "type": "text",
+                "value": "No origins were preconnected"
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnect candidates",
+              "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4",
+              "value": {
+                "type": "text",
+                "value": "No additional origins are good candidates for preconnecting"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "render-blocking-insight",
+        "title": "Render-blocking requests",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:56239/ui-tokens-500c88b5b36ff764fdd6.css",
+              "totalBytes": 0,
+              "wastedMs": 110
+            },
+            {
+              "url": "http://127.0.0.1:56239/boot-c066202c08c28b10f232.css",
+              "totalBytes": 0,
+              "wastedMs": 110
+            },
+            {
+              "url": "http://127.0.0.1:56239/live-1df3f92318bf9d4790a8.css",
+              "totalBytes": 0,
+              "wastedMs": 110
             }
           ]
         }
@@ -666,11 +965,11 @@
     "metrics": {
       "first-contentful-paint": {
         "display": "0.2 s",
-        "value": 169.18292288818358
+        "value": 170.27164427490234
       },
       "largest-contentful-paint": {
-        "display": "0.2 s",
-        "value": 249.99082288818357
+        "display": "0.3 s",
+        "value": 251.94884427490234
       },
       "total-blocking-time": {
         "display": "0 ms",
@@ -681,10 +980,11 @@
         "value": 0
       },
       "interactive": {
-        "display": "0.2 s",
-        "value": 249.99082288818357
+        "display": "0.3 s",
+        "value": 251.94884427490234
       }
     },
+    "appReady": [],
     "failures": [
       {
         "id": "lcp-discovery-insight",
@@ -741,55 +1041,55 @@
               "value": {
                 "type": "network-tree",
                 "chains": {
-                  "1B859639D64296544C73FB892024803B": {
-                    "url": "http://127.0.0.1:51196/",
-                    "navStartToEndTime": 14,
+                  "BEA1A39A32B6C67DE7ED8DA15E009E58": {
+                    "url": "http://127.0.0.1:56239/",
+                    "navStartToEndTime": 48,
                     "transferSize": 659,
                     "isLongest": true,
                     "children": {
-                      "29204.2": {
-                        "url": "http://127.0.0.1:51196/bootstrap-7290cbf7e9f6c39a0f17.js",
-                        "navStartToEndTime": 14,
+                      "26116.3": {
+                        "url": "http://127.0.0.1:56239/live-1df3f92318bf9d4790a8.css",
+                        "navStartToEndTime": 47,
                         "transferSize": 0,
                         "isLongest": true,
                         "children": {
-                          "29204.16": {
-                            "url": "http://127.0.0.1:51196/api/v1/browser/capabilities",
-                            "navStartToEndTime": 38,
-                            "transferSize": 761,
+                          "26116.17": {
+                            "url": "http://127.0.0.1:56239/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 80,
+                            "transferSize": 659,
                             "isLongest": true,
                             "children": {}
+                          },
+                          "26116.18": {
+                            "url": "http://127.0.0.1:56239/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 80,
+                            "transferSize": 659,
+                            "children": {}
                           }
                         }
                       },
-                      "29204.3": {
-                        "url": "http://127.0.0.1:51196/live-ea4884973c7d9faa.css",
-                        "navStartToEndTime": 13,
+                      "26116.2": {
+                        "url": "http://127.0.0.1:56239/bootstrap-0a9cf17e727ba60e7383.js",
+                        "navStartToEndTime": 51,
                         "transferSize": 0,
                         "children": {
-                          "29204.18": {
-                            "url": "http://127.0.0.1:51196/public/fonts/Inter-Medium.woff2",
-                            "navStartToEndTime": 38,
-                            "transferSize": 659,
-                            "children": {}
-                          },
-                          "29204.19": {
-                            "url": "http://127.0.0.1:51196/public/fonts/Inter-SemiBold.woff2",
-                            "navStartToEndTime": 37,
-                            "transferSize": 659,
+                          "26116.21": {
+                            "url": "http://127.0.0.1:56239/api/v1/browser/capabilities",
+                            "navStartToEndTime": 76,
+                            "transferSize": 761,
                             "children": {}
                           }
                         }
                       },
-                      "29204.6": {
-                        "url": "http://127.0.0.1:51196/ui-tokens-500c88b5b36ff764fdd6.css",
-                        "navStartToEndTime": 13,
+                      "26116.6": {
+                        "url": "http://127.0.0.1:56239/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 48,
                         "transferSize": 0,
                         "children": {}
                       },
-                      "29204.5": {
-                        "url": "http://127.0.0.1:51196/boot-c066202c08c28b10f232.css",
-                        "navStartToEndTime": 13,
+                      "26116.5": {
+                        "url": "http://127.0.0.1:56239/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 47,
                         "transferSize": 0,
                         "children": {}
                       }
@@ -797,7 +1097,7 @@
                   }
                 },
                 "longestChain": {
-                  "duration": 38
+                  "duration": 80
                 }
               }
             },
@@ -847,15 +1147,15 @@
           ],
           "items": [
             {
-              "url": "http://127.0.0.1:51196/ui-tokens-500c88b5b36ff764fdd6.css",
+              "url": "http://127.0.0.1:56239/ui-tokens-500c88b5b36ff764fdd6.css",
               "totalBytes": 0
             },
             {
-              "url": "http://127.0.0.1:51196/boot-c066202c08c28b10f232.css",
+              "url": "http://127.0.0.1:56239/boot-c066202c08c28b10f232.css",
               "totalBytes": 0
             },
             {
-              "url": "http://127.0.0.1:51196/live-ea4884973c7d9faa.css",
+              "url": "http://127.0.0.1:56239/live-1df3f92318bf9d4790a8.css",
               "totalBytes": 0
             }
           ]

@@ -1,55 +1,55 @@
 {
-  "bundleRevision": "5470c80f88a389066a73",
+  "bundleRevision": "4ad95a5c0079c5550716",
   "headless": true,
   "realServer": true,
   "view": "Authenticated empty Friends screen; voice/video inactive",
-  "sampleMs": 60006.4437,
-  "cpuPercentOfOneLogicalCore": 0.07221057827827915,
+  "sampleMs": 60022.1795,
+  "cpuPercentOfOneLogicalCore": 0.0858515975748598,
   "blank": {
     "processes": [
       {
-        "id": 19716,
+        "id": 26404,
         "type": "browser"
       },
       {
-        "id": 13380,
+        "id": 32588,
         "type": "renderer"
       },
       {
-        "id": 27380,
+        "id": 20648,
         "type": "GPU"
       },
       {
-        "id": 28496,
+        "id": 25732,
         "type": "network.mojom.NetworkService"
       }
     ],
-    "workingSetBytes": 192577536,
-    "privateBytes": 80887808
+    "workingSetBytes": 188448768,
+    "privateBytes": 78262272
   },
   "authenticated": {
     "processes": [
       {
-        "id": 19716,
+        "id": 26404,
         "type": "browser"
       },
       {
-        "id": 13380,
+        "id": 32588,
         "type": "renderer"
       },
       {
-        "id": 27380,
+        "id": 20648,
         "type": "GPU"
       },
       {
-        "id": 28496,
+        "id": 25732,
         "type": "network.mojom.NetworkService"
       }
     ],
-    "workingSetBytes": 497623040,
-    "privateBytes": 121884672
+    "workingSetBytes": 264429568,
+    "privateBytes": 115970048
   },
-  "deltaPrivateBytes": 40996864,
-  "deltaWorkingSetBytes": 305045504,
+  "deltaPrivateBytes": 37707776,
+  "deltaWorkingSetBytes": 75980800,
   "note": "Whole separate headless Chromium process-tree totals; working-set sum double-counts shared pages. Not native-client or physical-phone memory."
 }

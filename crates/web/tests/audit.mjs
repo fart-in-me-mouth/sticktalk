@@ -35,7 +35,7 @@ const server = spawn(
     "--data-dir",
     data,
     "--web-root",
-    join(target, "web-dist"),
+    (process.env.STICKTALK_WEB_DIST ?? join(target, "web-dist")),
     "--min-free-disk-gb",
     "0",
     "--voice-bind-ip",
@@ -124,8 +124,28 @@ try {
   });
   const cdp = await context.newCDPSession(page);
   await cdp.send("Network.clearBrowserCache");
+  // The protocol permits one WS per cookie session. Leaving the seed page open
+  // makes it and Lighthouse repeatedly replace each other's socket, corrupting
+  // TTI with reconnect work. Measure exactly one application page at a time.
+  for (const open of context.pages()) await open.close();
+  await context.newPage();
   const chat = await lighthouse(`${origin}/?channel=${channel}`, options);
   await writeFile("screenshots/live/lighthouse-chat-mobile.json", chat.report);
+  for (const open of context.pages()) {
+    if (open.url().startsWith(origin)) await open.evaluate(async()=>{
+      if ('serviceWorker' in navigator) await Promise.race([navigator.serviceWorker.ready,new Promise(done=>setTimeout(done,2000))]);
+    });
+    await open.close();
+  }
+  await context.newPage();
+  // The same authenticated URL, keeping HTTP/SW caches and the cookie session.
+  // Real DevTools throttling respects cache hits rather than simulating a cold transfer.
+  const warm = await lighthouse(`${origin}/?channel=${channel}`, {
+    ...options, throttlingMethod:"devtools",
+    throttling:{rttMs:150,throughputKbps:1638.4,cpuSlowdownMultiplier:4,requestLatencyMs:150,downloadThroughputKbps:1638.4,uploadThroughputKbps:750},
+  });
+  await writeFile("screenshots/live/lighthouse-chat-warm-mobile.json", warm.report);
+
   const summarize = (r) => ({
     version: r.lighthouseVersion,
     categories: Object.fromEntries(
@@ -151,6 +171,7 @@ try {
           },
         ]),
     ),
+    appReady: r.audits["user-timings"]?.details?.items?.filter(i=>JSON.stringify(i).includes("sticktalk-chat-ready")) ?? [],
     failures: Object.values(r.audits)
       .filter((a) => a.score !== null && a.score < 0.9)
       .map((a) => ({
@@ -162,13 +183,14 @@ try {
   });
   const summary = {
     bundleRevision: JSON.parse(
-      await readFile(join(target, "web-dist/sizes.json"), "utf8"),
+      await readFile(join(process.env.STICKTALK_WEB_DIST ?? join(target, "web-dist"), "sizes.json"), "utf8"),
     ).revision,
     headless: true,
     realServer: true,
     page: "Cold progressive login; authenticated chat measured separately",
     mobile: summarize(mobile.lhr),
     authenticatedChatMobile: summarize(chat.lhr),
+    warmAuthenticatedChatMobile: summarize(warm.lhr),
     desktop: summarize(desktop.lhr),
   };
   await writeFile(
@@ -182,6 +204,7 @@ try {
       mobileMetrics: summary.mobile.metrics,
       chatMobile: summary.authenticatedChatMobile.categories,
       chatMobileMetrics: summary.authenticatedChatMobile.metrics,
+      warmChatMetrics: summary.warmAuthenticatedChatMobile.metrics,
       desktopMetrics: summary.desktop.metrics,
     }),
   );

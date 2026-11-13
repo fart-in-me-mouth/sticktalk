@@ -219,6 +219,36 @@ fn duplicate_cookie_and_csp_config_rejected() {
     }
 }
 #[tokio::test]
+async fn direct_gif_csp_matches_meta_capability_without_wildcards() {
+    let (_dir, app) = fixture().await;
+    let mut config = app.0.config.clone();
+    config.gifs.gif_provider = Some(crate::gifs::ProviderOption::Klipy);
+    config.gifs.gif_public_client_key = Some("public-client-key".into());
+    for (mode, key, enabled) in [
+        (crate::gifs::GifMode::Direct, true, true),
+        (crate::gifs::GifMode::Direct, false, false),
+        (crate::gifs::GifMode::Proxy, true, false),
+    ] {
+        config.gifs.gif_mode = mode;
+        config.gifs.gif_public_client_key = key.then(|| "public-client-key".into());
+        let capability = crate::gifs::GifService::new(&config.gifs)
+            .unwrap()
+            .capability();
+        assert_eq!(
+            matches!(capability, GifCapability::Enabled(GifConfig::Direct { .. })),
+            enabled
+        );
+        let browser = Browser::new(&config).unwrap();
+        let csp = browser.csp.to_str().unwrap();
+        assert_eq!(csp.contains("https://api.klipy.com"), enabled);
+        for host in ["static.klipy.com", "static1.klipy.com", "static2.klipy.com"] {
+            assert_eq!(csp.contains(&format!("https://{host}")), enabled);
+        }
+        assert!(!csp.contains('*'));
+        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval';"));
+    }
+}
+#[tokio::test]
 async fn static_security_headers_compression_caching_and_no_api_fallback() {
     let (dir, mut app) = fixture().await;
     let root = dir.path().join("web");

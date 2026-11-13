@@ -1,5 +1,5 @@
 {
-  "bundleRevision": "5470c80f88a389066a73",
+  "bundleRevision": "4ad95a5c0079c5550716",
   "fastQa": false,
   "realServer": true,
   "headless": true,
@@ -20,7 +20,13 @@
     "device sessions",
     "cookie recovery + persisted history",
     "real history extent + anchor seek + at most 50 mounted messages",
+    "viewer original-on-demand, zoom/reset, two-pointer pinch/pan, save and open-original controls",
     "thumbnail only before viewer gesture + original-on-demand + explicit mention",
+    "consecutive author grouping, compact rows and timestamp gutter on all six widths",
+    "@user, @role, #channel and :emoji: autocomplete; arrows/Tab/Escape",
+    "desktop settings layout, mobile settings-list/subpage navigation, real avatar upload",
+    "hoisted-role member groups, counts and owner crown",
+    "create group DM and cross-browser delivery",
     "two independent Chromium processes exchange audio through SFU",
     "two independent Chromium processes decode remote H.264 camera frames",
     "mute + deafen + leave; all publications/subscriptions/tracks released",
@@ -33,10 +39,14 @@
     "screenshots/live/chat-390x844.png",
     "screenshots/live/chat-412x915.png",
     "screenshots/live/chat-820x1180.png",
+    "screenshots/live/chat-1280x800.png",
+    "screenshots/live/chat-1920x1080.png",
     "screenshots/live/voice-1440x900.png",
     "screenshots/live/voice-390x844.png",
     "screenshots/live/voice-412x915.png",
-    "screenshots/live/voice-820x1180.png"
+    "screenshots/live/voice-820x1180.png",
+    "screenshots/live/voice-1280x800.png",
+    "screenshots/live/voice-1920x1080.png"
   ],
   "errors": [],
   "violations": [],
@@ -46,14 +56,14 @@
       "inbound": [
         {
           "kind": "audio",
-          "bytesReceived": 3370,
-          "packetsReceived": 67
+          "bytesReceived": 12169,
+          "packetsReceived": 208
         },
         {
           "kind": "video",
-          "bytesReceived": 9312,
-          "framesDecoded": 17,
-          "packetsReceived": 33
+          "bytesReceived": 30359,
+          "framesDecoded": 12,
+          "packetsReceived": 146
         }
       ]
     },
@@ -62,14 +72,14 @@
       "inbound": [
         {
           "kind": "audio",
-          "bytesReceived": 3363,
-          "packetsReceived": 67
+          "bytesReceived": 12211,
+          "packetsReceived": 208
         },
         {
           "kind": "video",
-          "bytesReceived": 9023,
-          "framesDecoded": 15,
-          "packetsReceived": 72
+          "bytesReceived": 30045,
+          "framesDecoded": 12,
+          "packetsReceived": 142
         }
       ]
     }

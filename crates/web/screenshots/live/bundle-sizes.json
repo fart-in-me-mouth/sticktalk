@@ -1,8 +1,8 @@
 {
-  "revision": "5470c80f88a389066a73",
-  "raw": 2609329,
-  "compressed": 676346,
-  "firstLoadBytes": 669234,
+  "revision": "4ad95a5c0079c5550716",
+  "raw": 2801672,
+  "compressed": 756005,
+  "firstLoadBytes": 580049,
   "firstLoadMeaning": "Complete installable shell cache, not cold-login network transfer",
   "assets": [
     {
@@ -11,19 +11,134 @@
       "brotli": 90
     },
     {
-      "file": "bootstrap-7290cbf7e9f6c39a0f17.js",
-      "bytes": 3456,
-      "brotli": 1204
+      "file": "bootstrap-0a9cf17e727ba60e7383.js",
+      "bytes": 4032,
+      "brotli": 1361
     },
     {
       "file": "index.html",
-      "bytes": 2387,
-      "brotli": 784
+      "bytes": 3000,
+      "brotli": 869
     },
     {
-      "file": "live-ea4884973c7d9faa.css",
-      "bytes": 19662,
-      "brotli": 3629
+      "file": "live-1df3f92318bf9d4790a8.css",
+      "bytes": 31166,
+      "brotli": 5415
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/chunk_11.wasm",
+      "bytes": 5729,
+      "brotli": 3388
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/chunk_12.wasm",
+      "bytes": 296,
+      "brotli": 198
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/chunk_13.wasm",
+      "bytes": 119613,
+      "brotli": 32983
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/chunk_14.wasm",
+      "bytes": 433,
+      "brotli": 282
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/chunk_15.wasm",
+      "bytes": 11684,
+      "brotli": 4656
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/chunk_16.wasm",
+      "bytes": 1259,
+      "brotli": 819
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/chunk_17.wasm",
+      "bytes": 641,
+      "brotli": 422
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/chunk_18.wasm",
+      "bytes": 1120,
+      "brotli": 705
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_completion_rows_777614069144130573.wasm",
+      "bytes": 2533,
+      "brotli": 1293
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_dialog_data_15846326199944172301.wasm",
+      "bytes": 26019,
+      "brotli": 8067
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_expand_shortcodes_2436384113585859643.wasm",
+      "bytes": 1719,
+      "brotli": 1011
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_forward_voice_5392279635404703558.wasm",
+      "bytes": 286229,
+      "brotli": 43503
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_gif_search_8722163865362897193.wasm",
+      "bytes": 18166,
+      "brotli": 5444
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_load_call_11205089856468378523.wasm",
+      "bytes": 3330,
+      "brotli": 1762
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_load_dialog_4951021033443137785.wasm",
+      "bytes": 105922,
+      "brotli": 36135
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_profile_request_7572922647087268853.wasm",
+      "bytes": 1852,
+      "brotli": 1051
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_upload_15906605877296752363.wasm",
+      "bytes": 22906,
+      "brotli": 9646
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/split_voice_action_7345481102919339494.wasm",
+      "bytes": 95524,
+      "brotli": 23580
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a.d.ts",
+      "bytes": 5130,
+      "brotli": 1120
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a.js",
+      "bytes": 50282,
+      "brotli": 7445
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a_bg.wasm",
+      "bytes": 1797367,
+      "brotli": 421493
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/sticktalk-web-26b0e168068a8453309a_bg.wasm.d.ts",
+      "bytes": 3204,
+      "brotli": 601
+    },
+    {
+      "file": "pkg/26b0e168068a8453309a/__wasm_split.js",
+      "bytes": 7695,
+      "brotli": 1101
     },
     {
       "file": "public/fonts/Inter-Medium.woff2",
@@ -54,6 +169,11 @@
       "file": "public/fonts/JetBrainsMono-Regular.woff2",
       "bytes": 28656,
       "brotli": 28660
+    },
+    {
+      "file": "public/gifs.js",
+      "bytes": 2418,
+      "brotli": 1047
     },
     {
       "file": "public/google-g.svg",
@@ -87,8 +207,8 @@
     },
     {
       "file": "public/live.js",
-      "bytes": 14957,
-      "brotli": 3843
+      "bytes": 19393,
+      "brotli": 4900
     },
     {
       "file": "public/manifest.webmanifest",
@@ -97,8 +217,8 @@
     },
     {
       "file": "public/media.js",
-      "bytes": 24180,
-      "brotli": 6036
+      "bytes": 24579,
+      "brotli": 6137
     },
     {
       "file": "public/push.js",
@@ -106,14 +226,9 @@
       "brotli": 583
     },
     {
-      "file": "sticktalk-web-2992444879860484_bg.wasm",
-      "bytes": 2354735,
-      "brotli": 526282
-    },
-    {
-      "file": "sticktalk-web-a5e69f688320f169.js",
-      "bytes": 49012,
-      "brotli": 7213
+      "file": "public/viewer.js",
+      "bytes": 7491,
+      "brotli": 2216
     },
     {
       "file": "ui-tokens-500c88b5b36ff764fdd6.css",
