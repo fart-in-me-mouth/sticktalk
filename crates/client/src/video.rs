@@ -320,7 +320,26 @@ fn run(input: &Run) -> impl iced::futures::Stream<Item = Event> {
                     .acquire_owned()
                     .await
                     .map_err(|_| "Video decoder unavailable".to_string())?;
-                let file = download(&input).await?;
+                // Attachments play on demand, including files larger than the
+                // bounded GIF preview cache. Keep the capability alive on the
+                // decoder thread until Media Foundation releases its source.
+                let source = if let Some(a) = &input.attachment {
+                    Some(
+                        sticktalk::video_stream::Source::attachment(
+                            &input.config.server,
+                            &input.config.token,
+                            a.id,
+                        )
+                        .await?,
+                    )
+                } else {
+                    None
+                };
+                let file = if let Some(source) = &source {
+                    source.path.clone()
+                } else {
+                    download(&input).await?
+                };
                 let (tx, mut rx) = tokio::sync::mpsc::channel(1);
                 let stop = Arc::new(AtomicBool::new(false));
                 struct Stop(Arc<AtomicBool>);
@@ -338,6 +357,7 @@ fn run(input: &Run) -> impl iced::futures::Stream<Item = Event> {
                 let spawned = std::thread::Builder::new()
                     .name("sticktalk-video".into())
                     .spawn(move || {
+                        let _source = source;
                         let _permit = permit;
                         #[cfg(windows)]
                         let result = (|| -> Result<(), String> {
