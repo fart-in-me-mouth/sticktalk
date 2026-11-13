@@ -28,6 +28,7 @@ pub enum Msg {
     SettingsStored(Result<(), String>),
     SettingsPersist(u64),
     SettingsKey(keyboard::Key, keyboard::Modifiers),
+    Keyboard(keyboard::Key, keyboard::Modifiers, iced::event::Status),
     Server(String),
     Username(String),
     Password(String),
@@ -252,12 +253,18 @@ impl App {
         };
         let capture = flag("--capture").map(PathBuf::from);
         let initial_screen = flag("--screen").unwrap_or_default();
-        let server = storage::server();
-        let session = if mock
+        let qa_session = crate::agent_window::qa_session();
+        let server = qa_session
+            .as_ref()
+            .map_or_else(storage::server, |s| s.config.server.clone());
+        let session = if qa_session.is_some() {
+            qa_session
+        } else if mock
             && !matches!(
                 initial_screen.as_str(),
                 "login" | "register" | "google-login" | "pick-username"
-            ) {
+            )
+        {
             Some(Session {
                 config: Config {
                     server: "http://127.0.0.1:8080".into(),
@@ -369,7 +376,7 @@ impl App {
             resolving: BTreeSet::new(),
             preview: None,
         };
-        let task = if !mock {
+        let task = if !mock && state.state.session.is_none() {
             Task::perform(
                 async move {
                     tokio::task::spawn_blocking(move || {
@@ -462,30 +469,8 @@ impl App {
                 UiEvent::Mouse(iced::mouse::Event::CursorMoved { position }) => {
                     Some(Msg::Main(crate::main_window::Message::Pointer(position)))
                 }
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    ref key, modifiers, ..
-                }) if crate::main_window::key(key, modifiers).is_some() => {
-                    crate::main_window::key(key, modifiers).map(Msg::Main)
-                }
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::Escape),
-                    ..
-                }) => Some(Msg::Escape),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::Tab),
-                    modifiers,
-                    ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::Tab(modifiers.shift())),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::ArrowDown),
-                    ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::MenuMove(false)),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::ArrowUp),
-                    ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::MenuMove(true)),
                 UiEvent::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
-                    Some(Msg::SettingsKey(key, modifiers))
+                    Some(Msg::Keyboard(key, modifiers, _status))
                 }
                 UiEvent::Mouse(iced::mouse::Event::ButtonPressed(_)) => Some(Msg::Activity),
                 UiEvent::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) => {
@@ -707,37 +692,62 @@ impl App {
             Msg::Main(m) => return self.main_update(m),
             Msg::Feature(event) => return crate::features::update(self, *event),
             Msg::Settings(action) => return self.settings_update(action),
+            Msg::Keyboard(key, modifiers, status) => {
+                // Record first: existing shortcuts must not consume the chord
+                // while the Keybinds page is waiting for a new binding.
+                if self.settings.binding.is_some() {
+                    if key == keyboard::Key::Named(Named::Escape) {
+                        self.settings.binding = None;
+                        return Task::none();
+                    }
+                    return self.update(Msg::SettingsKey(key, modifiers));
+                }
+                let binding = self
+                    .settings
+                    .preferences
+                    .keybinds
+                    .get("Quick Switcher")
+                    .map_or("Ctrl+K", String::as_str);
+                if let Some(action) = crate::main_window::key(&key, modifiers, binding) {
+                    return self.main_update(action);
+                }
+                let message = match key {
+                    keyboard::Key::Named(Named::Escape) => Msg::Escape,
+                    keyboard::Key::Named(Named::Tab) if status == iced::event::Status::Ignored => {
+                        Msg::Tab(modifiers.shift())
+                    }
+                    keyboard::Key::Named(Named::ArrowDown)
+                        if status == iced::event::Status::Ignored =>
+                    {
+                        Msg::MenuMove(false)
+                    }
+                    keyboard::Key::Named(Named::ArrowUp)
+                        if status == iced::event::Status::Ignored =>
+                    {
+                        Msg::MenuMove(true)
+                    }
+                    _ => Msg::SettingsKey(key, modifiers),
+                };
+                return self.update(message);
+            }
             Msg::SettingsKey(key, modifiers) => {
                 if let Some(index) = self.settings.binding {
-                    let name = match key {
-                        keyboard::Key::Character(s) => s.to_uppercase(),
-                        keyboard::Key::Named(
-                            Named::Control | Named::Shift | Named::Alt | Named::Meta,
-                        ) => return Task::none(),
-                        keyboard::Key::Named(n) => format!("{n:?}"),
-                        _ => return Task::none(),
+                    let Some(chord) = crate::main_window::chord(&key, modifiers) else {
+                        return Task::none();
                     };
-                    let mut parts = Vec::new();
-                    if modifiers.control() {
-                        parts.push("Ctrl".to_owned());
-                    }
-                    if modifiers.alt() {
-                        parts.push("Alt".to_owned());
-                    }
-                    if modifiers.shift() {
-                        parts.push("Shift".to_owned());
-                    }
-                    if modifiers.logo() {
-                        parts.push("Meta".to_owned());
-                    }
-                    parts.push(name);
                     self.settings.binding = None;
                     return self.settings_update(crate::settings_controller::Action::Text(
                         crate::settings_controller::TextField::Keybind(index),
-                        parts.join("+"),
+                        chord,
                     ));
                 }
-                if let Some(action) = crate::main_window::key(&key, modifiers) {
+                let binding = self
+                    .settings
+                    .preferences
+                    .keybinds
+                    .get("Quick Switcher")
+                    .map_or("Ctrl+K", String::as_str);
+                if let Some(action) = crate::main_window::key(&key, modifiers, binding) {
                     return self.main_update(action);
                 }
                 return crate::features::update(self, crate::features::Event::Key(key));
@@ -2432,6 +2442,44 @@ impl App {
                         _ => {}
                     }
                     self.initial_screen.clear();
+                    if crate::agent_window::qa_session().is_some() {
+                        if let Ok(value) = std::env::var("STICKTALK_QA_PREFERENCES") {
+                            if let Ok(mut preferences) = serde_json::from_str::<
+                                sticktalk_client_core::settings::Preferences,
+                            >(&value)
+                            {
+                                preferences.validate();
+                                self.settings.preferences = preferences;
+                                self.settings.preference_revision =
+                                    self.settings.preference_revision.wrapping_add(1);
+                                tasks
+                                    .push(self.settings_persist(self.settings.preference_revision));
+                            }
+                        }
+                        if let Ok(path) = std::env::var("STICKTALK_QA_PREFERENCES_REPORT") {
+                            let bytes = serde_json::to_vec(&self.settings.preferences)
+                                .expect("validated QA preferences");
+                            tasks.push(Task::perform(
+                                async move {
+                                    tokio::fs::write(path, bytes)
+                                        .await
+                                        .map_err(|error| error.to_string())
+                                },
+                                Msg::SettingsStored,
+                            ));
+                        }
+                        if let Ok(channel) = std::env::var("STICKTALK_QA_CHANNEL") {
+                            if let Ok(channel) = channel.parse::<u64>() {
+                                if self.state.model.channels.contains_key(&Id(channel)) {
+                                    tasks.push(self.navigate(Id(channel)));
+                                }
+                            }
+                        }
+                        if let Ok(content) = std::env::var("STICKTALK_QA_SEND") {
+                            replace_editor(&mut self.editor, &content);
+                            tasks.push(Task::done(Msg::Send));
+                        }
+                    }
                     if self.capture.is_some() {
                         tasks.push(Task::perform(
                             async {
@@ -2453,6 +2501,8 @@ impl App {
                         self.features.desktop.observe(&envelope.event);
                         if let Event::MessageCreated { message, .. } = &envelope.event {
                             crate::features::committed(self, message);
+                            self.features.desktop.default_level =
+                                Some(self.settings.preferences.notification_level);
                             if let Some(toast) = self.features.desktop.notification(
                                 &self.state.model,
                                 message,
@@ -3039,6 +3089,33 @@ impl App {
     pub fn send(&mut self, command: Command) -> bool {
         if self.state.connection != ConnectionState::Ready {
             self.error = "You are offline. This action was not queued.".into();
+            return false;
+        }
+        let required = match &command {
+            Command::SendMessage(m) => Some((
+                m.channel_id,
+                Permissions::SEND_MESSAGES
+                    | if m.attachment_ids.is_empty() {
+                        Permissions::empty()
+                    } else {
+                        Permissions::ATTACH_FILES
+                    },
+            )),
+            Command::EditMessage(m) => Some((m.channel_id, Permissions::SEND_MESSAGES)),
+            Command::Typing { channel_id } => Some((*channel_id, Permissions::SEND_MESSAGES)),
+            Command::AddReaction { channel_id, .. }
+            | Command::RemoveReaction { channel_id, .. } => {
+                Some((*channel_id, Permissions::ADD_REACTIONS))
+            }
+            Command::Launch(LaunchCommand::PinMessage { channel_id, .. }) => {
+                Some((*channel_id, Permissions::MANAGE_MESSAGES))
+            }
+            _ => None,
+        };
+        if required.is_some_and(|(channel, permission)| {
+            !self.channel_permissions(channel).contains(permission)
+        }) {
+            self.error = "You don't have permission to do that in this channel.".into();
             return false;
         }
         if self.state.pending.len() >= 32 {
@@ -4393,7 +4470,7 @@ impl App {
         }
         use crate::main_window::{Entity, Popover};
         if screen.starts_with("main-") {
-            app.main.developer = true;
+            app.settings.preferences.developer_mode = true;
             app.main.pointer = iced::Point::new(size.width - crate::theme::MEMBERS + 40., 160.);
             app.main.position = app.main.pointer;
             app.main.popover = match screen {
@@ -5058,5 +5135,72 @@ mod tests {
         )));
         assert_eq!(app.features.desktop.pending_activation, Some(activation));
         assert!(app.state.session.is_none());
+    }
+}
+
+#[cfg(test)]
+mod qa_channel_controls {
+    use super::*;
+    #[test]
+    fn read_only_keyboard_send_and_reaction_shortcuts_are_not_queued() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.state.connection = ConnectionState::Ready;
+        app.state.screen = Screen::Channel(Id(12));
+        app.state.model.launch.effective_permissions.insert(
+            Id(12),
+            Permissions::VIEW_CHANNEL | Permissions::READ_HISTORY,
+        );
+        replace_editor(&mut app.editor, "Keep this draft when sending is denied");
+        let _ = app.update(Msg::Send);
+        assert!(app.error.contains("permission"));
+        assert_eq!(app.editor.text(), "Keep this draft when sending is denied");
+        assert!(app.state.pending.is_empty());
+        app.error.clear();
+        assert!(!app.send(Command::AddReaction {
+            channel_id: Id(12),
+            message_id: Id(2279),
+            emoji: "👍".into()
+        }));
+        assert!(app.error.contains("permission"));
+        assert!(app.state.pending.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod qa_notification_defaults {
+    use super::*;
+    #[tokio::test]
+    async fn real_event_path_honors_device_notification_defaults_without_os_effects() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.focused = false;
+        app.state.screen = Screen::Friends(FriendTab::All);
+        app.features.desktop.settings.clear();
+        app.features.desktop.last_toast = None;
+        let mut message = app.state.model.messages[&Id(12)]
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        message.author_id = Id(2);
+        message.content = "An ordinary non-mention message".into();
+        message.mention_ids.clear();
+        app.settings.preferences.notification_level = NotificationLevel::Nothing;
+        let seq = app.state.model.cursor.as_ref().unwrap().seq + 1;
+        let author = app.state.model.users[&Id(2)].clone();
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq,
+            event: Event::MessageCreated {
+                message: message.clone(),
+                author: author.clone(),
+            },
+        }))));
+        assert!(app.features.desktop.last_toast.is_none());
+        app.settings.preferences.notification_level = NotificationLevel::All;
+        message.id = Id(message.id.0 + 1);
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq: seq + 1,
+            event: Event::MessageCreated { message, author },
+        }))));
+        assert!(app.features.desktop.last_toast.is_some());
     }
 }

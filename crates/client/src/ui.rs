@@ -1109,6 +1109,26 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
         .into()
 }
 fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
+    let permissions = app.channel_permissions(channel.id);
+    if !permissions.contains(Permissions::SEND_MESSAGES) {
+        return container(
+            container(
+                row![
+                    icon("lock-keyhole", t::ICON, t::TEXT_MUTED),
+                    hint("You don't have permission to send messages in this channel.")
+                ]
+                .spacing(t::S12)
+                .align_y(Center),
+            )
+            .width(Fill)
+            .padding([t::S12, t::S16])
+            .style(t::elevated),
+        )
+        .id("composer")
+        .padding([t::S8, t::S16])
+        .style(t::chat)
+        .into();
+    }
     let mut body = column![].spacing(t::S8);
     if let Some(cards) = uploads::cards(app) {
         body = body.push(cards);
@@ -1268,11 +1288,15 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         body = body.push(
             container(
                 row![
-                    icon_button(
-                        "plus-circle",
-                        "Upload a file",
-                        Msg::PickUpload(UploadPurpose::Message)
-                    ),
+                    if permissions.contains(Permissions::ATTACH_FILES) {
+                        icon_button(
+                            "plus-circle",
+                            "Upload a file",
+                            Msg::PickUpload(UploadPurpose::Message),
+                        )
+                    } else {
+                        space().width(0).into()
+                    },
                     editor,
                     if !matches!(app.features.gifs.capability, GifCapability::Disabled) {
                         controls::gif_button()
@@ -1543,12 +1567,20 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
                     .spacing(t::S8)
                     .align_y(Center),
                 )
-                .on_press(Msg::Reaction(m.id, r.emoji.clone(), r.me))
+                .on_press_maybe(
+                    app.channel_permissions(m.channel_id)
+                        .contains(Permissions::ADD_REACTIONS)
+                        .then(|| Msg::Reaction(m.id, r.emoji.clone(), r.me)),
+                )
                 .padding([t::S4, t::S8])
                 .style(t::reaction(r.me)),
             );
         }
-        if hovered {
+        if hovered
+            && app
+                .channel_permissions(m.channel_id)
+                .contains(Permissions::ADD_REACTIONS)
+        {
             reactions = reactions.push(
                 button(icon("plus", t::INLINE_ICON, t::TEXT_SECONDARY))
                     .on_press(Msg::ReactPicker(m.id))
@@ -1607,12 +1639,15 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
         );
     }
     if hovered {
-        let mut tools = row![
-            message_tool("smile", "React", Msg::ReactPicker(m.id)),
-            message_tool("reply", "Reply", Msg::Reply(m.id))
-        ]
-        .spacing(0);
-        if Some(m.author_id) == app.me() {
+        let permissions = app.channel_permissions(m.channel_id);
+        let mut tools = Row::new().spacing(0);
+        if permissions.contains(Permissions::ADD_REACTIONS) {
+            tools = tools.push(message_tool("smile", "React", Msg::ReactPicker(m.id)));
+        }
+        if permissions.contains(Permissions::SEND_MESSAGES) {
+            tools = tools.push(message_tool("reply", "Reply", Msg::Reply(m.id)));
+        }
+        if Some(m.author_id) == app.me() && permissions.contains(Permissions::SEND_MESSAGES) {
             tools = tools.push(message_tool("pencil", "Edit", Msg::Edit(m.id)));
         }
         if Some(m.author_id) == app.me()
@@ -2054,29 +2089,32 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
                     .get(&channel_id)
                     .and_then(|ms| ms.get(id))
                 {
-                    let mut reactions = Row::new().spacing(t::S4);
-                    for value in ["🌱", "❤️", "👍", "✨", "🎉", "👀"] {
-                        let reacted = m.reactions.iter().any(|r| r.emoji == value && r.me);
+                    let permissions = app.channel_permissions(channel_id);
+                    if permissions.contains(Permissions::ADD_REACTIONS) {
+                        let mut reactions = Row::new().spacing(t::S4);
+                        for value in ["🌱", "❤️", "👍", "✨", "🎉", "👀"] {
+                            let reacted = m.reactions.iter().any(|r| r.emoji == value && r.me);
+                            reactions = reactions.push(
+                                button(emoji(value, t::ICON))
+                                    .on_press(Msg::Reaction(*id, value.into(), reacted))
+                                    .padding(t::S4)
+                                    .style(t::reaction(reacted)),
+                            );
+                        }
                         reactions = reactions.push(
-                            button(emoji(value, t::ICON))
-                                .on_press(Msg::Reaction(*id, value.into(), reacted))
+                            button(icon("plus", t::INLINE_ICON, t::TEXT_SECONDARY))
+                                .on_press(Msg::ReactPicker(*id))
                                 .padding(t::S4)
-                                .style(t::reaction(reacted)),
+                                .style(t::icon),
                         );
+                        items = items.push(reactions).push(line());
                     }
-                    reactions = reactions.push(
-                        button(icon("plus", t::INLINE_ICON, t::TEXT_SECONDARY))
-                            .on_press(Msg::ReactPicker(*id))
-                            .padding(t::S4)
-                            .style(t::icon),
-                    );
-                    items = items.push(reactions).push(line()).push(menu_item(
-                        "reply",
-                        "Reply",
-                        Msg::Reply(*id),
-                        false,
-                    ));
-                    if Some(m.author_id) == app.me() {
+                    if permissions.contains(Permissions::SEND_MESSAGES) {
+                        items = items.push(menu_item("reply", "Reply", Msg::Reply(*id), false));
+                    }
+                    if Some(m.author_id) == app.me()
+                        && permissions.contains(Permissions::SEND_MESSAGES)
+                    {
                         items = items.push(menu_item("pencil", "Edit", Msg::Edit(*id), false));
                     }
                     if app
@@ -2103,7 +2141,7 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
                             false,
                         ));
                     }
-                    if app.main.developer {
+                    if app.settings.preferences.developer_mode {
                         items = items.push(controls::item(
                             "Copy ID",
                             "copy",
@@ -2799,6 +2837,9 @@ fn compose_editor<'a>(
     let autocomplete = autocomplete || !app.emoji_candidates().is_empty();
     let viewing_image = app.features.viewer.current().is_some();
     let editor = text_editor(&app.editor)
+        // URLs, hashes, and pasted tokens must remain editable inside the same
+        // viewport that the composer's wrapped-height estimate reserves.
+        .wrapping(widget::text::Wrapping::WordOrGlyph)
         .id("composer-editor")
         .placeholder(placeholder)
         .key_binding(move |e| {
@@ -2847,5 +2888,65 @@ mod integration_layout_tests {
         let member = member_action(&app, Id(2));
         assert_eq!(owner.as_widget().size(), member.as_widget().size());
         assert_eq!(owner.as_widget().size().width, Length::Fixed(36.));
+    }
+}
+
+#[cfg(test)]
+mod qa_long_composer {
+    use super::*;
+    #[test]
+    fn long_unbroken_drafts_paint_wrapped_rows_not_one_clipped_line() {
+        crate::headless::load_fonts();
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.editor = text_editor::Content::with_text(&"x".repeat(512));
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            t::regular(),
+            iced::Pixels(t::BODY),
+        ));
+        let mut ui = iced_runtime::user_interface::UserInterface::build(
+            compose_editor(&app, String::new(), 160., false),
+            iced::Size::new(240., 160.),
+            iced_runtime::user_interface::Cache::new(),
+            &mut renderer,
+        );
+        ui.draw(
+            &mut renderer,
+            &t::theme(&app),
+            &iced::advanced::renderer::Style {
+                text_color: t::TEXT_PRIMARY,
+            },
+            iced::mouse::Cursor::Unavailable,
+        );
+        drop(ui);
+        #[cfg(feature = "wgpu")]
+        let iced::Renderer::Secondary(mut renderer) = renderer
+        else {
+            unreachable!()
+        };
+        let pixels = iced_tiny_skia::window::compositor::screenshot(
+            &mut renderer,
+            &iced_tiny_skia::graphics::Viewport::with_physical_size(iced::Size::new(240, 160), 1.),
+            t::BG_CHAT,
+        );
+        // Ignore the first line and rounded borders. At least two subsequent
+        // glyph rows must be painted, not hidden past the horizontal viewport.
+        let painted = (32..150)
+            .filter(|&y| {
+                (8..232)
+                    .filter(|&x| {
+                        let i = (y * 240 + x) * 4;
+                        pixels[i] > 150 && pixels[i + 1] > 150 && pixels[i + 2] > 150
+                    })
+                    .count()
+                    > 5
+            })
+            .count();
+        assert!(
+            painted >= 20,
+            "long draft rendered only {painted} later glyph scanlines"
+        );
     }
 }

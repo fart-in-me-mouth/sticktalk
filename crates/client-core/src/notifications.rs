@@ -15,6 +15,15 @@ pub struct Context {
     pub now: u64,
 }
 pub fn permits(settings: &[NotificationSettings], c: Context) -> bool {
+    permits_with_default(settings, c, None)
+}
+/// Device defaults apply only when there is no server/channel preference.
+/// Shared callers which do not have local preferences retain protocol defaults.
+pub fn permits_with_default(
+    settings: &[NotificationSettings],
+    c: Context,
+    default: Option<NotificationLevel>,
+) -> bool {
     if c.own || c.blocked || c.dnd || c.focused && c.viewing {
         return false;
     }
@@ -31,7 +40,7 @@ pub fn permits(settings: &[NotificationSettings], c: Context) -> bool {
     }
     let chosen = channel.or(server);
     let mention = c.mentioned && !(c.everyone_only && chosen.is_some_and(|s| s.suppress_everyone));
-    match chosen.map(|s| s.level).unwrap_or(if c.direct {
+    match chosen.map(|s| s.level).or(default).unwrap_or(if c.direct {
         NotificationLevel::All
     } else {
         NotificationLevel::Mentions
@@ -118,6 +127,59 @@ mod tests {
                 mentioned: true,
                 ..c
             }
+        ));
+    }
+}
+
+#[cfg(test)]
+mod qa_defaults {
+    use super::*;
+    #[test]
+    fn local_notification_choice_is_applied_and_server_overrides_still_win() {
+        let context = Context {
+            guild: Some(Id(1)),
+            channel: Some(Id(2)),
+            ..Default::default()
+        };
+        assert!(permits_with_default(
+            &[],
+            context,
+            Some(NotificationLevel::All)
+        ));
+        assert!(!permits_with_default(
+            &[],
+            Context {
+                mentioned: true,
+                ..context
+            },
+            Some(NotificationLevel::Nothing)
+        ));
+        assert!(!permits_with_default(
+            &[],
+            context,
+            Some(NotificationLevel::Mentions)
+        ));
+        assert!(permits_with_default(
+            &[],
+            Context {
+                mentioned: true,
+                ..context
+            },
+            Some(NotificationLevel::Mentions)
+        ));
+        let explicit = NotificationSettings {
+            guild_id: Some(Id(1)),
+            channel_id: None,
+            level: NotificationLevel::All,
+            muted: false,
+            mute_until: None,
+            suppress_everyone: false,
+            hide_muted_channels: false,
+        };
+        assert!(permits_with_default(
+            &[explicit],
+            context,
+            Some(NotificationLevel::Nothing)
         ));
     }
 }

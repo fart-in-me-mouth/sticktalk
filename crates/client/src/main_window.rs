@@ -58,7 +58,6 @@ pub struct State {
     pub split_hover: Option<bool>,
     pub muted: bool,
     pub deafened: bool,
-    pub developer: bool,
     pub dropping: bool,
     pub search: String,
     pub quick: String,
@@ -107,7 +106,10 @@ pub enum Message {
     Role(Id, Id),
     Developer(bool),
 }
-pub fn key(key: &keyboard::Key, mods: keyboard::Modifiers) -> Option<Message> {
+pub fn key(key: &keyboard::Key, mods: keyboard::Modifiers, quick_binding: &str) -> Option<Message> {
+    if chord(key, mods).is_some_and(|chord| chord.eq_ignore_ascii_case(quick_binding.trim())) {
+        return Some(Message::Open(Popover::Quick));
+    }
     if mods.control() && mods.shift() {
         if let keyboard::Key::Character(c) = key {
             return match c.to_lowercase().as_str() {
@@ -115,13 +117,6 @@ pub fn key(key: &keyboard::Key, mods: keyboard::Modifiers) -> Option<Message> {
                 "d" => Some(Message::Deafen),
                 _ => None,
             };
-        }
-    }
-    if mods.control() {
-        if let keyboard::Key::Character(c) = key {
-            if c.eq_ignore_ascii_case("k") {
-                return Some(Message::Open(Popover::Quick));
-            }
         }
     }
     if mods.alt() {
@@ -132,6 +127,33 @@ pub fn key(key: &keyboard::Key, mods: keyboard::Modifiers) -> Option<Message> {
         };
     }
     None
+}
+/// Canonical spelling shared by keybind recording and dispatch. Modifier-only
+/// presses are not bindings, and additional modifiers never match accidentally.
+pub fn chord(key: &keyboard::Key, mods: keyboard::Modifiers) -> Option<String> {
+    let name = match key {
+        keyboard::Key::Character(s) => s.to_uppercase(),
+        keyboard::Key::Named(Named::Control | Named::Shift | Named::Alt | Named::Meta) => {
+            return None
+        }
+        keyboard::Key::Named(n) => format!("{n:?}"),
+        _ => return None,
+    };
+    let mut parts = Vec::new();
+    if mods.control() {
+        parts.push("Ctrl".to_owned());
+    }
+    if mods.alt() {
+        parts.push("Alt".to_owned());
+    }
+    if mods.shift() {
+        parts.push("Shift".to_owned());
+    }
+    if mods.logo() {
+        parts.push("Meta".to_owned());
+    }
+    parts.push(name);
+    Some(parts.join("+"))
 }
 impl App {
     pub(crate) fn main_open(&mut self, p: Popover) -> Task<Msg> {
@@ -399,7 +421,12 @@ impl App {
                     }));
                 }
             }
-            Message::Developer(v) => self.main.developer = v,
+            Message::Developer(v) => {
+                return self.settings_update(crate::settings_controller::Action::Toggle(
+                    crate::settings_controller::Toggle::Developer,
+                    v,
+                ))
+            }
         }
         Task::none()
     }
@@ -460,6 +487,10 @@ impl App {
         self.main.focus_voice = None;
         self.main.search.clear();
         self.main.extent_changes = 0;
+        self.request(Request::Launch {
+            read: Read::Permissions(id),
+            generation: self.state.generation,
+        });
         self.state.model.active_guild = self.state.guild;
         if self
             .state
@@ -544,6 +575,33 @@ impl App {
         }
     }
     pub(crate) fn main_live_event(&mut self, event: &Event) {
+        // ACL mutations fan out ChannelUpsert even when metadata is unchanged.
+        // Regular members cannot read raw overwrites, but must still learn their
+        // own effective controls, including category and member denials.
+        if let Event::ChannelUpsert(c) = event {
+            if self.state.screen == Screen::Channel(c.summary.id) {
+                self.request(Request::Launch {
+                    read: Read::Permissions(c.summary.id),
+                    generation: self.state.generation,
+                });
+            }
+        }
+        let relationship_user = match event {
+            Event::RelationshipUpsert(r) => Some(r.user.id),
+            Event::RelationshipRemoved { user_id } => Some(*user_id),
+            _ => None,
+        };
+        if let Screen::Channel(id) = self.state.screen {
+            if self.state.model.channels.get(&id).is_some_and(|c| {
+                c.kind == ChannelKind::Direct
+                    && relationship_user.is_some_and(|u| c.recipient_ids.contains(&u))
+            }) {
+                self.request(Request::Launch {
+                    read: Read::Permissions(id),
+                    generation: self.state.generation,
+                });
+            }
+        }
         if let Event::PinsUpdated { channel_id, .. } = event {
             if self.main.popover == Some(Popover::Pins(*channel_id)) {
                 self.request(Request::Launch {
@@ -662,19 +720,27 @@ mod tests {
         let shift = keyboard::Modifiers::SHIFT;
         let alt = keyboard::Modifiers::ALT;
         assert!(matches!(
-            key(&keyboard::Key::Character("k".into()), control),
+            key(&keyboard::Key::Character("k".into()), control, "Ctrl+K"),
             Some(Message::Open(Popover::Quick))
         ));
         assert!(matches!(
-            key(&keyboard::Key::Character("M".into()), control | shift),
+            key(
+                &keyboard::Key::Character("M".into()),
+                control | shift,
+                "Ctrl+K"
+            ),
             Some(Message::Mute)
         ));
         assert!(matches!(
-            key(&keyboard::Key::Character("d".into()), control | shift),
+            key(
+                &keyboard::Key::Character("d".into()),
+                control | shift,
+                "Ctrl+K"
+            ),
             Some(Message::Deafen)
         ));
         assert!(matches!(
-            key(&keyboard::Key::Named(Named::ArrowUp), alt | shift),
+            key(&keyboard::Key::Named(Named::ArrowUp), alt | shift, "Ctrl+K"),
             Some(Message::Switch(-1, true))
         ));
     }
@@ -697,5 +763,92 @@ mod tests {
         let _ = app.main_update(Message::Deafen);
         assert!(app.main.deafened);
         assert!(app.tx.is_none()); // headless fixture has no network or audio tasks
+    }
+}
+
+#[cfg(test)]
+mod qa_developer_setting {
+    use super::*;
+    #[test]
+    fn context_switch_updates_the_persisted_developer_setting() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.settings.preferences.developer_mode = false;
+        let _ = app.main_update(Message::Developer(true));
+        assert!(
+            app.settings.preferences.developer_mode,
+            "context and Settings must not use separate flags"
+        );
+        let saved = serde_json::to_vec(&app.settings.preferences).unwrap();
+        let restored: sticktalk_client_core::settings::Preferences =
+            serde_json::from_slice(&saved).unwrap();
+        assert!(restored.developer_mode);
+        let _ = app.main_update(Message::Developer(false));
+        assert!(!app.settings.preferences.developer_mode);
+    }
+}
+
+#[cfg(test)]
+mod qa_quick_binding {
+    use super::*;
+    fn press(app: &mut App, name: &str, mods: keyboard::Modifiers) {
+        let _ = app.update(Msg::Keyboard(
+            keyboard::Key::Character(name.into()),
+            mods,
+            iced::event::Status::Captured,
+        ));
+    }
+    #[test]
+    fn quick_switcher_uses_the_persisted_binding_not_the_default() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.main.popover = None;
+        app.settings
+            .preferences
+            .keybinds
+            .insert("Quick Switcher".into(), "Alt+J".into());
+        press(&mut app, "j", keyboard::Modifiers::ALT);
+        assert!(matches!(app.main.popover, Some(Popover::Quick)));
+        app.main.popover = None;
+        press(&mut app, "k", keyboard::Modifiers::CTRL);
+        assert!(
+            app.main.popover.is_none(),
+            "the old binding must stop firing"
+        );
+        press(
+            &mut app,
+            "j",
+            keyboard::Modifiers::ALT | keyboard::Modifiers::SHIFT,
+        );
+        assert!(
+            app.main.popover.is_none(),
+            "extra modifiers are a different binding"
+        );
+    }
+    #[test]
+    fn recording_an_existing_shortcut_does_not_execute_it() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.main.popover = None;
+        let index = app
+            .settings
+            .preferences
+            .keybinds
+            .keys()
+            .position(|name| name == "Quick Switcher")
+            .unwrap();
+        app.settings.binding = Some(index);
+        press(&mut app, "k", keyboard::Modifiers::CTRL);
+        assert_eq!(app.settings.binding, None);
+        assert_eq!(
+            app.settings.preferences.keybinds["Quick Switcher"],
+            "Ctrl+K"
+        );
+        assert!(app.main.popover.is_none());
+        app.settings.binding = Some(index);
+        let _ = app.update(Msg::Keyboard(
+            keyboard::Key::Named(Named::Escape),
+            keyboard::Modifiers::empty(),
+            iced::event::Status::Ignored,
+        ));
+        assert_eq!(app.settings.binding, None);
+        assert!(app.main.popover.is_none());
     }
 }

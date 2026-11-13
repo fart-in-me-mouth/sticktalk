@@ -10,6 +10,7 @@ pub struct State {
     pub pending_activation: Option<Activation>,
     pub dry_run: bool,
     pub last_toast: Option<String>,
+    pub default_level: Option<NotificationLevel>,
 }
 impl State {
     pub fn observe(&mut self, event: &Event) {
@@ -52,7 +53,11 @@ impl State {
             blocked,
             now: crate::mock::now(),
         };
-        if !sticktalk_client_core::notifications::permits(&self.settings, c) {
+        if !sticktalk_client_core::notifications::permits_with_default(
+            &self.settings,
+            c,
+            self.default_level,
+        ) {
             return None;
         }
         let toast = MessageToast {

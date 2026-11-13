@@ -16,3 +16,4 @@ pub mod platform_glue;
 pub mod uploads;
 
 pub mod resources;
+pub mod video_stream;

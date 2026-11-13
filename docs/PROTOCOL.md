@@ -888,7 +888,9 @@ hex strings, **not Snowflakes**. Requests/responses use the additive DTOs in
 
 Create fields: `purpose`, `channel_id` (required only for message files), sanitized
 display `filename`, claimed `content_type`, `byte_size`, and lowercase hexadecimal
-`sha256` of the **whole file**. Unknown/non-image media remains octet-stream with
+`sha256` of the **whole file**. MP4 (supported ISO-BMFF `ftyp` brands) and WebM (EBML `DocType=webm`) are
+identified from a bounded prefix and returned as `video/mp4` / `video/webm`,
+regardless of the claimed MIME. Unknown media remains octet-stream with
 attachment disposition/nosniff; this change does not bless executable HTML/SVG or
 unvalidated inline video. Avatar/icons must pass the existing bounded image decoder.
 The create response contains `upload_id`, `offset`, `byte_size`, `chunk_size`
@@ -1407,6 +1409,7 @@ All endpoints are bearer-authenticated GETs returning `Snapshot<T>`:
 | /guilds/{g}/profile | GuildProfile; member |
 | /guilds/{g}/preview | GuildPreview; member |
 | /users/{u}/profile | ProfileDetail; normal profile access, including readable historical authors |
+| /channels/{ch}/permissions | Permissions; own effective channel mask, View Channel required; no raw ACL disclosure |
 | /channels/{ch}/overwrites | Vec<PermissionOverwrite>; View Channel + Manage Roles |
 | /channels/{ch}/pins | Vec<Message>, newest pin first; View Channel + Read History |
 | /me/notifications | Vec<NotificationSettings>; own, inaccessible scopes omitted |

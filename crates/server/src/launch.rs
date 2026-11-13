@@ -678,6 +678,33 @@ pub(crate) async fn snapshot(
                 online_count
             })
         }
+        ["channels", ch, "permissions"] => {
+            let ch = url_id(ch)?;
+            let channel = access(c, u, ch, Permissions::VIEW_CHANNEL).await?;
+            let p = if let Some(guild) = channel.summary.guild_id {
+                acl::evaluate(c, u, guild, Some(ch)).await?
+            } else {
+                let mut p = Permissions::VIEW_CHANNEL
+                    | Permissions::READ_HISTORY
+                    | Permissions::SEND_MESSAGES
+                    | Permissions::ATTACH_FILES
+                    | Permissions::ADD_REACTIONS;
+                if channel.summary.kind == ChannelKind::Direct {
+                    for peer in channel
+                        .summary
+                        .recipient_ids
+                        .iter()
+                        .filter(|peer| **peer != u)
+                    {
+                        if blocked(c, u, *peer).await? {
+                            p.remove(Permissions::SEND_MESSAGES | Permissions::ATTACH_FILES);
+                        }
+                    }
+                }
+                p
+            };
+            snap!(p)
+        }
         ["channels", ch, "overwrites"] => {
             let ch = url_id(ch)?;
             access(c, u, ch, Permissions::MANAGE_ROLES).await?;

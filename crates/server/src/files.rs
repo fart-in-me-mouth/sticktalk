@@ -129,13 +129,85 @@ pub(crate) fn prepare(
             ErrorCode::UnsupportedMediaType,
         )?;
         Ok(Media {
-            mime: "application/octet-stream".into(),
+            mime: video_mime(&head[..n])
+                .unwrap_or("application/octet-stream")
+                .into(),
             width: None,
             height: None,
             thumb: None,
             thumbnail_bytes: vec![],
         })
     }
+}
+/// Detect only supported video containers, never trust a filename or MIME claim.
+/// Parsing is bounded to the 4 KiB prefix already read for upload inspection;
+/// actual codec/corruption handling remains the decoder's responsibility.
+fn video_mime(head: &[u8]) -> Option<&'static str> {
+    if head.len() >= 16 && &head[4..8] == b"ftyp" {
+        let size = u32::from_be_bytes(head[..4].try_into().ok()?) as usize;
+        if size >= 16 && size <= head.len() && size.is_multiple_of(4) {
+            let supported = |brand: &[u8]| {
+                matches!(
+                    brand,
+                    b"isom"
+                        | b"iso2"
+                        | b"iso3"
+                        | b"iso4"
+                        | b"iso5"
+                        | b"iso6"
+                        | b"iso7"
+                        | b"iso8"
+                        | b"iso9"
+                        | b"avc1"
+                        | b"mp41"
+                        | b"mp42"
+                        | b"M4V "
+                        | b"dash"
+                        | b"MSNV"
+                )
+            };
+            if supported(&head[8..12])
+                || head[16..size]
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .any(|brand| supported(brand.as_slice()))
+            {
+                return Some("video/mp4");
+            }
+        }
+    }
+    if head.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]) {
+        let (size, width) = ebml_size(head.get(4..)?)?;
+        let mut header = head.get(4 + width..4 + width + size)?;
+        while !header.is_empty() {
+            let id_width = header[0].leading_zeros() as usize + 1;
+            if id_width > 4 {
+                return None;
+            }
+            let id = header.get(..id_width)?;
+            let (size, width) = ebml_size(header.get(id_width..)?)?;
+            let start = id_width + width;
+            let value = header.get(start..start + size)?;
+            if id == [0x42, 0x82] {
+                return (value == b"webm").then_some("video/webm");
+            }
+            header = header.get(start + size..)?;
+        }
+    }
+    None
+}
+fn ebml_size(bytes: &[u8]) -> Option<(usize, usize)> {
+    let first = *bytes.first()?;
+    let width = first.leading_zeros() as usize + 1;
+    if width > 8 {
+        return None;
+    }
+    let mut size = usize::from(first & (0xff_u16 >> width) as u8);
+    for byte in bytes.get(1..width)? {
+        size = size.checked_mul(256)?.checked_add(usize::from(*byte))?;
+    }
+    Some((size, width))
 }
 pub(crate) fn filename(s: &str) -> String {
     let s = s.rsplit(['/', '\\']).next().unwrap_or("file");
@@ -535,6 +607,45 @@ pub(crate) fn byte_range(s: &str, size: u64) -> std::result::Result<(u64, u64), 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn video_uploads_keep_sniffed_mime_not_untrusted_claims() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("video");
+        for (bytes, mime) in [
+            (
+                include_bytes!("../tests/fixtures/clip.mp4").as_slice(),
+                "video/mp4",
+            ),
+            (
+                include_bytes!("../tests/fixtures/clip.webm").as_slice(),
+                "video/webm",
+            ),
+        ] {
+            std::fs::write(&path, bytes).unwrap();
+            assert_eq!(
+                prepare(&path, "application/octet-stream", false)
+                    .unwrap()
+                    .mime,
+                mime
+            );
+            assert!(
+                prepare(&path, mime, true).is_err(),
+                "videos cannot be avatars/icons"
+            );
+        }
+        // Truncation and eight-byte EBML sizes must fail closed, never panic.
+        for prefix in [
+            b"\x1a\x45\xdf\xa3\x01\xff\xff\xff\xff\xff\xff\xff".as_slice(),
+            b"\0\0\0\x10ftyp",
+        ] {
+            assert_eq!(video_mime(prefix), None);
+        }
+        std::fs::write(&path, b"<html>not a video</html>").unwrap();
+        assert_eq!(
+            prepare(&path, "video/mp4", false).unwrap().mime,
+            "application/octet-stream"
+        );
+    }
     #[test]
     fn media_bounds_mime_and_small_thumbnail() {
         let dir = tempfile::tempdir().unwrap();

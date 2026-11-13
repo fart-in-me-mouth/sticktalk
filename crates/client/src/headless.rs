@@ -190,6 +190,11 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
         return Some(crate::scroll_bench::run(&args, index));
     }
     if let Some(index) = args.iter().position(|v| v == "--capture") {
+        // Live QA must exercise the actual desktop application, not a mock
+        // fixture. The existing window screenshot path exits after capture.
+        if !args.iter().any(|v| v == "--mock") && crate::agent_window::qa_session().is_some() {
+            return None;
+        }
         return Some((|| {
             if !args.iter().any(|v| v == "--mock") {
                 return Err("Captures require --mock".into());
