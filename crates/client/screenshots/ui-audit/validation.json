@@ -1,0 +1,38 @@
+{
+  "source_commit": "2fe21b5c6e268b723ff48d807f29d724cc2e0693",
+  "branch": "t3/desktop-ui-polish-audit",
+  "validated_utc": "2026-11-13T22:09:46.2807351Z",
+  "commands": [
+    {
+      "ignored": 1,
+      "voice": 1,
+      "command": "cargo test -p sticktalk",
+      "exit_code": 0,
+      "passed": 112,
+      "library": 17,
+      "desktop": 89,
+      "live": 5
+    },
+    {
+      "exit_code": 0,
+      "command": "cargo clippy -p sticktalk --all-targets -- -D warnings"
+    },
+    {
+      "exit_code": 0,
+      "command": "cargo fmt --all -- --check"
+    }
+  ],
+  "capture_counts": {
+    "comparison_pairs": 10,
+    "scaled_pngs": 16,
+    "three_size_pngs": 570,
+    "screen_states": 190,
+    "native_pngs": 2
+  },
+  "native_input": "not verified: native helper pipe unavailable (OS error 2)",
+  "target_directory": "C:/Users/dwhee/.cargo-target/sticktalk-ui-audit",
+  "target_bytes_before_removal": 9100234830,
+  "target_removed": true,
+  "cleanup_command": "cargo clean --target-dir C:/Users/dwhee/.cargo-target/sticktalk-ui-audit",
+  "incremental": false
+}
