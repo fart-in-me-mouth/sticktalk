@@ -103,7 +103,7 @@ Manual build after installing Rust and build tools:
 ```bash
 . "$HOME/.cargo/env"
 export CARGO_TARGET_DIR="$HOME/.cache/sticktalk-server-target"
-cargo build --locked --release -p sticktalk-server
+cargo build --locked --profile server -p sticktalk-server
 ```
 
 The target-dir override is essential: the repository's default is a Windows

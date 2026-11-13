@@ -19,11 +19,11 @@ if ! command -v cargo >/dev/null && [[ ! -x $HOME/.cargo/bin/cargo ]]; then
 fi
 export PATH="$HOME/.cargo/bin:$PATH"
 export CARGO_TARGET_DIR="$HOME/.cache/sticktalk-server-target"
-cargo build --locked --release -p sticktalk-server
+cargo build --locked --profile server -p sticktalk-server
 if ! id sticktalk >/dev/null 2>&1; then sudo useradd --system --user-group --home-dir /var/lib/sticktalk --shell /usr/sbin/nologin sticktalk; fi
 sudo install -d -o sticktalk -g sticktalk -m 0700 /var/lib/sticktalk
 # Atomic executable replacement while the old server still runs.
-sudo install -o root -g root -m 0755 "$CARGO_TARGET_DIR/release/sticktalk-server" /usr/local/bin/sticktalk-server.new
+sudo install -o root -g root -m 0755 "$CARGO_TARGET_DIR/server/sticktalk-server" /usr/local/bin/sticktalk-server.new
 sudo mv -f /usr/local/bin/sticktalk-server.new /usr/local/bin/sticktalk-server
 sudo install -o root -g root -m 0644 deploy/sticktalk.service /etc/systemd/system/sticktalk.service
 if [[ ! -f /etc/sticktalk.env ]]; then

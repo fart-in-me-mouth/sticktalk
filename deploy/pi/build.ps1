@@ -16,9 +16,9 @@ $env:PATH="$scripts;$zig;$env:PATH"
 if ($LASTEXITCODE -ne 0) { throw 'Target installation failed.' }
 Push-Location "$PSScriptRoot/../.."
 try {
-    & cargo zigbuild --release -p sticktalk-server --bin sticktalk-server --target aarch64-unknown-linux-gnu.2.36
+    & cargo zigbuild --profile server -p sticktalk-server --bin sticktalk-server --target aarch64-unknown-linux-gnu.2.36
     if ($LASTEXITCODE -ne 0) { throw 'ARM64 build/link failed.' }
-    $binary="$env:CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/release/sticktalk-server"
+    $binary="$env:CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/server/sticktalk-server"
     $elf=[IO.File]::ReadAllBytes($binary)
     if ($elf[0] -ne 127 -or [Text.Encoding]::ASCII.GetString($elf,1,3) -ne 'ELF' -or $elf[4] -ne 2 -or $elf[5] -ne 1 -or [BitConverter]::ToUInt16($elf,18) -ne 183) { throw 'Output is not a little-endian ARM64 ELF binary.' }
     Get-Item -LiteralPath $binary | Select-Object FullName,Length
