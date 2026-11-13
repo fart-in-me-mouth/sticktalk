@@ -1,3 +1,5 @@
+> Historical fixture-only baseline. Current real-server evidence and gaps: [live/REPORT.md](live/REPORT.md).
+
 # Web shell implementation proof
 
 ## Build and budgets

@@ -1,35 +1,88 @@
+// Current Lighthouse only; real loopback server and headless Chromium.
 import { chromium } from "playwright";
 import lighthouse from "lighthouse";
-import lighthousePwa from "lighthouse-pwa";
 import { spawn } from "node:child_process";
+import { createServer } from "node:net";
 import { once } from "node:events";
-import { writeFile } from "node:fs/promises";
-const server = spawn(process.execPath, ["scripts/serve.mjs"], {
-  stdio: ["ignore", "pipe", "pipe"],
-  windowsHide: true,
-});
-await once(server.stdout, "data");
-const browser = await chromium.launch({
-  headless: true,
-  args: [
-    "--remote-debugging-address=127.0.0.1",
-    "--remote-debugging-port=9225",
-    "--mute-audio",
-    "--disable-notifications",
+import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
+import { resolve, join, dirname } from "node:path";
+import assert from "node:assert/strict";
+const target = resolve(
+  process.env.CARGO_TARGET_DIR ??
+    "C:/Users/dwhee/.cargo-target/sticktalk-web-live",
+);
+const data = await mkdtemp(join(target, "audit-data-"));
+const profile = await mkdtemp(join(target, "audit-browser-"));
+async function freePort() {
+  const r = createServer();
+  r.listen(0, "127.0.0.1");
+  await once(r, "listening");
+  const port = r.address().port;
+  await new Promise((done) => r.close(done));
+  return port;
+}
+const port = await freePort(),
+  debugPort = await freePort();
+const origin = `http://127.0.0.1:${port}`;
+const server = spawn(
+  process.env.STICKTALK_SERVER_EXE ??
+    join(target, "debug/sticktalk-server.exe"),
+  [
+    "--bind",
+    `127.0.0.1:${port}`,
+    "--public-url",
+    origin,
+    "--data-dir",
+    data,
+    "--web-root",
+    join(target, "web-dist"),
+    "--min-free-disk-gb",
+    "0",
+    "--voice-bind-ip",
+    "127.0.0.1",
+    "--voice-advertised-ip",
+    "127.0.0.1",
   ],
-});
+  { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] },
+);
+let context,
+  log = "";
 try {
+  await new Promise((done, fail) => {
+    const timeout = setTimeout(() => fail(Error(log)), 30000);
+    const collect = (c) => {
+      log += c;
+      if (log.includes("StickTalk listening")) {
+        clearTimeout(timeout);
+        done();
+      }
+    };
+    server.stdout.on("data", collect);
+    server.stderr.on("data", collect);
+    server.once("error", fail);
+  });
+  await mkdir("screenshots/live", { recursive: true });
+  context = await chromium.launchPersistentContext(profile, {
+    headless: true,
+    args: [
+      `--remote-debugging-port=${debugPort}`,
+      "--remote-debugging-address=127.0.0.1",
+      "--mute-audio",
+      "--disable-notifications",
+    ],
+  });
   const options = {
-    port: 9225,
+    port: debugPort,
     hostname: "127.0.0.1",
     logLevel: "error",
     output: "json",
     onlyCategories: ["performance", "accessibility", "best-practices"],
     maxWaitForLoad: 45000,
+    disableStorageReset: true,
   };
-  const current = await lighthouse("http://127.0.0.1:4173/", options);
-  await writeFile("screenshots/lighthouse-mobile.json", current.report);
-  const desktop = await lighthouse("http://127.0.0.1:4173/", {
+  const mobile = await lighthouse(origin, options);
+  await writeFile("screenshots/live/lighthouse-mobile.json", mobile.report);
+  const desktop = await lighthouse(origin, {
     ...options,
     formFactor: "desktop",
     screenEmulation: {
@@ -39,21 +92,40 @@ try {
       deviceScaleFactor: 1,
       disabled: false,
     },
-    throttlingMethod: "simulate",
     throttling: { rttMs: 40, throughputKbps: 10240, cpuSlowdownMultiplier: 1 },
   });
-  await writeFile("screenshots/lighthouse-desktop.json", desktop.report);
-  // Lighthouse 12 removed the PWA category; retain the last supported audit
-  // separately and identify its version, never invent a current PWA score.
-  const pwa = await lighthousePwa("http://127.0.0.1:4173/", {
-    port: 9225,
-    hostname: "127.0.0.1",
-    logLevel: "error",
-    output: "json",
-    onlyCategories: ["pwa"],
-    maxWaitForLoad: 45000,
+  await writeFile("screenshots/live/lighthouse-desktop.json", desktop.report);
+  // Do not conflate a fast progressive login with a cold authenticated chat.
+  const page = await context.newPage();
+  await page.goto(origin);
+  await page.locator('[data-live="register"]').click();
+  await page.locator("#auth-username").fill("lighthouse_user");
+  await page.locator("#auth-password").fill("lighthouse-password-1234");
+  await page.locator('[type="submit"]').click();
+  await page.waitForSelector(".live-home");
+  await page.waitForFunction(
+    () => !document.querySelector(".connection-banner"),
+  );
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new CustomEvent("sticktalk-live", { detail: "dialog:create" }),
+    ),
+  );
+  await page.locator("#f-name").fill("Lighthouse Server");
+  await page.locator('.live-modal [type="submit"]').click();
+  await page.waitForSelector("#live-messages");
+  const channel = await page
+    .locator("#live-messages")
+    .getAttribute("data-channel");
+  await page.evaluate(async () => {
+    for (const r of await navigator.serviceWorker.getRegistrations())
+      await r.unregister();
+    for (const key of await caches.keys()) await caches.delete(key);
   });
-  await writeFile("screenshots/lighthouse-pwa-legacy.json", pwa.report);
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Network.clearBrowserCache");
+  const chat = await lighthouse(`${origin}/?channel=${channel}`, options);
+  await writeFile("screenshots/live/lighthouse-chat-mobile.json", chat.report);
   const summarize = (r) => ({
     version: r.lighthouseVersion,
     categories: Object.fromEntries(
@@ -71,7 +143,13 @@ try {
         "interactive",
       ]
         .filter((k) => r.audits[k])
-        .map((k) => [k, r.audits[k].displayValue]),
+        .map((k) => [
+          k,
+          {
+            display: r.audits[k].displayValue,
+            value: r.audits[k].numericValue,
+          },
+        ]),
     ),
     failures: Object.values(r.audits)
       .filter((a) => a.score !== null && a.score < 0.9)
@@ -83,24 +161,39 @@ try {
       })),
   });
   const summary = {
+    bundleRevision: JSON.parse(
+      await readFile(join(target, "web-dist/sizes.json"), "utf8"),
+    ).revision,
     headless: true,
-    origin: "http://127.0.0.1:4173",
-    mobile: summarize(current.lhr),
+    realServer: true,
+    page: "Cold progressive login; authenticated chat measured separately",
+    mobile: summarize(mobile.lhr),
+    authenticatedChatMobile: summarize(chat.lhr),
     desktop: summarize(desktop.lhr),
-    pwaLegacy: summarize(pwa.lhr),
   };
   await writeFile(
-    "screenshots/lighthouse-summary.json",
+    "screenshots/live/lighthouse-summary.json",
     JSON.stringify(summary, null, 2),
   );
   console.log(
     JSON.stringify({
       mobile: summary.mobile.categories,
       desktop: summary.desktop.categories,
-      pwa: summary.pwaLegacy.categories,
+      mobileMetrics: summary.mobile.metrics,
+      chatMobile: summary.authenticatedChatMobile.categories,
+      chatMobileMetrics: summary.authenticatedChatMobile.metrics,
+      desktopMetrics: summary.desktop.metrics,
     }),
   );
 } finally {
-  await browser.close();
-  server.kill();
+  await context?.close();
+  if (server.pid && server.exitCode === null) {
+    const exit = once(server, "exit");
+    server.kill();
+    await exit;
+  }
+  for (const path of [data, profile]) {
+    assert.equal(dirname(path), target);
+    await rm(path, { recursive: true, force: true });
+  }
 }
