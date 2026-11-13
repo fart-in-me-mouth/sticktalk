@@ -18,6 +18,7 @@ socket2 = "0.6"
 
 [dev-dependencies]
 serde_json.workspace = true
+proptest = "1"
 
 [[example]]
 name = "loopback"

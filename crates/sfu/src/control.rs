@@ -1,3 +1,4 @@
+use crate::Error;
 use std::time::{Duration, Instant};
 use sticktalk_proto::*;
 
@@ -27,12 +28,12 @@ impl Grant {
         sequence: u64,
         input: &ControlInput,
         now: Instant,
-    ) -> bool {
+    ) -> Result<(), Error> {
         if sender != self.controller
             || id != self.id
             || self.sequence.is_some_and(|s| sequence <= s)
         {
-            return false;
+            return Err(Error::Forbidden);
         }
         let valid = match input {
             ControlInput::Button { button, .. } => *button <= 4,
@@ -41,18 +42,18 @@ impl Grant {
             ControlInput::Move { .. } => true,
         };
         if !valid {
-            return false;
+            return Err(Error::Invalid);
         }
         if now.saturating_duration_since(self.window) >= Duration::from_secs(1) {
             self.window = now;
             self.count = 0;
         }
         if self.count >= 1000 {
-            return false;
+            return Err(Error::Limit);
         }
         self.count += 1;
         self.sequence = Some(sequence);
-        true
+        Ok(())
     }
 }
 
