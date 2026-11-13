@@ -6,4 +6,3 @@ CREATE TABLE blob_replicas (
     synced INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX blob_replicas_lru ON blob_replicas(accessed_at);
-
