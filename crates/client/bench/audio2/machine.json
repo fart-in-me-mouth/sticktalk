@@ -1,0 +1,8 @@
+{
+  "time": "2026-11-12T23:04:02.358284-05:00",
+  "cpu": "AMD Ryzen 7 5700X 8-Core Processor             ",
+  "logical_cpus": 16,
+  "profile": "release opt-level=3 fat-LTO codegen-units=1",
+  "fixture": "upstream assets/clean_freesound_33711.wav (not redistributed)",
+  "final_measurements_completed": "2026-11-13T00:05:05-05:00"
+}

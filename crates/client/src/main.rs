@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod agent_window;
 mod app;
+mod audio_settings;
 use sticktalk::backend;
 mod datetime;
 mod focus_button;

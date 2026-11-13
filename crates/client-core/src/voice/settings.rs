@@ -6,8 +6,9 @@ use sticktalk_proto::Id;
 pub enum NoiseSuppression {
     Off,
     Standard,
-    #[default]
     High,
+    #[default]
+    Auto,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,6 +43,10 @@ pub struct VoiceSettings {
     pub push_to_talk_key: Option<u32>,
     pub push_to_talk_release_delay_ms: u16,
     pub studio_mode: bool,
+    pub attenuation: u16,
+    pub camera_device_id: Option<String>,
+    /// Cached first-run CPU recommendation; None schedules the explicit probe.
+    pub auto_high_quality: Option<bool>,
     pub users: BTreeMap<Id, UserAudio>,
     pub share_fps: u32,
     /// 0 means Source.
@@ -57,13 +62,16 @@ impl Default for VoiceSettings {
             output_volume: 100,
             sensitivity_auto: true,
             sensitivity_dbfs: -50.,
-            noise_suppression: NoiseSuppression::High,
+            noise_suppression: NoiseSuppression::Auto,
             echo_cancellation: true,
             agc: true,
             push_to_talk: false,
             push_to_talk_key: None,
             push_to_talk_release_delay_ms: 80,
             studio_mode: false,
+            attenuation: 0,
+            camera_device_id: None,
+            auto_high_quality: None,
             users: BTreeMap::new(),
             share_fps: 60,
             share_height: 1080,
@@ -73,7 +81,8 @@ impl Default for VoiceSettings {
 }
 impl VoiceSettings {
     pub fn validate(&self) -> Result<(), String> {
-        if self.input_volume > 200
+        if self.attenuation > 100
+            || self.input_volume > 200
             || self.output_volume > 200
             || self.push_to_talk_release_delay_ms > 1000
             || !self.sensitivity_dbfs.is_finite()
@@ -85,10 +94,14 @@ impl VoiceSettings {
             || self
                 .push_to_talk_key
                 .is_some_and(|k| !(1..=254).contains(&k))
-            || [&self.input_device_id, &self.output_device_id]
-                .into_iter()
-                .flatten()
-                .any(|s| s.len() > 4096 || s.contains('\0'))
+            || [
+                &self.input_device_id,
+                &self.output_device_id,
+                &self.camera_device_id,
+            ]
+            .into_iter()
+            .flatten()
+            .any(|s| s.len() > 4096 || s.contains('\0'))
         {
             return Err("Invalid Voice & Video settings".into());
         }

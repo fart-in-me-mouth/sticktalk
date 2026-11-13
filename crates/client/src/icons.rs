@@ -25,6 +25,7 @@ pub fn icon(name: &str, size: f32, color: Color) -> svg::Svg<'static> {
         "chevron-up" => include_bytes!("../assets/icons/chevron-up.svg"),
         "circle-help" => include_bytes!("../assets/icons/circle-help.svg"),
         "circle" => include_bytes!("../assets/icons/circle.svg"),
+        "circle-dot" => include_bytes!("../assets/icons/circle-dot.svg"),
         "code" => include_bytes!("../assets/icons/code.svg"),
         "copy" => include_bytes!("../assets/icons/copy.svg"),
         "download" => include_bytes!("../assets/icons/download.svg"),

@@ -25,6 +25,7 @@ pub const USER_PANEL: Color = Color::from_rgb8(0x14, 0x14, 0x17);
 pub const INPUT_BG: Color = Color::from_rgb8(0x12, 0x12, 0x15);
 pub const BACKDROP: Color = Color::from_rgba8(0, 0, 0, 0.7);
 pub const TRANSPARENT: Color = Color::TRANSPARENT;
+pub const TOGGLE_OFF: Color = Color::from_rgba8(0x72, 0x76, 0x7d, 0.6);
 pub const S4: f32 = 4.;
 pub const S8: f32 = 8.;
 pub const S12: f32 = 12.;
@@ -479,4 +480,66 @@ pub fn checkbox(
         },
         text_color: Some(TEXT_PRIMARY),
     }
+}
+
+pub fn audio_pick_list(
+    _: &Theme,
+    status: iced::widget::pick_list::Status,
+) -> iced::widget::pick_list::Style {
+    iced::widget::pick_list::Style {
+        text_color: TEXT_PRIMARY,
+        placeholder_color: TEXT_MUTED,
+        handle_color: TEXT_SECONDARY,
+        background: INPUT_BG.into(),
+        border: Border {
+            color: if matches!(status, iced::widget::pick_list::Status::Opened { .. }) {
+                ACCENT
+            } else {
+                DIVIDER
+            },
+            width: HAIRLINE,
+            radius: S8.into(),
+        },
+    }
+}
+pub fn audio_menu(_: &Theme) -> iced::overlay::menu::Style {
+    iced::overlay::menu::Style {
+        text_color: TEXT_PRIMARY,
+        selected_text_color: ACCENT_TEXT,
+        background: BG_RAIL.into(),
+        selected_background: ACCENT.into(),
+        border: Border {
+            color: DIVIDER,
+            width: HAIRLINE,
+            radius: S8.into(),
+        },
+        shadow: Shadow::default(),
+    }
+}
+pub fn audio_switch(on: bool) -> impl Fn(&Theme) -> container::Style {
+    move |_| container::Style {
+        border: Border {
+            radius: S12.into(),
+            ..Default::default()
+        },
+        ..surface(if on { ACCENT } else { TOGGLE_OFF })
+    }
+}
+pub fn audio_knob(_: &Theme) -> container::Style {
+    container::Style {
+        border: Border {
+            radius: ROUND.into(),
+            ..Default::default()
+        },
+        ..surface(TEXT_PRIMARY)
+    }
+}
+pub fn threshold_slider(
+    theme: &Theme,
+    status: iced::widget::slider::Status,
+) -> iced::widget::slider::Style {
+    let mut s = slider(theme, status);
+    s.rail.backgrounds = (TRANSPARENT.into(), TRANSPARENT.into());
+    s.handle.background = WARNING.into();
+    s
 }

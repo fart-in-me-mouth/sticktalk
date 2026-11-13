@@ -7,6 +7,13 @@ use iced::{advanced::widget::operation, mouse, Size};
 use iced_runtime::user_interface::{Cache, UserInterface};
 use std::{path::Path, time::Instant};
 pub const SCREENS: &[&str] = &[
+    "audio-default",
+    "audio-mic-test",
+    "audio-manual",
+    "audio-ptt",
+    "audio-devices",
+    "audio-bluetooth",
+    "audio-processing",
     "voice-call",
     "share-picker",
     "voice-consent",
@@ -121,7 +128,10 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             if !(940..=3840).contains(&w) || !(600..=2160).contains(&h) {
                 return Err("Screenshot size is out of range".into());
             }
-            for screen in SCREENS {
+            for screen in SCREENS
+                .iter()
+                .filter(|s| !args.iter().any(|a| a == "--audio-only") || s.starts_with("audio-"))
+            {
                 let name = format!("{screen}-{w}x{h}.png");
                 let path = Path::new(dir).join(&name);
                 render(screen, w, h, &path)?;
@@ -181,12 +191,35 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
             },
         );
         ui.operate(&renderer, &mut scroll);
+        if screen == "audio-processing" {
+            let mut settings_scroll = operation::scrollable::scroll_to::<()>(
+                "settings-content".into(),
+                operation::scrollable::AbsoluteOffset {
+                    x: None,
+                    y: Some(2000.),
+                },
+            );
+            ui.operate(&renderer, &mut settings_scroll);
+        }
         let mut messages = Vec::new();
+        let mut events = vec![iced::Event::Window(iced::window::Event::RedrawRequested(
+            Instant::now(),
+        ))];
+        let cursor = if screen == "audio-devices" {
+            let left = t::SETTINGS_NAV
+                + ((w as f32 - t::SETTINGS_NAV - t::SETTINGS_CONTENT - t::S32 * 4.) / 2.).max(0.);
+            if pass == 10 {
+                events.push(iced::Event::Mouse(mouse::Event::ButtonPressed(
+                    mouse::Button::Left,
+                )));
+            }
+            mouse::Cursor::Available(iced::Point::new(left + t::S32 + t::S24, t::S32 * 4.))
+        } else {
+            mouse::Cursor::Unavailable
+        };
         let _ = ui.update(
-            &[iced::Event::Window(iced::window::Event::RedrawRequested(
-                Instant::now(),
-            ))],
-            mouse::Cursor::Unavailable,
+            &events,
+            cursor,
             &mut renderer,
             &mut iced::advanced::graphics::core::clipboard::Null,
             &mut messages,
@@ -198,7 +231,7 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
                 &iced::advanced::renderer::Style {
                     text_color: t::TEXT_PRIMARY,
                 },
-                mouse::Cursor::Unavailable,
+                cursor,
             );
         }
         cache = ui.into_cache();

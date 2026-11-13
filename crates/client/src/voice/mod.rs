@@ -40,6 +40,75 @@ pub fn bind_address(value: &str) -> Result<std::net::IpAddr, String> {
     }
     Ok(ip)
 }
+/// Only audible, currently subscribed speakers may duck other applications.
+/// This pure policy is also exercised by the no-device tests.
+pub fn attenuation_active(
+    settings: &VoiceSettings,
+    deafened: bool,
+    mut speakers: impl Iterator<Item = Id>,
+) -> bool {
+    settings.attenuation > 0
+        && !deafened
+        && settings.output_volume > 0
+        && speakers.any(|id| {
+            let user = settings.user(id);
+            !user.muted && user.volume > 0
+        })
+}
+
+#[cfg(test)]
+mod wake_tests {
+    use super::*;
+    #[test]
+    fn attenuation_tracks_only_audible_present_speakers() {
+        let mut settings = VoiceSettings {
+            attenuation: 30,
+            ..Default::default()
+        };
+        let speaking = || std::iter::once(Id(2));
+        assert!(attenuation_active(&settings, false, speaking()));
+        assert!(!attenuation_active(&settings, true, speaking()));
+        assert!(!attenuation_active(&settings, false, std::iter::empty()));
+        settings
+            .set_user(
+                Id(2),
+                sticktalk_client_core::voice::settings::UserAudio {
+                    volume: 100,
+                    muted: true,
+                },
+            )
+            .unwrap();
+        assert!(!attenuation_active(&settings, false, speaking()));
+        settings
+            .set_user(
+                Id(2),
+                sticktalk_client_core::voice::settings::UserAudio {
+                    volume: 0,
+                    muted: false,
+                },
+            )
+            .unwrap();
+        assert!(!attenuation_active(&settings, false, speaking()));
+        settings.output_volume = 0;
+        assert!(!attenuation_active(&settings, false, speaking()));
+    }
+    #[test]
+    fn queued_command_wakes_blocked_transport_without_a_poll_timer() {
+        let socket = std::net::UdpSocket::bind(("127.0.0.1", 0)).unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(1)))
+            .unwrap();
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        let h = Handle(
+            tx,
+            std::sync::Arc::new(std::sync::Mutex::new(Some(socket.try_clone().unwrap()))),
+        );
+        h.send(Command::Stop).unwrap();
+        let mut bytes = [0u8; 1];
+        assert_eq!(socket.recv_from(&mut bytes).unwrap().0, 0);
+        assert!(matches!(rx.try_recv(), Ok(Command::Stop)));
+    }
+}
 #[derive(Debug, Clone)]
 pub enum Command {
     Event(VoiceEvent),
@@ -54,13 +123,24 @@ pub enum Command {
     Stop,
 }
 #[derive(Debug, Clone)]
-pub struct Handle(SyncSender<Command>);
+pub struct Handle(
+    SyncSender<Command>,
+    std::sync::Arc<std::sync::Mutex<Option<std::net::UdpSocket>>>,
+);
 impl Handle {
     pub fn send(&self, command: Command) -> Result<(), String> {
-        self.0.try_send(command).map_err(|e| match e {
-            TrySendError::Full(_) => "Media command queue full; retry".into(),
-            _ => "Call stopped".into(),
-        })
+        self.0.try_send(command).map_err(|e| -> String {
+            match e {
+                TrySendError::Full(_) => "Media command queue full; retry".into(),
+                _ => "Call stopped".into(),
+            }
+        })?;
+        if let Some(socket) = self.1.lock().unwrap().as_ref() {
+            if let Ok(address) = socket.local_addr() {
+                let _ = socket.send_to(&[], address);
+            }
+        }
+        Ok(())
     }
 }
 #[derive(Debug, Clone)]
@@ -93,12 +173,20 @@ pub fn options(s: &VoiceSettings) -> Result<VoiceOptions, String> {
         o.noise_mode = match s.noise_suppression {
             NoiseSuppression::Off => NoiseSuppressionMode::Off,
             NoiseSuppression::Standard => NoiseSuppressionMode::Standard,
-            NoiseSuppression::High => NoiseSuppressionMode::Auto,
+            NoiseSuppression::High => NoiseSuppressionMode::HighQuality,
+            NoiseSuppression::Auto => match s.auto_high_quality {
+                Some(true) => NoiseSuppressionMode::HighQuality,
+                Some(false) => NoiseSuppressionMode::Standard,
+                None => NoiseSuppressionMode::Auto,
+            },
         };
         o.echo_cancellation = s.echo_cancellation;
         o.automatic_gain = s.agc;
         o.automatic_sensitivity = s.sensitivity_auto;
         o.sensitivity_dbfs = s.sensitivity_dbfs;
+        // Manual sensitivity is an explicit level threshold, not a second
+        // hidden neural confidence threshold the user cannot adjust.
+        o.vad_probability = if s.sensitivity_auto { 0.5 } else { 0.0 };
     }
     o.mode = if s.push_to_talk {
         InputMode::PushToTalk
@@ -131,12 +219,13 @@ pub fn subscription(config: &Config) -> impl iced::futures::Stream<Item = Event>
         move |mut output: iced::futures::channel::mpsc::Sender<Event>| async move {
             let (sender, commands) = std::sync::mpsc::sync_channel(128);
             let (events, mut received) = tokio::sync::mpsc::channel(128);
-            let handle = Handle(sender);
+            let wake = std::sync::Arc::new(std::sync::Mutex::new(None));
+            let handle = Handle(sender, wake.clone());
             if output.send(Event::Ready(handle.clone())).await.is_err() {
                 return;
             }
             let worker = tokio::task::spawn_blocking(move || {
-                if let Err(e) = native::run(config, commands, &events) {
+                if let Err(e) = native::run(config, commands, &events, wake) {
                     let _ = events.blocking_send(Event::Error(e));
                 }
             });

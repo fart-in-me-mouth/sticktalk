@@ -429,6 +429,37 @@ impl App {
                 _ => None,
             },
         )];
+        if matches!(self.dialog, Dialog::UserSettings) && self.user_tab == 3 {
+            if self.calls.recording_key {
+                subs.push(iced::event::listen_with(|event, _, _| {
+                    if let UiEvent::Keyboard(keyboard::Event::KeyPressed {
+                        key,
+                        physical_key,
+                        ..
+                    }) = event
+                    {
+                        crate::audio_settings::record_virtual_key(&key, &physical_key)
+                            .filter(|key| *key != 0x1b)
+                            .map(|key| Msg::Call(crate::voice_ui::Action::RecordedKey(key)))
+                    } else {
+                        None
+                    }
+                }));
+            }
+            if !self.state.session.as_ref().is_some_and(|s| s.config.mock) {
+                subs.push(
+                    Subscription::run_with(
+                        crate::audio_settings::Config {
+                            settings: serde_json::to_string(&self.calls.call.settings)
+                                .unwrap_or_default(),
+                            testing: self.calls.mic_test,
+                        },
+                        crate::audio_settings::subscription,
+                    )
+                    .map(|e| Msg::Call(crate::voice_ui::Action::Audio(e))),
+                );
+            }
+        }
         let toast = if !self.error.is_empty()
             && matches!(self.dialog, Dialog::None)
             && self.state.session.is_some()
@@ -451,6 +482,25 @@ impl App {
             );
         }
         if let Some(config) = &self.calls.config {
+            if self.calls.call.settings.auto_high_quality.is_none()
+                && !(matches!(self.dialog, Dialog::UserSettings) && self.user_tab == 3)
+            {
+                subs.push(Subscription::run_with("audio-first-run-probe", |_| {
+                    iced::futures::stream::once(async {
+                        let probe = tokio::task::spawn_blocking(
+                            sticktalk_media::voice::benchmark_noise_quality,
+                        )
+                        .await;
+                        Msg::Call(crate::voice_ui::Action::Audio(match probe {
+                            Ok(probe) => crate::audio_settings::Event::Probe(
+                                probe.recommended
+                                    == sticktalk_media::voice::NoiseSuppressionMode::HighQuality,
+                            ),
+                            Err(e) => crate::audio_settings::Event::Error(e.to_string()),
+                        }))
+                    })
+                }));
+            }
             subs.push(
                 Subscription::run_with(config.clone(), sticktalk::voice::subscription)
                     .with(config.generation)
@@ -486,6 +536,26 @@ impl App {
         Subscription::batch(subs)
     }
     pub fn update(&mut self, message: Msg) -> Task<Msg> {
+        if matches!(message, Msg::Escape) && self.calls.recording_key {
+            self.calls.recording_key = false;
+            self.call_command(sticktalk::voice::Command::Configure(
+                self.calls.call.settings.clone(),
+            ));
+            return Task::none();
+        }
+        if matches!(message, Msg::Close | Msg::Escape | Msg::UserTab(_)) {
+            self.calls.audio_error = None;
+            self.calls.audio_handle = None;
+            if self.calls.recording_key {
+                self.call_command(sticktalk::voice::Command::Configure(
+                    self.calls.call.settings.clone(),
+                ));
+            }
+            self.calls.mic_test = false;
+            self.calls.mic_level = None;
+            self.calls.recording_key = false;
+        }
+
         if let Some(path) = &self.trace {
             let name = match &message {
                 Msg::Measured { .. } => "Measured",

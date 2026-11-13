@@ -1,0 +1,109 @@
+marker mode=Off packet=10 start_ms=1000 delay_ms=91.417 correlation=0.9709
+marker mode=Off packet=10 start_ms=1350 delay_ms=91.417 correlation=0.9812
+marker mode=Off packet=10 start_ms=1700 delay_ms=110.812 correlation=0.9778
+marker mode=Off packet=10 start_ms=2050 delay_ms=110.792 correlation=0.9828
+marker mode=Off packet=10 start_ms=2400 delay_ms=107.583 correlation=0.9812
+marker mode=Off packet=10 start_ms=2750 delay_ms=103.354 correlation=0.9803
+marker mode=Off packet=10 start_ms=3100 delay_ms=97.354 correlation=0.9873
+marker mode=Off packet=10 start_ms=3450 delay_ms=97.354 correlation=0.9805
+marker mode=Off packet=10 start_ms=3800 delay_ms=110.896 correlation=0.9812
+marker mode=Off packet=10 start_ms=4150 delay_ms=98.896 correlation=0.9801
+marker mode=Off packet=10 start_ms=4500 delay_ms=98.896 correlation=0.9816
+marker mode=Off packet=10 start_ms=4850 delay_ms=93.979 correlation=0.9807
+marker mode=Off packet=10 start_ms=5200 delay_ms=107.688 correlation=0.9530
+marker mode=Off packet=10 start_ms=5550 delay_ms=95.708 correlation=0.9819
+marker mode=Off packet=10 start_ms=5900 delay_ms=104.021 correlation=0.9842
+marker mode=Off packet=10 start_ms=6250 delay_ms=98.021 correlation=0.9805
+LINK impaired=true (impaired: deterministic 5% loss, 0/20/30 ms jitter); playout=Some(PlayoutStatistics { current_buffer_size_ms: 74, target_delay_ms: 25, packets_awaiting_decode: 5, packets_per_sec: 96 }), repair=Some(RepairStatistics { fec_attempts: 48, plc_frames: 8, late_samples_discarded: 0 })
+TIMING Off 10ms: matched=16/16 rejected=0 qualified=true p50=98.896 p95=110.896 max=110.896 ms; DIGITAL ONLY, no devices/network/acoustics
+marker mode=Off packet=20 start_ms=1000 delay_ms=82.292 correlation=0.7765
+marker mode=Off packet=20 start_ms=1350 delay_ms=82.354 correlation=0.9835
+marker mode=Off packet=20 start_ms=1700 delay_ms=122.375 correlation=0.9764
+marker mode=Off packet=20 start_ms=2050 delay_ms=122.354 correlation=0.9832
+marker mode=Off packet=20 start_ms=2400 delay_ms=116.354 correlation=0.9827
+marker mode=Off packet=20 start_ms=2750 delay_ms=110.354 correlation=0.9821
+marker mode=Off packet=20 start_ms=3100 delay_ms=106.958 correlation=0.9836
+marker mode=Off packet=20 start_ms=3450 delay_ms=100.958 correlation=0.9817
+marker mode=Off packet=20 start_ms=3800 delay_ms=89.979 correlation=0.9206
+marker mode=Off packet=20 start_ms=4150 delay_ms=89.979 correlation=0.9830
+marker mode=Off packet=20 start_ms=4500 delay_ms=123.979 correlation=0.9800
+marker mode=Off packet=20 start_ms=4850 delay_ms=119.708 correlation=0.9824
+marker mode=Off packet=20 start_ms=5200 delay_ms=113.708 correlation=0.9756
+marker mode=Off packet=20 start_ms=5550 delay_ms=102.771 correlation=0.9814
+marker mode=Off packet=20 start_ms=5900 delay_ms=98.146 correlation=0.9801
+marker mode=Off packet=20 start_ms=6250 delay_ms=92.146 correlation=0.9799
+LINK impaired=true (impaired: deterministic 5% loss, 0/20/30 ms jitter); playout=Some(PlayoutStatistics { current_buffer_size_ms: 58, target_delay_ms: 35, packets_awaiting_decode: 2, packets_per_sec: 47 }), repair=Some(RepairStatistics { fec_attempts: 22, plc_frames: 2, late_samples_discarded: 0 })
+TIMING Off 20ms: matched=16/16 rejected=0 qualified=true p50=106.958 p95=123.979 max=123.979 ms; DIGITAL ONLY, no devices/network/acoustics
+marker mode=Standard packet=10 start_ms=1000 delay_ms=105.417 correlation=0.9537
+marker mode=Standard packet=10 start_ms=1350 delay_ms=99.417 correlation=0.9801
+marker mode=Standard packet=10 start_ms=1700 delay_ms=113.646 correlation=0.9797
+marker mode=Standard packet=10 start_ms=2050 delay_ms=101.646 correlation=0.9804
+marker mode=Standard packet=10 start_ms=2400 delay_ms=101.646 correlation=0.9814
+marker mode=Standard packet=10 start_ms=2750 delay_ms=89.646 correlation=0.9814
+marker mode=Standard packet=10 start_ms=3100 delay_ms=83.646 correlation=0.9835
+marker mode=Standard packet=10 start_ms=3450 delay_ms=97.646 correlation=0.9833
+marker mode=Standard packet=10 start_ms=3800 delay_ms=85.646 correlation=0.9851
+marker mode=Standard packet=10 start_ms=4150 delay_ms=99.646 correlation=0.9829
+marker mode=Standard packet=10 start_ms=4500 delay_ms=111.646 correlation=0.9835
+marker mode=Standard packet=10 start_ms=4850 delay_ms=93.646 correlation=0.9846
+marker mode=Standard packet=10 start_ms=5200 delay_ms=95.646 correlation=0.9811
+marker mode=Standard packet=10 start_ms=5550 delay_ms=89.646 correlation=0.9827
+marker mode=Standard packet=10 start_ms=5900 delay_ms=85.646 correlation=0.9840
+marker mode=Standard packet=10 start_ms=6250 delay_ms=93.646 correlation=0.9813
+LINK impaired=true (impaired: deterministic 5% loss, 0/20/30 ms jitter); playout=Some(PlayoutStatistics { current_buffer_size_ms: 54, target_delay_ms: 25, packets_awaiting_decode: 5, packets_per_sec: 95 }), repair=Some(RepairStatistics { fec_attempts: 54, plc_frames: 6, late_samples_discarded: 0 })
+TIMING Standard 10ms: matched=16/16 rejected=0 qualified=true p50=97.646 p95=113.646 max=113.646 ms; DIGITAL ONLY, no devices/network/acoustics
+marker mode=Standard packet=20 start_ms=1000 delay_ms=85.417 correlation=0.9741
+marker mode=Standard packet=20 start_ms=1350 delay_ms=106.396 correlation=0.6739
+marker mode=Standard packet=20 start_ms=1700 delay_ms=125.417 correlation=0.9797
+marker mode=Standard packet=20 start_ms=2050 delay_ms=116.229 correlation=0.9804
+marker mode=Standard packet=20 start_ms=2400 delay_ms=92.229 correlation=0.9812
+marker mode=Standard packet=20 start_ms=2750 delay_ms=92.229 correlation=0.9813
+marker mode=Standard packet=20 start_ms=3100 delay_ms=86.229 correlation=0.9836
+marker mode=Standard packet=20 start_ms=3450 delay_ms=86.229 correlation=0.9823
+marker mode=Standard packet=20 start_ms=3800 delay_ms=86.229 correlation=0.9840
+marker mode=Standard packet=20 start_ms=4150 delay_ms=87.396 correlation=0.7725
+marker mode=Standard packet=20 start_ms=4500 delay_ms=108.229 correlation=0.9814
+marker mode=Standard packet=20 start_ms=4850 delay_ms=102.229 correlation=0.9839
+marker mode=Standard packet=20 start_ms=5200 delay_ms=96.229 correlation=0.9807
+marker mode=Standard packet=20 start_ms=5550 delay_ms=90.229 correlation=0.9824
+marker mode=Standard packet=20 start_ms=5900 delay_ms=90.229 correlation=0.9843
+marker mode=Standard packet=20 start_ms=6250 delay_ms=90.229 correlation=0.9816
+LINK impaired=true (impaired: deterministic 5% loss, 0/20/30 ms jitter); playout=Some(PlayoutStatistics { current_buffer_size_ms: 12, target_delay_ms: 35, packets_awaiting_decode: 0, packets_per_sec: 47 }), repair=Some(RepairStatistics { fec_attempts: 20, plc_frames: 2, late_samples_discarded: 1920 })
+TIMING Standard 20ms: matched=16/16 rejected=0 qualified=true p50=92.229 p95=125.417 max=125.417 ms; DIGITAL ONLY, no devices/network/acoustics
+marker mode=HighQuality packet=10 start_ms=1000 delay_ms=54.458 correlation=0.7527
+marker mode=HighQuality packet=10 start_ms=1350 delay_ms=55.417 correlation=0.8990
+marker mode=HighQuality packet=10 start_ms=1700 delay_ms=55.438 correlation=0.8936
+marker mode=HighQuality packet=10 start_ms=2050 delay_ms=53.438 correlation=0.7042
+marker mode=HighQuality packet=10 start_ms=2400 delay_ms=55.417 correlation=0.8929
+marker mode=HighQuality packet=10 start_ms=2750 delay_ms=55.479 correlation=0.8185
+marker mode=HighQuality packet=10 start_ms=3100 delay_ms=53.458 correlation=0.6702
+marker mode=HighQuality packet=10 start_ms=3450 delay_ms=55.417 correlation=0.8779
+marker mode=HighQuality packet=10 start_ms=3800 delay_ms=55.458 correlation=0.8322
+marker mode=HighQuality packet=10 start_ms=4150 delay_ms=53.458 correlation=0.6548
+marker mode=HighQuality packet=10 start_ms=4500 delay_ms=55.417 correlation=0.8867
+marker mode=HighQuality packet=10 start_ms=4850 delay_ms=55.458 correlation=0.8526
+marker mode=HighQuality packet=10 start_ms=5200 delay_ms=53.438 correlation=0.6872
+marker mode=HighQuality packet=10 start_ms=5550 delay_ms=55.417 correlation=0.8981
+marker mode=HighQuality packet=10 start_ms=5900 delay_ms=55.438 correlation=0.8183
+marker mode=HighQuality packet=10 start_ms=6250 delay_ms=53.458 correlation=0.6996
+LINK impaired=true (impaired: deterministic 5% loss, 0/20/30 ms jitter); playout=Some(PlayoutStatistics { current_buffer_size_ms: 106, target_delay_ms: 25, packets_awaiting_decode: 10, packets_per_sec: 0 }), repair=Some(RepairStatistics { fec_attempts: 80, plc_frames: 22, late_samples_discarded: 24000 })
+TIMING HighQuality 10ms: matched=16/16 rejected=0 qualified=true p50=55.417 p95=55.479 max=55.479 ms; DIGITAL ONLY, no devices/network/acoustics
+marker mode=HighQuality packet=20 start_ms=1000 delay_ms=63.458 correlation=0.4471
+marker mode=HighQuality packet=20 start_ms=1350 delay_ms=44.229 correlation=0.6144
+marker mode=HighQuality packet=20 start_ms=1700 delay_ms=85.417 correlation=0.9138
+marker mode=HighQuality packet=20 start_ms=2050 delay_ms=44.312 correlation=0.6204
+marker mode=HighQuality packet=20 start_ms=2400 delay_ms=65.417 correlation=0.8994
+marker mode=HighQuality packet=20 start_ms=2750 delay_ms=65.333 correlation=0.6337
+marker mode=HighQuality packet=20 start_ms=3100 delay_ms=85.417 correlation=0.8818
+marker mode=HighQuality packet=20 start_ms=3450 delay_ms=44.229 correlation=0.6048
+marker mode=HighQuality packet=20 start_ms=3800 delay_ms=45.417 correlation=0.8748
+marker mode=HighQuality packet=20 start_ms=4150 delay_ms=44.229 correlation=0.5989
+marker mode=HighQuality packet=20 start_ms=4500 delay_ms=65.438 correlation=0.8737
+marker mode=HighQuality packet=20 start_ms=4850 delay_ms=65.333 correlation=0.6294
+marker mode=HighQuality packet=20 start_ms=5200 delay_ms=85.417 correlation=0.8662
+marker mode=HighQuality packet=20 start_ms=5550 delay_ms=44.271 correlation=0.6075
+marker mode=HighQuality packet=20 start_ms=5900 delay_ms=85.417 correlation=0.8578
+marker mode=HighQuality packet=20 start_ms=6250 delay_ms=45.333 correlation=0.6528
+LINK impaired=true (impaired: deterministic 5% loss, 0/20/30 ms jitter); playout=Some(PlayoutStatistics { current_buffer_size_ms: 3, target_delay_ms: 25, packets_awaiting_decode: 0, packets_per_sec: 0 }), repair=Some(RepairStatistics { fec_attempts: 36, plc_frames: 3, late_samples_discarded: 41280 })
+TIMING HighQuality 20ms: matched=15/16 rejected=1 qualified=false p50=65.333 p95=85.417 max=85.417 ms; DIGITAL ONLY, no devices/network/acoustics
+Error: "marker coverage failed; distributions are diagnostics, not qualified latency"

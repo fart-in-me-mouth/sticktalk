@@ -139,9 +139,11 @@ pub struct SessionStats {
 mod platform;
 #[cfg(windows)]
 pub use platform::{
-    audio_devices, camera_devices, hardware_encoders, list_sources, process_usage,
-    source_process_id, source_thumbnail, AudioDevice, AudioDeviceEvent, AudioDeviceWatcher,
-    AudioDirection, AudioSessionEvent, CameraDevice, CameraFrameEncoder, CameraOptions,
-    CameraSession, DecodedFrame, Decoder, LoopbackSession, LoopbackSource, MicLevel,
-    MicTestSession, ProcessUsage, ShareSession, SourceThumbnail, VoiceDevices, VoiceSession,
+    audio_devices, camera_devices, choose_audio_device, enumerate_audio_devices, hardware_encoders,
+    initialize_audio_apartment, list_sources, measure_mic_level, process_usage, source_process_id,
+    source_thumbnail, uninitialize_audio_apartment, AppAttenuation, AudioDevice,
+    AudioDeviceBackend, AudioDeviceEvent, AudioDeviceWatcher, AudioDirection, AudioSessionEvent,
+    CameraDevice, CameraFrameEncoder, CameraOptions, CameraSession, DecodedFrame, Decoder,
+    LoopbackSession, LoopbackSource, MicLevel, MicTestSession, NativeAudioDeviceBackend,
+    ProcessUsage, ShareSession, SourceThumbnail, VoiceDevices, VoiceSession,
 };

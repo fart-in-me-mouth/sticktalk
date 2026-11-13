@@ -58,7 +58,7 @@ impl Accelerate {
             _sample_rate: sample_rate,
             _channels: channels,
             used_input_samples: 0,
-            overlap_length: Self::calculate_overlap_length(sample_rate),
+            overlap_length: Self::calculate_overlap_length(sample_rate) * channels as usize,
             _max_change_rate: 0.25, // Maximum 25% reduction
             low_energy_threshold: 0.0001,
         }
@@ -170,7 +170,8 @@ impl Accelerate {
         let max_remove = (output.len() as f32 * acceleration_factor) as usize;
         let max_remove = max_remove.min(output.len() / 2); // Don't remove more than 1/3 of input (= 1/2 of output)
         let max_remove = max_remove.min(input.len() - output.len());
-        max_remove.max(self.overlap_length)
+        let count = max_remove.max(self.overlap_length);
+        count / self._channels as usize * self._channels as usize
     }
 
     fn find_low_energy_to_remove(
@@ -203,7 +204,11 @@ impl Accelerate {
             return (0, 0);
         }
 
-        (best_pos, samples_to_remove)
+        let channels = self._channels as usize;
+        (
+            best_pos / channels * channels,
+            samples_to_remove / channels * channels,
+        )
     }
 
     fn calculate_energy(&self, samples: &[f32]) -> f32 {
@@ -212,7 +217,8 @@ impl Accelerate {
     }
 
     fn find_best_removal_point(&self, input: &[f32], removal_length: usize) -> usize {
-        let mut best_position = input.len() / 3; // Default to middle-ish
+        let channels = self._channels as usize;
+        let mut best_position = input.len() / 3 / channels * channels;
         let mut lowest_energy = f32::MAX;
 
         // Search for the lowest energy region to remove
@@ -221,7 +227,9 @@ impl Accelerate {
             .len()
             .saturating_sub(removal_length + self.overlap_length);
 
-        for pos in (search_start..search_end).step_by(self.overlap_length / 2) {
+        for pos in (search_start..search_end)
+            .step_by((self.overlap_length / 2 / channels).max(1) * channels)
+        {
             let end_pos = (pos + removal_length).min(input.len());
             let region_energy = self.calculate_energy(&input[pos..end_pos]);
 
@@ -333,7 +341,7 @@ impl PreemptiveExpand {
             _sample_rate: sample_rate,
             _channels: channels,
             used_input_samples: 0,
-            overlap_length: Self::calculate_overlap_length(sample_rate),
+            overlap_length: Self::calculate_overlap_length(sample_rate) * channels as usize,
             corr_threshold: 0.99,
         }
     }
@@ -376,7 +384,8 @@ impl PreemptiveExpand {
         let mut best_corr = -1.0f32;
         let mut best_pos = 0;
         let mut best_add_len = 0;
-        for add_len in self.overlap_length..max_add {
+        let channels = self._channels as usize;
+        for add_len in (self.overlap_length..max_add).step_by(channels) {
             let correlation_len = output.len() - add_len * 2;
             let (pos, corr) = crate::signal::best_normalized_correlation(
                 &input[add_len..correlation_len + add_len],
@@ -385,7 +394,7 @@ impl PreemptiveExpand {
             );
             if corr > best_corr {
                 best_corr = corr;
-                best_pos = pos;
+                best_pos = pos / channels * channels;
                 best_add_len = add_len;
             }
         }

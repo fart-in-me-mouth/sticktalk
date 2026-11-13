@@ -20,12 +20,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     run(NoiseSuppressionMode::Off, true, true, seconds)?;
-    for mode in [
-        NoiseSuppressionMode::Off,
-        NoiseSuppressionMode::Standard,
-        NoiseSuppressionMode::HighQuality,
-    ] {
-        latency(mode)?;
+    if !args.iter().any(|s| s == "--cpu-only") {
+        for mode in [
+            NoiseSuppressionMode::Off,
+            NoiseSuppressionMode::Standard,
+            NoiseSuppressionMode::HighQuality,
+        ] {
+            latency(mode)?;
+        }
     }
     if let Some(path) = args
         .windows(2)
@@ -63,7 +65,7 @@ fn options(
     studio: bool,
 ) -> sticktalk_media::voice::VoiceOptions {
     use sticktalk_media::voice::*;
-    if studio {
+    let mut options = if studio {
         VoiceOptions::studio()
     } else {
         VoiceOptions {
@@ -77,7 +79,13 @@ fn options(
             automatic_sensitivity: false,
             ..Default::default()
         }
-    }
+    };
+    options.packet_duration_ms = if std::env::args().any(|s| s == "--ten-ms") {
+        10
+    } else {
+        20
+    };
+    options
 }
 #[cfg(windows)]
 fn run(
@@ -93,21 +101,19 @@ fn run(
     // not the cheaper explicitly-muted gate.
     processor.set_push_to_talk(true);
     let mut mixer = VoiceMixer::new(1)?;
-    if studio {
-        mixer.add_stereo_remote(1)?;
-    } else {
-        mixer.add_remote(1)?;
-    }
+    mixer.add_stereo_remote(1)?;
     // Pre-encode an independent far-end signal; its encoder CPU is excluded.
     // Looping the near-end back as its own AEC reference would let the AEC
     // cancel the benchmark stimulus and understate denoiser CPU.
     let mut far = OpusEncoder::new(studio, if studio { 192000 } else { 64000 })?;
     let mut far_packets = Vec::new();
-    for packet in 0..seconds * 50 {
-        let mono: Vec<_> = (0..PACKET_SAMPLES)
+    let packet_ticks = usize::from(options(mode, studio).packet_duration_ms / 10);
+    let packet_samples = TICK * packet_ticks;
+    for packet in 0..seconds * 100 / packet_ticks {
+        let mono: Vec<_> = (0..packet_samples)
             .map(|i| {
                 if talking {
-                    let t = (packet * PACKET_SAMPLES + i) as f32 / 48000.0;
+                    let t = (packet * packet_samples + i) as f32 / 48000.0;
                     (t * std::f32::consts::TAU * 243.0).sin() * 0.08
                         + (t * std::f32::consts::TAU * 487.0).sin() * 0.02
                 } else {
@@ -120,7 +126,7 @@ fn run(
         } else {
             mono
         };
-        far_packets.push(far.encode(&pcm, packet as u64 * 960)?);
+        far_packets.push(far.encode(&pcm, (packet * packet_samples) as u64)?);
     }
     let mut echo = std::collections::VecDeque::from(vec![[0.0; TICK]; 5]);
     let mut bytes = 0usize;
@@ -128,8 +134,8 @@ fn run(
     let start = Instant::now();
     for tick in 0..seconds * 100 {
         let mut pcm = if talking { waveform(tick) } else { [0.0; TICK] };
-        if tick % 2 == 1 {
-            mixer.push(1, far_packets[tick / 2].clone())?;
+        if tick % packet_ticks == packet_ticks - 1 {
+            mixer.push(1, far_packets[tick / packet_ticks].clone())?;
         }
         let playback = mixer.render()?;
         processor.render(&playback)?;
@@ -181,9 +187,10 @@ fn print(
 ) {
     let core = (a.cpu_seconds - b.cpu_seconds) / wall * 100.0;
     println!(
-        "{label}: seconds={wall:.3}, CPU machine={:.4}% / one-core={core:.4}%, RSS={:.2} MiB",
+        "{label}: seconds={wall:.3}, CPU machine={:.4}% / one-core={core:.4}%, RSS={:.2} MiB, private={:.2} MiB",
         core / a.logical_cpus as f64,
-        a.rss_bytes as f64 / 1048576.0
+        a.rss_bytes as f64 / 1048576.0,
+        a.private_bytes as f64 / 1048576.0
     );
 }
 #[cfg(windows)]

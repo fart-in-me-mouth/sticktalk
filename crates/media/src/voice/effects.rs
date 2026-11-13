@@ -104,6 +104,9 @@ impl Drop for FlushSubnormals {
 pub(super) struct DeepDenoiser {
     model: df::tract::DfTract,
 }
+/// Official DFN3-LL: 960-sample STFT, 480-sample hop, no future-hop
+/// lookahead. Overlap buffering contributes 480/48000 = 10 ms.
+pub const DEEP_FILTER_ALGORITHMIC_DELAY_MS: u32 = 10;
 impl DeepDenoiser {
     pub fn new() -> Result<Self> {
         let model = df::tract::DfTract::new(
@@ -113,6 +116,13 @@ impl DeepDenoiser {
         .map_err(err)?;
         if model.hop_size != TICK || model.sr != 48000 {
             return Err(err("DFN3 model must be 48kHz/480-sample hop"));
+        }
+        let delay = model.fft_size - model.hop_size + model.lookahead * model.hop_size;
+        if delay != 480 {
+            return Err(err(format!(
+                "expected DFN3-LL 10 ms delay, got {} samples",
+                delay
+            )));
         }
         Ok(Self { model })
     }
@@ -146,16 +156,24 @@ pub fn benchmark_noise_quality() -> NoiseCpuProbe {
         .get_or_init(|| {
             let result = (|| -> Result<(Duration, Duration)> {
                 let mut df = DeepDenoiser::new()?;
-                let frame = std::array::from_fn(|i| {
-                    ((i as f32 * 0.037).sin() + (i as f32 * 0.193).cos()) * 0.05
-                });
-                for _ in 0..4 {
-                    df.process(&frame)?;
+                let mut seed = 42u32;
+                let frames: Vec<[f32; TICK]> = (0..28)
+                    .map(|tick| {
+                        std::array::from_fn(|i| {
+                            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+                            let t = (tick * TICK + i) as f32 / 48000.;
+                            (t * std::f32::consts::TAU * 137.).sin() * 0.08
+                                + (seed as f32 / u32::MAX as f32 - 0.5) * 0.12
+                        })
+                    })
+                    .collect();
+                for frame in &frames[..4] {
+                    df.process(frame)?;
                 }
                 let mut times = Vec::with_capacity(24);
-                for _ in 0..24 {
+                for frame in &frames[4..] {
                     let start = Instant::now();
-                    df.process(&frame)?;
+                    df.process(frame)?;
                     times.push(start.elapsed());
                 }
                 let sum: Duration = times.iter().sum();
@@ -164,7 +182,8 @@ pub fn benchmark_noise_quality() -> NoiseCpuProbe {
             })();
             match result {
                 Ok((mean, p95)) => NoiseCpuProbe {
-                    recommended: if p95 < Duration::from_millis(6) {
+                    // Leave roughly 2% of one core for APM/Opus/transport.
+                    recommended: if p95 < Duration::from_micros(400) {
                         NoiseSuppressionMode::HighQuality
                     } else {
                         NoiseSuppressionMode::Standard

@@ -3494,7 +3494,7 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
         .clamp(t::SIDEBAR, t::SETTINGS_CONTENT);
     let right = container(
         row![
-            container(scroller(content).height(Fill))
+            container(scroller(content).id("settings-content").height(Fill))
                 .width(content_width)
                 .padding([0., t::S32])
                 .style(t::bare),
