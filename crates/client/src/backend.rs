@@ -588,21 +588,115 @@ pub async fn meta(server: String, mock: bool) -> Result<MetaResponse, String> {
     }
     Http::new(&server, "")?.core().meta().await
 }
+#[derive(Clone)]
+pub struct AccountResult {
+    pub methods: AuthMethodsResponse,
+    pub session: Option<Session>,
+}
+impl std::fmt::Debug for AccountResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("AccountResult(<redacted>)")
+    }
+}
 pub async fn account(
     config: Config,
     action: AccountAction,
     mock: MockAccount,
-) -> Result<AuthMethodsResponse, String> {
+    current: Option<String>,
+) -> Result<AccountResult, String> {
     if config.mock {
-        return mock
+        let methods = mock
             .lock()
             .map_err(|_| "Account unavailable".to_string())?
-            .action(&action);
+            .action(&action)?;
+        return Ok(AccountResult {
+            methods,
+            session: None,
+        });
     }
-    Http::new(&config.server, &config.token)?
-        .core()
-        .account(action)
-        .await
+    let http = Http::new(&config.server, &config.token)?.core();
+    let op = match action {
+        AccountAction::Read => None,
+        AccountAction::Link(_) => Some(AccountOperation::Link),
+        AccountAction::Unlink => Some(AccountOperation::Unlink),
+        AccountAction::Password { .. } => Some(AccountOperation::Password),
+    };
+    let direct_password = matches!(
+        &action,
+        AccountAction::Password {
+            current: Some(_),
+            ..
+        }
+    );
+    let proof = if let Some(operation) = op.filter(|_| !direct_password) {
+        let id_token = if current.is_none() {
+            if std::env::var_os("STICKTALK_AGENT_WINDOW").is_some() {
+                return Err("Use mock sign-in in agent mode".into());
+            }
+            let client_id = http
+                .meta()
+                .await?
+                .google_client_id
+                .ok_or("Google reauthentication is unavailable")?;
+            let challenge = http.google_challenge(operation).await?;
+            let (accepted, _rx) = tokio::sync::oneshot::channel();
+            Some(crate::oauth::sign_in(client_id, challenge.nonce, accepted).await?)
+        } else {
+            None
+        };
+        Some(
+            http.reauthenticate(&ReauthRequest {
+                operation,
+                current_password: current,
+                id_token,
+            })
+            .await?
+            .proof,
+        )
+    } else {
+        None
+    };
+    let updated = http.account_authorized(action, proof.as_deref()).await?;
+    let session = if let Some(auth) = updated.session {
+        Some(save_auth(config.server, auth, false).await?)
+    } else {
+        None
+    };
+    Ok(AccountResult {
+        methods: updated.methods,
+        session,
+    })
+}
+pub async fn delete_account(config: Config, current: Option<String>) -> Result<(), String> {
+    if config.mock {
+        return Ok(());
+    }
+    let http = Http::new(&config.server, &config.token)?.core();
+    let id_token = if current.is_none() {
+        if std::env::var_os("STICKTALK_AGENT_WINDOW").is_some() {
+            return Err("Use mock sign-in in agent mode".into());
+        }
+        let client_id = http
+            .meta()
+            .await?
+            .google_client_id
+            .ok_or("Google reauthentication is unavailable")?;
+        let challenge = http
+            .google_challenge(AccountOperation::DeleteAccount)
+            .await?;
+        let (tx, _rx) = tokio::sync::oneshot::channel();
+        Some(crate::oauth::sign_in(client_id, challenge.nonce, tx).await?)
+    } else {
+        None
+    };
+    let proof = http
+        .reauthenticate(&ReauthRequest {
+            operation: AccountOperation::DeleteAccount,
+            current_password: current,
+            id_token,
+        })
+        .await?;
+    http.delete_account(&proof.proof).await
 }
 #[derive(Clone)]
 pub enum GoogleOutcome {

@@ -246,6 +246,7 @@ pub(crate) async fn mutate(
                 .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
             require(os.len() <= MAX_CHANNEL_OVERWRITES, ErrorCode::LimitExceeded)?;
             let p = acl::evaluate(c, u, g, Some(ch)).await?;
+            let previous = acl::overwrites(c, ch).await?;
             let mut seen = std::collections::HashSet::new();
             for o in &os {
                 require(
@@ -257,7 +258,16 @@ pub(crate) async fn mutate(
                     ErrorCode::InvalidRequest,
                 )?;
                 require(
-                    p.contains(Permissions::OWNER) || p.contains(o.allow | o.deny),
+                    p.contains(Permissions::OWNER) || {
+                        let old = previous
+                            .iter()
+                            .find(|old| old.kind == o.kind && old.target_id == o.target_id);
+                        let (allow, deny) = old
+                            .map_or((Permissions::empty(), Permissions::empty()), |o| {
+                                (o.allow, o.deny)
+                            });
+                        p.contains((o.allow ^ allow) | (o.deny ^ deny))
+                    },
                     ErrorCode::Forbidden,
                 )?;
                 match o.kind {
@@ -268,6 +278,21 @@ pub(crate) async fn mutate(
                         crate::db::role(c, o.target_id, g).await?;
                     }
                 }
+            }
+            // Authorize the complete old-to-new delta using PRE-mutation rights.
+            // Reject atomically: omitted entries and cleared bits are mutations too.
+            for old in previous {
+                let new = os
+                    .iter()
+                    .find(|o| o.kind == old.kind && o.target_id == old.target_id);
+                let (allow, deny) = new.map_or((Permissions::empty(), Permissions::empty()), |o| {
+                    (o.allow, o.deny)
+                });
+                let changed = (old.allow ^ allow) | (old.deny ^ deny);
+                require(
+                    p.contains(Permissions::OWNER) || p.contains(changed),
+                    ErrorCode::Forbidden,
+                )?;
             }
             sqlx::query("DELETE FROM permission_overwrites WHERE channel_id=?")
                 .bind(id(ch)?)

@@ -2648,6 +2648,9 @@ fn modal(app: &App) -> Element<'_, Msg> {
             }
         }
         Dialog::Password => {
+            if app.methods.as_ref().is_some_and(|m| !m.has_password) {
+                body=body.push(hint("Saving requires a fresh Google sign-in. Choose your existing linked Google account."));
+            }
             if app.methods.as_ref().is_some_and(|m| m.has_password) {
                 body = body.push(
                     column![

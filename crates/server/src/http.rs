@@ -51,7 +51,7 @@ pub fn router(app: App) -> axum::Router {
         .route("/api/{*path}", any(api))
         .fallback(crate::browser::static_file)
         .layer(axum::middleware::from_fn(json_framework_errors))
-        .layer(DefaultBodyLimit::max((25 * 1024 * 1024 + 65536) as usize))
+        .layer(DefaultBodyLimit::disable())
         .layer(axum::middleware::from_fn_with_state(
             app.clone(),
             bounded_requests,
@@ -67,41 +67,124 @@ async fn bounded_requests(
     r: Request<Body>,
     next: axum::middleware::Next,
 ) -> Response {
-    let Ok(permit) = app.0.requests.clone().try_acquire_owned() else {
+    let path = r.uri().path();
+    let transfer = path.contains("/uploads")
+        || path.contains("/files/")
+        || path.contains("/update/artifact")
+        || path.contains("/update/publish")
+        || !path.starts_with("/api/");
+    let pool = if transfer {
+        &app.0.transfers
+    } else {
+        &app.0.requests
+    };
+    let Ok(permit) = pool.clone().try_acquire_owned() else {
         return Error::new(ErrorCode::Unavailable).into_response();
     };
-    let seconds =
-        if r.uri().path().contains("/uploads") || r.uri().path().contains("/update/publish") {
-            120
-        } else {
-            15
-        };
-    // Whole-file hashing may legitimately take minutes for large SSD uploads.
-    // It has no network body and is bounded by the request/disk gates instead.
-    let finishing = r.uri().path().starts_with("/api/v1/uploads/resumable/")
-        && r.uri().path().ends_with("/finish");
+    let mut permits = vec![permit];
+    if transfer
+        && matches!(
+            *r.method(),
+            axum::http::Method::GET | axum::http::Method::HEAD
+        )
+    {
+        let ip = auth_bucket(&app, &r);
+        let mut keys = vec![(format!("download:{ip}"), 8)];
+        if let Ok(token) = bearer(r.headers()) {
+            match app.0.pool.acquire().await {
+                Ok(mut c) => match auth(&mut c, token).await {
+                    Ok((_, user)) => keys.push((format!("download-user:{}", user.0), 3)),
+                    Err(e) => return e.into_response(),
+                },
+                Err(_) => return Error::new(ErrorCode::Unavailable).into_response(),
+            }
+        }
+        for (key, limit) in keys {
+            match download_permit(&app, key, limit) {
+                Ok(p) => permits.push(p),
+                Err(e) => return e.into_response(),
+            }
+        }
+    }
+    let finishing = path.starts_with("/api/v1/uploads/resumable/") && path.ends_with("/finish");
+    let seconds = if finishing {
+        900
+    } else if transfer {
+        120
+    } else {
+        15
+    };
     let response = tokio::select! {
         _ = app.0.shutdown.cancelled() => return Error::new(ErrorCode::Unavailable).into_response(),
-        response = async {
-            if finishing { Ok(next.run(r).await) }
-            else { tokio::time::timeout(std::time::Duration::from_secs(seconds), next.run(r)).await }
-        } => response,
+        response = tokio::time::timeout(std::time::Duration::from_secs(seconds), next.run(r)) => response,
     };
     let Ok(response) = response else {
         return Error::new(ErrorCode::Unavailable).into_response();
     };
-    // Include streaming downloads in the concurrency budget, not just headers.
-    let (parts, body) = response.into_parts();
-    let stream = body.into_data_stream();
-    use futures_util::StreamExt;
-    Response::from_parts(
-        parts,
-        Body::from_stream(stream.map(move |chunk| {
-            let _keep_permit = &permit;
-            chunk
-        })),
+    timed_response(
+        response,
+        permits,
+        app.0.shutdown.clone(),
+        std::time::Duration::from_secs(30),
+        std::time::Duration::from_secs(if transfer { 900 } else { 30 }),
     )
 }
+fn download_permit(
+    app: &App,
+    key: String,
+    limit: usize,
+) -> Result<tokio::sync::OwnedSemaphorePermit> {
+    let mut limits = app
+        .0
+        .download_limits
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    limits.retain(|_, weak| weak.strong_count() > 0);
+    require(
+        limits.len() < 4096 || limits.contains_key(&key),
+        ErrorCode::Unavailable,
+    )?;
+    let pool = limits
+        .get(&key)
+        .and_then(std::sync::Weak::upgrade)
+        .unwrap_or_else(|| {
+            let pool = std::sync::Arc::new(tokio::sync::Semaphore::new(limit));
+            limits.insert(key, std::sync::Arc::downgrade(&pool));
+            pool
+        });
+    pool.try_acquire_owned()
+        .map_err(|_| Error::new(ErrorCode::LimitExceeded))
+}
+/// Pump with a single buffered chunk. The timer owns the admission permits, so
+/// they expire even if Hyper never polls the body again (a stalled TCP writer).
+fn timed_response(
+    response: Response,
+    permits: Vec<tokio::sync::OwnedSemaphorePermit>,
+    stop: tokio_util::sync::CancellationToken,
+    idle: std::time::Duration,
+    lifetime: std::time::Duration,
+) -> Response {
+    use futures_util::StreamExt;
+    let (parts, body) = response.into_parts();
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    tokio::spawn(async move {
+        let _permits = permits;
+        let pump = async {
+            let mut stream = body.into_data_stream();
+            while let Ok(Some(chunk)) = tokio::time::timeout(idle, stream.next()).await {
+                if !matches!(tokio::time::timeout(idle, tx.send(chunk)).await, Ok(Ok(()))) {
+                    break;
+                }
+            }
+        };
+        tokio::select! { _ = stop.cancelled() => {}, _ = tokio::time::timeout(lifetime, pump) => {} }
+    });
+    let stream = futures_util::stream::unfold(rx, |mut rx| async move {
+        rx.recv().await.map(|chunk| (chunk, rx))
+    });
+    Response::from_parts(parts, Body::from_stream(stream))
+}
+
 async fn json_framework_errors(r: Request<Body>, next: axum::middleware::Next) -> Response {
     let response = next.run(r).await;
     if (response.status().is_client_error() || response.status().is_server_error())
@@ -134,6 +217,13 @@ pub(crate) struct ApiResponse {
     encode: Box<dyn FnOnce() -> Response + Send>,
 }
 impl ApiResponse {
+    pub(crate) fn from_response(response: Response) -> Self {
+        Self {
+            status: response.status(),
+            headers: response.headers().clone(),
+            encode: Box::new(|| response),
+        }
+    }
     fn status_mut(&mut self) -> &mut StatusCode {
         &mut self.status
     }
@@ -203,6 +293,12 @@ pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiR
         .to_owned();
     if path == "gifs" || path.starts_with("gifs/") {
         return crate::gifs::api(&app, &path, r).await;
+    }
+    if matches!(path.as_str(), "auth/google/challenge" | "auth/reauth") {
+        return crate::reauth::api(&app, &path, r).await;
+    }
+    if path == "auth/account/delete" {
+        return crate::account::api(&app, r).await;
     }
     if crate::google::is_route(&path) {
         return crate::google::api(&app, &path, r).await;
@@ -293,7 +389,10 @@ pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiR
                 .bind(&s)
                 .fetch_one(&mut *tx)
                 .await?;
-            require(n == 0, ErrorCode::UsernameTaken)?;
+            require(
+                n == 0 && !crate::account::reserved(&mut tx, &s).await?,
+                ErrorCode::UsernameTaken,
+            )?;
             let u = core.id().await?;
             sqlx::query("INSERT INTO users(id,username,password_hash,display_name,desired_presence,created_at) VALUES(?,?,?,?,'online',?)").bind(id(u)?).bind(&s).bind(phc).bind(display).bind(state::now() as i64).execute(&mut *tx).await?;
             u
@@ -729,6 +828,50 @@ pub(crate) fn verify_password(password: &str, phc: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn s3_unpolled_slow_body_releases_admission_and_separate_pool_preserves_rest() {
+        use std::{sync::Arc, time::Duration};
+        let pool = Arc::new(tokio::sync::Semaphore::new(1));
+        let permit = pool.clone().try_acquire_owned().unwrap();
+        let body = Body::from_stream(futures_util::stream::iter(
+            (0..10).map(|_| Ok::<_, std::io::Error>(bytes::Bytes::from_static(b"chunk"))),
+        ));
+        let response = timed_response(
+            Response::new(body),
+            vec![permit],
+            tokio_util::sync::CancellationToken::new(),
+            Duration::from_millis(20),
+            Duration::from_millis(100),
+        );
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        assert_eq!(pool.available_permits(), 1);
+        drop(response);
+        let (_dir, app) = crate::audit_tests::fixture().await;
+        let transfers = app.0.transfers.clone().try_acquire_many_owned(64).unwrap();
+        use tower::ServiceExt;
+        let r = router(app.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(r.status(), 200);
+        drop(transfers);
+        let permits: Vec<_> = (0..3)
+            .map(|_| download_permit(&app, "download-user:1".into(), 3).unwrap())
+            .collect();
+        assert!(download_permit(&app, "download-user:1".into(), 3).is_err());
+        assert!(download_permit(&app, "download-user:2".into(), 3).is_ok());
+        drop(permits);
+        let permits: Vec<_> = (0..8)
+            .map(|_| download_permit(&app, "download-ip:127.0.0.1".into(), 8).unwrap())
+            .collect();
+        assert!(download_permit(&app, "download-ip:127.0.0.1".into(), 8).is_err());
+        drop(permits);
+    }
     #[tokio::test]
     async fn login_cannot_follow_reassigned_username() {
         let mut c = sqlx::SqliteConnection::connect("sqlite::memory:")

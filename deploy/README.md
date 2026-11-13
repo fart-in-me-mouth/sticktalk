@@ -161,8 +161,7 @@ data. Native clients do not need CORS.
 
 Flags override env: `--bind` / `STICKTALK_BIND` (127.0.0.1:8080), `--data-dir` /
 `STICKTALK_DATA_DIR` (./sticktalk-data), `--public-url` / `STICKTALK_PUBLIC_URL`
-(http://localhost:8080), `--max-upload-mb` / `STICKTALK_MAX_UPLOAD_MB` (25, may
-lower but not raise), `--worker-id` / `STICKTALK_WORKER_ID` (0). Only one process
+(http://localhost:8080), `--max-upload-mb` / `STICKTALK_MAX_UPLOAD_MB` (0 = unlimited file size), `--worker-id` / `STICKTALK_WORKER_ID` (0). Only one process
 may use a data directory. `--trusted-proxy` / `STICKTALK_TRUSTED_PROXY`
 defaults to 127.0.0.1 (Caddy); only that peer may supply client IP headers. No network/OneDrive storage. Registration is open:
 share your hostname only with intended users.
@@ -493,3 +492,31 @@ actual bandwidth. All Pi ↔ Oracle storage/backup traffic stays inside Tailscal
 
 Browser/PWA hosting, cookie auth, Google web credentials and VAPID deployment:
 see [BROWSER.md](BROWSER.md).
+
+### Upload abuse controls and privacy
+`STICKTALK_MAX_UPLOAD_MB=0` means **unlimited file size**, not 25 MB. Caddy
+must not impose a request-body size cap. Use resumable uploads for large files.
+Both upload protocols share quota, disk reservations, a maximum of three unfinished
+uploads/user and a one-hour idle expiry. `STICKTALK_USER_DAILY_UPLOAD_MB=102400`
+(default 100 GiB/day) counts bytes actually received, including retries and failed
+uploads; declaring a size does not consume the daily budget. Zero disables the
+daily budget. `STICKTALK_USER_QUOTA_MB=0` disables retained-data quota; the free
+space floor remains enforced. Expired reservations cease quota admission within
+one hour; coarse housekeeping removes their files.
+
+Downloads use separate transfer capacity, max three/user and eight/IP, 30-second
+write/idle and 15-minute lifetime bounds. Range requests resume large transfers.
+WebSocket upgrades leave this HTTP body budget after upgrade; WS heartbeat/queues
+continue to enforce their own deadlines. Do not set reverse_proxy stream_timeout
+on chat sockets. Server-side TLS write timeout is bounded to 15 minutes.
+
+Account deletion requires fresh password/Google proof, erases attachments and
+credentials, tombstones messages as Deleted User and holds the old username for
+30 days. A deleted guild owner's oldest remaining active member becomes owner;
+empty guilds are removed. Other connected clients reconnect to discard cached
+content. Stop the service before local administrative erasure:
+`sticktalk-server --data-dir /var/lib/sticktalk admin erase-account USERNAME`.
+**Encrypted backups are retained for 14 days**, so deleted content can remain in
+those offline copies until expiry. Never restore a pre-deletion backup into service
+without reapplying deletions. No promise of forensic erasure from SSD flash is made.
+See `pi/README.md` for encryption and owner-held recovery keys.

@@ -5,8 +5,13 @@ set -euo pipefail
 mountpoint -q /srv/sticktalk || { echo 'USB disk is not mounted' >&2; exit 1; }
 [[ -f /etc/sticktalk/standby.env ]] || { echo 'Prepare standby.env first' >&2; exit 1; }
 data=/srv/sticktalk/node
-latest=$(sqlite3 "$data/storage.sqlite3" "SELECT key FROM blobs WHERE complete=1 AND key GLOB 'backup-[0-9]*.sqlite3' ORDER BY key DESC LIMIT 1;")
-[[ -n $latest ]] || { echo 'No completed backup on Pi' >&2; exit 1; }
+# The owner decrypts the newest .sqlite3.age on a separate trusted computer,
+# reapplies deletions, then transfers only that recovery DB to this LUKS volume.
+latest=${STICKTALK_RECOVERY_DB:-}
+[[ -n $latest && $latest != */* && $latest != *..* && -f $data/backups/$latest ]] || {
+  echo 'Set STICKTALK_RECOVERY_DB to the owner-decrypted/reviewed SQLite recovery file in node/backups. Never copy the age private key here.' >&2
+  exit 1
+}
 [[ $(sqlite3 "$data/backups/$latest" 'PRAGMA quick_check;') == ok ]] || { echo 'Backup failed integrity check' >&2; exit 1; }
 while IFS= read -r key; do
   [[ $key != *'/'* && $key != *'..'* && -f $data/files/$key ]] || { echo "Missing snapshot blob: $key" >&2; exit 1; }

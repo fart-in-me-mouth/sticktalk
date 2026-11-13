@@ -33,6 +33,8 @@ struct Claims {
     exp: u64,
     iat: u64,
     email_verified: bool,
+    #[serde(default)]
+    nonce: Option<String>,
 }
 #[derive(Deserialize)]
 struct Jwks {
@@ -157,7 +159,16 @@ impl Verifier {
         require(!keys.is_empty(), ErrorCode::Unavailable)?;
         Ok((keys, ttl))
     }
+    #[cfg(test)]
     pub(crate) async fn verify(&self, token: &str, client_id: &str) -> Result<String> {
+        self.verify_bound(token, client_id, None).await.map(|v| v.0)
+    }
+    pub(crate) async fn verify_bound(
+        &self,
+        token: &str,
+        client_id: &str,
+        expected: Option<&str>,
+    ) -> Result<(String, Option<String>)> {
         require(
             !token.is_empty() && token.len() <= 12288,
             ErrorCode::InvalidCredentials,
@@ -243,7 +254,13 @@ impl Verifier {
         }
         .verify(&RSA_PKCS1_2048_8192_SHA256, signed.as_bytes(), &signature)
         .map_err(|_| Error::new(ErrorCode::InvalidCredentials))?;
-        Ok(claims.sub)
+        if let Some(expected) = expected {
+            require(
+                claims.nonce.as_deref() == Some(expected),
+                ErrorCode::InvalidCredentials,
+            )?;
+        }
+        Ok((claims.sub, claims.nonce))
     }
 }
 fn cache_ttl(headers: &reqwest::header::HeaderMap) -> Duration {
@@ -330,11 +347,14 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
     app.0.core.lock().await.rate(bucket, 10., 5.)?;
     if path == "auth/google" {
         let request: GoogleAuthRequest = http::parse(r).await?;
-        let subject = app
-            .0
-            .google
-            .verify(&request.id_token, client_id.unwrap_or_default())
-            .await?;
+        let subject = crate::reauth::verify_challenge(
+            app,
+            &request.id_token,
+            client_id.unwrap_or_default(),
+            None,
+            AccountOperation::SignIn,
+        )
+        .await?;
         return Ok(http::json(sign_in(app, subject).await?));
     }
     if path == "auth/google/complete" {
@@ -365,7 +385,10 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
             .bind(&name)
             .fetch_one(&mut *tx)
             .await?;
-        require(!taken, ErrorCode::UsernameTaken)?;
+        require(
+            !taken && !crate::account::reserved(&mut tx, &name).await?,
+            ErrorCode::UsernameTaken,
+        )?;
         let user = core.id().await?;
         sqlx::query("INSERT INTO users(id,username,password_hash,desired_presence,created_at) VALUES(?,?,'','online',?)")
             .bind(id(user)?).bind(&name).bind(state::now() as i64).execute(&mut *tx).await?;
@@ -383,6 +406,7 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
         tx.commit().await?;
         return Ok(http::json(response));
     }
+    let headers = r.headers().clone();
     let token = http::bearer(r.headers())?.to_owned();
     // Authenticate before external I/O / hashing, then again under the gate.
     let (_, user) = auth(&mut *app.0.pool.acquire().await?, &token).await?;
@@ -401,6 +425,8 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
                     .is_none_or(|p| p.len() <= 128),
             ErrorCode::InvalidRequest,
         )?;
+        let use_proof =
+            headers.contains_key("x-sticktalk-reauth") && request.current_password.is_none();
         let old: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id=?")
             .bind(id(user)?)
             .fetch_one(&app.0.pool)
@@ -416,6 +442,7 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
             let _permit = permit;
             require(
                 old.is_empty()
+                    || use_proof
                     || request
                         .current_password
                         .as_ref()
@@ -426,26 +453,56 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
         })
         .await
         .map_err(|_| Error::new(ErrorCode::Internal))??;
-        let _gate = app.0.core.lock().await;
+        let mut gate = app.0.core.lock().await;
         let mut c = app.0.pool.acquire().await?;
-        let (_, current) = auth(&mut c, &token).await?;
+        let mut tx = c.begin().await?;
+        let (key, current) = auth(&mut tx, &token).await?;
         require(current == user, ErrorCode::Unauthenticated)?;
+        if expected.is_empty() || use_proof {
+            crate::reauth::consume(&mut tx, &headers, &key, AccountOperation::Password).await?;
+        }
         let result = sqlx::query("UPDATE users SET password_hash=? WHERE id=? AND password_hash=?")
             .bind(new)
             .bind(id(user)?)
             .bind(expected)
-            .execute(&mut *c)
+            .execute(&mut *tx)
             .await?;
         require(result.rows_affected() == 1, ErrorCode::Conflict)?;
-        return Ok(http::json(methods(&mut c, user).await?));
+        let keys: Vec<Vec<u8>> =
+            sqlx::query_scalar("SELECT token_hash FROM sessions WHERE user_id=?")
+                .bind(id(user)?)
+                .fetch_all(&mut *tx)
+                .await?;
+        sqlx::query("DELETE FROM sessions WHERE user_id=?")
+            .bind(id(user)?)
+            .execute(&mut *tx)
+            .await?;
+        let rotated = session(&mut tx, user).await?;
+        let status = methods(&mut tx, user).await?;
+        tx.commit().await?;
+        crate::reauth::disconnect(app, &mut gate, &mut c, &keys).await?;
+        if crate::browser::session_cookie(&headers)?.is_some() {
+            return Ok(http::ApiResponse::from_response(
+                crate::browser::browser_session(rotated),
+            ));
+        }
+        return Ok(http::json(AccountUpdateResponse {
+            methods: status,
+            session: Some(rotated),
+        }));
     }
     let subject = if path == "auth/google/link" {
         let request: GoogleLinkRequest = http::parse(r).await?;
+        let key = state::hash(token.as_bytes());
         Some(
-            app.0
-                .google
-                .verify(&request.id_token, client_id.unwrap_or_default())
-                .await?,
+            crate::reauth::verify_challenge(
+                app,
+                &request.id_token,
+                client_id.unwrap_or_default(),
+                Some(&key),
+                AccountOperation::Link,
+            )
+            .await?,
         )
     } else if path == "auth/google/unlink" {
         let _: GoogleUnlinkRequest = http::parse(r).await?;
@@ -456,8 +513,21 @@ async fn dispatch(app: &App, path: &str, r: Request<Body>) -> Result<ApiResponse
     let _gate = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
     let mut tx = c.begin().await?;
-    let (_, current) = auth(&mut tx, &token).await?;
+    let (key, current) = auth(&mut tx, &token).await?;
     require(current == user, ErrorCode::Unauthenticated)?;
+    if path == "auth/google/link" || path == "auth/google/unlink" {
+        crate::reauth::consume(
+            &mut tx,
+            &headers,
+            &key,
+            if path.ends_with("/link") {
+                AccountOperation::Link
+            } else {
+                AccountOperation::Unlink
+            },
+        )
+        .await?;
+    }
     if let Some(subject) = subject {
         let rows = sqlx::query("SELECT subject,user_id FROM oauth_identities WHERE provider='google' AND (subject=? OR user_id=?)")
             .bind(&subject).bind(id(user)?).fetch_all(&mut *tx).await?;
