@@ -32,10 +32,12 @@ impl State {
     }
     pub fn fit(&self, app: &App) -> f32 {
         self.current().map_or(1., |a| {
-            ((app.width * 0.9 - 2. * t::S32) / a.width.unwrap_or(800).max(1) as f32).min(
-                (app.height * 0.9 - t::HEADER * 2. - t::S24)
-                    / a.height.unwrap_or(600).max(1) as f32,
-            )
+            ((app.width * 0.9 - 2. * t::S32) / a.width.unwrap_or(800).max(1) as f32)
+                .min(
+                    (app.height * 0.9 - t::HEADER * 2. - t::S24)
+                        / a.height.unwrap_or(600).max(1) as f32,
+                )
+                .min(1.)
         })
     }
 }
@@ -396,12 +398,12 @@ impl iced::advanced::Widget<Msg, iced::Theme, iced::Renderer> for Surface {
 mod tests {
     use super::*;
     #[test]
-    fn tiny_images_open_enlarged_to_contain_and_double_click_toggles_actual_size() {
+    fn tiny_images_open_at_native_size_and_double_click_toggles_actual_size() {
         let mut app = App::headless("image-viewer", iced::Size::new(1280., 800.));
         app.features.viewer.items[0].width = Some(32);
         app.features.viewer.items[0].height = Some(32);
         let fit = app.features.viewer.fit(&app);
-        assert!(fit > 1.);
+        assert_eq!(fit, 1.);
         assert!(fit * 32. <= app.height * 0.9);
         let _ = crate::features::update(&mut app, Event::ViewerActual);
         assert_eq!(app.features.viewer.scale, Some(1.));

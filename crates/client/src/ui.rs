@@ -678,6 +678,19 @@ fn connection_banner(app: &App) -> Element<'_, Msg> {
         .into()
 }
 
+fn friend_action<'a>(name: &str, label: &str, message: Msg) -> Element<'a, Msg> {
+    controls::tip(
+        button(icon(name, t::ICON, t::TEXT_SECONDARY))
+            .on_press(message)
+            .width(t::ICON + 2. * t::S8)
+            .height(t::ICON + 2. * t::S8)
+            .padding(t::S8)
+            .style(t::friend_action),
+        label,
+        tooltip::Position::Top,
+    )
+}
+
 fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
     let mut tabs = row![
         icon("users", t::ICON, t::TEXT_SECONDARY),
@@ -761,12 +774,12 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
         match r.kind {
             RelationshipKind::Friend => {
                 actions = actions
-                    .push(icon_button(
+                    .push(friend_action(
                         "message-circle",
                         "Send message",
                         Msg::Command(Command::OpenDm { user_id: id }),
                     ))
-                    .push(icon_button(
+                    .push(friend_action(
                         "more-horizontal",
                         "More",
                         Msg::Open(Dialog::Profile(id)),
@@ -774,19 +787,19 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
             }
             RelationshipKind::IncomingRequest => {
                 actions = actions
-                    .push(icon_button(
+                    .push(friend_action(
                         "check",
                         "Accept",
                         Msg::Command(Command::AcceptFriendRequest { user_id: id }),
                     ))
-                    .push(icon_button(
+                    .push(friend_action(
                         "x",
                         "Decline",
                         Msg::Command(Command::DeclineFriendRequest { user_id: id }),
                     ));
             }
             RelationshipKind::OutgoingRequest => {
-                actions = actions.push(icon_button(
+                actions = actions.push(friend_action(
                     "x",
                     "Cancel request",
                     Msg::Command(Command::CancelFriendRequest { user_id: id }),
@@ -803,22 +816,36 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
             }
         }
         list = list.push(line()).push(
-            container(
-                row![
-                    avatar(app, id, t::AVATAR, true),
-                    column![
-                        txt(app.state.model.name(id)).font(t::semibold()),
-                        hint(label).color(color)
+            mouse_area(
+                container(
+                    row![
+                        avatar(app, id, t::AVATAR, true),
+                        column![
+                            txt(app.state.model.name(id)).font(t::semibold()),
+                            hint(label).color(color)
+                        ]
+                        .spacing(t::S4),
+                        space().width(Fill),
+                        actions
                     ]
-                    .spacing(t::S4),
-                    space().width(Fill),
-                    actions
-                ]
-                .spacing(t::S16)
-                .align_y(Center),
+                    .spacing(t::S16)
+                    .align_y(Center),
+                )
+                .padding([t::S12, t::S8])
+                .style(move |_| {
+                    t::surface(if app.main.hovered_member == Some(id) {
+                        t::BG_HOVER
+                    } else {
+                        t::TRANSPARENT
+                    })
+                }),
             )
-            .padding([t::S12, t::S8])
-            .style(t::bare),
+            .on_enter(crate::main_window::mm(
+                crate::main_window::Message::MemberHover(Some(id)),
+            ))
+            .on_exit(crate::main_window::mm(
+                crate::main_window::Message::MemberHover(None),
+            )),
         );
     }
     let center: Element<'_, Msg> = if rels.is_empty() {

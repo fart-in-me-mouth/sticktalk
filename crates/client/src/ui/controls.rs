@@ -256,7 +256,7 @@ fn status_badge_alpha<'a>(
 }
 pub fn voice_avatar<'a>(app: &App, id: Id, speaking: bool) -> Element<'a, Msg> {
     let inset = if speaking { t::FOCUS } else { 0. };
-    container(super::avatar(app, id, t::S24 - inset * 2., false))
+    container(avatar(app, id, t::S24 - inset * 2., t::BG_SIDEBAR, false))
         .width(t::S24)
         .height(t::S24)
         .padding(inset)

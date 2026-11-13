@@ -192,10 +192,35 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
             _ => "hash",
         }
     };
+    let leading: Element<'_, Msg> = if c.kind == ChannelKind::Direct {
+        c.recipient_ids
+            .iter()
+            .copied()
+            .find(|id| Some(*id) != app.me())
+            .map(|id| {
+                controls::avatar_fade(
+                    app,
+                    id,
+                    t::S24,
+                    if selected {
+                        t::BG_SELECTED
+                    } else if hovered {
+                        t::BG_HOVER
+                    } else {
+                        t::BG_SIDEBAR
+                    },
+                    false,
+                    opacity,
+                )
+            })
+            .unwrap_or_else(|| icon(glyph, t::ICON, t::alpha(t::TEXT_MUTED, opacity)).into())
+    } else {
+        icon(glyph, t::ICON, t::alpha(t::TEXT_MUTED, opacity)).into()
+    };
     // Actions are siblings, not nested buttons: a gear/invite never selects the row.
     let label = button(
         row![
-            icon(glyph, t::ICON, t::alpha(t::TEXT_MUTED, opacity)),
+            leading,
             txt(ellipsis(
                 &app.state.model.channel_name(c),
                 if active { 12 } else { 22 }
