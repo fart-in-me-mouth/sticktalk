@@ -11,4 +11,3 @@ test shared_nv12_shader_reaches_iced_pipeline_without_cpu_fallback ... D3D11 NV1
 ok
 
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.28s
-
