@@ -29,7 +29,7 @@ const server = spawn(
     "--data-dir",
     data,
     "--web-root",
-    join(target, "web-dist"),
+    (process.env.STICKTALK_WEB_DIST ?? join(target, "web-dist")),
     "--min-free-disk-gb",
     "0",
     "--voice-bind-ip",
@@ -65,6 +65,8 @@ async function register(page, user) {
       [390, 844],
       [412, 915],
       [820, 1180],
+    [1280, 800],
+    [1920, 1080],
     ]) {
       await page.setViewportSize({ width, height });
       await page.evaluate(() => document.fonts.ready);
@@ -89,6 +91,7 @@ async function register(page, user) {
 }
 async function form(page, kind, name, extra = {}) {
   await act(page, `dialog:${kind}`);
+  await page.waitForSelector('.live-modal [data-live-form]');
   if (await page.locator("#f-name").count())
     await page.locator("#f-name").fill(name);
   for (const [id, value] of Object.entries(extra)) {
@@ -101,6 +104,7 @@ async function form(page, kind, name, extra = {}) {
 }
 async function message(page, text) {
   await page.locator("#live-input").fill(text);
+  await act(page, "complete-close");
   await page.locator("#live-input").press("Enter");
   await page.waitForFunction(
     (text) =>
@@ -109,6 +113,18 @@ async function message(page, text) {
       ),
     text,
   );
+}
+async function capture(page, prefix) {
+  await page.mouse.move(0,0);
+  for (const [width,height] of [[390,844],[412,915],[820,1180],[1440,900],[1280,800],[1920,1080]]) {
+    await page.setViewportSize({width,height});
+    await page.evaluate(()=>document.fonts.ready);
+    await page.evaluate(()=>{const list=document.querySelector("#live-messages"); if(list&&!document.querySelector(".live-modal,#live-viewer"))list.scrollTop=list.scrollHeight;});
+    await wait(80);
+    await page.evaluate(()=>{const list=document.querySelector('#live-messages');if(list&&!document.querySelector('.live-modal,#live-viewer'))list.scrollTop=list.scrollHeight;});
+    await page.screenshot({path:`screenshots/live/${prefix}-${width}x${height}.png`});
+  }
+  await page.setViewportSize({width:1440,height:900});
 }
 async function diagnostic(page) {
   return page.evaluate(async () => {
@@ -192,6 +208,12 @@ try {
     .locator('.server-rail [data-live^="guild:"]')
     .getAttribute("data-live");
   assert(guild);
+  await form(alice,'create','Weekend Games');
+  await alice.waitForFunction(()=>!document.querySelector('.live-modal'));
+  await form(alice,'create','Release Engineering');
+  await alice.waitForFunction(()=>!document.querySelector('.live-modal'));
+  await act(alice,guild);
+  await alice.waitForSelector('#live-input');
   await form(alice, "invite", "");
   await alice.waitForSelector(".live-modal code");
   const invite = await alice.locator(".live-modal code").first().textContent();
@@ -412,17 +434,24 @@ try {
       ),
     );
   }
+  await message(bob,"The phone layout is ready for another pass. Could you check the longer messages, the member drawer and the call controls before we ship?");
+  await message(alice,"Yes — keeping the composer visible when the keyboard opens is the important part.");
+  await message(alice,"Build check: cargo test -p sticktalk-web");
+  const reviewMessage=await alice.locator("[data-live-message]").last().getAttribute("data-live-message");
+  await act(bob,`react:${reviewMessage},👍`);
+  await act(alice,`reply:${reviewMessage}`);
+  await message(alice,"The workspace photo is attached below.");
   const originals = [];
   alice.on("request", (r) => {
     if (/\/api\/v1\/files\/\d+$/.test(new URL(r.url()).pathname))
       originals.push(r.url());
   });
   await alice.locator("#live-file").setInputFiles({
-    name: "sticktalk-icon.png",
-    mimeType: "image/png",
-    buffer: await readFile("public/icons/icon-192.png"),
+    name: "workspace.jpg",
+    mimeType: "image/jpeg",
+    buffer: await readFile("public/mock-workspace.jpg"),
   });
-  await alice.waitForSelector('.live-upload:has-text("sticktalk-icon.png")');
+  await alice.waitForSelector('.live-upload:has-text("workspace.jpg")');
   await message(alice, "An image uploaded from the browser");
   await alice.waitForSelector("[data-view-image] img");
   assert.equal(originals.length, 0);
@@ -431,9 +460,20 @@ try {
     () => document.querySelector("#live-viewer img")?.naturalWidth > 0,
   );
   assert(originals.length > 0);
-  await alice.screenshot({
-    path: "screenshots/live/image-viewer-1440x900.png",
-  });
+  await alice.waitForFunction(()=>!document.querySelector("#live-viewer .viewer-loading"));
+  await capture(alice,"image-viewer");
+  await alice.keyboard.press("+");
+  const zoomBefore=await alice.locator("#live-viewer img").evaluate(e=>e.style.transform);
+  const touch=await contexts[0].newCDPSession(alice);
+  await touch.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:700,y:450,id:1},{x:740,y:450,id:2}]});
+  await touch.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:680,y:440,id:1},{x:780,y:460,id:2}]});
+  await touch.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+  const zoomAfter=await alice.locator("#live-viewer img").evaluate(e=>e.style.transform);
+  assert.notEqual(zoomBefore,zoomAfter);
+  await alice.keyboard.press("0");
+  assert(await alice.locator('#live-viewer a[download]').count());
+  assert(await alice.locator('#live-viewer a[target="_blank"]').count());
+  checks.push("viewer original-on-demand, zoom/reset, two-pointer pinch/pan, save and open-original controls");
   await alice.keyboard.press("Escape");
   await message(bob, "Hello @alice_web");
   await alice.waitForSelector(".mention");
@@ -447,9 +487,12 @@ try {
     [390, 844],
     [412, 915],
     [820, 1180],
+    [1280, 800],
+    [1920, 1080],
   ]) {
     await alice.setViewportSize({ width, height });
     await alice.evaluate(() => document.fonts.ready);
+    await alice.evaluate(()=>{const list=document.querySelector("#live-messages");if(list)list.scrollTop=list.scrollHeight;});
     await wait(100);
     const path = `screenshots/live/chat-${width}x${height}.png`;
     await alice.screenshot({ path, animations: "disabled" });
@@ -459,6 +502,84 @@ try {
       assert(await alice.locator(".channel-header>.icon").isVisible());
     }
   }
+  await alice.setViewportSize({width:1440,height:900});
+  await message(bob,"The next test is ready.");
+  await message(bob,"We can keep these two lines together.");
+  await message(alice,"Same author, one avatar.");
+  await message(alice,"The second line is compact.");
+  await message(alice,"And the third line keeps the same gutter.");
+  await alice.waitForSelector(".message.continuation");
+  assert.equal(await alice.locator(".continuation .message-meta").count(),0);
+  assert.equal(await alice.locator(".continuation .message-avatar").count(),0);
+  await alice.locator('.continuation').last().hover();
+  assert.equal(await alice.locator('.continuation .gutter-time').last().evaluate(e=>getComputedStyle(e).visibility),'visible');
+  await capture(alice,"grouped-chat");
+  checks.push("consecutive author grouping, compact rows and timestamp gutter on all six widths");
+
+  // All four completion types, real member/role/channel projections, keyboard selection.
+  for (const [query,expected] of [["@bob","bob_web"],["#private","private-room"],[":smile","smil"]]) {
+    await alice.locator("#live-input").fill(query);
+    await alice.waitForSelector("#live-completions [role=option]");
+    assert((await alice.locator("#live-completions").textContent()).toLowerCase().includes(expected));
+    if(query==="@bob") await capture(alice,"autocomplete");
+    await alice.locator("#live-input").press("ArrowDown");
+    await alice.locator("#live-input").press("Tab");
+    assert.notEqual(await alice.locator("#live-input").inputValue(),query);
+    await alice.locator("#live-input").fill("");
+    await act(alice,"complete-close");
+  }
+  await act(alice,roleAction);
+  await alice.locator("#f-mentionable").check();
+  await alice.locator("[type=submit]").click();
+  await alice.waitForSelector('[data-live^="role:"]:has-text("Web Testers")');
+  await act(alice,"close");
+  await alice.locator("#live-input").fill("@Web");
+  await alice.waitForSelector('#live-completions [data-completion^="<@&"]');
+  await alice.locator("#live-input").press("Escape");
+  await alice.locator("#live-input").fill("");
+  checks.push("@user, @role, #channel and :emoji: autocomplete; arrows/Tab/Escape");
+
+  await act(alice,"dialog:settings"); await alice.waitForSelector(".settings-page");
+  await capture(alice,"settings");
+  await act(alice,"dialog:profile-edit");
+  await alice.waitForSelector("#live-avatar", {state:'attached'});
+  await capture(alice,"profile-settings");
+  await alice.locator("#live-avatar").setInputFiles({name:"avatar.png",mimeType:"image/png",buffer:await readFile("public/icons/icon-192.png")});
+  await alice.waitForFunction(()=>document.querySelector(".settings-identity .avatar img")?.naturalWidth>0);
+  await act(alice,"close");
+  checks.push("desktop settings layout, mobile settings-list/subpage navigation, real avatar upload");
+  await act(alice,"dialog:member-role");
+  await alice.locator("#f-name").selectOption(bobId);
+  await alice.locator(`[data-member-role="${roleId}"]`).check();
+  await alice.locator("[type=submit]").click();
+  await alice.waitForFunction(()=>!document.querySelector(".live-modal"));
+  await act(alice,"panel:right");
+  await alice.waitForSelector('.member-group .category:has-text("Web Testers")');
+  await capture(alice,"members");
+  await act(alice,"panel:");
+  checks.push("hoisted-role member groups, counts and owner crown");
+
+  const caraContext=await browsers[1].newContext({viewport:{width:1440,height:900}});
+  const cara=await caraContext.newPage();
+  cara.on("pageerror",e=>errors.push(e.stack??String(e)));
+  await register(cara,"cara_web");
+  await form(alice,"friend","cara_web");
+  await cara.locator('[data-live^="friend:accept,"]').click();
+  await act(alice,"close");
+  await act(alice,"dialog:group");
+  await alice.waitForSelector('[data-live-form="group"]');
+  await alice.locator("#f-name").fill("Browser Group");
+  await alice.locator(`[data-group-user="${bobId}"]`).check();
+  await alice.locator('.live-checkbox:has-text("cara_web") input').check();
+  await alice.locator("[type=submit]").click();
+  await alice.waitForFunction(()=>document.querySelector(".channel-header h1")?.textContent==="Browser Group");
+  const group=await alice.locator("#live-messages").getAttribute("data-channel");
+  await message(alice,"A real group DM");
+  await act(bob,`channel:${group}`);
+  await expect(bob,()=>document.querySelector(".markdown")?.textContent.includes("A real group DM"));
+  await act(alice,`channel:${channel}`);
+  await act(bob,`channel:${channel}`);
+  checks.push("create group DM and cross-browser delivery");
   await alice.setViewportSize({ width: 1440, height: 900 });
   await form(alice, "channel", "Browser Voice", { "f-extra": "voice" });
   await alice.waitForFunction(() => !document.querySelector(".live-modal"));
@@ -540,6 +661,7 @@ try {
   checks.push(
     "two independent Chromium processes decode remote H.264 camera frames",
   );
+  assert.equal(await alice.locator('.live-error').count(),0,'no stale typing/error toast in call');
   await writeFile(
     "screenshots/live/voice-stats.json",
     JSON.stringify(
@@ -561,10 +683,22 @@ try {
     [390, 844],
     [412, 915],
     [820, 1180],
+    [1280, 800],
+    [1920, 1080],
   ]) {
     await alice.setViewportSize({ width, height });
     await wait(100);
     const path = `screenshots/live/voice-${width}x${height}.png`;
+    const tiles=await alice.locator('.participant-tile:not([hidden])').evaluateAll(nodes=>nodes.map(n=>({
+      rect:n.getBoundingClientRect().toJSON(), kind:n.dataset.kind,
+      fit:n.querySelector('video')&&getComputedStyle(n.querySelector('video')).objectFit,
+    })));
+    for(const t of tiles) {
+      assert(Math.abs(t.rect.width/t.rect.height-16/9)<.02);
+      if(t.kind==='camera')assert.equal(t.fit,'cover');
+      if(width<768)assert(t.rect.bottom<height-60,'two tiles fit above bottom controls');
+    }
+    assert.equal(await alice.locator('.call-heading').count(),0);
     await alice.screenshot({ path });
     screenshots.push(path);
   }
@@ -667,6 +801,7 @@ try {
   assert.equal(await alice.locator("#live-input").inputValue(), "");
   await act(alice, "dialog:emoji");
   await alice.locator("#emoji-query").fill("smile");
+  await wait(300);
   await alice.waitForSelector(".emoji-grid button");
   const emoji = await alice
     .locator(".emoji-grid button")
@@ -688,7 +823,7 @@ try {
   assert.deepEqual(violations, []);
   const report = {
     bundleRevision: JSON.parse(
-      await readFile(join(target, "web-dist/sizes.json"), "utf8"),
+      await readFile(join(process.env.STICKTALK_WEB_DIST ?? join(target, "web-dist"), "sizes.json"), "utf8"),
     ).revision,
     fastQa: !!process.env.STICKTALK_FAST_QA,
     realServer: true,

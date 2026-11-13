@@ -28,6 +28,11 @@ let publications = new Map(),
   queue = Promise.resolve(),
   status = "Disconnected";
 const trace = [];
+const speaking = new Set();
+export function retainSpeaking(states, sessionKey, active) {
+  if (!active) states.delete(sessionKey);
+  else if (states.size < 64 || states.has(sessionKey)) states.add(sessionKey);
+}
 const record = (type, data) => {
   trace.push({ type, data });
   if (trace.length > 64) trace.shift();
@@ -251,6 +256,7 @@ function createTile(id, p, kind) {
   const tile = document.createElement("div");
   tile.className = "participant-tile";
   tile.dataset.participant = key(p.session);
+  tile.classList.toggle('is-speaking', speaking.has(key(p.session)));
   tile.dataset.kind = kind;
   if (p.session.user_id === self()) tile.dataset.self = "true";
   const label = document.createElement("div");
@@ -357,6 +363,7 @@ export function event(event) {
       break;
     case "left": {
       const prefix = key(data.session);
+      speaking.delete(prefix);
       participants.delete(prefix);
       for (const [id, s] of subscriptions)
         if (key(s.participant.session) === prefix) {
@@ -371,6 +378,7 @@ export function event(event) {
       break;
     }
     case "speaking":
+      retainSpeaking(speaking, key(data.session), data.speaking);
       for (const entry of elements.values())
         if (entry.tile.dataset.participant === key(data.session))
           entry.tile.classList.toggle("is-speaking", data.speaking);
@@ -565,6 +573,7 @@ function stop(notify) {
     e.tile.remove();
   }
   elements.clear();
+  speaking.clear();
   if (notify) signal("leave");
   mount();
 }

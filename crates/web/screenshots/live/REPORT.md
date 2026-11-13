@@ -1,104 +1,91 @@
-# Live web client QA — partial launch implementation
+# Live web QA — mobile parity and split WASM
 
-Build revision `5470c80f88a389066a73`. **Not completion of B8 or every Phase 1/launch flow.**
-All proof uses the default production build, a real Rust server and two independent
-headless Chromium processes. HTTP, binary WebSocket and SFU traffic are real and
-loopback-only. No fixture API responses. Fake camera/microphone devices; OS audio
-and notifications disabled. Push permission/PushManager are mocked, not provider delivery.
+Production revision `4ad95a5c0079c5550716`. **Partial B8, not launch-complete.**
+Real Rust server, binary WS/SFU, loopback-only, headless Chromium; fake AV devices,
+muted OS audio and mocked push permission/provider. No visible windows.
 
-## Implemented and exercised
+## Changes / evidence
 
-- Cookie login/register/recovery, correct CSRF header, client-core web adapters,
-  bounded model, heartbeat/reconnect/resume wiring and exact 64-bit signaling IDs.
-- Friends, DMs, server create/invite/join, text/voice channels; role color,
-  permission/hoist editing, role assignment and private-channel grant/revoke.
-- Markdown, replies, reactions, edits, pins, mentions, notifications and device list.
-  Real history extent/anchor seeks with 55 seeded history messages and <=50 mounted.
-- **17 MiB** Blob.slice upload, paused after **16 MiB**, same-file reselect and real
-  server-offset resume. Attachment delivery, thumbnail-only initial load and original
-  image fetch on viewer gesture. Emoji crate search/composer insertion.
-- Real SFU audio/camera exchange, mute/deafen/leave and complete publication,
-  subscription and media-element release. SDP dynamic-SSRC/MSID normalization fixes
-  Chromium's decoded-but-black remote video without altering DTLS fingerprints.
-- Push explainer gesture -> one permission request -> real subscription POST 201.
-  Worker contract tests cover generic content, exact decimal deep links and same-origin
-  click reuse/focus. Focus hint follows visibility/focus and selected conversation.
-- Private history/pin caches and drafts are purged on permission loss/account switch;
-  logout then password login as another account is covered.
+- Seven-minute author grouping, compact continuation rows and hover gutter time;
+  measured virtual-scroll anchors and stale-navigation guards.
+- Camera tiles cover 16:9; shares contain on black; bottom-left names, 2 px mint
+  speaking outline, responsive two-tile layout and channel/chat-icon header.
+- Four-trigger keyboard autocomplete; desktop settings / phone list-to-subpage
+  navigation, profile/avatar editing, hoisted-role members with loaded-page counts,
+  invite create/join/copy and group-DM create/manage.
+- Gesture-lazy viewer: zoom, pan, two-pointer pinch, save and open original.
+- Enabled direct KLIPY mode opens only exact API/media CSP hosts; proxy/disabled
+  modes remain closed. Server mode/CSP test and bounded provider-adapter unit test.
+- Leptos `#[lazy]` screen/codecs/data splitting; lazy viewer/GIF/media JS; removed
+  production pulldown-cmark dependency. Twiggy audit: [top retainers](twiggy-top.txt).
+- z / fat LTO / abort, `wasm-opt -Oz --strip-debug`, static boot skeleton, parallel
+  session/compile, versioned split packages. Worker precaches shell/core; HTML SWR,
+  versioned assets cache-first, secondary modules on demand, reload-gated updates.
 
-22 live checks passed; application errors **0**, CSP violations **0**.
-[Machine-readable results](results.json), [worker/media tests](../../tests/platform.mjs).
+**28 real-server checks**, **0 application errors**, **0 CSP violations**.
+Includes 55-row history/seek, bounded 50 mounted messages, 17 MiB resumable upload,
+two-process real SFU audio/video and a third isolated account for group DMs.
+[Results](results.json) · [RTP](voice-stats.json).
 
-## Call evidence
+**54 PNGs**: login, chat, grouped-chat, voice, settings, profile-settings, members,
+autocomplete, image-viewer at **390×844, 412×915, 820×1180, 1440×900, 1280×800,
+1920×1080**. Opened/reviewed every screen/size in contact sheets plus representative
+full images against UI_SPEC §8; fixed avatar alignment, call error toast, scroll
+anchoring, Logout color and phone composer sizing before retaking.
+[390 grouped chat](grouped-chat-390x844.png) · [390 call](voice-390x844.png) ·
+[390 settings](settings-390x844.png) · [1440 profile](profile-settings-1440x900.png).
+This is the nine-screen web matrix, not all §6 launch screens. Existing muted-text
+AA override (#A0A0AA) remains. Member counts cover loaded pages, with Load More.
 
-- Browser 1: 61,440 decoded audio samples, 17 decoded remote H.264 frames; remote video 320 px wide. RTP and DOM playback evidence: [voice-stats.json](voice-stats.json).
-- Browser 2: 61,920 decoded audio samples, 15 decoded remote H.264 frames; remote video 320 px wide. RTP and DOM playback evidence: [voice-stats.json](voice-stats.json).
+## Performance / sizes
 
-These are short synthetic loopback tests, **not** voice quality, HD bitrate,
-network-loss or large-call certification. The fake remote video rendered at 320x180.
+Lighthouse **13.6.0**, real authenticated URL. Cold uses mobile simulated throttling;
+warm uses DevTools 4× CPU / 150 ms / 1.6 Mbps with HTTP/SW caches retained.
+Only one authenticated tab is present per run (one WS per cookie session).
+Earlier warm samples with competing same-session tabs are superseded.
 
-## Screenshots
-
-Real-server login, conversation and call PNGs at **1440x900**, **390x844**,
-**412x915** and **820x1180**: `login-*`, `chat-*`, `voice-*` in this directory.
-[Desktop chat](chat-1440x900.png) · [390 phone chat](chat-390x844.png) ·
-[412 phone call](voice-412x915.png) · [820 tablet call](voice-820x1180.png).
-[Image viewer](image-viewer-1440x900.png).
-
-Phone conversations hide bottom tabs and show # before text-channel names. Call tiles
-use accent speaking rings, no presence dots, full bottom controls and sidebar
-camera/share/disconnect. `text.muted` **#74747C -> #A0A0AA** (5.21:1 on selected,
-5.81:1 on elevated); dark role text is lightened without changing saved swatches.
-
-## Performance and size
-
-Lighthouse **13.6.0**, real-server cold runs. Scores are
-performance / accessibility / best practices.
-
-| Page | Scores | TTI |
+| Page | Perf / accessibility / best practices | TTI |
 | --- | --- | --- |
-| Cold mobile login | 100 / 100 / 100 | 1.437 s |
-| Cold authenticated mobile chat | 85 / 100 / 100 | 4.436 s |
-| Desktop login | 100 / 100 / 100 | 0.250 s |
+| Cold mobile login | 100 / 100 / 100 | 1.441 s |
+| Cold authenticated mobile chat | 87 / 100 / 100 | **4.018 s** |
+| Warm authenticated mobile chat | 95 / 100 / 100 | **0.949 s** |
+| Desktop login | 100 / 100 / 100 | 0.252 s |
 
-**Cold authenticated chat misses <2 s.** Progressive login defers WASM; it does not
-solve chat startup. CSS is smaller, fonts preload/swap, media/push are lazy JS modules;
-heavy Rust settings/role/picker code still shares the main WASM.
+**Both chat targets missed** (≤2.0 s cold / ≤0.8 s warm). Skeleton paint is not
+chat interactivity. Cold chat LCP 4.011 s, TBT 39 ms, CLS 0; warm LCP 0.970 s,
+TBT 249 ms, CLS 0. Further core/boot reduction is required.
+[Summary](lighthouse-summary.json) · [warm audit](lighthouse-chat-warm-mobile.json).
 
-- WASM: **2,354,735 raw / 526,282 Brotli bytes**.
-- Distribution: **2,609,329 raw / 676,346 all-assets Brotli bytes**.
-- Installable shell inventory: **669,234 bytes**, not cold-login
-  network transfer. [Asset inventory](bundle-sizes.json), [Lighthouse summary](lighthouse-summary.json).
-- 60 s idle Friends screen, voice inactive: **0.072%** of one
-  logical CPU. Whole Chromium process tree working set **474.6 MiB**,
-  private **116.2 MiB** (private delta vs blank browser
-  **39.1 MiB**). Working-set totals double-count shared pages;
-  this is not a native-client/physical-phone <100 MB pass. [Idle sample](idle.json).
-- QA dependency audit: **0 total vulnerabilities, 0 high**. Removed obsolete PWA
-  Lighthouse tooling; current Playwright/Lighthouse lockfile. [Audit](../dependency-audit.json).
+- Core WASM: **1,797,367 raw / 421,493 Brotli bytes** (previous core 526,282 Brotli).
+- **18 lazy WASM chunks: 174,945 Brotli bytes**: shared 43,453; autocomplete 1,293;
+  dialog REST 8,067; shortcode 1,011; voice events 43,503; GIF 5,444; call UI 1,762;
+  dialogs/settings/roles/admin 36,135; profile 1,051; upload 9,646; voice actions 23,580.
+- All-assets Brotli **756,005 bytes**; installable shell inventory **580,049 bytes**,
+  not actual cold transfer. [Every chunk and asset](bundle-sizes.json).
+- 60.02 s inactive Friends: **0.086%** of one logical CPU. Whole Chromium tree
+  working set **252.2 MiB**, private **110.6 MiB**, private delta **36.0 MiB**.
+  Shared pages double-count in working sets; not a native/physical-phone RAM pass.
+  [Idle sample](idle.json).
 
 ## Validation passed
 
-- `cargo test -p sticktalk-web` — **7 tests**.
-- `cargo clippy -p sticktalk-web --all-targets -- -D warnings`.
-- Same clippy command with `--target wasm32-unknown-unknown`.
-- `cargo fmt --all -- --check` and `git diff --check`.
-- Trunk release `web-release` production build; `npm test`; `npm run test:server`
-  (strict CSP and blocked inline probes); `npm run audit`; `npm run test:idle`;
-  `npm audit` (0 vulnerabilities).
+- `cargo test -p sticktalk-web -p sticktalk-server` — **110 tests**.
+- `cargo clippy -p sticktalk-web -p sticktalk-server --all-targets -- -D warnings`.
+- `cargo clippy -p sticktalk-web --target wasm32-unknown-unknown --all-targets -- -D warnings`.
+- `cargo fmt --all -- --check`; `git diff --check`.
+- Split production WASM build; `npm test`; `npm run test:server`; `npm run audit`;
+  `npm run test:idle`; `npm audit --audit-level=high` (**0 vulnerabilities**).
 
-## Remaining / not certified
+## Remaining / cleanup
 
-- Full Phase 1 administration, moderation, group DMs and invite management are not
-  all exposed. Settings/profile/avatar layouts, role reorder/member grouping,
-  message grouping/mention autocomplete, picker polish and complete viewer actions
-  remain. Existing functional dialogs are not full UI_PARITY implementations.
-- Google redirect/completion is wired but mock-OAuth browser E2E was not rerun.
-  Proxy GIF search is wired but not provider-tested; direct KLIPY mode needs a
-  coordinated server CSP change (outside this task's allowed crate).
-- Display-capture FPS/resolution controls and device/output pickers are implemented
-  but actual screen capture/device switching are not headless-certified. Real
-  phones/Safari, OS/provider push delivery, offline/version-upgrade behavior,
-  impaired networks and large-call quality remain unverified.
-- True WASM screen splitting and cold-chat <2 s are unfinished. Scope is a tested
-  working foundation replacing fixtures, **not a launch-complete app**.
+- Full native settings/admin/profile-popout parity, role reorder and rich GIF
+  embeds/favorites/categories remain. Viewer forwarding/Copy Image not exposed.
+- No real KLIPY key/provider delivery, OAuth rerun, physical phone/Safari,
+  display-capture/device-switching, large-original decode-memory or impaired/large
+  call certification. Full offline/multi-tab version-upgrade QA remains.
+- Incremental disabled; no Rust rebuilds after the urgent disk request. Final target
+  **6,037,403,576 bytes** (<10 GB), node_modules **189,239,828 bytes**. Verified exact
+  paths, but native PowerShell `Remove-Item -LiteralPath ... -Recurse -Force` was
+  **blocked by tool policy** for both directories, including target-local browser
+  caches. Earlier debug/release cleanup was also blocked; artifacts remain and need
+  owner/lead cleanup. No alternate deletion mechanism used to bypass that block.

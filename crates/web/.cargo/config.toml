@@ -1,0 +1,4 @@
+[target.wasm32-unknown-unknown]
+# Relocations and the indirect table are required by Leptos/wasm-split. Only
+# browser builds use these flags; native/server artifacts are unchanged.
+rustflags = ["-Clink-arg=--emit-relocs", "-Clink-arg=--export-table"]

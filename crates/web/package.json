@@ -2,7 +2,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/platform.mjs && node tests/live.mjs",
+    "test": "node tests/platform.mjs && node tests/loading.mjs && node tests/live.mjs",
     "audit": "node tests/audit.mjs",
     "serve": "node scripts/serve.mjs",
     "test:server": "node tests/server-smoke.mjs",

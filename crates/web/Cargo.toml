@@ -8,7 +8,7 @@ publish = false
 [features]
 default = []
 # Screenshot fixtures are excluded from the production WASM. Also requires ?mock.
-mock = []
+mock = ["dep:pulldown-cmark"]
 
 [dependencies]
 sticktalk-client-core = { path = "../client-core", features = ["web"] }
@@ -23,6 +23,9 @@ wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 sha2 = "0.10"
 leptos = { version = "0.8.20", features = ["csr"] }
-pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"], optional = true }
 wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlTextAreaElement", "Event", "CustomEvent", "CustomEventInit", "Location", "KeyboardEvent", "Blob", "File", "FileList", "HtmlSelectElement", "Navigator"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }

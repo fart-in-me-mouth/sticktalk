@@ -112,6 +112,19 @@ impl Browser {
             media.push(' ');
             media.push_str(&u.origin().ascii_serialization());
         }
+        // Match /meta's direct capability exactly. Only the public-client mode
+        // permits browser discovery; never widen connect-src for proxy/disabled.
+        let direct_gifs = config.gifs.gif_provider.is_some()
+            && config.gifs.gif_mode == crate::gifs::GifMode::Direct
+            && config.gifs.gif_public_client_key.is_some();
+        let gif_api = if direct_gifs {
+            media.push_str(
+                " https://static.klipy.com https://static1.klipy.com https://static2.klipy.com",
+            );
+            " https://api.klipy.com"
+        } else {
+            ""
+        };
         // Single-threaded wasm needs no cross-origin isolation. Do not enable
         // COEP: it would block provider GIF/video assets lacking CORP headers.
         let ws_origin = config
@@ -121,7 +134,7 @@ impl Browser {
         // Dynamic avatar colors/virtual spacer heights are style attributes only.
         // Keep inline script and style ELEMENTS blocked; the web packager externalizes
         // Trunk's bootstrap and generated UI tokens into same-origin hashed assets.
-        let csp=format!("default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; font-src 'self'; img-src 'self'{media}; media-src 'self'{media}; connect-src 'self' {}; worker-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",ws_origin.trim_end_matches('/')).parse().map_err(|_|Error::new(ErrorCode::InvalidRequest))?;
+        let csp=format!("default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; font-src 'self'; img-src 'self'{media}; media-src 'self'{media}; connect-src 'self' {}{gif_api}; worker-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",ws_origin.trim_end_matches('/')).parse().map_err(|_|Error::new(ErrorCode::InvalidRequest))?;
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(8))
             .connect_timeout(Duration::from_secs(3))

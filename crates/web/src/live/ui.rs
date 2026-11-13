@@ -21,7 +21,7 @@ fn avatar(u: &UserSummary, size: &str) -> AnyView {
         .filter_map(|s| s.chars().next())
         .take(2)
         .collect::<String>();
-    view! {<span class=format!("avatar {size}")><span class="avatar-face">{initials}</span></span>}
+    view! {<span class=format!("avatar {size}")>{if let Some(id)=u.avatar_id{view!{<img class="avatar-face" src=format!("/api/v1/files/{}/thumbnail",id.0) alt="" loading="lazy"/>}.into_any()}else{view!{<span class="avatar-face">{initials}</span>}.into_any()}}</span>}
         .into_any()
 }
 fn color(a: &App, user: Id) -> String {
@@ -37,12 +37,16 @@ fn color(a: &App, user: Id) -> String {
     })
 }
 pub(super) fn app(a: &App) -> AnyView {
+    if !a.ready && a.model.cursor.is_none() && (a.model.me.is_some() || a.status == "Connecting…")
+    {
+        return view!{<div class="app-shell skeleton-shell" role="status" aria-label="Loading conversations"><div class="left-panel"><nav class="server-rail"><img src="/public/icons/icon-192.png" width="48" height="48" alt="StickTalk"/></nav><aside class="channel-sidebar"><div class="sidebar-header">"StickTalk"</div><div class="skeleton-lines"><span></span><span></span><span></span><span></span></div></aside></div><main class="main-pane"><header class="channel-header"><strong>"StickTalk"</strong></header><div class="connection-banner">"Reconnecting…"</div><div class="skeleton-messages"><div></div><div></div><div></div></div><div class="skeleton-composer"></div></main></div>}.into_any();
+    }
     view!{<div id="sticktalk" data-live-app data-screen=a.screen.clone() data-self-id=a.model.me.as_ref().map(|me|me.user.id.0.to_string())>
         <div hidden inner_html=include_str!("../../public/icons/sprite.svg")></div>
         {if a.model.me.is_none(){auth(a)}else{shell(a)}}
         {if a.error.is_empty(){().into_any()}else{view!{<div class="live-error" role="alert">{a.error.clone()}{ib("x","Dismiss","dismiss-error")}</div>}.into_any()}}
-        {if a.dialog.is_empty(){().into_any()}else{dialog(a)}}
-        <div id="live-viewer" class="live-viewer" hidden role="dialog" aria-modal="true" aria-label="Image viewer"></div>
+        {if a.dialog.is_empty(){().into_any()}else{a.dialog_render.map_or_else(loading_dialog, |render|render(a))}}
+
     </div>}.into_any()
 }
 fn auth(a: &App) -> AnyView {
@@ -86,16 +90,16 @@ fn shell(a: &App) -> AnyView {
             <section id="live-connected" class="voice-connected" hidden><div class="voice-connection-line"><strong>"Voice Connected"</strong></div><div class="voice-tiles">{ib("video","Camera","media:camera")}{ib("monitor","Share Screen","media:share")}{ib("phone-off","Disconnect","media:leave")}</div></section>
             <section class="user-panel">{avatar(me,"small")}<button class="self-label" data-live=format!("profile:{}",me.id.0)><strong>{name(me)}</strong><small>{format!("@{}",me.username)}</small></button>{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("settings","User Settings","dialog:settings")}</section>
         </aside></div><div class="panel-scrim" data-live="panel:" aria-hidden="true"></div>
-        <main class="main-pane"><header class="channel-header"><div class="mobile-menu">{ib("menu","Open Channels","panel:left")}</div>{icon(if channel.is_some_and(|c|c.kind==ChannelKind::Voice){"volume-2"}else if channel.is_some(){"hash"}else{"users"})}<h1>{title.clone()}</h1><div class="header-actions">{ib("bell","Notification Settings","dialog:notifications")}{ib("pin","Pinned Messages","dialog:pins")}{ib("users","Member List","panel:right")}</div></header>
+        <main class="main-pane"><header class="channel-header"><div class="mobile-menu">{ib("menu","Open Channels","panel:left")}</div>{icon(if channel.is_some_and(|c|c.kind==ChannelKind::Voice){"volume-2"}else if channel.is_some(){"hash"}else{"users"})}<h1>{title.clone()}</h1><div class="header-actions">{if a.screen=="voice"{ib("message-circle","Open Chat",&a.model.channels.values().find(|c|c.guild_id==a.guild&&c.kind==ChannelKind::Text).map_or("home".into(),|c|format!("channel:{}",c.id.0)))}else{view!{{ib("bell","Notification Settings","dialog:notifications")}{ib("pin","Pinned Messages","dialog:pins")}{ib("users","Member List","panel:right")}}.into_any()}}</div></header>
             {if !a.status.is_empty(){view!{<div class="connection-banner" role="status">{a.status.clone()}</div>}.into_any()}else{().into_any()}}
-            {if a.screen=="voice"{voice(a)}else if channel.is_some(){chat(a,&title)}else{home(a)}}
+            {if a.screen=="voice"{a.voice_render.map_or_else(loading_call, |render|render(a))}else if channel.is_some(){chat(a,&title)}else{home(a)}}
         </main>
-        <aside class=format!("member-list {}",if a.panel=="right"{"is-open"}else{""}) aria-label="Members"><h2 class="category">"Members"</h2>{a.model.members.values().filter(|m|Some(m.guild_id)==a.guild).map(|m|view!{<button class="member-row" data-live=format!("profile:{}",m.user.id.0)>{avatar(&m.user,"small")}<span data-member-name=m.user.id.0.to_string() style=format!("color:{}",color(a,m.user.id))>{m.nickname.clone().unwrap_or_else(||name(&m.user))}</span></button>}).collect_view()}{button("Load More","members-more","link-button")}</aside>
+        <aside class=format!("member-list {}",if a.panel=="right"{"is-open"}else{""}) aria-label="Members">{member_groups(a)}{button("Load More","members-more","link-button")}</aside>
         {if channel.is_none(){view!{<nav class="bottom-tabs" aria-label="Main navigation">{button("Home","home","active")}{button("Notifications","dialog:notifications","")}{button("You","dialog:settings","")}</nav>}.into_any()}else{().into_any()}}
     </div>}.into_any()
 }
 fn home(a: &App) -> AnyView {
-    view!{<div class="live-home"><div class="friends-toolbar"><h2>"Friends"</h2>{button("Add Friend","dialog:friend","primary")}{button("Join a Server","dialog:join","secondary")}</div>
+    view!{<div class="live-home"><div class="friends-toolbar"><h2>"Friends"</h2>{button("Add Friend","dialog:friend","primary")}{ib("users","New Group Message","dialog:group")}{button("Join a Server","dialog:join","secondary")}</div>
         {if a.model.relationships.is_empty(){view!{<p class="muted-copy">"No friends yet. Add a friend to start a conversation."</p>}.into_any()}else{().into_any()}}
         {a.model.relationships.values().map(|r|view!{<div class="friend-row">{avatar(&r.user,"small")}<button class="friend-info" data-live=format!("profile:{}",r.user.id.0)><strong>{name(&r.user)}</strong><small>{format!("@{} · {}",r.user.username,match r.kind{RelationshipKind::Friend=>"Friend",RelationshipKind::IncomingRequest=>"Incoming request",RelationshipKind::OutgoingRequest=>"Outgoing request",RelationshipKind::Blocked=>"Blocked"})}</small></button>
         {match r.kind{RelationshipKind::IncomingRequest=>view!{{button("Accept",&format!("friend:accept,{}",r.user.id.0),"primary")}{button("Decline",&format!("friend:decline,{}",r.user.id.0),"secondary")}}.into_any(),RelationshipKind::OutgoingRequest=>button("Cancel",&format!("friend:cancel,{}",r.user.id.0),"secondary"),RelationshipKind::Blocked=>button("Unblock",&format!("friend:unblock,{}",r.user.id.0),"secondary"),_=>ib("message-circle","Message",&format!("friend:dm,{}",r.user.id.0))}}
@@ -118,16 +122,17 @@ fn chat(a: &App, title: &str) -> AnyView {
         shown.drain(..shown.len() - 50);
     }
     let bottom = count.saturating_sub(a.window_rank + shown.len() as u64);
-    view!{<div class="chat-body"><div id="live-messages" class="message-list" role="log" aria-label="Messages" tabindex="0" data-channel=c.0.to_string() data-window-start=a.window_rank.to_string() data-window-end=(a.window_rank+shown.len()as u64).to_string() data-total=count.to_string()>
+    view!{<div class="chat-body"><div id="live-messages" class="message-list" role="log" aria-label="Messages" tabindex="0" data-channel=c.0.to_string() data-history-generation=a.history_generation.to_string() data-window-start=a.window_rank.to_string() data-window-end=(a.window_rank+shown.len()as u64).to_string() data-total=count.to_string()>
         <div style=format!("height:{}px",a.window_rank*88) aria-hidden="true"></div>
         {if shown.is_empty(){view!{<div class="conversation-intro"><span class="intro-icon">{icon("hash")}</span><h2>{format!("Welcome to #{title}!")}</h2><p>{if a.history_busy{"Loading messages…"}else{"This is the beginning of this conversation."}}</p></div>}.into_any()}else{().into_any()}}
-        {shown.iter().map(|m|message(a,m)).collect_view()}
+        {shown.iter().enumerate().map(|(i,m)|message(a,m,crate::wire::continues_group(m.author_id.0,m.created_at,i.checked_sub(1).map(|p|(shown[p].author_id.0,shown[p].created_at))))).collect_view()}
         <div style=format!("height:{}px",bottom*88) aria-hidden="true"></div>
         </div><div class="composer-wrap">
         {if let Some(reply)=a.reply{view!{<div class="reply-preview">{format!("Replying to {}",messages.and_then(|m|m.get(&reply)).map_or("message".into(),|m|a.model.name(m.author_id)))}{ib("x","Cancel Reply","cancel-reply")}</div>}.into_any()}else{().into_any()}}
         {a.attachments.iter().enumerate().map(|(i,f)|view!{<div class="live-upload"><span>{f.filename.clone()}</span>{ib("x","Remove Attachment",&format!("remove-attachment:{i}"))}</div>}).collect_view()}
         {if a.uploading{view!{<div class="live-upload" role="status">{a.upload_progress.clone()}{button("Pause","upload-cancel","secondary")}</div>}.into_any()}else{().into_any()}}
-        <div class="composer"><button type="button" class="icon-button" title="Add Attachment" aria-label="Add Attachment" data-live="pick-file">{icon("plus-circle")}</button><input type="file" id="live-file" hidden/><label class="composer-input"><span class="sr-only">"Message"</span><textarea id="live-input" rows="1" placeholder=format!("Message #{title}") aria-label="Message" maxlength="4000"></textarea></label>{button("GIF","dialog:gif","link-button")}{ib("smile","Emoji Picker","dialog:emoji")}{ib("send","Send Message","send-input")}</div>
+        {if a.completions.is_empty(){().into_any()}else{view!{<div id="live-completions" class="autocomplete" role="listbox" aria-label="Suggestions">{a.completions.iter().enumerate().map(|(i,(label,insert,kind))|view!{<button id=format!("completion-{i}") role="option" aria-selected=if i==0{"true"}else{"false"} data-completion=insert.clone()><span class="completion-avatar">{match kind.as_str() {"Role"=>icon("shield"),"Channel"=>icon("hash"),"Emoji"=>view!{<span>{insert.clone()}</span>}.into_any(),_=>view!{<span>{label.chars().take(1).collect::<String>()}</span>}.into_any()}}</span><span>{label.clone()}</span><small>{if kind=="User"{insert.clone()}else{kind.clone()}}</small></button>}).collect_view()}</div>}.into_any()}}
+        <div class="composer"><button type="button" class="icon-button" title="Add Attachment" aria-label="Add Attachment" data-live="pick-file">{icon("plus-circle")}</button><input type="file" id="live-file" hidden/><label class="composer-input"><span class="sr-only">"Message"</span><textarea id="live-input" rows="1" placeholder=format!("Message #{title}") aria-label="Message" role="combobox" aria-autocomplete="list" aria-controls="live-completions" aria-expanded=(!a.completions.is_empty()).to_string() maxlength="4000"></textarea></label>{button("GIF","dialog:gif","link-button")}{ib("smile","Emoji Picker","dialog:emoji")}{ib("send","Send Message","send-input")}</div>
         <div class="typing-indicator">{a.model.typing.iter().filter(|((channel,_),expiry)|*channel==c&&**expiry>Browser.unix_ms()).map(|((_,u),_)|a.model.name(*u)).take(3).collect::<Vec<_>>().join(", ")}{if a.model.typing.iter().any(|((ch,_),expiry)|*ch==c&&*expiry>Browser.unix_ms()){" is typing…"}else{""}}</div>
         </div></div>}.into_any()
 }
@@ -160,7 +165,7 @@ fn inline(a: &App, v: &Inline, m: &Message) -> AnyView {
         view! {<span style=style>{body}</span>}.into_any()
     }
 }
-fn message(a: &App, m: &Message) -> AnyView {
+fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
     let author = a.model.users.get(&m.author_id).cloned().unwrap_or_default();
     let document = sticktalk_client_core::markdown::parse(&m.content);
     let own = a
@@ -173,12 +178,12 @@ fn message(a: &App, m: &Message) -> AnyView {
         .me
         .as_ref()
         .is_some_and(|me| m.mention_ids.contains(&me.user.id));
-    view!{<article class=format!("message {}",if mention{"mentioned"}else{""}) data-live-message=m.id.0.to_string()>
-        <div class="avatar-gutter"><button data-live=format!("profile:{}",m.author_id.0) aria-label=format!("{}'s profile",name(&author))>{avatar(&author,"message-avatar")}</button></div>
-        <div class="message-content"><div class="message-meta"><button class="author" style=format!("color:{}",color(a,m.author_id)) data-live=format!("profile:{}",m.author_id.0)>{name(&author)}</button><time>{timestamp(m.created_at)}</time>{if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}</div>
+    view!{<article class=format!("message {} {}",if continuation{"continuation"}else{"group-head"},if mention{"mentioned"}else{""}) data-live-message=m.id.0.to_string()>
+        <div class="avatar-gutter">{if continuation{view!{<time class="gutter-time">{short_time(m.created_at)}</time>}.into_any()}else{view!{<button data-live=format!("profile:{}",m.author_id.0) aria-label=format!("{}'s profile",name(&author))>{avatar(&author,"message-avatar")}</button>}.into_any()}}</div>
+        <div class="message-content">{if continuation{().into_any()}else{view!{<div class="message-meta"><button class="author" style=format!("color:{}",color(a,m.author_id)) data-live=format!("profile:{}",m.author_id.0)>{name(&author)}</button><time>{timestamp(m.created_at)}</time></div>}.into_any()}}
         {if let Some(reply)=m.reply_to{view!{<button class="reply-preview" data-live=format!("seek-message:{}",reply.0)>{icon("reply")}{a.model.messages.get(&m.channel_id).and_then(|ms|ms.get(&reply)).map_or("Original message".into(),|m|format!("{}: {}",a.model.name(m.author_id),m.content.chars().take(100).collect::<String>()))}</button>}.into_any()}else{().into_any()}}
         <div class="markdown">{document.blocks.iter().map(|b|match b{Block::Code{text,..}=>view!{<pre><code>{text.clone()}</code></pre>}.into_any(),Block::Paragraph(v)|Block::Header(_,v)|Block::Quote(v)|Block::List(v)=>view!{<p>{v.iter().map(|v|inline(a,v,m)).collect_view()}</p>}.into_any()}).collect_view()}</div>
-        {m.attachments.iter().map(attachment).collect_view()}
+        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{m.attachments.iter().map(attachment).collect_view()}
         <div class="reactions">{m.reactions.iter().map(|r|view!{<button class=if r.me{"reaction mine"}else{"reaction"} data-live=format!("react:{},{}",m.id.0,r.emoji) aria-label=format!("React with {}",r.emoji) aria-pressed=r.me.to_string()>{r.emoji.clone()}" "{r.count}</button>}).collect_view()}</div></div>
         <div class="message-actions">{ib("smile","Add Reaction",&format!("react:{},👍",m.id.0))}{ib("reply","Reply",&format!("reply:{}",m.id.0))}{ib("pin","Pin Message",&format!("pin:{}",m.id.0))}{if own{view!{{ib("pencil","Edit Message",&format!("edit:{}",m.id.0))}{ib("trash-2","Delete Message",&format!("delete:{}",m.id.0))}}.into_any()}else{().into_any()}}</div>
     </article>}.into_any()
@@ -188,7 +193,7 @@ fn attachment(f: &Attachment) -> AnyView {
     let thumb = format!("{original}/thumbnail");
     if f.content_type.starts_with("image/") {
         if let Some(t) = &f.thumbnail {
-            view!{<button class="attachment-image" data-view-image=original data-filename=f.filename.clone() aria-label=format!("Open {}",f.filename)><img src=thumb.clone() srcset=format!("{thumb} 1x") loading="lazy" width=t.width height=t.height alt=f.filename.clone()/></button>}.into_any()
+            view!{<button class="attachment-image" data-view-image=original data-filename=f.filename.clone() data-bytes=f.byte_size.to_string() aria-label=format!("Open {}",f.filename)><img src=thumb.clone() srcset=format!("{thumb} 1x") loading="lazy" width=t.width height=t.height alt=f.filename.clone()/></button>}.into_any()
         } else {
             view!{<button class="button secondary" data-view-image=original data-filename=f.filename.clone()>{format!("View {}",f.filename)}</button>}.into_any()
         }
@@ -199,23 +204,25 @@ fn attachment(f: &Attachment) -> AnyView {
         view!{<a class="file-card" href=original download=f.filename.clone()>{icon("file")}<span>{f.filename.clone()}<small>{format!("{} bytes",f.byte_size)}</small></span>{icon("download")}</a>}.into_any()
     }
 }
-fn voice(a: &App) -> AnyView {
-    view!{<div class="voice-view"><div class="call-heading"><h2>"Voice Call"</h2>{button("Open Chat",&a.model.channels.values().find(|c|c.guild_id==a.guild&&c.kind==ChannelKind::Text).map_or("home".into(),|c|format!("channel:{}",c.id.0)),"secondary")}</div><div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share">{ib("monitor","Share Screen","media:share")}</span>{ib("volume-2","Audio Output","media:output")}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection" role="status">"Connecting…"</p></div>}.into_any()
+fn voice(_a: &App) -> AnyView {
+    view!{<div class="voice-view"><div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share">{ib("monitor","Share Screen","media:share")}</span>{ib("volume-2","Audio Output","media:output")}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection" role="status">"Connecting…"</p></div>}.into_any()
 }
 fn form(title: &str, kind: &str, fields: AnyView) -> AnyView {
     view!{<form data-live-form=kind.to_owned()><h2>{title.to_owned()}</h2>{fields}<button type="submit" class="button primary">"Save"</button></form>}.into_any()
 }
 fn dialog(a: &App) -> AnyView {
     let body=match a.dialog.as_str(){
-        "settings"=>view!{<h2>"User Settings"</h2>{[ ("Profile","profile-edit"),("About Me","about"),("Password & Security","password"),("Devices","devices"),("Voice & Video","media-settings"),("Notifications","notifications")].into_iter().map(|(label,page)|button(label,&format!("dialog:{page}"),"nav-row")).collect_view()}{button("Log Out","logout","danger-text")}}.into_any(),
+        "settings"|"account"=>account(a),
         "server"=>view!{<h2>"Server Settings"</h2>{[("Create Server","create"),("Join Server","join"),("Create Channel","channel"),("Invite People","invite"),("Roles","roles"),("Member Roles","member-role"),("Private Channel","private")].into_iter().map(|(label,page)|button(label,&format!("dialog:{page}"),"nav-row")).collect_view()}}.into_any(),
+        "group-members"=>group_members(a),
+        "group"=>form("New Group Message","group",view!{{field("f-name","Group Name","","text")}<fieldset class="group-recipients"><legend>"Friends"</legend>{a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend).map(|r|view!{<label class="live-checkbox">{avatar(&r.user,"small")}<span>{name(&r.user)}</span><input type="checkbox" data-group-user=r.user.id.0.to_string()/></label>}).collect_view()}</fieldset><input id="f-value" type="hidden"/><p class="muted-copy">"Choose 2 to 15 friends."</p>}.into_any()),
         "friend"=>form("Add Friend","friend",field("f-name","Username","","text")),
         "create"=>view!{{form("Create a Server","create",field("f-name","Server Name","","text"))}{button("Join a Server","dialog:join","link-button")}}.into_any(),
         "join"=>form("Join a Server","join",field("f-name","Invite Code","","text")),
         "channel"=>form("Create Channel","channel",view!{{field("f-name","Name","","text")}<label class="field">"Type"<select id="f-extra"><option value="text">"Text"</option><option value="voice">"Voice"</option><option value="category">"Category"</option></select></label><label class="field">"Category"<select id="f-value"><option value="">"None"</option>{a.model.channels.values().filter(|c|c.guild_id==a.guild&&c.kind==ChannelKind::Category).map(|c|view!{<option value=c.id.0.to_string()>{c.name.clone().unwrap_or_default()}</option>}).collect_view()}</select></label>}.into_any()),
-        "invite"=>form("Invite People","invite",view!{<p>"Create an invite valid for 7 days."</p>{a.model.invites.values().map(|i|view!{<p><code>{i.code.clone()}</code><button class="link-button" data-copy=i.code.clone()>"Copy"</button></p>}).collect_view()}}.into_any()),
-        "profile-edit"=>form("Profile","profile",view!{{field("f-name","Display Name",a.model.me.as_ref().and_then(|me|me.user.display_name.as_deref()).unwrap_or(""),"text")}{field("f-value","Status",a.model.me.as_ref().and_then(|me|me.user.status_text.as_deref()).unwrap_or(""),"text")}}.into_any()),
-        "about"=>form("About Me","about",view!{{field("f-name","Pronouns","","text")}{field("f-value","About Me","","text")}}.into_any()),
+        "invite"=>form("Invite People","invite",view!{<p>"Create an invite valid for 7 days."</p>{a.model.invites.values().filter(|i|Some(i.guild_id)==a.guild).map(|i|view!{<p><code>{i.code.clone()}</code><button class="link-button" data-copy=i.code.clone()>"Copy"</button></p>}).collect_view()}}.into_any()),
+        "profile-edit"=>profile_editor(a),
+        "about"=>form("About Me","about",view!{{field("f-name","Pronouns",a.profile.as_ref().map_or("",|p|p.profile.pronouns.as_str()),"text")}{field("f-value","About Me",a.profile.as_ref().map_or("",|p|p.profile.about_me.as_str()),"text")}{field("f-extra","Banner Color",&format!("#{:06x}",a.profile.as_ref().map_or(0x496c63,|p|p.profile.banner_color)),"color")}}.into_any()),
         "password"=>form("Password & Security","password",view!{{field("f-name","Current Password (blank for Google-only)","","password")}{field("f-value","New Password","","password")}}.into_any()),
         "devices"=>view!{<h2>"Devices"</h2>{a.devices.iter().map(|d|view!{<div class="device-row"><span><strong>{d.device_name.clone()}</strong><small>{format!("{} {}",d.platform,if d.current{"· Current Device"}else{""})}</small></span>{button("Log Out",&format!("device-revoke:{}",d.id),"secondary")}</div>}).collect_view()}{button("Log Out All Other Devices","logout-others","danger-text")}}.into_any(),
         "media-settings"=>view!{<h2>"Voice & Video"</h2><div id="live-device-settings"></div>}.into_any(),
@@ -223,7 +230,7 @@ fn dialog(a: &App) -> AnyView {
         "roles"=>view!{<h2>"Roles"</h2>{a.roles.values().filter(|r|Some(r.guild_id)==a.guild).map(|r|button(&r.name,&format!("role:{}",r.id.0),"nav-row")).collect_view()}{form("Create Role","role-create",field("f-name","Role Name","","text"))}}.into_any(),
         "member-role"=>form("Assign Member Roles","member-role",view!{<label class="field">"Member"<select id="f-name">{a.model.members.values().map(|m|view!{<option value=m.user.id.0.to_string()>{name(&m.user)}</option>}).collect_view()}</select></label><input id="f-value" type="hidden" value=""/>{a.roles.values().filter(|r|Some(r.guild_id)==a.guild&&r.id!=r.guild_id).map(|r|view!{<label class="live-checkbox"><input type="checkbox" data-member-role=r.id.0.to_string()/><span>{r.name.clone()}</span></label>}).collect_view()}<p class="muted-copy">"Replaces all roles for this member."</p>}.into_any()),
         "private"=>form("Private Channel","private",view!{<p>"Restrict this channel to one role. The owner retains access."</p><label class="field">"Allowed Role"<select id="f-name">{a.roles.values().filter(|r|Some(r.guild_id)==a.guild&&r.id!=r.guild_id).map(|r|view!{<option value=r.id.0.to_string()>{r.name.clone()}</option>}).collect_view()}</select></label>}.into_any()),
-        "pins"=>view!{<h2>"Pinned Messages"</h2>{a.pins.iter().map(|m|message(a,m)).collect_view()}}.into_any(),
+        "pins"=>view!{<h2>"Pinned Messages"</h2>{a.pins.iter().map(|m|message(a,m,false)).collect_view()}}.into_any(),
         "edit"=>{let text=a.channel.and_then(|c|a.model.messages.get(&c)).and_then(|ms|a.editing.and_then(|m|ms.get(&m))).map_or("",|m|m.content.as_str());form("Edit Message","edit",field("f-name","Message",text,"text"))},
         "emoji"=>{let emojis=if a.query.is_empty(){sticktalk_emoji::all().take(80).collect()}else{sticktalk_emoji::search(&a.query,80)};view!{<h2>"Emoji"</h2><label class="search"><span class="sr-only">"Search Emoji"</span><input id="emoji-query" type="search" value=a.query.clone() placeholder="Search emoji" data-emoji-query/></label><div class="emoji-grid">{emojis.into_iter().map(|e|view!{<button title=e.name() aria-label=e.name() data-live=format!("emoji:{}",e.emoji())>{e.emoji()}</button>}).collect_view()}</div>}.into_any()},
         "gif"=>view!{<h2>"GIFs"</h2><form data-gif-search><label class="field"><span>"Search GIFs"</span><input id="gif-query" type="search"/></label><button class="button secondary" type="submit">"Search"</button></form><div class="live-gif-results">{a.gifs.iter().map(|g|view!{<button data-live=format!("gif-send:{}",g.id)><video src=g.preview.url.clone() preload="none" muted loop playsinline controls width=g.preview.width height=g.preview.height aria-label=g.title.clone()></video><span>{g.title.clone()}</span></button>}).collect_view()}</div>}.into_any(),
@@ -231,9 +238,22 @@ fn dialog(a: &App) -> AnyView {
         value if value.starts_with("role:")=>{let r=id(value.trim_start_matches("role:")).and_then(|id|a.roles.get(&id));if let Some(r)=r{form("Edit Role","role-save",view!{{field("f-name","Role Name",&r.name,"text")}{field("f-value","Color",&format!("#{:06x}",r.color),"color")}<input id="f-permissions" type="hidden" value=r.permissions.bits().to_string()/><div class="live-permissions">{role_permissions(r)}</div><label class="live-checkbox"><input id="f-hoist" type="checkbox" checked=r.hoist/>"Display role members separately"</label><label class="live-checkbox"><input id="f-mentionable" type="checkbox" checked=r.mentionable/>"Allow anyone to mention this role"</label><input id="f-extra" type="hidden" value=r.id.0.to_string()/>{button("Delete Role",&format!("role-delete:{}",r.id.0),"danger-text")}}.into_any())}else{().into_any()}},
         _=>view!{<h2>"Settings"</h2>}.into_any(),
     };
-    view!{<div class="modal-backdrop" data-live-close><section class="modal live-modal" data-dialog=a.dialog.clone() role="dialog" aria-modal="true" aria-label="Settings" tabindex="-1"><div class="live-modal-close">{ib("x","Close","close")}</div>{body}</section></div>}.into_any()
+    if user_settings(&a.dialog) {
+        return settings_layout(a, body);
+    }
+    view!{<div class="modal-backdrop" data-live-close><section class=format!("modal live-modal {}",if a.dialog=="profile"{"profile-popout"}else{""}) data-dialog=a.dialog.clone() role="dialog" aria-modal="true" aria-label="Settings" tabindex="-1"><div class="live-modal-close">{ib("x","Close","close")}</div>{body}</section></div>}.into_any()
 }
 
+fn short_time(ms: u64) -> String {
+    let d = js_sys::Date::new(&JsValue::from_f64(ms as f64));
+    let h = d.get_hours();
+    format!(
+        "{}:{:02} {}",
+        if h.is_multiple_of(12) { 12 } else { h % 12 },
+        d.get_minutes(),
+        if h < 12 { "AM" } else { "PM" }
+    )
+}
 fn timestamp(ms: u64) -> String {
     let parts = |ms: u64| {
         let d = js_sys::Date::new(&JsValue::from_f64(ms as f64));
@@ -276,4 +296,133 @@ fn role_permissions(role: &Role) -> AnyView {
         ("Administrator", Permissions::ADMINISTRATOR),
     ];
     view!{{permissions.into_iter().map(|(label,bit)|view!{<label class="live-checkbox"><span>{label}</span><input type="checkbox" checked=role.permissions.contains(bit) data-role-bit=bit.bits().to_string()/></label>}).collect_view()}}.into_any()
+}
+
+#[lazy]
+pub(super) fn load_dialog() -> fn(&App) -> AnyView {
+    dialog
+}
+#[lazy]
+pub(super) fn load_call() -> fn(&App) -> AnyView {
+    voice
+}
+fn loading_dialog() -> AnyView {
+    view!{<div class="modal-backdrop"><section class="modal live-modal" role="dialog" aria-modal="true" aria-label="Loading"><p role="status">"Loading…"</p></section></div>}.into_any()
+}
+fn loading_call() -> AnyView {
+    view! {<div class="voice-view" role="status">"Connecting…"</div>}.into_any()
+}
+
+fn member_groups(a: &App) -> AnyView {
+    if a.guild.is_none() {
+        if let Some(c) = a.channel.and_then(|id| a.model.channels.get(&id)) {
+            return view!{<h2 class="category">{format!("Members — {}",c.recipient_ids.len())}</h2>{c.recipient_ids.iter().filter_map(|id|a.model.users.get(id)).map(|u|view!{<button class="member-row" data-live=format!("profile:{}",u.id.0)>{avatar(u,"small")}<span>{name(u)}</span></button>}).collect_view()}{if c.kind==ChannelKind::GroupDm {button("Manage Group","dialog:group-members","nav-row")}else{().into_any()}}}.into_any();
+        }
+    }
+    let mut groups: BTreeMap<(i64, String), Vec<&Member>> = BTreeMap::new();
+    for m in a
+        .model
+        .members
+        .values()
+        .filter(|m| Some(m.guild_id) == a.guild)
+    {
+        let online = !matches!(
+            a.model.presences.get(&m.user.id),
+            None | Some(PresenceStatus::Offline | PresenceStatus::Invisible)
+        );
+        let hoisted = m
+            .role_ids
+            .iter()
+            .filter_map(|id| a.roles.get(id))
+            .filter(|r| r.hoist)
+            .max_by_key(|r| r.position);
+        let group = if !online {
+            (i64::MAX, "Offline".into())
+        } else if let Some(r) = hoisted {
+            (-(r.position as i64), r.name.clone())
+        } else {
+            (i64::MAX - 1, "Online".into())
+        };
+        groups.entry(group).or_default().push(m);
+    }
+    view!{{groups.into_iter().map(|((_,label),mut members)|{
+        members.sort_by_key(|m|name(&m.user).to_lowercase());
+        view!{<section class=if label=="Offline"{"member-group offline"}else{"member-group"}>
+            <h2 class="category">{format!("{} — {}",label,members.len())}</h2>
+            {members.into_iter().map(|m|view!{<button class="member-row" data-live=format!("profile:{}",m.user.id.0)>{avatar(&m.user,"small")}<span data-member-name=m.user.id.0.to_string() style=format!("color:{}",color(a,m.user.id))>{m.nickname.clone().unwrap_or_else(||name(&m.user))}{if m.role==MemberRole::Owner {icon("crown")} else {().into_any()}}</span></button>}).collect_view()}
+        </section>}
+    }).collect_view()}}.into_any()
+}
+
+fn user_settings(page: &str) -> bool {
+    matches!(
+        page,
+        "settings"
+            | "account"
+            | "profile-edit"
+            | "about"
+            | "password"
+            | "devices"
+            | "media-settings"
+            | "notifications"
+    )
+}
+fn settings_nav(a: &App) -> AnyView {
+    let u = &a.model.me.as_ref().unwrap().user;
+    view!{<div class="settings-identity">{avatar(u,"small")}<span><strong>{name(u)}</strong><button class="muted-copy" data-live="dialog:profile-edit">"Edit Profiles"</button></span></div>
+        <label class="settings-search"><span class="sr-only">"Search settings"</span><input type="search" placeholder="Search settings" data-settings-search/></label>
+        <h2 class="category">"User Settings"</h2>
+        {[( "user-round","My Account","account"),("user-round","Profiles","profile-edit"),("shield","Password & Security","password"),("monitor","Devices","devices"),("bell","Notifications","notifications")].into_iter().map(|(glyph,label,page)|view!{<button class=format!("settings-nav-row {}",if a.dialog==page{"selected"}else{""}) data-live=format!("dialog:{page}")>{icon(glyph)}<span>{label}</span>{icon("chevron-right")}</button>}).collect_view()}
+        <h2 class="category">"App Settings"</h2>
+        <button class=format!("settings-nav-row {}",if a.dialog=="media-settings"{"selected"}else{""}) data-live="dialog:media-settings">{icon("headphones")}<span>"Voice & Video"</span>{icon("chevron-right")}</button>
+        <div class="settings-divider"></div>{button("Log Out","logout","danger-text settings-nav-row")}<small class="muted-copy">"StickTalk 0.1.0"</small>
+    }.into_any()
+}
+fn settings_layout(a: &App, body: AnyView) -> AnyView {
+    let title = match a.dialog.as_str() {
+        "account" => "My Account",
+        "profile-edit" => "Profiles",
+        "about" => "About Me",
+        "password" => "Password & Security",
+        "devices" => "Devices",
+        "media-settings" => "Voice & Video",
+        "notifications" => "Notifications",
+        _ => "Settings",
+    };
+    view!{<section class=format!("live-modal settings-page {}",if a.dialog=="settings"{"settings-root"}else{"settings-subpage"}) data-dialog=a.dialog.clone() role="dialog" aria-modal="true" aria-label="User Settings" tabindex="-1">
+        <nav class="settings-nav" aria-label="User settings">{settings_nav(a)}</nav>
+        <div class="settings-main"><header class="settings-topbar"><div class="settings-back">{ib("arrow-left","Back to Settings","dialog:settings")}</div><strong>{title}</strong>{ib("x","Close","close")}</header><div class="settings-content">{body}</div></div>
+        <header class="settings-mobile-header"><h1>"Settings"</h1>{ib("x","Close","close")}</header>
+    </section>}.into_any()
+}
+fn account(a: &App) -> AnyView {
+    let me = &a.model.me.as_ref().unwrap().user;
+    view!{<h2>"My Account"</h2><section class="account-card"><div class="profile-banner"></div><div class="account-identity">{avatar(me,"large")}<div><strong>{name(me)}</strong><p>{format!("@{}",me.username)}</p></div>{button("Edit Profile","dialog:profile-edit","secondary")}</div><div class="settings-field-row"><span><strong>"Display Name"</strong><p>{name(me)}</p></span>{button("Edit","dialog:profile-edit","secondary")}</div><div class="settings-field-row"><span><strong>"Username"</strong><p>{me.username.clone()}</p></span></div></section><div class="settings-divider"></div><h2>"Password & Security"</h2>{button("Change Password","dialog:password","secondary")}<div class="settings-divider"></div><h2>"Devices"</h2><p class="muted-copy">"Manage where you’re signed in."</p>{button("Manage Devices","dialog:devices","secondary")}}.into_any()
+}
+fn profile_editor(a: &App) -> AnyView {
+    let me = &a.model.me.as_ref().unwrap().user;
+    view!{<h2>"Profiles"</h2><div class="profile-editor"><div><div class="avatar-edit">{avatar(me,"large")}<div><label class="button primary" for="live-avatar">"Change Avatar"</label><input type="file" id="live-avatar" accept="image/png,image/jpeg,image/webp" hidden/>{button("Remove Avatar","avatar-remove","danger-text")}</div></div>
+        {if a.uploading{view!{<p role="status">{a.upload_progress.clone()}</p>}.into_any()}else{().into_any()}}
+        {form("Profile","profile",view!{{field("f-name","Display Name",me.display_name.as_deref().unwrap_or(""),"text")}{field("f-value","Status",me.status_text.as_deref().unwrap_or(""),"text")}}.into_any())}
+        <div class="settings-divider"></div>{button("Edit About Me","dialog:about","secondary")}</div>
+        <aside class="profile-preview"><div class="profile-banner" style=format!("background:#{:06x}",a.profile.as_ref().map_or(0x496c63,|p|p.profile.banner_color))></div>{avatar(me,"large")}<div class="profile-preview-copy"><h2>{name(me)}</h2><p>{format!("@{}",me.username)}</p><p>{me.status_text.clone().unwrap_or_default()}</p><div class="settings-divider"></div><h3>"About Me"</h3><p>{a.profile.as_ref().map_or("",|p|p.profile.about_me.as_str()).to_owned()}</p></div></aside></div>
+    }.into_any()
+}
+
+fn group_members(a: &App) -> AnyView {
+    let Some(c) = a
+        .channel
+        .and_then(|id| a.model.channels.get(&id))
+        .filter(|c| c.kind == ChannelKind::GroupDm)
+    else {
+        return ().into_any();
+    };
+    let owner = a
+        .model
+        .me
+        .as_ref()
+        .is_some_and(|me| Some(me.user.id) == c.owner_id);
+    view!{<h2>"Group Members"</h2>{c.recipient_ids.iter().filter_map(|id|a.model.users.get(id)).map(|u|view!{<div class="device-row">{avatar(u,"small")}<span>{name(u)}</span>{if owner&&Some(u.id)!=c.owner_id {view!{{button("Remove",&format!("group-remove:{}",u.id.0),"danger-text")}{button("Make Owner",&format!("group-owner:{}",u.id.0),"secondary")}}.into_any()}else{().into_any()}}</div>}).collect_view()}
+    {form("Add Friend","group-add",view!{<label class="field">"Friend"<select id="f-name">{a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend&&!c.recipient_ids.contains(&r.user.id)).map(|r|view!{<option value=r.user.id.0.to_string()>{name(&r.user)}</option>}).collect_view()}</select></label>}.into_any())}
+    {button("Leave Group","group-leave","danger-text")}}.into_any()
 }
