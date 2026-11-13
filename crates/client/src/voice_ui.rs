@@ -60,6 +60,7 @@ pub enum Action {
     ViewerEscapeTap,
     Focus(Option<VoiceSession>),
     Stats,
+    ConnectionStats,
     Visibility(Vec<(VoiceSession, TrackKind)>),
     PickerTab(bool),
     QualityMenu,
@@ -105,6 +106,7 @@ pub struct State {
     pub camera: bool,
     pub focus: Option<VoiceSession>,
     pub stats: bool,
+    pub connection_stats: bool,
     pub input_sequence: u64,
     pub control_request: Option<(VoiceSession, u64)>,
     pub mock_video: Option<iced::widget::image::Handle>,
@@ -314,7 +316,7 @@ impl App {
                 mtu_dropped_packets: 0,
             });
         }
-        if screen == "camera-tiles" {
+        if matches!(screen, "camera-tiles" | "call-nine") {
             for p in self.calls.call.participants.values_mut() {
                 p.tracks.push(PublishedTrack {
                     mid: "camera".into(),
@@ -409,6 +411,10 @@ impl App {
         if screen == "call-empty" {
             self.calls.call.participants.clear();
             self.calls.call.guild_states.clear();
+            self.calls.call.desired_channel = None;
+            self.calls.call.channel = None;
+            self.calls.call.own = None;
+            self.calls.call.phase = Phase::Idle;
         }
         if screen == "call-solo" {
             self.calls
@@ -481,7 +487,7 @@ impl App {
             self.calls.focus = Some(own);
         }
         if screen == "voice-quality" {
-            self.calls.stats = true;
+            self.calls.connection_stats = true;
             self.calls.call.stats = Some(VoiceStats {
                 tx_bps: 64_000,
                 rx_bps: 128_000,
@@ -1266,6 +1272,7 @@ impl App {
                 }
             }
             Action::Stats => self.calls.stats = !self.calls.stats,
+            Action::ConnectionStats => self.calls.connection_stats = !self.calls.connection_stats,
             Action::Save(revision) if revision == self.calls.save_revision => {
                 self.calls.save_dirty = false;
                 if let Some(path) = self.calls.settings_path.clone() {

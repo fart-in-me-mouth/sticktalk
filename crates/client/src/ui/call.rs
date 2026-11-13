@@ -84,11 +84,9 @@ pub(super) fn participant<'a>(
         .into()
     } else {
         let mut body = column![
-            space().height(t::S16),
             face,
             txt(ellipsis(&app.state.model.name(p.session.user_id), 24)).size(14),
-            flags,
-            space().height(t::S16)
+            flags
         ]
         .spacing(t::S8)
         .align_x(Center);
@@ -118,7 +116,7 @@ pub(super) fn participant<'a>(
             .width(Fill)
             .into()
         } else {
-            body.width(Fill).height(tile_height).into()
+            container(body).center_x(Fill).center_y(tile_height).into()
         }
     };
     mouse_area(container(body).width(Fill).style(move |theme| {
@@ -285,7 +283,7 @@ pub(super) fn connected(app: &App) -> Element<'_, Msg> {
         row![
             icon("signal", t::INLINE_ICON, t::ACCENT),
             button(txt(label).size(14).font(t::semibold()).color(t::ACCENT))
-                .on_press(msg(Action::Stats))
+                .on_press(msg(Action::ConnectionStats))
                 .style(t::link)
                 .width(Fill),
             icon_button("phone-off", "Disconnect", msg(Action::Leave))
@@ -302,7 +300,7 @@ pub(super) fn connected(app: &App) -> Element<'_, Msg> {
         .spacing(t::S8)
     ]
     .spacing(t::S4);
-    if app.calls.stats {
+    if app.calls.connection_stats {
         let stats = app.calls.call.stats.as_ref();
         body = body.push(
             container(
@@ -376,9 +374,15 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
         );
     } else if participants.len() == 1 {
         grid = grid.push(
-            container(hint("You're the only one here. Invite someone to join."))
-                .center_x(Fill)
-                .padding(t::S8),
+            container(hint(
+                if in_call && Some(participants[0].session) == app.calls.call.own {
+                    "You're the only one here. Invite someone to join."
+                } else {
+                    "1 person in voice"
+                },
+            ))
+            .center_x(Fill)
+            .padding(t::S8),
         );
     }
     for chunk in participants.chunks(3) {
@@ -393,7 +397,11 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
             row![
                 icon("volume-2", t::ICON, t::TEXT_SECONDARY),
                 txt(name).font(t::semibold()).width(Fill),
-                icon_button("signal", "Connection statistics", msg(Action::Stats))
+                icon_button(
+                    "signal",
+                    "Connection statistics",
+                    msg(Action::ConnectionStats)
+                )
             ]
             .spacing(t::S12)
             .align_y(Center)
@@ -404,7 +412,16 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
         container(if let Some(stream) = app.calls.focus.filter(|_| in_call) {
             super::stream_view::view(app, stream)
         } else {
-            scroller(grid).into()
+            let max_width = participants.len().clamp(1, 3) as f32 * t::CALL_TILE_HEIGHT * 16. / 9.
+                + 2. * t::S12;
+            let grid = container(grid).max_width(max_width);
+            if participants.len() <= 3 {
+                container(grid).center_x(Fill).center_y(Fill).into()
+            } else {
+                container(container(scroller(grid)).max_width(max_width))
+                    .center_x(Fill)
+                    .into()
+            }
         })
         .padding(t::S24)
         .height(Fill)
@@ -479,12 +496,27 @@ pub(super) fn user_audio(app: &App, id: Id) -> Element<'_, Msg> {
 }
 
 fn flags_for_camera(p: &VoiceParticipant) -> Element<'static, Msg> {
-    icon(
-        if p.muted { "mic-off" } else { "video" },
-        t::INLINE_ICON,
-        t::TEXT_SECONDARY,
-    )
-    .into()
+    let mut flags = row![].spacing(t::S4).align_y(Center);
+    if p.muted {
+        flags = flags.push(icon("mic-off", t::INLINE_ICON, t::TEXT_MUTED));
+    }
+    if p.deafened {
+        flags = flags.push(icon("headphone-off", t::INLINE_ICON, t::DANGER));
+    }
+    if p.tracks.iter().any(|t| t.kind == TrackKind::Screen) {
+        flags = flags.push(
+            container(hint("LIVE").font(t::semibold()).color(t::TEXT_PRIMARY))
+                .padding([0., t::S4])
+                .style(|_| container::Style {
+                    border: Border {
+                        radius: t::S4.into(),
+                        ..Default::default()
+                    },
+                    ..t::surface(t::DANGER)
+                }),
+        );
+    }
+    flags.into()
 }
 
 pub(super) fn controlling(app: &App) -> Element<'_, Msg> {
