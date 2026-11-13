@@ -2407,6 +2407,8 @@ impl App {
                         self.features.desktop.observe(&envelope.event);
                         if let Event::MessageCreated { message, .. } = &envelope.event {
                             crate::features::committed(self, message);
+                            self.features.desktop.default_level =
+                                Some(self.settings.preferences.notification_level);
                             if let Some(toast) = self.features.desktop.notification(
                                 &self.state.model,
                                 message,
@@ -5010,5 +5012,44 @@ mod qa_channel_controls {
         }));
         assert!(app.error.contains("permission"));
         assert!(app.state.pending.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod qa_notification_defaults {
+    use super::*;
+    #[tokio::test]
+    async fn real_event_path_honors_device_notification_defaults_without_os_effects() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.focused = false;
+        app.state.screen = Screen::Friends(FriendTab::All);
+        app.features.desktop.settings.clear();
+        app.features.desktop.last_toast = None;
+        let mut message = app.state.model.messages[&Id(12)]
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        message.author_id = Id(2);
+        message.content = "An ordinary non-mention message".into();
+        message.mention_ids.clear();
+        app.settings.preferences.notification_level = NotificationLevel::Nothing;
+        let seq = app.state.model.cursor.as_ref().unwrap().seq + 1;
+        let author = app.state.model.users[&Id(2)].clone();
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq,
+            event: Event::MessageCreated {
+                message: message.clone(),
+                author: author.clone(),
+            },
+        }))));
+        assert!(app.features.desktop.last_toast.is_none());
+        app.settings.preferences.notification_level = NotificationLevel::All;
+        message.id = Id(message.id.0 + 1);
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq: seq + 1,
+            event: Event::MessageCreated { message, author },
+        }))));
+        assert!(app.features.desktop.last_toast.is_some());
     }
 }
