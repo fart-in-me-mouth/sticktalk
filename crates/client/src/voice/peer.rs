@@ -42,6 +42,9 @@ pub struct Peer {
     video_trace: bool,
     offered_frames: u64,
     gated_frames: u64,
+    timer_samples: u64,
+    timer_late_us: u64,
+    timer_max_us: u64,
     local: SocketAddr,
     pending: Option<SdpPendingOffer>,
     publications: Vec<(Mid, TrackKind, bool)>,
@@ -55,6 +58,7 @@ pub struct Peer {
     queued_publications: Vec<(TrackKind, bool, ShareSurface)>,
     send_budgets: BTreeMap<u8, u64>,
     bwe_target: u64,
+    video_starting: bool,
     video_gates: BTreeMap<String, VideoGate>,
     staged_bytes: BTreeMap<String, usize>,
     keyframes: Vec<TrackKind>,
@@ -123,6 +127,9 @@ impl Peer {
             video_trace: std::env::var_os("STICKTALK_VIDEO_TRACE").is_some(),
             offered_frames: 0,
             gated_frames: 0,
+            timer_samples: 0,
+            timer_late_us: 0,
+            timer_max_us: 0,
             local,
             pending: Some(pending),
             publications: vec![(audio, TrackKind::Audio, true)],
@@ -139,6 +146,7 @@ impl Peer {
             queued_publications: vec![],
             send_budgets: BTreeMap::new(),
             bwe_target: 0,
+            video_starting: false,
             video_gates: BTreeMap::new(),
             staged_bytes: BTreeMap::new(),
             keyframes: vec![],
@@ -190,6 +198,10 @@ impl Peer {
         }
     }
     pub fn timeout(&mut self, now: Instant) -> Result<(), String> {
+        let late = now.saturating_duration_since(self.deadline).as_micros() as u64;
+        self.timer_samples += 1;
+        self.timer_late_us += late;
+        self.timer_max_us = self.timer_max_us.max(late);
         self.rtc.handle_input(Input::Timeout(now)).map_err(err)
     }
     pub fn datagram(&mut self, from: SocketAddr, bytes: &[u8], now: Instant) -> Result<(), String> {
@@ -253,6 +265,15 @@ impl Peer {
             self.queued_publications.push((kind, enabled, surface));
             return Ok(());
         }
+        if enabled
+            && media_kind(kind) == MediaKind::Video
+            && !self
+                .publications
+                .iter()
+                .any(|(_, k, active)| *active && media_kind(*k) == MediaKind::Video)
+        {
+            self.video_starting = true;
+        }
         if kind == TrackKind::Screen {
             self.surface = surface;
         }
@@ -293,7 +314,13 @@ impl Peer {
     /// Called only after draining RTC output. Serializes offers and reuses recv slots.
     pub fn reconcile(&mut self) -> Result<(), String> {
         let desired = self.desired_send_bps();
-        if self.bwe_target != desired {
+        if self.bwe_target != desired || self.video_starting {
+            if std::mem::take(&mut self.video_starting) {
+                // A fresh quality target, not the stale audio-only estimate.
+                // Reset once on startup; never pin a bandwidth floor or reset
+                // on feedback. Normal congestion control owns subsequent rates.
+                self.rtc.bwe().reset(str0m::bwe::Bitrate::bps(desired));
+            }
             self.bwe_target = desired;
             self.rtc.bwe().set_bitrate(
                 str0m::bwe::Bitrate::bps(0),
@@ -575,6 +602,16 @@ impl Peer {
                     eprintln!("VIDEO_TRACE encoder_transport_out mid={} bytes={} packets={} nack={} pli={} fir={}", s.mid, s.bytes, s.packets, s.nacks, s.plis, s.firs);
                 }
                 Output::Event(Event::PeerStats(s)) if self.video_trace => {
+                    eprintln!(
+                        "VIDEO_TRACE timer samples={} late_mean_us={} late_max_us={}",
+                        self.timer_samples,
+                        self.timer_late_us / self.timer_samples.max(1),
+                        self.timer_max_us
+                    );
+                    eprintln!(
+                        "VIDEO_TRACE sender_totals offered_frames={} gated_frames={}",
+                        self.offered_frames, self.gated_frames
+                    );
                     eprintln!(
                         "VIDEO_TRACE endpoint bwe={} target={} wire_rx={} wire_tx={} loss={:?}",
                         s.bwe_tx.map_or(0, |b| b.as_u64()),

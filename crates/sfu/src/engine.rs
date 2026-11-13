@@ -158,6 +158,9 @@ struct Peer {
     failed: bool,
     idr_starts: u64,
     gated_packets: u64,
+    keyframe_times: BTreeMap<(Mid, Option<String>), Instant>,
+    keyframe_forwarded: u64,
+    keyframe_suppressed: u64,
     negotiation_times: VecDeque<Instant>,
     negotiated_mids: BTreeMap<String, String>,
     candidates: BTreeSet<String>,
@@ -186,6 +189,7 @@ struct Peer {
     rx_frames: u64,
     bwe: u64,
     bwe_target: u64,
+    video_active: bool,
     limits: BTreeMap<String, u64>,
 }
 impl Peer {
@@ -696,6 +700,9 @@ impl Sfu {
             failed: false,
             idr_starts: 0,
             gated_packets: 0,
+            keyframe_times: BTreeMap::new(),
+            keyframe_forwarded: 0,
+            keyframe_suppressed: 0,
             negotiation_times: VecDeque::new(),
             negotiated_mids: BTreeMap::new(),
             candidates: BTreeSet::new(),
@@ -739,6 +746,7 @@ impl Sfu {
             rx_frames: 0,
             bwe: self.config.video_egress_bps,
             bwe_target: 0,
+            video_active: false,
             limits: BTreeMap::new(),
         };
         self.peers.insert(key, p);
@@ -946,6 +954,18 @@ impl Sfu {
         }
         // Remove subscriptions to withdrawn/reconfigured sources. Other sessions
         // receive the full publication set and can subscribe after their offer.
+        self.peers
+            .get_mut(&key)
+            .unwrap()
+            .keyframe_times
+            .retain(|(mid, rid), _| {
+                tracks.iter().any(|t| {
+                    t.mid == mid.to_string()
+                        && rid
+                            .as_ref()
+                            .is_none_or(|rid| t.layers.iter().any(|r| r == rid))
+                })
+            });
         let old = self.peers[&key].tracks.clone();
         let changed: Vec<_> = old
             .iter()
@@ -1173,8 +1193,18 @@ impl Sfu {
             return Ok(());
         }
         if let Some(p) = self.peers.get_mut(&key) {
+            let source = (mid, rid.map(|rid| rid.to_string()));
+            if p.keyframe_times
+                .get(&source)
+                .is_some_and(|at| self.now.saturating_duration_since(*at) < Duration::from_secs(1))
+            {
+                p.keyframe_suppressed += 1;
+                return Ok(());
+            }
             if let Some(s) = p.rtc.direct_api().stream_rx_by_mid(mid, rid) {
                 s.request_keyframe(kind);
+                p.keyframe_times.insert(source, self.now);
+                p.keyframe_forwarded += 1;
             }
             self.collect(key)?;
         }
@@ -1205,7 +1235,17 @@ impl Sfu {
             .collect();
         for (key, desired) in targets {
             let p = self.peers.get_mut(&key).unwrap();
-            if p.bwe_target != desired {
+            let video_active = p.routes.values().any(|r| r.video);
+            let starting = video_active && !p.video_active;
+            p.video_active = video_active;
+            if p.bwe_target != desired || starting {
+                if starting {
+                    // Do not let an audio-only estimate throttle a new video
+                    // subscription before feedback for its first frame arrives.
+                    let initial = desired.min(8_000_000);
+                    p.rtc.bwe().reset(str0m::bwe::Bitrate::bps(initial));
+                    p.bwe = initial;
+                }
                 p.bwe_target = desired;
                 p.rtc.bwe().set_bitrate(
                     str0m::bwe::Bitrate::bps(0),
@@ -1794,6 +1834,12 @@ impl Sfu {
         p.tx_frames = 0;
         p.rx_frames = 0;
         p.stats_at = stats.timestamp;
+        if self.video_trace {
+            eprintln!(
+                "VIDEO_TRACE keyframe_requests peer={key:?} forwarded={} suppressed={}",
+                p.keyframe_forwarded, p.keyframe_suppressed
+            );
+        }
         let event = VoiceEvent::Stats(p.stats.clone());
         self.send(key, 0, event)
     }

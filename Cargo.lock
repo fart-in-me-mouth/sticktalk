@@ -6853,6 +6853,7 @@ dependencies = [
  "sticktalk-media",
  "sticktalk-proto",
  "sticktalk-server",
+ "sticktalk-sfu",
  "str0m",
  "tempfile",
  "tiny-skia",
@@ -6925,6 +6926,7 @@ dependencies = [
  "neteq",
  "nnnoiseless",
  "openh264",
+ "openh264-sys2",
  "opus",
  "thiserror 2.0.21",
  "tract-core",
@@ -7001,6 +7003,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

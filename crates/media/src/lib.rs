@@ -6,6 +6,7 @@
 //! Hardware is required by default; software fallback requires explicit opt-in.
 
 mod annexb;
+mod bitrate;
 mod quality;
 mod selection;
 pub mod voice;

@@ -68,6 +68,7 @@ pub fn run(
         }
     });
     super::peer::configure_socket(&socket)?;
+    let socket_wait = super::socket_wait::SocketWait::new(&socket).map_err(error)?;
 
     let mut peer = Peer::new(
         socket.local_addr().map_err(error)?,
@@ -100,7 +101,6 @@ pub fn run(
     let mut attenuation = media::AppAttenuation::default();
     let mut remote_speaking = std::collections::BTreeSet::new();
     let mut share: Option<media::ShareSession> = None;
-    let mut share_quality = super::quality(&settings)?;
     let mut loopback: Option<media::LoopbackSession> = None;
     let mut camera: Option<media::CameraSession> = None;
     let mut remote: BTreeMap<String, (Remote, u64)> = BTreeMap::new();
@@ -261,10 +261,8 @@ pub fn run(
                                 .adapt_bitrate(0, bps.min(u64::from(u32::MAX)) as u32)
                                 .map_err(error)?,
                             Some(TrackKind::Screen) => {
-                                peer.set_send_bitrate(TrackKind::Screen, bps);
                                 if let Some(s) = &share {
-                                    let q = share_quality;
-                                    s.set_quality(q, bps.clamp(100_000, 100_000_000) as u32)
+                                    s.set_bitrate(bps.clamp(100_000, 100_000_000) as u32)
                                         .map_err(error)?;
                                 }
                             }
@@ -295,7 +293,6 @@ pub fn run(
                         control.unit = None;
                         control.consent.clear();
                         control.source = Some(source.clone());
-                        share_quality = q;
                         let bps = q.recommended_bitrate(source.size).map_err(error)?;
                         peer.set_send_bitrate(TrackKind::Screen, u64::from(bps));
                         let surface = match source.kind {
@@ -329,7 +326,6 @@ pub fn run(
                         emit(output, Event::Sharing(false))?;
                     }
                     Command::Quality(q) => {
-                        share_quality = q;
                         if let Some(s) = &share {
                             let source_size =
                                 control.source.as_ref().map_or(s.size, |source| source.size);
@@ -562,6 +558,13 @@ pub fn run(
             &mut control,
         )?;
         let now = Instant::now();
+        // An expired RTC/pacer deadline is work, not a request to wait for
+        // UDP. Windows socket timeouts round even tiny waits to a scheduler
+        // tick, serializing RTP packets at that tick's rate.
+        if peer.deadline() <= now {
+            peer.timeout(now)?;
+            continue;
+        }
         let wait = peer
             .deadline()
             .saturating_duration_since(now)
@@ -573,7 +576,6 @@ pub fn run(
                 },
             )
             .max(Duration::from_micros(100));
-        socket.set_read_timeout(Some(wait)).map_err(error)?;
         match socket.recv_from(&mut buffer) {
             Ok((n, from)) => {
                 if n != 0 {
@@ -586,6 +588,7 @@ pub fn run(
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) =>
             {
+                socket_wait.until(now + wait).map_err(error)?;
                 if Instant::now() >= peer.deadline() {
                     peer.timeout(Instant::now())?;
                 }

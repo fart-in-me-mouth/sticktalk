@@ -6,6 +6,8 @@ pub mod hotkeys;
 mod native;
 pub mod peer;
 pub mod rtp;
+#[cfg(windows)]
+mod socket_wait;
 #[cfg(feature = "wgpu")]
 pub mod video;
 use std::sync::{

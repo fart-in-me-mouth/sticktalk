@@ -40,6 +40,7 @@ impl Sfu {
     ) -> Result<(), Error> {
         let socket = tokio::net::UdpSocket::from_std(self.socket.take().ok_or(Error::Config)?)?;
         let mut buf = vec![0u8; 65536];
+        let mut clock = None;
         loop {
             let generation = self.policy_generation();
             let output: Vec<_> = self.drain().collect();
@@ -74,6 +75,11 @@ impl Sfu {
                 continue;
             }
             let deadline = self.next_timeout();
+            if deadline.is_none() {
+                clock = None;
+            } else if clock.is_none() {
+                clock = Some(crate::pacing::Clock::new()?);
+            }
             tokio::select! {
                 command = commands.recv() => {
                     match command {
@@ -103,12 +109,13 @@ impl Sfu {
                         Err(error) => return Err(error.into()),
                     }
                 }
-                _ = async {
+                timer = async {
                     match deadline {
-                        Some(t) => tokio::time::sleep_until(t.into()).await,
+                        Some(t) => clock.as_mut().unwrap().wait(t).await?,
                         None => std::future::pending::<()>().await,
                     }
-                } => self.handle_timeout(Instant::now())?,
+                    Ok::<(), std::io::Error>(())
+                } => { timer?; self.handle_timeout(Instant::now())?; },
             }
         }
         // Notify host and sharers before dropping all cryptographic sessions.

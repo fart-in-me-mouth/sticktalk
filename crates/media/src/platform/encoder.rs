@@ -552,6 +552,37 @@ impl Encoder {
             kind,
         })
     }
+    /// Update rate control without changing media types, flushing reference
+    /// frames, creating a transform or forcing an IDR.
+    pub fn set_bitrate(&mut self, bitrate: u32) -> Result<()> {
+        if let Some(hw) = &self.hardware {
+            property(
+                &hw.codec_api,
+                &CODECAPI_AVEncCommonMeanBitRate,
+                VARIANT::from(bitrate),
+                "dynamic bitrate",
+            )?;
+        } else if let Some(sw) = &mut self.software {
+            let mut info = openh264_sys2::SBitrateInfo {
+                iLayer: openh264_sys2::SPATIAL_LAYER_ALL,
+                iBitrate: bitrate as i32,
+            };
+            // SAFETY: correct C option/payload pair, borrowed synchronously on
+            // the encoder's owning worker; no concurrent codec access.
+            let result = unsafe {
+                sw.encoder.raw_api().set_option(
+                    openh264_sys2::ENCODER_OPTION_BITRATE,
+                    (&mut info as *mut openh264_sys2::SBitrateInfo).cast(),
+                )
+            };
+            if result != 0 {
+                return Err(Error::Platform(format!(
+                    "OpenH264 dynamic bitrate: {result}"
+                )));
+            }
+        }
+        Ok(())
+    }
     pub fn keyframe(&mut self) -> Result<()> {
         if let Some(hw) = &self.hardware {
             hw.keyframe()?;

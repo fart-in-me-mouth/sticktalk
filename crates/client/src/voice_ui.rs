@@ -114,6 +114,7 @@ pub struct State {
     pub cameras: Vec<sticktalk_media::CameraDevice>,
     pub fullscreen: bool,
     pub main_window: Option<iced::window::Id>,
+    pub tray_hidden: bool,
     pub hidden_windows: std::collections::BTreeSet<iced::window::Id>,
     pub popout: Option<iced::window::Id>,
     pub popout_size: Option<iced::Size>,
@@ -801,6 +802,9 @@ impl App {
             }
             Action::WindowFocus(id, focused) => {
                 if focused {
+                    if self.calls.main_window == Some(id) {
+                        self.calls.tray_hidden = false;
+                    }
                     self.calls.hidden_windows.remove(&id);
                 }
                 let task = self.update(Msg::Focus(focused));
@@ -824,6 +828,12 @@ impl App {
                     return iced::window::close(id);
                 }
                 self.call_command(MediaCommand::ReleaseInput);
+                if self.calls.call.control.grant.is_some()
+                    || self.calls.call.control.pending.is_some()
+                {
+                    let _revoke = self.call_update(Action::Revoke);
+                }
+                self.calls.tray_hidden = true;
                 return crate::desktop_host::update(self, crate::desktop_host::Event::Close);
             }
             Action::WindowResized(id, size) => {
@@ -1138,7 +1148,8 @@ impl App {
         Task::none()
     }
     pub fn call_visible(&self) -> Vec<(VoiceSession, TrackKind)> {
-        let showing = matches!(self.state.screen, Screen::Channel(c) if self.calls.call.desired_channel == Some(c))
+        let showing = !self.calls.tray_hidden
+            && matches!(self.state.screen, Screen::Channel(c) if self.calls.call.desired_channel == Some(c))
             && !matches!(
                 self.dialog,
                 crate::app::Dialog::UserSettings | crate::app::Dialog::GuildSettings(_)
@@ -1226,6 +1237,21 @@ mod tests {
         let _unpolled = app.call_update(Action::Focus(None));
         assert!(app.calls.popout.is_none());
         assert!(!app.calls.fullscreen);
+    }
+    #[test]
+    fn close_to_tray_unsubscribes_video_until_the_main_window_is_restored() {
+        let mut app = App::headless("controlling-banner", iced::Size::new(1280., 800.));
+        assert!(app.calls.call.control.grant.is_some());
+        let main = iced::window::Id::unique();
+        app.calls.main_window = Some(main);
+        assert!(!app.call_visible().is_empty());
+        let _unpolled = app.call_update(Action::WindowClosed(main));
+        assert!(app.calls.call.control.grant.is_none());
+        assert!(app.call_visible().is_empty());
+        let _unpolled = app.call_update(Action::WindowHidden(main, Some(false)));
+        assert!(app.call_visible().is_empty());
+        let _unpolled = app.call_update(Action::WindowFocus(main, true));
+        assert!(!app.call_visible().is_empty());
     }
     #[test]
     fn hidden_screen_unsubscribes_and_popout_keeps_only_its_stream() {
