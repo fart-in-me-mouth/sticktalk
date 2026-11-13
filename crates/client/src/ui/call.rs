@@ -91,7 +91,7 @@ pub(super) fn participant<'a>(
         }
         if p.tracks.iter().any(|t| t.kind == TrackKind::Camera) {
             let mut footer = row![
-                txt(ellipsis(&app.state.model.name(p.session.user_id), 16)).width(Fill),
+                elided::label(app.state.model.name(p.session.user_id)).width(Fill),
                 flags_for_camera(p)
             ]
             .spacing(t::S4)
@@ -226,7 +226,7 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
             .map(|s| &s.participant)
             .collect()
     };
-    for chunk in participants.chunks(3) {
+    for chunk in participants.chunks(participant_columns(app.width)) {
         let mut tiles = row![].spacing(t::S12);
         for p in chunk {
             tiles = tiles.push(container(participant(app, p, false)).width(Fill));
@@ -281,6 +281,14 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
         .style(t::chat)
         .into()
 }
+
+fn participant_columns(window_width: f32) -> usize {
+    let available = window_width - t::RAIL - t::SIDEBAR - 2. * t::S24;
+    ((available + t::S12) / (t::CALL_TILE_MIN_WIDTH + t::S12))
+        .floor()
+        .clamp(1., 3.) as usize
+}
+
 pub(super) fn consent(app: &App) -> Element<'_, Msg> {
     let Some((requester, _)) = app.calls.call.control.pending else {
         return space().into();
@@ -355,4 +363,20 @@ pub(super) fn controlling(app: &App) -> Element<'_, Msg> {
     .padding(t::S8)
     .style(t::elevated)
     .into()
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+
+    #[test]
+    fn minimum_window_reserves_room_for_camera_names_and_watch_controls() {
+        for (width, expected) in [(940., 2), (1280., 3), (1920., 3)] {
+            let columns = participant_columns(width);
+            assert_eq!(columns, expected);
+            let available = width - t::RAIL - t::SIDEBAR - 2. * t::S24;
+            let tile = (available - (columns - 1) as f32 * t::S12) / columns as f32;
+            assert!(tile >= t::CALL_TILE_MIN_WIDTH);
+        }
+    }
 }

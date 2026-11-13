@@ -130,13 +130,29 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         space().width(Fill),
         container(toolbar).padding(t::S4).style(t::elevated)
     ]
-    .align_y(Center)
-    .padding(Padding {
-        left: t::RAIL + t::SIDEBAR - t::VIEWER_MARGIN,
-        ..Padding::ZERO
-    });
+    .align_y(Center);
     let handle = s.handle.as_ref().or_else(|| app.images.get(a.id));
-    let image: Element<'_, Msg> = if let Some(handle) = handle {
+    let image: Element<'_, Msg> = if !s.error.is_empty() {
+        container(
+            column![
+                icon("image", t::AVATAR, t::TEXT_SECONDARY),
+                txt(&s.error).color(t::TEXT_PRIMARY),
+                action(
+                    "Try again",
+                    Msg::feature(if let Some(url) = &s.external {
+                        Event::GifOpen(url.clone())
+                    } else {
+                        Event::ViewerOpen(a.clone())
+                    })
+                )
+            ]
+            .spacing(t::S16)
+            .align_x(Center),
+        )
+        .center_x(Fill)
+        .center_y(Fill)
+        .into()
+    } else if let Some(handle) = handle {
         Element::new(Surface {
             handle: handle.clone(),
             scale: s.scale.unwrap_or_else(|| s.fit(app)),
@@ -168,7 +184,12 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     .align_y(Center)
     .height(Fill);
     let footer = row![
-        hint(&a.filename),
+        container(
+            elided::label(&a.filename)
+                .size(t::HINT)
+                .color(t::TEXT_SECONDARY)
+        )
+        .max_width(app.width * 0.5),
         hint(super::uploads::bytes(a.byte_size)),
         button(hint("Open original"))
             .on_press(Msg::Link(url.clone()))
@@ -177,10 +198,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     ]
     .spacing(t::S12)
     .align_y(Center);
-    let mut content = column![header, middle, container(footer).center_x(Fill)].spacing(t::S12);
-    if !s.error.is_empty() {
-        content = content.push(hint(&s.error).color(t::DANGER));
-    }
+    let content = column![header, middle, container(footer).center_x(Fill)].spacing(t::S12);
     let mut layers = vec![
         mouse_area(
             container(space())
@@ -199,15 +217,16 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     if s.more {
         layers.push(
             container(opaque(
-                container(
-                    column![
-                        action("Copy Image", Msg::feature(Event::ViewerCopy)),
-                        action("Copy Link", Msg::Copy(url))
-                    ]
-                    .spacing(t::S4),
-                )
-                .padding(t::S8)
-                .style(t::popover),
+                container(super::menus::card(column![
+                    super::controls::item(
+                        "Copy Image",
+                        "copy",
+                        Msg::feature(Event::ViewerCopy),
+                        false
+                    ),
+                    super::controls::item("Copy Link", "link", Msg::Copy(url), false)
+                ]))
+                .id("dialog-scope"),
             ))
             .align_right(Fill)
             .align_top(Fill)
@@ -216,7 +235,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         );
     }
     if s.forwarding {
-        let mut channels = column![title("Forward image")].spacing(t::S8);
+        let mut channels = Column::new().spacing(t::S4);
         for c in app
             .state
             .model
@@ -225,18 +244,52 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             .filter(|c| c.kind != ChannelKind::Category && c.kind != ChannelKind::Voice)
             .take(64)
         {
-            channels = channels.push(action(
-                c.name.clone().unwrap_or_else(|| "Direct message".into()),
-                Msg::feature(Event::ViewerForward(c.id)),
-            ));
+            channels = channels.push(
+                button(
+                    row![
+                        icon(
+                            if c.guild_id.is_some() {
+                                "hash"
+                            } else {
+                                "message-circle"
+                            },
+                            t::ICON,
+                            t::TEXT_SECONDARY
+                        ),
+                        elided::label(app.state.model.channel_name(c)).width(Fill)
+                    ]
+                    .spacing(t::S12)
+                    .align_y(Center),
+                )
+                .on_press(Msg::feature(Event::ViewerForward(c.id)))
+                .width(Fill)
+                .height(t::BUTTON)
+                .padding(t::S8)
+                .style(t::navigation(false)),
+            );
         }
-        channels = channels.push(action("Cancel", Msg::feature(Event::ViewerForwardMenu)));
         layers.push(
             container(opaque(
-                container(scroller(channels).height(360))
-                    .padding(t::S16)
-                    .width(t::PICKER_W)
-                    .style(t::popover),
+                container(
+                    column![
+                        row![
+                            title("Forward image").width(Fill),
+                            icon_button("x", "Close", Msg::feature(Event::ViewerForwardMenu))
+                        ]
+                        .align_y(Center),
+                        line(),
+                        scroller(channels).height((app.height * 0.5).min(t::S32 * 10.)),
+                        row![
+                            space().width(Fill),
+                            action("Cancel", Msg::feature(Event::ViewerForwardMenu))
+                        ]
+                    ]
+                    .spacing(t::S12),
+                )
+                .id("dialog-scope")
+                .padding(t::S16)
+                .width(t::PICKER_W)
+                .style(t::popover),
             ))
             .center_x(Fill)
             .center_y(Fill)

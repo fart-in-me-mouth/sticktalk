@@ -245,7 +245,10 @@ fn account(app: &App) -> Element<'_, Msg> {
         .style(move |_| st::banner(st::rgb(app.settings.profile.color)));
     let identity = row![
         column![
-            title(app.state.model.name(me.user.id)),
+            super::super::elided::label(app.state.model.name(me.user.id))
+                .size(t::TITLE)
+                .font(t::semibold())
+                .width(Fill),
             small(&me.user.username)
         ]
         .spacing(t::S8)
@@ -438,9 +441,15 @@ fn account(app: &App) -> Element<'_, Msg> {
 }
 fn account_row<'a>(label: &str, value: &str, a: A) -> Element<'a, Msg> {
     row![
-        column![section(label), small(value).size(st::LABEL)]
-            .spacing(t::S8)
-            .width(Fill),
+        column![
+            section(label),
+            super::super::elided::label(value)
+                .size(st::LABEL)
+                .color(t::TEXT_SECONDARY)
+                .width(Fill)
+        ]
+        .spacing(t::S8)
+        .width(Fill),
         secondary("Edit", a, true).width(t::ATTACHMENT_CARD)
     ]
     .spacing(t::S16)

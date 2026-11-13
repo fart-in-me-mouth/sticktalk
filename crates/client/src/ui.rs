@@ -1,5 +1,7 @@
+pub(crate) mod audit;
 mod avatar_mask;
 mod controls;
+mod elided;
 pub mod emoji_picker;
 pub mod gif_picker;
 mod history;
@@ -554,6 +556,7 @@ fn content_view(app: &App) -> Element<'_, Msg> {
                     .align_y(Center),
                 )
                 .padding([t::S12, t::S16])
+                .max_width((app.width - t::S24 * 2.).min(t::QUICK_W))
                 .style(t::elevated),
             )
             .center_x(Fill)
@@ -582,28 +585,38 @@ fn login(app: &App) -> Element<'_, Msg> {
             "Sign in"
         })
     ]
-    .spacing(if app.register { t::S8 } else { t::S12 });
-    if !signup {
+    .spacing(if app.height < t::DEFAULT_H {
+        t::S12
+    } else {
+        t::S16
+    });
+    if !signup && app.change_server {
         form = form.push(
             column![
                 section("SERVER ADDRESS"),
-                text_input("https://chat.example.com", &app.server)
-                    .on_input(Msg::Server)
-                    .on_submit(Msg::RefreshMeta)
-                    .padding([t::S12, t::S16])
-                    .size(t::BODY)
-                    .line_height(iced::Pixels(t::S16))
-                    .style(t::input),
-                hint("Use the server address shared by your host."),
-                action(
-                    if app.meta_loading {
-                        "Connecting…"
-                    } else {
-                        "Connect"
-                    },
-                    Msg::RefreshMeta
-                )
-                .on_press_maybe((!app.meta_loading && !app.busy).then_some(Msg::RefreshMeta))
+                row![
+                    text_input("https://chat.example.com", &app.server)
+                        .id("login-server")
+                        .on_input_maybe((!app.busy).then_some(Msg::Server))
+                        .on_submit(Msg::RefreshMeta)
+                        .padding([t::S12, t::S16])
+                        .size(t::BODY)
+                        .line_height(iced::Pixels(t::S16))
+                        .width(Fill)
+                        .style(t::input),
+                    action(
+                        if app.meta_loading {
+                            "Connecting…"
+                        } else {
+                            "Connect"
+                        },
+                        Msg::RefreshMeta
+                    )
+                    .on_press_maybe((!app.meta_loading && !app.busy).then_some(Msg::RefreshMeta))
+                ]
+                .spacing(t::S8)
+                .align_y(Center),
+                hint("Use the address from your server administrator.").color(t::TEXT_SECONDARY)
             ]
             .spacing(t::S8),
         );
@@ -622,7 +635,13 @@ fn login(app: &App) -> Element<'_, Msg> {
         column![
             section("USERNAME"),
             text_input("your_username", &app.username)
-                .on_input(Msg::Username)
+                .id("login-username")
+                .on_input_maybe((!app.busy).then_some(Msg::Username))
+                .on_submit(if signup {
+                    Msg::GoogleComplete
+                } else {
+                    Msg::Tab(false)
+                })
                 .padding([t::S12, t::S16])
                 .size(t::BODY)
                 .line_height(iced::Pixels(t::S16))
@@ -635,7 +654,8 @@ fn login(app: &App) -> Element<'_, Msg> {
             column![
                 section("DISPLAY NAME"),
                 text_input("Optional", &app.display)
-                    .on_input(Msg::Display)
+                    .on_input_maybe((!app.busy).then_some(Msg::Display))
+                    .on_submit(Msg::Tab(false))
                     .padding([t::S12, t::S16])
                     .size(t::BODY)
                     .line_height(iced::Pixels(t::S16))
@@ -648,8 +668,9 @@ fn login(app: &App) -> Element<'_, Msg> {
         let mut password = column![
             section("PASSWORD"),
             text_input("", &app.password)
+                .id("login-password")
                 .secure(true)
-                .on_input(Msg::Password)
+                .on_input_maybe((!app.busy).then_some(Msg::Password))
                 .on_submit(Msg::Login)
                 .padding([t::S12, t::S16])
                 .size(t::BODY)
@@ -658,7 +679,7 @@ fn login(app: &App) -> Element<'_, Msg> {
         ]
         .spacing(t::S8);
         if app.register {
-            password = password.push(hint("At least 12 characters."));
+            password = password.push(hint("At least 12 characters.").color(t::TEXT_SECONDARY));
         }
         form = form.push(password);
     }
@@ -666,31 +687,35 @@ fn login(app: &App) -> Element<'_, Msg> {
         form = form.push(hint(&app.error).color(t::DANGER));
     }
     form = form.push(
-        primary(
-            if app.busy {
-                if app.register {
-                    "Creating account…"
+        container(
+            primary(
+                if app.busy {
+                    if app.register || signup {
+                        "Creating account…"
+                    } else {
+                        "Signing in…"
+                    }
+                } else if signup {
+                    "Create account"
+                } else if app.register {
+                    "Register"
                 } else {
-                    "Signing in…"
-                }
-            } else if signup {
-                "Create account"
-            } else if app.register {
-                "Register"
-            } else {
-                "Sign in"
-            },
-            if signup {
+                    "Sign in"
+                },
+                if signup {
+                    Msg::GoogleComplete
+                } else {
+                    Msg::Login
+                },
+            )
+            .on_press_maybe((!app.busy).then_some(if signup {
                 Msg::GoogleComplete
             } else {
                 Msg::Login
-            },
+            }))
+            .width(Fill),
         )
-        .on_press_maybe((!app.busy).then_some(if signup {
-            Msg::GoogleComplete
-        } else {
-            Msg::Login
-        }))
+        .id("login-submit")
         .width(Fill),
     );
     if app.oauth_pending() || signup {
@@ -724,13 +749,32 @@ fn login(app: &App) -> Element<'_, Msg> {
     if app.features.update_ready.is_some() {
         form = form.push(crate::features::update_pill(app));
     }
-    let body = column![container(scroller(form).height(Length::Shrink))
-        .padding(t::S32)
+    let mut body = column![container(scroller(form).height(Length::Shrink))
+        .id("login-card")
+        .padding(if app.height < t::DEFAULT_H {
+            t::S24
+        } else {
+            t::S32
+        })
         .width(t::LOGIN_W)
-        .max_height(app.height - t::MODAL_INSET - t::S32 * 2.)
+        .max_height(app.height - t::S32 * 2.)
         .style(t::modal)]
     .spacing(t::S12)
     .align_x(Center);
+    if !signup {
+        body = body.push(
+            button(hint(if app.change_server {
+                "Done"
+            } else {
+                "Change server"
+            }))
+            .on_press_maybe(
+                (!app.busy && !app.server.trim().is_empty()).then_some(Msg::ChangeServer),
+            )
+            .padding(t::S4)
+            .style(t::link),
+        );
+    }
     container(body)
         .center_x(Fill)
         .center_y(Fill)
@@ -878,7 +922,11 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
                     .push(friend_action(
                         "more-horizontal",
                         "More",
-                        Msg::Open(Dialog::Profile(id)),
+                        crate::main_window::mm(crate::main_window::Message::Open(
+                            crate::main_window::Popover::Context(crate::main_window::Entity::User(
+                                id,
+                            )),
+                        )),
                     ));
             }
             RelationshipKind::IncomingRequest => {
@@ -1212,8 +1260,11 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                     button(
                         row![
                             avatar(app, *id, t::S24, false),
-                            txt(app.state.model.name(*id)),
-                            hint(format!("@{}", user.username))
+                            elided::label(app.state.model.name(*id)).width(Fill),
+                            elided::label(format!("@{}", user.username))
+                                .size(t::HINT)
+                                .color(t::TEXT_SECONDARY)
+                                .width(Fill)
                         ]
                         .spacing(t::S12)
                         .align_y(Center),
@@ -1226,7 +1277,16 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                 );
             }
         }
-        body = body.push(container(suggestions).padding(t::S8).style(t::elevated));
+        body = body.push(
+            container(
+                scroller(suggestions)
+                    .id("composer-suggestions")
+                    .height(Length::Shrink),
+            )
+            .max_height((app.height * 0.4).min(t::S32 * 10.))
+            .padding(t::S8)
+            .style(t::elevated),
+        );
     }
     if !app.state.attachments.is_empty() {
         let mut attachments = Row::new().spacing(t::S8);
@@ -1250,7 +1310,7 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                 .style(t::elevated),
             );
         }
-        body = body.push(attachments);
+        body = body.push(attachments.wrap());
     }
     if app.state.editing.is_some() {
         body = body.push(
@@ -1282,8 +1342,10 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
             .map(|line| line.chars().count().max(1).div_ceil(wrap))
             .sum::<usize>()
             .max(1);
-        let height = (lines as f32 * t::BODY * t::LINE + t::S24)
-            .clamp(t::COMPOSER_MIN, app.viewport_h * 0.5);
+        // History height shrinks as the composer grows. Basing this limit on
+        // that feedback signal eventually inverted clamp's bounds at 940×600.
+        let max_height = ((app.height - t::HEADER - t::TYPING - t::S32) * 0.5).max(t::COMPOSER_MIN);
+        let height = (lines as f32 * t::BODY * t::LINE + t::S24).clamp(t::COMPOSER_MIN, max_height);
         let editor = compose_editor(app, placeholder, height, !candidates.is_empty());
         body = body.push(
             container(
@@ -1344,10 +1406,20 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         .into()
     };
     body = body.push(
-        container(row![dots, hint(typing)].spacing(t::S8).align_y(Center))
-            .height(t::TYPING)
-            .padding([0., t::S8])
-            .style(t::bare),
+        container(
+            row![
+                dots,
+                elided::label(typing)
+                    .size(t::HINT)
+                    .color(t::TEXT_MUTED)
+                    .width(Fill)
+            ]
+            .spacing(t::S8)
+            .align_y(Center),
+        )
+        .height(t::TYPING)
+        .padding([0., t::S8])
+        .style(t::bare),
     );
     container(body)
         .id("composer")
@@ -1433,13 +1505,15 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
                     .style(t::icon),
                 ))
                 .push(
-                    button(hint(ellipsis(
-                        &app.state.model.content(target),
-                        ((app.viewport_w - t::MESSAGE_GUTTER - t::S32 * 5.) / t::GLYPH_WIDTH)
-                            .clamp(16., 70.) as usize,
-                    )))
+                    button(
+                        elided::label(app.state.model.content(target))
+                            .size(t::HINT)
+                            .color(t::TEXT_MUTED)
+                            .width(Fill),
+                    )
                     .on_press(Msg::PreviewReply(reply))
                     .padding(0)
+                    .width(Fill)
                     .style(t::icon),
                 );
         } else {
@@ -1457,13 +1531,20 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
             row![
                 link_context::wrap(
                     button(
-                        txt(app.state.model.name(m.author_id))
-                            .font(t::medium())
-                            .size(t::CHANNEL_NAME)
-                            .color(controls::name_color(app, m.author_id))
+                        container(
+                            elided::label(app.state.model.name(m.author_id))
+                                .font(t::medium())
+                                .size(t::CHANNEL_NAME)
+                                .color(controls::name_color(app, m.author_id))
+                        )
+                        .max_width(
+                            (app.viewport_w - t::MESSAGE_GUTTER - t::SEARCH_REST - t::S16)
+                                .max(t::S32)
+                        )
                     )
                     .on_press(controls::profile_message(m.author_id))
                     .padding(0)
+                    .width(Length::Shrink)
                     .style(t::icon)
                 ),
                 hint(timestamp(m.created_at, false))
@@ -1588,7 +1669,7 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
                     .style(t::icon),
             );
         }
-        content = content.push(reactions);
+        content = content.push(reactions.wrap());
     }
     let gutter: Element<'_, Msg> = if grouped || compact {
         container(hint(if hovered || compact {
@@ -1800,6 +1881,15 @@ fn inline_content<'a>(
     values: &[crate::markdown::Inline],
     size: f32,
 ) -> Element<'a, Msg> {
+    inline_content_edited(app, m, values, size, false)
+}
+fn inline_content_edited<'a>(
+    app: &App,
+    m: &Message,
+    values: &[crate::markdown::Inline],
+    size: f32,
+    edited: bool,
+) -> Element<'a, Msg> {
     use unicode_segmentation::UnicodeSegmentation;
     let is_emoji = |g: &str| {
         g.chars().next().is_some_and(|c| c as u32 >= 0x2300)
@@ -1809,7 +1899,7 @@ fn inline_content<'a>(
         .iter()
         .any(|v| !v.style.code && v.text.graphemes(true).any(is_emoji))
     {
-        return inline_text(app, m, values, size);
+        return inline_text_edited(app, m, values, size, edited);
     }
     // Keep styled words and artwork in the same wrapping flow. Text-only
     // messages retain the original single cached rich paragraph.
@@ -1846,6 +1936,9 @@ fn inline_content<'a>(
             flow = flow.push(inline_text(app, m, &[piece], size));
         }
     }
+    if edited {
+        flow = flow.push(hint(" (edited)"));
+    }
     flow.width(Fill).wrap().into()
 }
 fn inline_text<'a>(
@@ -1853,6 +1946,15 @@ fn inline_text<'a>(
     m: &Message,
     values: &[crate::markdown::Inline],
     size: f32,
+) -> Element<'a, Msg> {
+    inline_text_edited(app, m, values, size, false)
+}
+fn inline_text_edited<'a>(
+    app: &App,
+    m: &Message,
+    values: &[crate::markdown::Inline],
+    size: f32,
+    edited: bool,
 ) -> Element<'a, Msg> {
     use crate::markdown::Target;
     let mut spans = Vec::new();
@@ -1923,6 +2025,14 @@ fn inline_text<'a>(
         }
         spans.push(span);
     }
+    if edited {
+        spans.push(
+            widget::span(" (edited)")
+                .size(t::HINT)
+                .font(t::regular())
+                .color(t::TEXT_MUTED),
+        );
+    }
     link_context::wrap(
         widget::rich_text(spans)
             .font(t::regular())
@@ -1941,9 +2051,15 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
     use crate::markdown::Block;
     let doc = app.markdown.get(m.id, &m.content);
     let mut body = column![].spacing(t::S4).width(Fill);
-    for block in &doc.blocks {
+    for (index, block) in doc.blocks.iter().enumerate() {
         body = body.push(match block {
-            Block::Paragraph(v) => inline_content(app, m, v, t::BODY),
+            Block::Paragraph(v) => inline_content_edited(
+                app,
+                m,
+                v,
+                t::BODY,
+                m.edited_at.is_some() && index + 1 == doc.blocks.len(),
+            ),
             Block::Header(n, v) => inline_content(
                 app,
                 m,
@@ -2006,7 +2122,7 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
             }
         });
     }
-    if m.edited_at.is_some() {
+    if m.edited_at.is_some() && !matches!(doc.blocks.last(), Some(Block::Paragraph(_))) {
         body = body.push(hint("(edited)"));
     }
     use std::hash::{Hash, Hasher};
@@ -2264,6 +2380,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
             "Add a friend",
             "You can add a friend with their exact username.",
         ),
+        Dialog::NewChannel(ChannelKind::Category, _) => ("Create a category", ""),
         Dialog::NewChannel(_, _) => ("Create a channel", ""),
         Dialog::Notifications(_) => return settings::notifications(app),
         Dialog::ChannelSettings(_) => ("Channel settings", ""),
@@ -2376,8 +2493,15 @@ fn modal(app: &App) -> Element<'_, Msg> {
                 .push(footer("Join server", Msg::Submit));
         }
         Dialog::Invite => {
+            let ready = !app.form.code.is_empty();
+            let retry = !app.error.is_empty();
             let code = if app.form.code.is_empty() {
-                "Creating your invite…".into()
+                if retry {
+                    "Invite unavailable"
+                } else {
+                    "Creating your invite…"
+                }
+                .into()
             } else {
                 app.form.code.clone()
             };
@@ -2387,7 +2511,12 @@ fn modal(app: &App) -> Element<'_, Msg> {
                         row![
                             icon("link", t::ICON, t::TEXT_MUTED),
                             txt(ellipsis(&code, 36)).width(Fill),
-                            icon_button("copy", "Copy invite code", Msg::Copy(code))
+                            controls::icon_button_maybe(
+                                "copy",
+                                "Copy invite code",
+                                ready.then(|| Msg::Copy(app.form.code.clone())),
+                                false
+                            )
                         ]
                         .spacing(t::S12)
                         .align_y(Center),
@@ -2399,13 +2528,24 @@ fn modal(app: &App) -> Element<'_, Msg> {
             if let Some(guild_id) = app.state.guild {
                 body = body.push(
                     action(
-                        "Create a new invite",
+                        if retry {
+                            "Try again"
+                        } else {
+                            "Create a new invite"
+                        },
                         Msg::Command(Command::CreateInvite {
                             guild_id,
                             ttl_seconds: 604800,
                             max_uses: 100,
                         }),
                     )
+                    .on_press_maybe((ready || retry).then_some(Msg::Command(
+                        Command::CreateInvite {
+                            guild_id,
+                            ttl_seconds: 604800,
+                            max_uses: 100,
+                        },
+                    )))
                     .style(t::link),
                 );
             }
@@ -2425,7 +2565,16 @@ fn modal(app: &App) -> Element<'_, Msg> {
                     },
                     t::ACCENT,
                 ))
-                .push(field("NAME", "e.g. little-wins", &app.form.name, 0));
+                .push(field(
+                    "NAME",
+                    if *kind == ChannelKind::Category {
+                        "e.g. Projects"
+                    } else {
+                        "e.g. little-wins"
+                    },
+                    &app.form.name,
+                    0,
+                ));
             if *kind == ChannelKind::Text {
                 body = body.push(field(
                     "TOPIC (OPTIONAL)",
@@ -2444,7 +2593,14 @@ fn modal(app: &App) -> Element<'_, Msg> {
                         .map_or(String::new(), |v| app.state.model.channel_name(v))
                 )));
             }
-            body = body.push(footer("Create channel", Msg::Submit));
+            body = body.push(footer(
+                if *kind == ChannelKind::Category {
+                    "Create category"
+                } else {
+                    "Create channel"
+                },
+                Msg::Submit,
+            ));
         }
         Dialog::ChannelSettings(id) => {
             if let Some(c) = app.state.model.channels.get(id) {
@@ -2836,6 +2992,12 @@ fn compose_editor<'a>(
     let empty = app.editor.text().trim().is_empty();
     let autocomplete = autocomplete || !app.emoji_candidates().is_empty();
     let viewing_image = app.features.viewer.current().is_some();
+    let quick_binding = app
+        .settings
+        .preferences
+        .keybinds
+        .get("Quick Switcher")
+        .map_or("Ctrl+K", String::as_str);
     let editor = text_editor(&app.editor)
         // URLs, hashes, and pasted tokens must remain editable inside the same
         // viewport that the composer's wrapped-height estimate reserves.
@@ -2848,7 +3010,7 @@ fn compose_editor<'a>(
                     crate::features::Event::Key(e.key),
                 )))
             } else {
-                editor_binding(e, empty, autocomplete)
+                editor_binding(quick_binding, e, empty, autocomplete)
             }
         })
         .font(t::regular())

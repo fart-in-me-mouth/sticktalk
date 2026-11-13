@@ -8,7 +8,9 @@ pub fn root() -> PathBuf {
 }
 pub const DEFAULT_SERVER: &str = match option_env!("STICKTALK_DEFAULT_SERVER") {
     Some(value) => value,
-    None => "http://127.0.0.1:8080",
+    // An unpackaged first launch asks for an administrator-provided address.
+    // Do not silently connect to a developer's local server.
+    None => "",
 };
 pub fn server() -> String {
     std::fs::read_to_string(root().join("server.txt"))

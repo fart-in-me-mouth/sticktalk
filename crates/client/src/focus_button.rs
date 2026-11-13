@@ -37,6 +37,57 @@ pub fn button<'a>(content: impl Into<Element<'a, Msg>>) -> Button<'a> {
         centered: false,
     }
 }
+/// Native, wrapping Tab order. iced's default traversal leaves an empty stop
+/// after the final widget; modal scopes should wrap directly to their first item.
+pub fn cycle(previous: bool) -> impl widget::Operation<()> {
+    struct At {
+        target: Option<usize>,
+        current: usize,
+    }
+    impl widget::Operation<()> for At {
+        fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn widget::Operation<()>)) {
+            f(self);
+        }
+        fn focusable(
+            &mut self,
+            _: Option<&widget::Id>,
+            _: Rectangle,
+            state: &mut dyn operation::Focusable,
+        ) {
+            if self.target == Some(self.current) {
+                state.focus();
+            } else {
+                state.unfocus();
+            }
+            self.current += 1;
+        }
+    }
+    fn next(count: operation::focusable::Count) -> At {
+        at(count, false)
+    }
+    fn previous_item(count: operation::focusable::Count) -> At {
+        at(count, true)
+    }
+    fn at(count: operation::focusable::Count, previous: bool) -> At {
+        At {
+            target: (count.total > 0).then(|| match count.focused {
+                Some(index) if previous => (index + count.total - 1) % count.total,
+                Some(index) => (index + 1) % count.total,
+                None if previous => count.total - 1,
+                None => 0,
+            }),
+            current: 0,
+        }
+    }
+    let choose: fn(operation::focusable::Count) -> At = if previous { previous_item } else { next };
+    operation::then(operation::focusable::count(), choose)
+}
+pub fn focus_dialog() -> iced::Task<Msg> {
+    iced::widget::operation::focus("closed-composer").chain(
+        widget::operate(operation::scope("dialog-scope".into(), cycle(false)))
+            .map(|_: ()| Msg::Activity),
+    )
+}
 impl<'a> Button<'a> {
     pub fn centered(mut self) -> Self {
         self.centered = true;

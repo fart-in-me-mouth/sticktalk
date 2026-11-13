@@ -1,0 +1,16 @@
+# Keep the inspectable comparisons, inventory, and native evidence. Regenerate
+# the full matrix rather than adding hundreds of redundant binary assets.
+*
+!.gitignore
+!REVIEW.md
+!capture-inventory.json
+!validation.json
+!native-100.png
+!native-150.png
+!native-idle-100.json
+!native-window-100.json
+!native-window-150.json
+!before/
+!before/*.png
+!after/
+!after/*.png

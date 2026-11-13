@@ -49,11 +49,16 @@ pub fn cards(app: &App) -> Option<Element<'_, Msg>> {
             row![
                 icon("file", t::S32, t::TEXT_SECONDARY),
                 column![
-                    txt(ellipsis(
-                        &v.job.path.file_name().unwrap_or_default().to_string_lossy(),
-                        42
-                    )),
-                    hint(format!("#{channel} · {status}"))
+                    elided::label(v.job.path.file_name().unwrap_or_default().to_string_lossy())
+                        .width(Fill),
+                    elided::label(format!("#{channel} · {status}"))
+                        .size(t::HINT)
+                        .color(if v.error.is_some() {
+                            t::DANGER
+                        } else {
+                            t::TEXT_SECONDARY
+                        })
+                        .width(Fill)
                 ]
                 .spacing(t::S4)
                 .width(Fill),
