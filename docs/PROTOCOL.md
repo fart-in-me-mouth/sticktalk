@@ -1408,6 +1408,7 @@ All endpoints are bearer-authenticated GETs returning `Snapshot<T>`:
 | /guilds/{g}/profile | GuildProfile; member |
 | /guilds/{g}/preview | GuildPreview; member |
 | /users/{u}/profile | ProfileDetail; normal profile access, including readable historical authors |
+| /channels/{ch}/permissions | Permissions; own effective channel mask, View Channel required; no raw ACL disclosure |
 | /channels/{ch}/overwrites | Vec<PermissionOverwrite>; View Channel + Manage Roles |
 | /channels/{ch}/pins | Vec<Message>, newest pin first; View Channel + Read History |
 | /me/notifications | Vec<NotificationSettings>; own, inaccessible scopes omitted |

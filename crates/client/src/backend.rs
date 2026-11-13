@@ -69,6 +69,9 @@ async fn emit(output: &mut mpsc::Sender<Delivery>, budget: &Arc<Semaphore>, data
                 rmp_serde::to_vec_named(v)
             }
             sticktalk_client_core::launch::SnapshotData::Extent(v) => rmp_serde::to_vec_named(v),
+            sticktalk_client_core::launch::SnapshotData::Permissions(_, v) => {
+                rmp_serde::to_vec_named(v)
+            }
         }),
         Data::Frame(v) => encoded(rmp_serde::to_vec_named(v)),
         Data::History { page, .. }

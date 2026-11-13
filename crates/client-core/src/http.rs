@@ -180,6 +180,11 @@ impl<A: HttpTransport> Http<A> {
                         id,
                         self.json(&format!("/channels/{}/overwrites", id.0)).await?,
                     ),
+                    Read::Permissions(id) => SnapshotData::Permissions(
+                        id,
+                        self.json(&format!("/channels/{}/permissions", id.0))
+                            .await?,
+                    ),
                     Read::Extent(id) => SnapshotData::Extent(
                         self.json(&format!("/channels/{}/history-extent", id.0))
                             .await?,

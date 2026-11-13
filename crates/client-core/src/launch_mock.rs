@@ -229,6 +229,13 @@ pub fn read(model: &Model, read: Read) -> Option<SnapshotData> {
                     .unwrap_or_default(),
             },
         ),
+        Read::Permissions(id) => SnapshotData::Permissions(
+            id,
+            Snapshot {
+                cursor,
+                data: crate::launch::permissions(model, id),
+            },
+        ),
         Read::Extent(id) => {
             let ms = model.messages.get(&id);
             let n = ms.map_or(0, |m| m.len());

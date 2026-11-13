@@ -166,7 +166,13 @@ fn video_mime(head: &[u8]) -> Option<&'static str> {
                         | b"MSNV"
                 )
             };
-            if supported(&head[8..12]) || head[16..size].chunks_exact(4).any(supported) {
+            if supported(&head[8..12])
+                || head[16..size]
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .any(|brand| supported(brand.as_slice()))
+            {
                 return Some("video/mp4");
             }
         }

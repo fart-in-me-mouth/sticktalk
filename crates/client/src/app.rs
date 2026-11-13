@@ -2995,6 +2995,33 @@ impl App {
             self.error = "You are offline. This action was not queued.".into();
             return false;
         }
+        let required = match &command {
+            Command::SendMessage(m) => Some((
+                m.channel_id,
+                Permissions::SEND_MESSAGES
+                    | if m.attachment_ids.is_empty() {
+                        Permissions::empty()
+                    } else {
+                        Permissions::ATTACH_FILES
+                    },
+            )),
+            Command::EditMessage(m) => Some((m.channel_id, Permissions::SEND_MESSAGES)),
+            Command::Typing { channel_id } => Some((*channel_id, Permissions::SEND_MESSAGES)),
+            Command::AddReaction { channel_id, .. }
+            | Command::RemoveReaction { channel_id, .. } => {
+                Some((*channel_id, Permissions::ADD_REACTIONS))
+            }
+            Command::Launch(LaunchCommand::PinMessage { channel_id, .. }) => {
+                Some((*channel_id, Permissions::MANAGE_MESSAGES))
+            }
+            _ => None,
+        };
+        if required.is_some_and(|(channel, permission)| {
+            !self.channel_permissions(channel).contains(permission)
+        }) {
+            self.error = "You don't have permission to do that in this channel.".into();
+            return false;
+        }
         if self.state.pending.len() >= 32 {
             self.error = "Please wait for pending actions to finish.".into();
             return false;
@@ -4955,5 +4982,33 @@ mod tests {
         app.state.seek_loading = true;
         let _ = app.network(Data::Error("Server request failed".into()));
         assert!(!app.state.seek_loading);
+    }
+}
+
+#[cfg(test)]
+mod qa_channel_controls {
+    use super::*;
+    #[test]
+    fn read_only_keyboard_send_and_reaction_shortcuts_are_not_queued() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.state.connection = ConnectionState::Ready;
+        app.state.screen = Screen::Channel(Id(12));
+        app.state.model.launch.effective_permissions.insert(
+            Id(12),
+            Permissions::VIEW_CHANNEL | Permissions::READ_HISTORY,
+        );
+        replace_editor(&mut app.editor, "Keep this draft when sending is denied");
+        let _ = app.update(Msg::Send);
+        assert!(app.error.contains("permission"));
+        assert_eq!(app.editor.text(), "Keep this draft when sending is denied");
+        assert!(app.state.pending.is_empty());
+        app.error.clear();
+        assert!(!app.send(Command::AddReaction {
+            channel_id: Id(12),
+            message_id: Id(2279),
+            emoji: "👍".into()
+        }));
+        assert!(app.error.contains("permission"));
+        assert!(app.state.pending.is_empty());
     }
 }

@@ -7,6 +7,7 @@ pub enum Read {
     Profile(Id),
     Pins(Id),
     Overwrites(Id),
+    Permissions(Id),
     Extent(Id),
 }
 #[derive(Debug, Clone)]
@@ -14,6 +15,7 @@ pub enum SnapshotData {
     Profile(Snapshot<ProfileDetail>),
     Pins(Id, Snapshot<Vec<Message>>),
     Overwrites(Id, Snapshot<Vec<PermissionOverwrite>>),
+    Permissions(Id, Snapshot<Permissions>),
     Extent(Snapshot<HistoryExtent>),
 }
 impl SnapshotData {
@@ -22,6 +24,7 @@ impl SnapshotData {
             Self::Profile(v) => &v.cursor,
             Self::Pins(_, v) => &v.cursor,
             Self::Overwrites(_, v) => &v.cursor,
+            Self::Permissions(_, v) => &v.cursor,
             Self::Extent(v) => &v.cursor,
         }
     }
@@ -34,6 +37,7 @@ pub struct Projection {
     pub profiles: BTreeMap<Id, ProfileDetail>,
     pub pins: BTreeMap<Id, Vec<Message>>,
     pub overwrites: BTreeMap<Id, Vec<PermissionOverwrite>>,
+    pub effective_permissions: BTreeMap<Id, Permissions>,
     pub extents: BTreeMap<Id, HistoryExtent>,
     pub voice: BTreeMap<VoiceSession, GuildVoiceState>,
     pub speaking: BTreeSet<VoiceSession>,
@@ -64,6 +68,9 @@ impl Projection {
     }
     pub fn event(&mut self, e: &Event) {
         match e {
+            Event::ChannelUpsert(c) => {
+                self.effective_permissions.remove(&c.summary.id);
+            }
             Event::RolesUpdated { guild_id, roles } => {
                 self.roles.insert(*guild_id, roles.clone());
             }
@@ -123,6 +130,7 @@ impl Projection {
         }
     }
     pub fn purge_channel(&mut self, id: Id) {
+        self.effective_permissions.remove(&id);
         self.profiles.clear();
         self.pins.remove(&id);
         self.extents.remove(&id);
@@ -179,6 +187,12 @@ impl Projection {
             SnapshotData::Overwrites(id, v) => {
                 bounded_insert(&mut self.overwrites, id, v.data, 256)
             }
+            SnapshotData::Permissions(id, v) => bounded_insert(
+                &mut self.effective_permissions,
+                id,
+                v.data & Permissions::all(),
+                320,
+            ),
             SnapshotData::Extent(v) => {
                 bounded_insert(&mut self.extents, v.data.channel_id, v.data, 4)
             }
@@ -274,6 +288,9 @@ pub fn permissions(model: &crate::model::Model, channel: Id) -> Permissions {
     let Some(c) = model.channels.get(&channel) else {
         return Permissions::empty();
     };
+    if let Some(p) = model.launch.effective_permissions.get(&channel) {
+        return *p;
+    }
     let Some(guild) = c.guild_id else {
         return Permissions::VIEW_CHANNEL
             | Permissions::READ_HISTORY
@@ -332,6 +349,42 @@ pub fn permissions(model: &crate::model::Model, channel: Id) -> Permissions {
         {
             p = apply(p, o.deny, o.allow);
         }
+    }
+    // Match the service's implicit dependencies even before its personalized
+    // snapshot arrives; a denied send right also denies attachment/embed UI.
+    if !p.contains(Permissions::VIEW_CHANNEL) {
+        p.remove(
+            Permissions::SEND_MESSAGES
+                | Permissions::READ_HISTORY
+                | Permissions::ATTACH_FILES
+                | Permissions::ADD_REACTIONS
+                | Permissions::MANAGE_MESSAGES
+                | Permissions::EMBED_LINKS
+                | Permissions::MENTION_EVERYONE
+                | Permissions::CONNECT
+                | Permissions::SPEAK
+                | Permissions::STREAM
+                | Permissions::VIDEO
+                | Permissions::USE_VOICE_ACTIVITY
+                | Permissions::PRIORITY_SPEAKER
+                | Permissions::MUTE_MEMBERS
+                | Permissions::DEAFEN_MEMBERS
+                | Permissions::MOVE_MEMBERS,
+        );
+    }
+    if !p.contains(Permissions::SEND_MESSAGES) {
+        p.remove(
+            Permissions::ATTACH_FILES | Permissions::EMBED_LINKS | Permissions::MENTION_EVERYONE,
+        );
+    }
+    if !p.contains(Permissions::CONNECT) {
+        p.remove(
+            Permissions::SPEAK
+                | Permissions::STREAM
+                | Permissions::VIDEO
+                | Permissions::USE_VOICE_ACTIVITY
+                | Permissions::PRIORITY_SPEAKER,
+        );
     }
     p & Permissions::all()
 }
@@ -435,5 +488,61 @@ mod tests {
             .contains(Permissions::MANAGE_GUILD));
         assert!(!permissions(&model, Id(12))
             .intersects(Permissions::MANAGE_MESSAGES | Permissions::MANAGE_GUILD));
+    }
+}
+
+#[cfg(test)]
+mod qa_permission_tests {
+    use super::*;
+    #[test]
+    fn local_affordances_apply_implicit_send_dependencies() {
+        let mut model = crate::mock::Mock::new().model;
+        model.guilds.get_mut(&Id(10)).unwrap().guild.owner_id = Id(2);
+        model.launch.overwrites.insert(
+            Id(12),
+            vec![PermissionOverwrite {
+                kind: OverwriteKind::Member,
+                target_id: Id(1),
+                allow: Permissions::empty(),
+                deny: Permissions::SEND_MESSAGES,
+            }],
+        );
+        let p = permissions(&model, Id(12));
+        assert!(!p.intersects(
+            Permissions::SEND_MESSAGES
+                | Permissions::ATTACH_FILES
+                | Permissions::EMBED_LINKS
+                | Permissions::MENTION_EVERYONE
+        ));
+        assert!(p.contains(Permissions::READ_HISTORY | Permissions::ADD_REACTIONS));
+    }
+    #[test]
+    fn authoritative_mask_invalidates_on_channel_upsert_and_purge() {
+        let mut projection = Projection::default();
+        projection.snapshot(SnapshotData::Permissions(
+            Id(12),
+            Snapshot {
+                cursor: ResumeCursor {
+                    stream_id: "qa".into(),
+                    seq: 0,
+                },
+                data: Permissions::VIEW_CHANNEL,
+            },
+        ));
+        assert_eq!(
+            projection.effective_permissions[&Id(12)],
+            Permissions::VIEW_CHANNEL
+        );
+        let channel = crate::mock::Mock::new().model.channels[&Id(12)].clone();
+        projection.event(&Event::ChannelUpsert(Channel {
+            summary: channel,
+            topic: None,
+        }));
+        assert!(!projection.effective_permissions.contains_key(&Id(12)));
+        projection
+            .effective_permissions
+            .insert(Id(12), Permissions::VIEW_CHANNEL);
+        projection.purge_channel(Id(12));
+        assert!(!projection.effective_permissions.contains_key(&Id(12)));
     }
 }

@@ -460,6 +460,10 @@ impl App {
         self.main.focus_voice = None;
         self.main.search.clear();
         self.main.extent_changes = 0;
+        self.request(Request::Launch {
+            read: Read::Permissions(id),
+            generation: self.state.generation,
+        });
         self.state.model.active_guild = self.state.guild;
         if self
             .state
@@ -544,6 +548,33 @@ impl App {
         }
     }
     pub(crate) fn main_live_event(&mut self, event: &Event) {
+        // ACL mutations fan out ChannelUpsert even when metadata is unchanged.
+        // Regular members cannot read raw overwrites, but must still learn their
+        // own effective controls, including category and member denials.
+        if let Event::ChannelUpsert(c) = event {
+            if self.state.screen == Screen::Channel(c.summary.id) {
+                self.request(Request::Launch {
+                    read: Read::Permissions(c.summary.id),
+                    generation: self.state.generation,
+                });
+            }
+        }
+        let relationship_user = match event {
+            Event::RelationshipUpsert(r) => Some(r.user.id),
+            Event::RelationshipRemoved { user_id } => Some(*user_id),
+            _ => None,
+        };
+        if let Screen::Channel(id) = self.state.screen {
+            if self.state.model.channels.get(&id).is_some_and(|c| {
+                c.kind == ChannelKind::Direct
+                    && relationship_user.is_some_and(|u| c.recipient_ids.contains(&u))
+            }) {
+                self.request(Request::Launch {
+                    read: Read::Permissions(id),
+                    generation: self.state.generation,
+                });
+            }
+        }
         if let Event::PinsUpdated { channel_id, .. } = event {
             if self.main.popover == Some(Popover::Pins(*channel_id)) {
                 self.request(Request::Launch {
