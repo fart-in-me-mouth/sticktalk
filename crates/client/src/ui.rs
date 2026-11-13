@@ -15,6 +15,7 @@ pub(crate) mod settings;
 mod sidebar;
 mod tooltip_delay;
 pub mod uploads;
+mod video;
 pub mod viewer;
 use crate::{
     app::{editor_binding, App, Dialog, FriendTab, GuildTab, Msg, Screen},
@@ -370,6 +371,9 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         .into()
     };
     let mut layers = vec![main];
+    if let Some(overlay) = video::overlay(app) {
+        layers.push(opaque(overlay));
+    }
     if app.calls.picker {
         layers.push(
             container(opaque(share_picker::view(app)))
@@ -1340,7 +1344,9 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
     }
     let mut attachments = column![].spacing(t::S8);
     for a in &m.attachments {
-        let preview: Element<'_, Msg> = if a.thumbnail.is_some() {
+        let preview: Element<'_, Msg> = if crate::video::is_video(a) {
+            video::view(app, &crate::video::attachment_key(a), false)
+        } else if a.thumbnail.is_some() {
             let (w, h) = thumb_size(a);
             let image: Element<'_, Msg> = if let Some(handle) = app.images.get(a.id) {
                 image(handle.clone())
@@ -1396,7 +1402,11 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
     }
     if !m.reactions.is_empty() {
         let mut reactions = Row::new().spacing(t::S4);
-        for r in &m.reactions {
+        for r in m
+            .reactions
+            .iter()
+            .filter(|r| emoji_picker::has_artwork(&r.emoji))
+        {
             reactions = reactions.push(
                 button(
                     row![
@@ -1627,6 +1637,60 @@ enum RichLink {
     Profile(Id),
 }
 fn inline_content<'a>(
+    app: &App,
+    m: &Message,
+    values: &[crate::markdown::Inline],
+    size: f32,
+) -> Element<'a, Msg> {
+    use unicode_segmentation::UnicodeSegmentation;
+    let is_emoji = |g: &str| {
+        g.chars().next().is_some_and(|c| c as u32 >= 0x2300)
+            && (emoji_picker::has_artwork(g) || sticktalk_emoji::emoji_to_shortcode(g).is_some())
+    };
+    if !values
+        .iter()
+        .any(|v| !v.style.code && v.text.graphemes(true).any(is_emoji))
+    {
+        return inline_text(app, m, values, size);
+    }
+    // Keep styled words and artwork in the same wrapping flow. Text-only
+    // messages retain the original single cached rich paragraph.
+    let mut flow = Row::new().spacing(0).align_y(Center);
+    for value in values {
+        let mut buffer = String::new();
+        let hidden = value
+            .spoiler
+            .is_some_and(|i| !app.revealed.contains(&(m.id, i)));
+        for grapheme in value.text.graphemes(true) {
+            let picture = !value.style.code && !hidden && is_emoji(grapheme);
+            if picture || grapheme.chars().all(char::is_whitespace) {
+                if !picture {
+                    buffer.push_str(grapheme);
+                }
+                if !buffer.is_empty() {
+                    let mut piece = value.clone();
+                    piece.text = std::mem::take(&mut buffer);
+                    flow = flow.push(inline_text(app, m, &[piece], size));
+                }
+                if picture && emoji_picker::has_artwork(grapheme) {
+                    flow = flow.push(emoji_picker::glyph(
+                        grapheme,
+                        size * app.settings.preferences.chat_font_scale,
+                    ));
+                }
+            } else {
+                buffer.push_str(grapheme);
+            }
+        }
+        if !buffer.is_empty() {
+            let mut piece = value.clone();
+            piece.text = buffer;
+            flow = flow.push(inline_text(app, m, &[piece], size));
+        }
+    }
+    flow.width(Fill).wrap().into()
+}
+fn inline_text<'a>(
     app: &App,
     m: &Message,
     values: &[crate::markdown::Inline],

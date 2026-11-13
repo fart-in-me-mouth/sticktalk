@@ -1,0 +1,100 @@
+{
+  "merges": [
+    "d6fe887 main parity",
+    "1cd48b5 emoji/GIF/media platform",
+    "458480b current master Settings/SFU/server profile"
+  ],
+  "screenshots": {
+    "sizes": [
+      "1280x800",
+      "1920x1080"
+    ],
+    "counts": {
+      "main-parity": 86,
+      "media": 34,
+      "pickers": 14,
+      "settings": 104,
+      "integrated-all": 136
+    },
+    "total": 374,
+    "renderer": "real iced view tree, offscreen tiny-skia, no OS window",
+    "review": "All manifest images inspected in contact sheets; full-resolution main, picker, viewer, inline video, account and dirty server-settings spot checks. Manifest hashes and exact PNG dimensions verified."
+  },
+  "visual_checks": [
+    "Artwork-only emoji picker/autocomplete, common art shared with message and reaction rendering; missing art hidden.",
+    "GIF results use metadata-sized two-column masonry; category labels centered over dark overlays; KLIPY attribution retained without Esc footer.",
+    "Image viewer uses 85% black backdrop, enlarged contain fit, counter inside viewer area, cursor-anchored wheel zoom/pan and fit/actual-size toggle.",
+    "Inline video poster/playing/fullscreen controls fit both sizes.",
+    "Reviewed modular Settings layout, role pages, context menus and save bars preserved."
+  ],
+  "playback": {
+    "mp4": {
+      "window_backend": "none",
+      "muted": true,
+      "d3d11_manager": true,
+      "frames": 12,
+      "distinct_frames": 12,
+      "seconds": 0.847
+    },
+    "webm": {
+      "window_backend": "none",
+      "muted": true,
+      "d3d11_manager": true,
+      "frames": 12,
+      "distinct_frames": 12,
+      "seconds": 0.849
+    },
+    "note": "Silent local testsrc2 files, no OS window, current decoder build"
+  },
+  "bounds": {
+    "native_video_workers": 8,
+    "video_cached_posters": 16,
+    "preview_max_dimensions": [
+      320,
+      320
+    ],
+    "inline_max_dimensions": [
+      640,
+      360
+    ],
+    "fullscreen_max_dimensions": [
+      1920,
+      1080
+    ],
+    "video_disk_cache_mib": 128,
+    "max_inline_file_mib": 128,
+    "preview_download_mib": 8,
+    "idle_timers": "none when no media is active",
+    "worker_pool": "Dedicated bounded video threads do not occupy the shared blocking executor; release on close/offscreen/unfocus."
+  },
+  "idle": {
+    "cpu_percent_one_core": 0.0,
+    "messages": 50,
+    "mode": "headless rendered iced view; no OS window; no network or audio",
+    "private_bytes": 15503360,
+    "raster_bytes": 8294400,
+    "renderer": "tiny-skia",
+    "sample_seconds": 10.0004184,
+    "working_set_bytes": 38666240
+  },
+  "checks": {
+    "tests": "cargo test -p sticktalk -p sticktalk-client-core -p sticktalk-desktop-platform -p sticktalk-media",
+    "passed": 182,
+    "ignored": 3,
+    "clippy": "cargo clippy --all-targets -- -D warnings",
+    "format": "cargo fmt --all -- --check",
+    "native_voice": "Real endpoint/server Opus and control negotiation test passed; client H.264 ladder matches hardened SFU."
+  },
+  "acceptance_limits": [
+    "Inline container playback currently downloads into a bounded 128 MiB cache; larger attachments remain uploadable/downloadable but need a streaming byte-source player before inline playback can support them.",
+    "Real tray menus, HKCU startup registration and OS notification/sound acceptance were deliberately not exercised on the owner PC; tests are dry/mocked.",
+    "Existing out-of-scope auth mock change-server screenshot retains its loopback fixture address."
+  ],
+  "build_hygiene": {
+    "target": "C:/Users/dwhee/.cargo-target/sticktalk-integrate1",
+    "cargo_incremental": 0,
+    "release_builds": false,
+    "budget_breach": "Accumulated duplicate feature-graph build artifacts transiently exceeded 10 GiB before cleanup. Entire target was removed and final validation rebuilt with a conservative size guard; final guarded peak was about 8.05 GB. This was a budget breach, not an under-budget claim.",
+    "final_target_cleanup": "Deleted and verified absent after all tests, clippy, format, screenshots, playback probes and headless memory validation."
+  }
+}

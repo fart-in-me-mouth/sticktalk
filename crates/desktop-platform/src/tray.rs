@@ -35,12 +35,14 @@ pub enum CloseAction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrayAction {
     Open,
+    Hide,
     Mute,
     Deafen,
     Quit,
 }
-pub const MENU: [(u16, &str, TrayAction); 4] = [
-    (1, "Open StickTalk", TrayAction::Open),
+pub const MENU: [(u16, &str, TrayAction); 5] = [
+    (1, "Show StickTalk", TrayAction::Open),
+    (5, "Hide StickTalk", TrayAction::Hide),
     (2, "Mute", TrayAction::Mute),
     (3, "Deafen", TrayAction::Deafen),
     (4, "Quit", TrayAction::Quit),
@@ -59,6 +61,7 @@ mod tests {
         assert_eq!(p.close_action(true), CloseAction::Hide);
         assert_eq!(p.close_action(false), CloseAction::Exit);
         assert_eq!(menu_action(4), Some(TrayAction::Quit));
+        assert_eq!(menu_action(5), Some(TrayAction::Hide));
         assert_eq!(menu_action(0), None);
     }
 }

@@ -419,15 +419,6 @@ impl Mock {
     pub fn ready(&self) -> Ready {
         Ready {
             cursor: self.cursor(),
-            roles: self.model.settings.roles.values().cloned().collect(),
-            memberships: self.model.settings.memberships.values().cloned().collect(),
-            notification_settings: self
-                .model
-                .settings
-                .notifications
-                .values()
-                .cloned()
-                .collect(),
             me: self.model.me.clone().unwrap(),
             guilds: self.model.guilds.values().cloned().collect(),
             channels: self.model.channels.values().cloned().collect(),
@@ -446,7 +437,10 @@ impl Mock {
                 .roles
                 .values()
                 .flatten()
-                .cloned()
+                .chain(self.model.settings.roles.values())
+                .map(|r| (r.id, r.clone()))
+                .collect::<BTreeMap<_, _>>()
+                .into_values()
                 .collect(),
             memberships: self
                 .model

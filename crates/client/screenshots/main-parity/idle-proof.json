@@ -2,9 +2,9 @@
   "cpu_percent_one_core": 0.0,
   "messages": 50,
   "mode": "headless rendered iced view; no OS window; no network or audio",
-  "private_bytes": 13942784,
+  "private_bytes": 15503360,
   "raster_bytes": 8294400,
   "renderer": "tiny-skia",
-  "sample_seconds": 10.0001095,
-  "working_set_bytes": 35581952
+  "sample_seconds": 10.0004184,
+  "working_set_bytes": 38666240
 }

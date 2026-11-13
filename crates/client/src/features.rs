@@ -23,6 +23,8 @@ pub enum Picker {
 }
 #[derive(Debug, Clone)]
 pub enum Event {
+    Video(crate::video::Event),
+    Desktop(crate::desktop_host::Event),
     Update(crate::platform_glue::UpdateEvent),
     Trim(u64),
     ConfirmUpdate,
@@ -81,6 +83,7 @@ pub struct Transfer {
 }
 #[derive(Default)]
 pub struct State {
+    pub video: crate::video::State,
     pub trim_epoch: u64,
     pub trim_done: bool,
     pub picker: Picker,
@@ -110,7 +113,10 @@ fn emit(f: impl std::future::Future<Output = Event> + Send + 'static) -> Task<Ms
     Task::perform(f, Msg::feature)
 }
 pub fn subscription(app: &App) -> Subscription<Msg> {
-    let mut subs = Vec::new();
+    let mut subs = vec![
+        crate::video::subscription(app),
+        crate::desktop_host::subscription(app),
+    ];
     if cfg!(feature = "compact-allocator") && !app.features.trim_done {
         subs.push(Subscription::run_with(app.features.trim_epoch, |epoch| {
             let epoch = *epoch;
@@ -191,6 +197,8 @@ fn gif_request(app: &mut App, q: crate::gifs::Query) -> Task<Msg> {
 }
 pub fn update(app: &mut App, e: Event) -> Task<Msg> {
     match e {
+        Event::Video(e) => return crate::video::update(app, e),
+        Event::Desktop(e) => return crate::desktop_host::update(app, e),
         Event::Trim(epoch) => {
             if epoch == app.features.trim_epoch {
                 app.features.trim_done = true;
@@ -888,7 +896,14 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
                 app.features.desktop.pending_activation = Some(a);
             } else {
                 match a {
-                    Activation::Open => {}
+                    Activation::Open => {
+                        return crate::desktop_host::update(
+                            app,
+                            crate::desktop_host::Event::Tray(
+                                sticktalk_desktop_platform::tray::TrayAction::Open,
+                            ),
+                        )
+                    }
                     Activation::Invite(code) => {
                         app.features.picker = Picker::None;
                         app.dialog = Dialog::JoinGuild;
@@ -975,6 +990,7 @@ pub fn persist(app: &App) -> Task<Msg> {
     })
 }
 pub fn reconcile(app: &mut App) -> Task<Msg> {
+    crate::desktop_host::sync(app);
     let (Some(c), Some(account)) = (config(app), app.me()) else {
         return Task::none();
     };
@@ -1085,48 +1101,29 @@ pub fn reconcile(app: &mut App) -> Task<Msg> {
     }
     if app.features.picker == Picker::Gif {
         let s = &app.features.gifs;
-        let category_height = if !s.tab && s.query.is_empty() {
-            s.categories.len().div_ceil(2) as f32
-                * (crate::theme::ATTACHMENT_CARD + crate::theme::S8)
-        } else {
-            0.
-        };
-        if category_height > 0. && s.scroll_y < category_height {
-            let first = (s.scroll_y / (crate::theme::ATTACHMENT_CARD + crate::theme::S8)).floor()
-                as usize
-                * 2;
-            for category in s.categories.iter().skip(first).take(8) {
-                if crate::gifs::inline_url(&category.preview.url) {
-                    wanted.insert(category.preview.url.clone());
-                    if app.features.autoplay.animates(
-                        true,
-                        app.focused,
-                        s.hovered.as_ref() == Some(&category.query),
-                        false,
-                    ) {
-                        active.insert(category.preview.url.clone());
-                    }
-                }
-            }
-        }
-        let first = ((s.scroll_y - category_height).max(0.)
-            / (crate::theme::ATTACHMENT_CARD + crate::theme::S24 + crate::theme::S8))
-            .floor() as usize
-            * 2;
-        for item in s.items().iter().skip(first).take(8) {
-            if item.preview.content_type.starts_with("image/") {
-                wanted.insert(item.preview.url.clone());
-                if app.features.autoplay.animates(
-                    true,
-                    app.focused,
-                    s.hovered.as_ref() == Some(&item.id),
-                    false,
-                ) {
-                    active.insert(item.preview.url.clone());
+        for (url, hovered) in gif_picker::visible(s) {
+            if crate::gifs::inline_url(url) {
+                wanted.insert(url.to_owned());
+                if app
+                    .features
+                    .autoplay
+                    .animates(true, app.focused, hovered, false)
+                {
+                    active.insert(url.to_owned());
                 }
             }
         }
     }
+    crate::video::reconcile(
+        app,
+        wanted
+            .iter()
+            .filter(|u| crate::video::is_url(u))
+            .cloned()
+            .collect(),
+        &active,
+    );
+    wanted.retain(|url| !crate::video::is_url(url));
     let wanted: BTreeSet<_> = wanted.into_iter().take(8).collect();
     // Drop offscreen decoders and all frame handles immediately. Maximum eight 4 MiB clips.
     app.features
@@ -1227,6 +1224,9 @@ impl App {
             vec![]
         } else {
             sticktalk_client_core::emoji::candidates(&self.editor.text(), self.composer_caret())
+                .into_iter()
+                .filter(|e| emoji_picker::has_artwork(e.emoji()))
+                .collect()
         }
     }
 }
@@ -1262,6 +1262,7 @@ pub fn update_pill(app: &App) -> iced::Element<'_, Msg> {
     }
 }
 pub fn fixture(app: &mut App, screen: &str) {
+    crate::video::fixture(app, screen);
     app.features.desktop.dry_run = true;
     app.features.gifs.capability = GifCapability::Enabled(GifConfig::Proxy {
         provider: GifProviderName::Klipy,
@@ -1305,7 +1306,7 @@ pub fn fixture(app: &mut App, screen: &str) {
             let media = GifMedia {
                 url: format!("https://static.klipy.com/mock-{i}.webp"),
                 width: 256,
-                height: 144,
+                height: [144, 256, 192, 128, 200, 160][i],
                 content_type: "image/webp".into(),
             };
             let item = GifItem {

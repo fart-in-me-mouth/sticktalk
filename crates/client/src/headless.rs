@@ -76,6 +76,34 @@ pub const SCREENS: &[&str] = &[
     "history-jump",
     "reply-preview",
 ];
+pub const PICKER_SCREENS: &[&str] = &[
+    "emoji-picker",
+    "emoji-search",
+    "emoji-autocomplete",
+    "reaction-picker",
+    "gif-picker",
+    "gif-search",
+    "gif-favorites",
+];
+pub const MEDIA_SCREENS: &[&str] = &[
+    "emoji-picker",
+    "emoji-search",
+    "emoji-autocomplete",
+    "reaction-picker",
+    "gif-picker",
+    "gif-search",
+    "gif-favorites",
+    "image-viewer",
+    "image-viewer-loading",
+    "image-viewer-zoom",
+    "upload-progress",
+    "upload-storage-full",
+    "upload-other-channel",
+    "restart-update",
+    "inline-video-poster",
+    "inline-video-playing",
+    "inline-video-fullscreen",
+];
 pub const MAIN_SCREENS: &[&str] = &[
     "guild-chat",
     "main-server-menu",
@@ -192,6 +220,10 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             }
             let screens = if args.iter().any(|v| v == "--main-only") {
                 MAIN_SCREENS
+            } else if args.iter().any(|v| v == "--media-only") {
+                MEDIA_SCREENS
+            } else if args.iter().any(|v| v == "--pickers-only") {
+                PICKER_SCREENS
             } else if args.iter().any(|v| v == "--settings-only") {
                 crate::ui::settings::SCREENS
             } else {

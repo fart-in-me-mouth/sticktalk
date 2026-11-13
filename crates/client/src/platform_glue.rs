@@ -70,8 +70,8 @@ impl State {
         Some(toast)
     }
 }
-pub async fn notify(toast: MessageToast, dry_run: bool) -> Result<(), String> {
-    if dry_run {
+pub async fn notify(toast: MessageToast, dry_run: bool, sound: bool) -> Result<(), String> {
+    if dry_run || cfg!(test) {
         return toast.xml().map(|_| ()).map_err(|e| e.to_string());
     }
     tokio::task::spawn_blocking(move || {
@@ -89,7 +89,16 @@ pub async fn notify(toast: MessageToast, dry_run: bool) -> Result<(), String> {
                 NotificationContext::default(),
             )
             .map_err(|e| e.to_string())?;
+            if sound {
+                sticktalk_desktop_platform::windows::play_sound(
+                    sticktalk_desktop_platform::sound::Sound::Message,
+                    true,
+                )
+                .map_err(|e| e.to_string())?;
+            }
         }
+        #[cfg(not(windows))]
+        let _ = sound;
         Ok(())
     })
     .await
@@ -97,7 +106,7 @@ pub async fn notify(toast: MessageToast, dry_run: bool) -> Result<(), String> {
 }
 
 /// Bounded best-effort effects; no idle worker.
-pub fn dispatch(toast: MessageToast, dry: bool) {
+pub fn dispatch(toast: MessageToast, dry: bool, sound: bool) {
     static GATE: std::sync::OnceLock<std::sync::Arc<tokio::sync::Semaphore>> =
         std::sync::OnceLock::new();
     let Ok(permit) = GATE
@@ -109,7 +118,7 @@ pub fn dispatch(toast: MessageToast, dry: bool) {
     };
     tokio::spawn(async move {
         let _permit = permit;
-        let _ = notify(toast, dry).await;
+        let _ = notify(toast, dry, sound).await;
     });
 }
 /// One shared runtime for pre-window instance IPC and iced tasks.
@@ -331,4 +340,29 @@ pub async fn restart(server: String) -> Result<(), String> {
     .restart_to_apply(&exe)
     .await
     .map_err(|e| e.to_string())
+}
+
+/// Focus is an independent sound guard even when another channel permits a toast.
+pub fn sound_requested(enabled: bool, focused: bool) -> bool {
+    enabled && !focused
+}
+#[cfg(test)]
+mod sound_tests {
+    use super::*;
+    #[tokio::test]
+    async fn test_notification_and_sound_effects_are_dry() {
+        assert!(!sound_requested(true, true));
+        assert!(!sound_requested(false, false));
+        assert!(sound_requested(true, false));
+        let toast = MessageToast {
+            sender: "A".into(),
+            server_channel: "general".into(),
+            preview: "hello".into(),
+            avatar_uri: None,
+            channel_id: 1,
+            message_id: 2,
+        };
+        // cfg(test) also forces dry-run if a caller accidentally passes false.
+        notify(toast, false, true).await.unwrap();
+    }
 }

@@ -1,0 +1,19 @@
+{
+  "mp4": {
+    "window_backend": "none",
+    "muted": true,
+    "d3d11_manager": true,
+    "frames": 12,
+    "distinct_frames": 12,
+    "seconds": 0.847
+  },
+  "webm": {
+    "window_backend": "none",
+    "muted": true,
+    "d3d11_manager": true,
+    "frames": 12,
+    "distinct_frames": 12,
+    "seconds": 0.849
+  },
+  "note": "Silent local testsrc2 files, no OS window, current decoder build"
+}

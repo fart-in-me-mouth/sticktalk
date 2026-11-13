@@ -72,10 +72,19 @@ impl Peer {
         let codecs = config.codec_config();
         codecs.clear();
         codecs.enable_opus(true, false);
-        // Offer the SFU's full H.264 profile ladder. str0m 0.25 can otherwise
-        // match both server High-profile levels to one remote PT on a later
-        // recvonly offer, creating duplicate locked PTs in its answerer.
-        codecs.enable_h264(true);
+        // Match the hardened SFU's profile/packetization ladder. Alternatives
+        // that differ only in H.264 level can claim the same sparse remote PT
+        // twice during renegotiation in str0m 0.25.
+        for (pt, rtx, mode, profile) in [
+            (127, 121, true, 0x42001f),
+            (125, 107, false, 0x42001f),
+            (108, 109, true, 0x42e01f),
+            (124, 120, false, 0x42e01f),
+            (123, 119, true, 0x4d001f),
+            (35, 36, false, 0x4d001f),
+        ] {
+            codecs.add_h264(pt.into(), Some(rtx.into()), mode, profile);
+        }
         codecs.add_h264(112.into(), Some(113.into()), true, 0x640033);
         let mut rtc = config.build(now);
         rtc.add_local_candidate(Candidate::host(local, "udp").map_err(err)?)

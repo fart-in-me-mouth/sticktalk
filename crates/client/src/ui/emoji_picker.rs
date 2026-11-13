@@ -14,11 +14,15 @@ pub struct State {
 }
 impl State {
     pub fn entries(&self) -> Vec<Emoji> {
-        if self.query.is_empty() {
+        let entries: Vec<_> = if self.query.is_empty() {
             data::by_category(data::categories()[self.category]).collect()
         } else {
             data::search(&self.query, 2048)
-        }
+        };
+        entries
+            .into_iter()
+            .filter(|&e| has_artwork(&self.glyph(e)))
+            .collect()
     }
     pub fn glyph(&self, e: Emoji) -> String {
         self.tone
@@ -52,14 +56,13 @@ impl State {
 }
 const ART: &[u8] = include_bytes!("../../assets/emoji/twemoji.bin");
 const INDEX: &[(&str, usize, usize)] = include!("../../assets/emoji/twemoji-index.rs");
-pub fn artwork(value: &str) -> Option<image::Handle> {
-    thread_local! { static CACHE:std::cell::RefCell<std::collections::BTreeMap<String,image::Handle>>=const{std::cell::RefCell::new(std::collections::BTreeMap::new())}; }
+fn art_key(value: &str) -> String {
     let exact = value
         .chars()
         .map(|c| format!("{:x}", c as u32))
         .collect::<Vec<_>>()
         .join("-");
-    let key = if INDEX.binary_search_by_key(&exact.as_str(), |v| v.0).is_ok() {
+    if INDEX.binary_search_by_key(&exact.as_str(), |v| v.0).is_ok() {
         exact
     } else {
         value
@@ -68,7 +71,16 @@ pub fn artwork(value: &str) -> Option<image::Handle> {
             .map(|c| format!("{:x}", c as u32))
             .collect::<Vec<_>>()
             .join("-")
-    };
+    }
+}
+pub fn has_artwork(value: &str) -> bool {
+    INDEX
+        .binary_search_by_key(&art_key(value).as_str(), |v| v.0)
+        .is_ok()
+}
+pub fn artwork(value: &str) -> Option<image::Handle> {
+    thread_local! { static CACHE:std::cell::RefCell<std::collections::BTreeMap<String,image::Handle>>=const{std::cell::RefCell::new(std::collections::BTreeMap::new())}; }
+    let key = art_key(value);
     CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         if let Some(h) = cache.get(&key) {
@@ -88,13 +100,7 @@ pub fn glyph<'a>(value: &str, size: f32) -> Element<'a, Msg> {
     if let Some(h) = artwork(value) {
         image(h).width(size).height(size).into()
     } else {
-        hint(
-            data::emoji_to_shortcode(value)
-                .unwrap_or("emoji")
-                .replace('_', " "),
-        )
-        .size(t::HINT)
-        .into()
+        space().width(0).height(0).into()
     }
 }
 fn cell(e: Emoji, s: &State) -> Element<'static, Msg> {
@@ -178,7 +184,10 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             .collect()
     };
     for code in codes {
-        if let Some(e) = data::search(code, 1).first() {
+        if let Some(e) = data::search(code, 1)
+            .first()
+            .filter(|&&e| has_artwork(&s.glyph(e)))
+        {
             frequent = frequent.push(cell(*e, s));
         }
     }
@@ -291,6 +300,20 @@ mod tests {
         for glyph in ["❤️", "👍", "👋", "🙂", "😶", "❤️‍🔥", "👋🏽"] {
             assert!(artwork(glyph).is_some(), "{glyph}");
         }
+    }
+    #[test]
+    fn every_picker_entry_has_art_even_with_a_selected_skin_tone() {
+        for tone in std::iter::once(None).chain(data::SKIN_TONES.map(Some)) {
+            for category in 0..8 {
+                let s = State {
+                    category,
+                    tone,
+                    ..Default::default()
+                };
+                assert!(s.entries().iter().all(|&e| has_artwork(&s.glyph(e))));
+            }
+        }
+        assert!(!has_artwork("\u{10ffff}")); // Missing art never becomes a text label.
     }
     #[test]
     fn virtual_window_is_bounded() {

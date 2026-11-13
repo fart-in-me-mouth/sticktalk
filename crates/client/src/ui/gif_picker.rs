@@ -29,6 +29,86 @@ impl State {
         }
     }
 }
+pub struct Placement {
+    pub index: usize,
+    pub column: usize,
+    pub top: f32,
+    pub height: f32,
+}
+pub fn category_height(s: &State) -> f32 {
+    if !s.tab && s.query.is_empty() {
+        s.categories.len().div_ceil(2) as f32 * (t::GIF_CATEGORY_H + t::S8)
+    } else {
+        0.
+    }
+}
+pub fn placements(s: &State) -> Vec<Placement> {
+    let mut heights = [category_height(s); 2];
+    s.items()
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let column = usize::from(heights[1] < heights[0]);
+            let height = (t::GIF_TILE_W * item.preview.height.max(1) as f32
+                / item.preview.width.max(1) as f32)
+                .clamp(t::S32 * 2., t::S32 * 10.);
+            let top = heights[column];
+            heights[column] += height + t::S8;
+            Placement {
+                index,
+                column,
+                top,
+                height,
+            }
+        })
+        .collect()
+}
+pub fn visible(s: &State) -> Vec<(&str, bool)> {
+    let intersects =
+        |top: f32, height: f32| top + height > s.scroll_y && top < s.scroll_y + t::GIF_VIEWPORT_H;
+    let mut result = Vec::new();
+    if category_height(s) > 0. {
+        for (i, c) in s.categories.iter().enumerate() {
+            if intersects(
+                (i / 2) as f32 * (t::GIF_CATEGORY_H + t::S8),
+                t::GIF_CATEGORY_H,
+            ) {
+                result.push((c.preview.url.as_str(), s.hovered.as_ref() == Some(&c.query)));
+            }
+        }
+    }
+    for p in placements(s) {
+        if intersects(p.top, p.height) {
+            let item = &s.items()[p.index];
+            result.push((
+                item.preview.url.as_str(),
+                s.hovered.as_ref() == Some(&item.id),
+            ));
+        }
+    }
+    result.truncate(8);
+    result
+}
+fn preview<'a>(app: &'a App, media: &GifMedia, height: f32) -> Element<'a, Msg> {
+    if let Some(frame) = frame(app, &media.url) {
+        image(frame.clone())
+            .width(t::GIF_TILE_W)
+            .height(height)
+            .content_fit(iced::ContentFit::Cover)
+            .border_radius(t::S8)
+            .into()
+    } else {
+        container(icon("image", t::S32, t::TEXT_MUTED))
+            .center_x(t::GIF_TILE_W)
+            .center_y(height)
+            .style(t::chat)
+            .into()
+    }
+}
+fn frame<'a>(app: &'a App, url: &str) -> Option<&'a image::Handle> {
+    crate::video::frame(app, url)
+        .or_else(|| app.features.animations.get(url).and_then(|a| a.frame()))
+}
 pub fn view(app: &App) -> Element<'_, Msg> {
     let s = &app.features.gifs;
     let tabs = row![
@@ -46,47 +126,24 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     .align_y(Center)
     .spacing(t::S8);
     let mut content = column![].spacing(t::S8);
-    if !s.tab && s.query.is_empty() {
+    if category_height(s) > 0. {
         let mut cats = column![].spacing(t::S8);
         for chunk in s.categories.chunks(2) {
             let mut line = row![].spacing(t::S8);
             for c in chunk {
-                let preview: Element<'_, Msg> = if let Some(frame) = app
-                    .features
-                    .animations
-                    .get(&c.preview.url)
-                    .and_then(|a| a.frame())
-                {
-                    image(frame.clone())
-                        .width(Fill)
-                        .height(t::ATTACHMENT_CARD)
-                        .content_fit(iced::ContentFit::Cover)
-                        .border_radius(t::S8)
-                        .into()
-                } else {
-                    container(icon("image", t::S32, t::TEXT_MUTED))
-                        .center_x(Fill)
-                        .center_y(t::ATTACHMENT_CARD)
-                        .style(t::chat)
-                        .into()
-                };
                 let tile = stack![
-                    preview,
-                    container(
-                        container(txt(&c.title).font(t::semibold()))
-                            .padding([t::S4, t::S8])
-                            .style(t::tooltip)
-                    )
-                    .padding(t::S8)
-                    .align_bottom(Fill)
+                    preview(app, &c.preview, t::GIF_CATEGORY_H),
+                    container(txt(&c.title).font(t::semibold()))
+                        .center_x(t::GIF_TILE_W)
+                        .center_y(t::GIF_CATEGORY_H)
+                        .style(|_| t::surface(t::GIF_CATEGORY_OVERLAY))
                 ];
                 line = line.push(
                     mouse_area(
                         button(tile)
                             .on_press(Msg::feature(Event::GifSearch(c.query.clone())))
                             .padding(0)
-                            .width(Fill)
-                            .style(t::button),
+                            .style(t::icon),
                     )
                     .on_enter(Msg::feature(Event::GifHover(Some(c.query.clone()))))
                     .on_exit(Msg::feature(Event::GifHover(None))),
@@ -96,63 +153,44 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         }
         content = content.push(cats);
     }
-    for (r, chunk) in s.items().chunks(2).enumerate() {
-        let mut line = row![].spacing(t::S8);
-        for (i, item) in chunk.iter().enumerate() {
-            let favorite = s.favorites.contains(&item.id);
-            let frame = app
-                .features
-                .animations
-                .get(&item.preview.url)
-                .and_then(|a| a.frame());
-            let poster: Element<'_, Msg> = if let Some(frame) = frame {
-                image(frame.clone())
-                    .width(Fill)
-                    .height(t::ATTACHMENT_CARD + t::S24)
-                    .content_fit(iced::ContentFit::Cover)
-                    .border_radius(t::S8)
-                    .into()
-            } else {
-                container(
-                    column![
-                        icon("image", t::S32, t::TEXT_MUTED),
-                        hint(ellipsis(&item.title, 22))
-                    ]
-                    .spacing(t::S8),
-                )
-                .center_x(Fill)
-                .center_y(t::ATTACHMENT_CARD + t::S24)
-                .style(t::chat)
-                .into()
-            };
-            let send = button(poster)
-                .on_press(Msg::feature(Event::GifSend(item.clone())))
-                .padding(0)
-                .style(t::navigation(s.selected == r * 2 + i));
-            let star = container(if s.hovered.as_ref() == Some(&item.id) || favorite {
-                icon_button(
-                    "star",
-                    if favorite {
-                        "Remove favorite"
-                    } else {
-                        "Add favorite"
-                    },
-                    Msg::feature(Event::GifFavorite(item.id.clone(), !favorite)),
-                )
-            } else {
-                space().width(t::S32).height(t::S32).into()
-            })
-            .align_right(Fill)
-            .align_top(Fill)
-            .padding(t::S4);
-            line = line.push(
-                mouse_area(stack![send, star])
-                    .on_enter(Msg::feature(Event::GifHover(Some(item.id.clone()))))
-                    .on_exit(Msg::feature(Event::GifHover(None))),
-            );
-        }
-        content = content.push(line);
+    let mut columns = [
+        column![].spacing(t::S8).width(t::GIF_TILE_W),
+        column![].spacing(t::S8).width(t::GIF_TILE_W),
+    ];
+    for p in placements(s) {
+        let item = &s.items()[p.index];
+        let favorite = s.favorites.contains(&item.id);
+        let send = button(preview(app, &item.preview, p.height))
+            .on_press(Msg::feature(Event::GifSend(item.clone())))
+            .padding(0)
+            .style(t::navigation(s.selected == p.index));
+        let star = container(if s.hovered.as_ref() == Some(&item.id) || favorite {
+            icon_button(
+                "star",
+                if favorite {
+                    "Remove favorite"
+                } else {
+                    "Add favorite"
+                },
+                Msg::feature(Event::GifFavorite(item.id.clone(), !favorite)),
+            )
+        } else {
+            space().width(t::S32).height(t::S32).into()
+        })
+        .align_right(t::GIF_TILE_W)
+        .align_top(p.height)
+        .padding(t::S4);
+        let tile = mouse_area(stack![send, star])
+            .on_enter(Msg::feature(Event::GifHover(Some(item.id.clone()))))
+            .on_exit(Msg::feature(Event::GifHover(None)));
+        let col = std::mem::replace(
+            &mut columns[p.column],
+            column![].spacing(t::S8).width(t::GIF_TILE_W),
+        );
+        columns[p.column] = col.push(tile);
     }
+    let [left, right] = columns;
+    content = content.push(row![left, right].spacing(t::S8));
     if s.loading {
         content = content.push(container(hint("Loading GIFs…")).padding(t::S16));
     }
@@ -186,17 +224,13 @@ pub fn view(app: &App) -> Element<'_, Msg> {
                 .style(t::input),
             scroller(content)
                 .id("gif-results")
-                .height(320)
+                .height(t::GIF_VIEWPORT_H)
                 .on_scroll(|v| Msg::feature(Event::GifScroll(
                     v.relative_offset().y,
                     v.absolute_offset().y
                 ))),
             rule::horizontal(t::HAIRLINE).style(t::divider),
-            row![
-                hint("Powered by KLIPY"),
-                space().width(Fill),
-                hint("Esc to close")
-            ]
+            hint("Powered by KLIPY")
         ]
         .spacing(t::S12),
     )
@@ -209,8 +243,7 @@ pub fn inline<'a>(app: &'a App, m: &'a Message) -> Option<Element<'a, Msg>> {
     if !crate::gifs::inline_url(&m.content) {
         return None;
     }
-    let animation = app.features.animations.get(m.content.trim());
-    let picture: Element<'_, Msg> = if let Some(frame) = animation.and_then(|a| a.frame()) {
+    let picture: Element<'_, Msg> = if let Some(frame) = frame(app, m.content.trim()) {
         image(frame.clone())
             .width(t::THUMB_W)
             .height(t::THUMB_H)
@@ -235,4 +268,22 @@ pub fn inline<'a>(app: &'a App, m: &'a Message) -> Option<Element<'a, Msg>> {
         .on_exit(Msg::feature(Event::InlineHover(None)))
         .into(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn masonry_uses_metadata_and_only_returns_visible_tiles() {
+        let mut app = App::headless("gif-search", iced::Size::new(1280., 800.));
+        let s = &mut app.features.gifs;
+        let layout = placements(s);
+        assert_ne!(layout[0].height, layout[1].height);
+        assert_eq!(layout[2].column, 0);
+        assert_eq!(layout[2].top, layout[0].height + t::S8);
+        s.scroll_y = 300.;
+        let urls: Vec<_> = visible(s).into_iter().map(|(u, _)| u).collect();
+        assert!(!urls.contains(&s.items()[0].preview.url.as_str()));
+        assert!(urls.len() <= 8);
+    }
 }

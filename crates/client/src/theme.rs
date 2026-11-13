@@ -552,3 +552,8 @@ pub fn popover(theme: &Theme) -> container::Style {
         ..modal(theme)
     }
 }
+
+pub const GIF_TILE_W: f32 = (PICKER_W - 2. * S12 - S8) / 2.;
+pub const GIF_CATEGORY_H: f32 = 96.;
+pub const GIF_VIEWPORT_H: f32 = 320.;
+pub const GIF_CATEGORY_OVERLAY: Color = Color::from_rgba8(0, 0, 0, 0.45);

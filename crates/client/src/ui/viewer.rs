@@ -32,12 +32,10 @@ impl State {
     }
     pub fn fit(&self, app: &App) -> f32 {
         self.current().map_or(1., |a| {
-            ((app.width - 2. * t::VIEWER_MARGIN) / a.width.unwrap_or(800).max(1) as f32)
-                .min(
-                    (app.height - 2. * t::VIEWER_MARGIN - t::HEADER * 2.)
-                        / a.height.unwrap_or(600).max(1) as f32,
-                )
-                .min(1.)
+            ((app.width * 0.9 - 2. * t::S32) / a.width.unwrap_or(800).max(1) as f32).min(
+                (app.height * 0.9 - t::HEADER * 2. - t::S24)
+                    / a.height.unwrap_or(600).max(1) as f32,
+            )
         })
     }
 }
@@ -130,7 +128,11 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         space().width(Fill),
         container(toolbar).padding(t::S4).style(t::elevated)
     ]
-    .align_y(Center);
+    .align_y(Center)
+    .padding(Padding {
+        left: t::RAIL + t::SIDEBAR - t::VIEWER_MARGIN,
+        ..Padding::ZERO
+    });
     let handle = s.handle.as_ref().or_else(|| app.images.get(a.id));
     let image: Element<'_, Msg> = if let Some(handle) = handle {
         Element::new(Surface {
@@ -387,5 +389,23 @@ impl iced::advanced::Widget<Msg, iced::Theme, iced::Renderer> for Surface {
         } else {
             iced::mouse::Interaction::None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn tiny_images_open_enlarged_to_contain_and_double_click_toggles_actual_size() {
+        let mut app = App::headless("image-viewer", iced::Size::new(1280., 800.));
+        app.features.viewer.items[0].width = Some(32);
+        app.features.viewer.items[0].height = Some(32);
+        let fit = app.features.viewer.fit(&app);
+        assert!(fit > 1.);
+        assert!(fit * 32. <= app.height * 0.9);
+        let _ = crate::features::update(&mut app, Event::ViewerActual);
+        assert_eq!(app.features.viewer.scale, Some(1.));
+        let _ = crate::features::update(&mut app, Event::ViewerActual);
+        assert_eq!(app.features.viewer.scale, None);
     }
 }

@@ -1,7 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod agent_window;
 mod app;
+mod desktop_host;
 mod features;
+mod video;
 use sticktalk::backend;
 use sticktalk::{animated, gifs, platform_glue, uploads};
 mod datetime;
@@ -68,7 +70,8 @@ fn main() -> iced::Result {
         .subscription(app::App::subscription)
         .window(iced::window::Settings {
             size: window_size(),
-            visible: !agent_window::enabled(),
+            visible: !agent_window::enabled() && !std::env::args().any(|a| a == "--background"),
+            exit_on_close_request: false,
             min_size: Some(iced::Size::new(theme::MIN_W, theme::MIN_H)),
             ..iced::window::Settings::default()
         })

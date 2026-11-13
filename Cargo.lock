@@ -6858,6 +6858,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.28.0",
  "tokio-util",
+ "unicode-segmentation",
  "windows 0.61.3",
  "windows-sys 0.61.2",
  "winit",
@@ -7376,7 +7377,7 @@ dependencies = [
  "fax",
  "flate2",
  "half",
- "quick-error",
+ "quick-error 2.0.1",
  "weezl",
  "zune-jpeg 0.5.15",
 ]

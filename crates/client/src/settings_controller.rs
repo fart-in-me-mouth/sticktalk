@@ -132,6 +132,7 @@ pub enum Toggle {
     FriendRequests,
     UnderlineLinks,
     Developer,
+    Startup,
     Sounds,
 }
 #[derive(Debug, Clone, Copy)]
@@ -735,6 +736,16 @@ impl App {
                     Toggle::UnderlineLinks => p.underline_links = value,
                     Toggle::Developer => p.developer_mode = value,
                     Toggle::Sounds => p.notification_sounds = value,
+                    Toggle::Startup => {
+                        if let Err(error) = crate::desktop_host::startup(
+                            value,
+                            self.mock_mode || crate::agent_window::enabled(),
+                        ) {
+                            self.error = error;
+                            return Task::none();
+                        }
+                        p.start_with_windows = value;
+                    }
                 }
             }
             A::Number(key, value) => {

@@ -232,7 +232,7 @@ pub struct App {
     heights: BTreeMap<Id, (u64, u32, u64, bool, f32)>,
     layout_cache: std::cell::RefCell<Option<RowCache>>,
     pub(crate) layout_revision: u64,
-    mock_mode: bool,
+    pub(crate) mock_mode: bool,
     typing_armed: bool,
     media_tasks: BTreeMap<Id, iced::task::Handle>,
     resolving: BTreeSet<Id>,
@@ -417,7 +417,14 @@ impl App {
         });
         (
             state,
-            Task::batch([task, meta_task, agent_task, scroll_task, activation]),
+            Task::batch([
+                task,
+                meta_task,
+                agent_task,
+                scroll_task,
+                activation,
+                crate::desktop_host::initialize(mock || crate::agent_window::enabled()),
+            ]),
         )
     }
     pub fn subscription(&self) -> Subscription<Msg> {
@@ -425,6 +432,9 @@ impl App {
             crate::features::subscription(self),
             iced::event::listen_with(|event, _status, _id| match event {
                 UiEvent::Window(window::Event::Resized(size)) => Some(Msg::Resize(size)),
+                UiEvent::Window(window::Event::CloseRequested) => Some(Msg::feature(
+                    crate::features::Event::Desktop(crate::desktop_host::Event::Close),
+                )),
                 UiEvent::Window(window::Event::Moved(_)) => Some(Msg::ScrollMonitorQuery),
                 UiEvent::Window(window::Event::Focused) => Some(Msg::Focus(true)),
                 UiEvent::Window(window::Event::Unfocused) => Some(Msg::Focus(false)),
@@ -1175,6 +1185,9 @@ impl App {
                 return operation::focus(field);
             }
             Msg::Close | Msg::Escape => {
+                if self.features.video.fullscreen.is_some() {
+                    return crate::video::update(self, crate::video::Event::CloseFullscreen);
+                }
                 if self.settings.binding.take().is_some() {
                     return Task::none();
                 }
@@ -1886,6 +1899,10 @@ impl App {
                 crate::ui::purge_main_assets();
                 self.features = Default::default();
                 if let Some(s) = self.state.session.take() {
+                    let config = s.config.clone();
+                    if !config.mock {
+                        tokio::task::spawn_blocking(move || crate::video::purge(&config));
+                    }
                     let account = self.me();
                     self.tx = None;
                     self.state.pending.clear();
@@ -2260,6 +2277,10 @@ impl App {
                                 crate::platform_glue::dispatch(
                                     toast,
                                     self.features.desktop.dry_run,
+                                    crate::platform_glue::sound_requested(
+                                        self.settings.preferences.notification_sounds,
+                                        self.focused,
+                                    ),
                                 );
                             }
                         }
@@ -2306,6 +2327,16 @@ impl App {
                     }
                     self.ack();
                     if removed {
+                        self.features.video = Default::default();
+                        if let Some(config) = self
+                            .state
+                            .session
+                            .as_ref()
+                            .map(|s| s.config.clone())
+                            .filter(|c| !c.mock)
+                        {
+                            tokio::task::spawn_blocking(move || crate::video::purge(&config));
+                        }
                         self.state.generation += 1;
                         self.message_layouts.clear();
                         self.markdown.clear();
