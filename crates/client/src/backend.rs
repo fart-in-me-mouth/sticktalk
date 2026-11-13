@@ -63,6 +63,7 @@ async fn emit(output: &mut mpsc::Sender<Delivery>, budget: &Arc<Semaphore>, data
         |v: Result<Vec<u8>, rmp_serde::encode::Error>| v.map_or(2 * 1024 * 1024 + 1, |v| v.len());
     let bytes = match &data {
         Data::Launch { data, .. } => encoded(match data {
+            sticktalk_client_core::launch::SnapshotData::Emoji(_, v) => rmp_serde::to_vec_named(v),
             sticktalk_client_core::launch::SnapshotData::Profile(v) => rmp_serde::to_vec_named(v),
             sticktalk_client_core::launch::SnapshotData::Pins(_, v) => rmp_serde::to_vec_named(v),
             sticktalk_client_core::launch::SnapshotData::Overwrites(_, v) => {

@@ -1916,23 +1916,28 @@ async fn mutate(
         AddReaction {
             channel_id: ch,
             message_id: m,
-            emoji,
+            mut emoji,
         }
         | RemoveReaction {
             channel_id: ch,
             message_id: m,
-            emoji,
+            mut emoji,
         } => {
             let added = adding_reaction;
             text(c, u, ch, Permissions::ADD_REACTIONS).await?;
             command_message(c, u, ch, m, false).await?;
-            require(
-                !emoji.is_empty()
-                    && emoji.len() <= 32
-                    && emoji.graphemes(true).count() == 1
-                    && emojis::get(&emoji).is_some(),
-                ErrorCode::InvalidRequest,
-            )?;
+            if let Some(eid) = custom_emoji_id(&emoji) {
+                crate::custom_emoji::reaction(c, ch, eid, added).await?;
+                emoji = format!("<:emoji:{}>", eid.0);
+            } else {
+                require(
+                    !emoji.is_empty()
+                        && emoji.len() <= 32
+                        && emoji.graphemes(true).count() == 1
+                        && emojis::get(&emoji).is_some(),
+                    ErrorCode::InvalidRequest,
+                )?;
+            }
             let changed = if added {
                 let n: i64 = sqlx::query_scalar(
                     "SELECT COUNT(DISTINCT emoji) FROM reactions WHERE message_id=? AND emoji<>?",

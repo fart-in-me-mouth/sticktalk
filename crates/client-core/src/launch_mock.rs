@@ -206,6 +206,13 @@ pub fn seed(model: &mut Model, now: u64) {
 pub fn read(model: &Model, read: Read) -> Option<SnapshotData> {
     let cursor = model.cursor.clone()?;
     Some(match read {
+        Read::Emoji(id) => SnapshotData::Emoji(
+            id,
+            Snapshot {
+                data: model.launch.emoji.get(&id).cloned().unwrap_or_default(),
+                cursor: cursor.clone(),
+            },
+        ),
         Read::Profile(id) => SnapshotData::Profile(Snapshot {
             cursor,
             data: model.launch.profiles.get(&id)?.clone(),

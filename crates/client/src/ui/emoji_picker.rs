@@ -239,6 +239,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
                 column![
                     section("FREQUENTLY USED"),
                     frequent,
+                    super::features3::picker(app).unwrap_or_else(|| space().height(0).into()),
                     section(if s.query.is_empty() {
                         data::categories()[s.category].to_uppercase()
                     } else {
@@ -265,6 +266,9 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     .into()
 }
 pub fn autocomplete(app: &App) -> Option<Element<'_, Msg>> {
+    if let Some(view) = super::features3::autocomplete(app) {
+        return Some(view);
+    }
     let entries = app.emoji_candidates();
     if entries.is_empty() {
         return None;

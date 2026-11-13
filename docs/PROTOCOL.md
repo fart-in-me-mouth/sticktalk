@@ -1791,3 +1791,30 @@ New additive DTOs: `AccountOperation` (`sign_in`, `link`, `unlink`, `password`,
   resumable protocols, charged on arriving bytes including retries/aborts.
   Maximum three unfinished uploads/user; idle reservations expire after one hour.
   Zero file-size configuration means unlimited, for BOTH protocols.
+
+## Additive text features: custom server emoji
+
+Launch-feature peers may use `RenameEmoji { guild_id, emoji_id, name }` and
+`DeleteEmoji { guild_id, emoji_id }` inside `Command::Launch`. Permission
+`MANAGE_EMOJI` is bit 28; owners/administrators bypass normally. Changes emit
+`GuildEmojiUpdated { guild_id, emoji: GuildEmoji[] }` to launch-feature guild
+members. Legacy clients never receive this new event.
+
+- `GET /api/v1/guilds/{id}/emoji` returns `Snapshot<Vec<GuildEmoji>>`.
+- `POST /api/v1/guilds/{id}/emoji?name=...` accepts a raw PNG/GIF/WebP body
+  of at most 262144 bytes. This REST mutation is an asset-upload lifecycle,
+  not an alternative command transport. Names are 2–32 ASCII alphanumerics/
+  underscores, case-insensitively unique within the guild. Maximum 50/guild.
+- Images are normalized to a maximum 128×128 bounding box, preserving alpha.
+  GIF/animated WebP is normalized to GIF. Safety limits: 2048px source axes,
+  32 MiB total decoded input frames, 120 frames, 256 KiB normalized output.
+- `GET /api/v1/emoji/{id}` serves normalized bytes; `/preview` serves a static
+  transparent PNG first frame. Both require current guild membership on every
+  request, use private/no-store caching, and never expose public asset URLs.
+- Message tokens are `<:name:id>`. Unknown/deleted emoji remain text rather
+  than loading arbitrary URLs. Reactions accept custom tokens only from the
+  message's server; storage uses `<:emoji:id>` so renaming cannot split counts.
+  Existing reaction removal remains possible after emoji deletion.
+- Desktop playback is hover-only and focused/visible-only. Leaving the row
+  drops animation frames and removes its one-shot timer; static previews need
+  no periodic task.

@@ -3,6 +3,12 @@ use iced::widget::column;
 pub(super) const PERMISSIONS: &[(&str, Permissions, &str, &str)] = &[
     (
         "General Server Permissions",
+        Permissions::MANAGE_EMOJI,
+        "Manage Emoji",
+        "Upload, rename, and delete custom server emoji.",
+    ),
+    (
+        "General Server Permissions",
         Permissions::VIEW_CHANNEL,
         "View Channels",
         "Allows members to view channels.",

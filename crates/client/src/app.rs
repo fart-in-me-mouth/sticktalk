@@ -24,6 +24,7 @@ pub enum Msg {
     Call(crate::voice_ui::Action),
     Main(crate::main_window::Message),
     Feature(Box<crate::features::Event>),
+    TextFeature(Box<crate::features3::Event>),
     Settings(crate::settings_controller::Action),
     SettingsStored(Result<(), String>),
     SettingsPersist(u64),
@@ -174,6 +175,7 @@ pub struct App {
     pub main: crate::main_window::State,
     pub extent: crate::history_extent::Window,
     pub features: crate::features::State,
+    pub text_features: crate::features3::State,
     pub settings: crate::settings_controller::State,
     pub state: ClientState,
     trace: Option<PathBuf>,
@@ -278,6 +280,7 @@ impl App {
             None
         };
         let state = Self {
+            text_features: crate::features3::State::default(),
             calls: crate::voice_ui::State::default(),
             main: crate::main_window::State::default(),
             extent: crate::history_extent::Window::default(),
@@ -444,6 +447,7 @@ impl App {
     pub fn subscription(&self) -> Subscription<Msg> {
         let mut subs = vec![
             crate::features::subscription(self),
+            crate::features3::subscription(self),
             iced::event::listen_with(|event, _status, _id| match event {
                 UiEvent::Window(window::Event::CloseRequested) => {
                     Some(Msg::Call(crate::voice_ui::Action::WindowClosed(_id)))
@@ -650,7 +654,11 @@ impl App {
             self.calls.recording_key = false;
         }
         if reconcile {
-            Task::batch([task, crate::features::reconcile(self)])
+            Task::batch([
+                task,
+                crate::features::reconcile(self),
+                crate::features3::reconcile(self),
+            ])
         } else {
             task
         }
@@ -690,6 +698,7 @@ impl App {
         match message {
             Msg::Call(action) => return self.call_update(action),
             Msg::Main(m) => return self.main_update(m),
+            Msg::TextFeature(event) => return crate::features3::update(self, *event),
             Msg::Feature(event) => return crate::features::update(self, *event),
             Msg::Settings(action) => return self.settings_update(action),
             Msg::Keyboard(key, modifiers, status) => {
@@ -1495,7 +1504,10 @@ impl App {
             }
             Msg::Send => {
                 if let Screen::Channel(channel_id) = self.state.screen {
-                    let content = sticktalk_client_core::emoji::prepare_send(&self.editor.text());
+                    let content = sticktalk_client_core::features3::prepare_send(
+                        &self.editor.text(),
+                        crate::features3::entries(self),
+                    );
                     if content.chars().count() > MAX_MESSAGE_CHARS {
                         self.error = "Messages can have up to 4,000 characters.".into();
                         return Task::none();
@@ -1610,13 +1622,21 @@ impl App {
                 let count = self
                     .mention_candidates()
                     .len()
-                    .max(self.emoji_candidates().len());
+                    .max(self.emoji_candidates().len())
+                    .max(crate::features3::candidates(self).len());
                 if count > 0 {
                     self.suggestion =
                         (self.suggestion as i32 + delta).rem_euclid(count as i32) as usize;
                 }
             }
             Msg::CompleteMention => {
+                if let Some(e) = crate::features3::candidates(self).get(self.suggestion) {
+                    let token = e.token();
+                    return crate::features::update(
+                        self,
+                        crate::features::Event::EmojiComplete(token),
+                    );
+                }
                 if let Some(e) = self.emoji_candidates().get(self.suggestion) {
                     return crate::features::update(
                         self,
@@ -4713,6 +4733,7 @@ impl App {
         app.error.clear();
         app.mock_call_screen(screen);
         crate::features::fixture(&mut app, screen);
+        crate::features3::fixture(&mut app, screen);
         app
     }
     pub(crate) fn headless_scroll(&mut self) {

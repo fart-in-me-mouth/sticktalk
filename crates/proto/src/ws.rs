@@ -338,6 +338,10 @@ pub struct EventEnvelope {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum Event {
+    GuildEmojiUpdated {
+        guild_id: GuildId,
+        emoji: Vec<GuildEmoji>,
+    },
     RolesUpdated {
         guild_id: GuildId,
         roles: Vec<Role>,

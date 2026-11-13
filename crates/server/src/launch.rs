@@ -45,6 +45,14 @@ pub(crate) async fn mutate(
 ) -> Result<CommandResult> {
     use LaunchCommand::*;
     match cmd {
+        RenameEmoji {
+            guild_id,
+            emoji_id,
+            name,
+        } => crate::custom_emoji::mutate(c, u, guild_id, emoji_id, Some(name), out).await,
+        DeleteEmoji { guild_id, emoji_id } => {
+            crate::custom_emoji::mutate(c, u, guild_id, emoji_id, None, out).await
+        }
         CreateRole {
             guild_id: g,
             name: s,

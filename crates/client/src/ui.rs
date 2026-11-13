@@ -1,6 +1,7 @@
 mod avatar_mask;
 mod controls;
 pub mod emoji_picker;
+pub mod features3;
 pub mod gif_picker;
 mod history;
 mod link_context;
@@ -1552,12 +1553,15 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
         for r in m
             .reactions
             .iter()
-            .filter(|r| emoji_picker::has_artwork(&r.emoji))
+            .filter(|r| emoji_picker::has_artwork(&r.emoji) || custom_emoji_id(&r.emoji).is_some())
         {
             reactions = reactions.push(
                 button(
                     row![
-                        emoji(&r.emoji, t::INLINE_ICON),
+                        custom_emoji_id(&r.emoji).map_or_else(
+                            || emoji(&r.emoji, t::INLINE_ICON),
+                            |id| features3::glyph(app, id, t::INLINE_ICON)
+                        ),
                         hint(r.count.to_string()).color(if r.me {
                             t::ACCENT
                         } else {
@@ -1800,6 +1804,9 @@ fn inline_content<'a>(
     values: &[crate::markdown::Inline],
     size: f32,
 ) -> Element<'a, Msg> {
+    if let Some(view) = features3::inline(app, m, values, size) {
+        return view;
+    }
     use unicode_segmentation::UnicodeSegmentation;
     let is_emoji = |g: &str| {
         g.chars().next().is_some_and(|c| c as u32 >= 0x2300)
@@ -2012,6 +2019,10 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
     use std::hash::{Hash, Hasher};
     let mut hash = std::collections::hash_map::DefaultHasher::new();
     m.content.hash(&mut hash);
+    for e in app.state.model.launch.emoji.values().flatten() {
+        e.id.hash(&mut hash);
+    }
+
     m.edited_at.hash(&mut hash);
     app.settings
         .preferences
@@ -2834,7 +2845,9 @@ fn compose_editor<'a>(
     autocomplete: bool,
 ) -> Element<'a, Msg> {
     let empty = app.editor.text().trim().is_empty();
-    let autocomplete = autocomplete || !app.emoji_candidates().is_empty();
+    let autocomplete = autocomplete
+        || !app.emoji_candidates().is_empty()
+        || !crate::features3::candidates(app).is_empty();
     let viewing_image = app.features.viewer.current().is_some();
     let editor = text_editor(&app.editor)
         // URLs, hashes, and pasted tokens must remain editable inside the same

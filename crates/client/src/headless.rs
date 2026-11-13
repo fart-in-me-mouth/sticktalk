@@ -16,6 +16,9 @@ pub const AUDIO_SCREENS: &[&str] = &[
     "audio-processing",
 ];
 pub const SCREENS: &[&str] = &[
+    "custom-emoji-picker",
+    "custom-emoji-completion",
+    "custom-emoji-message",
     "focused-stream",
     "stream-stats",
     "share-picker-windows",

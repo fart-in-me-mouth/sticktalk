@@ -201,6 +201,10 @@ impl<A: HttpTransport> Http<A> {
             Request::Launch { read, generation } => {
                 use crate::launch::{Read, SnapshotData};
                 let data = match read {
+                    Read::Emoji(id) => SnapshotData::Emoji(
+                        id,
+                        self.json(&format!("/guilds/{}/emoji", id.0)).await?,
+                    ),
                     Read::Profile(id) => {
                         SnapshotData::Profile(self.json(&format!("/users/{}/profile", id.0)).await?)
                     }

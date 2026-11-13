@@ -7,6 +7,7 @@ pub mod backup;
 pub mod blob;
 pub mod browser;
 mod commands;
+mod custom_emoji;
 mod db;
 mod error;
 mod files;

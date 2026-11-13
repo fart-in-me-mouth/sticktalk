@@ -9,6 +9,7 @@ pub enum Read {
     Overwrites(Id),
     Permissions(Id),
     Extent(Id),
+    Emoji(Id),
 }
 #[derive(Debug, Clone)]
 pub enum SnapshotData {
@@ -17,6 +18,7 @@ pub enum SnapshotData {
     Overwrites(Id, Snapshot<Vec<PermissionOverwrite>>),
     Permissions(Id, Snapshot<Permissions>),
     Extent(Snapshot<HistoryExtent>),
+    Emoji(Id, Snapshot<Vec<GuildEmoji>>),
 }
 impl SnapshotData {
     pub fn cursor(&self) -> &ResumeCursor {
@@ -26,11 +28,13 @@ impl SnapshotData {
             Self::Overwrites(_, v) => &v.cursor,
             Self::Permissions(_, v) => &v.cursor,
             Self::Extent(v) => &v.cursor,
+            Self::Emoji(_, v) => &v.cursor,
         }
     }
 }
 #[derive(Default)]
 pub struct Projection {
+    pub emoji: BTreeMap<Id, Vec<GuildEmoji>>,
     pub roles: BTreeMap<Id, Vec<Role>>,
     pub memberships: BTreeMap<(Id, Id), Member>,
     pub notifications: BTreeMap<(Option<Id>, Option<Id>), NotificationSettings>,
@@ -68,6 +72,9 @@ impl Projection {
     }
     pub fn event(&mut self, e: &Event) {
         match e {
+            Event::GuildEmojiUpdated { guild_id, emoji } => {
+                self.emoji.insert(*guild_id, emoji.clone());
+            }
             Event::ChannelUpsert(c) => {
                 self.effective_permissions.remove(&c.summary.id);
             }
@@ -119,6 +126,7 @@ impl Projection {
                 }
             }
             Event::GuildRemoved { guild_id, .. } => {
+                self.emoji.remove(guild_id);
                 self.roles.remove(guild_id);
                 self.memberships.retain(|(g, _), _| g != guild_id);
                 self.voice.retain(|_, v| v.guild_id != *guild_id);
@@ -180,6 +188,7 @@ impl Projection {
     }
     pub fn snapshot(&mut self, data: SnapshotData) {
         match data {
+            SnapshotData::Emoji(id, v) => bounded_insert(&mut self.emoji, id, v.data, 10),
             SnapshotData::Profile(v) => {
                 bounded_insert(&mut self.profiles, v.data.profile.user.id, v.data, 32);
             }

@@ -305,7 +305,8 @@ impl Core {
             if !s.launch_features
                 && matches!(
                     &event,
-                    Event::RolesUpdated { .. }
+                    Event::GuildEmojiUpdated { .. }
+                        | Event::RolesUpdated { .. }
                         | Event::ProfileUpdated(_)
                         | Event::GuildProfileUpdated(_)
                         | Event::PinsUpdated { .. }
@@ -429,7 +430,7 @@ impl App {
         let mut migration = pool.acquire().await?;
         db::migrate(&mut migration).await?;
         drop(migration);
-        let row = sqlx::query("SELECT MAX(id) AS id FROM (SELECT id FROM users UNION ALL SELECT id FROM guilds UNION ALL SELECT id FROM channels UNION ALL SELECT id FROM messages UNION ALL SELECT id FROM invites UNION ALL SELECT id FROM uploads UNION ALL SELECT value AS id FROM id_highwater)").fetch_one(&pool).await?;
+        let row = sqlx::query("SELECT MAX(id) AS id FROM (SELECT id FROM users UNION ALL SELECT id FROM guilds UNION ALL SELECT id FROM channels UNION ALL SELECT id FROM messages UNION ALL SELECT id FROM invites UNION ALL SELECT id FROM uploads UNION ALL SELECT id FROM guild_emoji UNION ALL SELECT value AS id FROM id_highwater)").fetch_one(&pool).await?;
         let last_id = row.try_get::<Option<i64>, _>("id")?.unwrap_or(0) as u64;
         let dummy_hash = tokio::task::spawn_blocking(|| {
             crate::http::password_hash("unused dummy credential".into())
