@@ -158,6 +158,26 @@ pub const MAIN_SCREENS: &[&str] = &[
     "main-rail-counts",
     "main-avatar-sizes",
 ];
+/// Complete desktop audit, including the screens that otherwise live in separate suites.
+/// Keep call/media-control fixtures out: they have their own review workstream.
+pub fn audit_screens() -> Vec<&'static str> {
+    let mut screens = Vec::new();
+    for screen in SCREENS
+        .iter()
+        .chain(MAIN_SCREENS)
+        .chain(crate::ui::settings::SCREENS)
+        .chain(crate::ui::audit::SCREENS)
+    {
+        if !matches!(
+            *screen,
+            "voice-call" | "share-picker" | "voice-consent" | "main-streaming"
+        ) && !screens.contains(screen)
+        {
+            screens.push(*screen);
+        }
+    }
+    screens
+}
 pub fn run_if_requested() -> Option<Result<(), String>> {
     let args: Vec<_> = std::env::args().collect();
     #[cfg(feature = "wgpu")]
@@ -215,6 +235,14 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             .and_then(|i| args.get(i + 1))
             .map(String::as_str)
             .unwrap_or("1280x800,1920x1080");
+        let scale: f32 = args
+            .iter()
+            .position(|v| v == "--scale-factor")
+            .and_then(|i| args.get(i + 1))
+            .map_or(Ok(1.), |s| s.parse().map_err(|_| "Invalid scale factor"))?;
+        if !scale.is_finite() || !(1. ..=2.).contains(&scale) {
+            return Err("Scale factor must be between 1 and 2".into());
+        }
         load_fonts();
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         let mut manifest = Vec::new();
@@ -227,7 +255,17 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             if !(940..=3840).contains(&w) || !(600..=2160).contains(&h) {
                 return Err("Screenshot size is out of range".into());
             }
-            let screens = if args.iter().any(|v| v == "--audio-only") {
+            let audit = audit_screens();
+            let selected = args
+                .iter()
+                .position(|v| v == "--screens")
+                .and_then(|i| args.get(i + 1))
+                .map(|s| s.split(',').collect::<Vec<_>>());
+            let screens = if let Some(selected) = selected.as_ref() {
+                selected.as_slice()
+            } else if args.iter().any(|v| v == "--audit-only") {
+                audit.as_slice()
+            } else if args.iter().any(|v| v == "--audio-only") {
                 AUDIO_SCREENS
             } else if args.iter().any(|v| v == "--main-only") {
                 MAIN_SCREENS
@@ -241,15 +279,19 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
                 SCREENS
             };
             for screen in screens {
-                let name = format!("{screen}-{w}x{h}.png");
+                let name = if scale == 1. {
+                    format!("{screen}-{w}x{h}.png")
+                } else {
+                    format!("{screen}-{w}x{h}@{}pct.png", (scale * 100.).round())
+                };
                 let path = Path::new(dir).join(&name);
-                render(screen, w, h, &path)?;
+                render_scaled(screen, w, h, scale, &path)?;
                 use sha2::Digest;
                 let hash = format!(
                     "{:x}",
                     sha2::Sha256::digest(std::fs::read(&path).map_err(|e| e.to_string())?)
                 );
-                manifest.push(serde_json::json!({"file":name,"width":w,"height":h,"sha256":hash}));
+                manifest.push(serde_json::json!({"file":name,"logical_width":w,"logical_height":h,"width":(w as f32 * scale).round() as u32,"height":(h as f32 * scale).round() as u32,"scale_factor":scale,"sha256":hash}));
             }
         }
         let manifest = serde_json::json!({"renderer":"iced-tiny-skia","window_backend":"none","screens":manifest});
@@ -278,6 +320,9 @@ pub(crate) fn load_fonts() {
     }
 }
 pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
+    render_scaled(screen, w, h, 1., path)
+}
+fn render_scaled(screen: &str, w: u32, h: u32, scale: f32, path: &Path) -> Result<(), String> {
     let size = Size::new(w as f32, h as f32);
     let mut app = App::headless(screen, size);
     let mut cache = Cache::new();
@@ -419,7 +464,13 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
     };
     let rgba = iced_tiny_skia::window::compositor::screenshot(
         &mut renderer,
-        &iced_tiny_skia::graphics::Viewport::with_physical_size(Size::new(w, h), 1.),
+        &iced_tiny_skia::graphics::Viewport::with_physical_size(
+            Size::new(
+                (w as f32 * scale).round() as u32,
+                (h as f32 * scale).round() as u32,
+            ),
+            scale,
+        ),
         t::BG_CHAT,
     );
     use image::{
@@ -429,7 +480,12 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
     // Lossless fast encoding keeps the full parity suite practical in debug builds.
     let file = std::fs::File::create(path).map_err(|e| e.to_string())?;
     PngEncoder::new_with_quality(file, CompressionType::Fast, FilterType::Sub)
-        .write_image(&rgba, w, h, image::ExtendedColorType::Rgba8)
+        .write_image(
+            &rgba,
+            (w as f32 * scale).round() as u32,
+            (h as f32 * scale).round() as u32,
+            image::ExtendedColorType::Rgba8,
+        )
         .map_err(|e| e.to_string())
 }
 

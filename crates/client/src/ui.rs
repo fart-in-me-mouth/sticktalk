@@ -1,3 +1,4 @@
+pub(crate) mod audit;
 mod avatar_mask;
 mod controls;
 pub mod emoji_picker;

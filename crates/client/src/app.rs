@@ -4566,6 +4566,7 @@ impl App {
         app.error.clear();
         app.mock_call_screen(screen);
         crate::features::fixture(&mut app, screen);
+        crate::ui::audit::configure(&mut app, screen);
         app
     }
     pub(crate) fn headless_scroll(&mut self) {
