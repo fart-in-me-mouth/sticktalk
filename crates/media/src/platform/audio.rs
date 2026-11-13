@@ -223,17 +223,25 @@ impl Stream {
             channels,
             None,
         );
-        client
-            .initialize_client(
-                &format,
-                direction,
-                StreamMode::EventsShared {
-                    autoconvert: true,
-                    buffer_duration_hns: 200_000,
-                },
-                None,
-            )
-            .map_err(audio_error)?;
+        // IAudioClient3 gives the engine's minimum supported SHARED period,
+        // never exclusive mode. Endpoints without exact 48 kHz float support
+        // retain WASAPI's shared auto-convert path (10 ms requested buffer).
+        let low_latency = client.get_shared_mode_engine_period(&format).and_then(|p| {
+            client.initialize_shared_audio_stream(&format, wasapi::TimingMode::Events, p.min)
+        });
+        if low_latency.is_err() {
+            client
+                .initialize_client(
+                    &format,
+                    direction,
+                    StreamMode::EventsShared {
+                        autoconvert: true,
+                        buffer_duration_hns: 100_000,
+                    },
+                    None,
+                )
+                .map_err(audio_error)?;
+        }
         let event = client.set_get_eventhandle().map_err(audio_error)?;
         Ok(Self { client, event })
     }
@@ -286,6 +294,8 @@ struct Shared {
     device_events: Mutex<VecDeque<AudioSessionEvent>>,
     meter: Mutex<Option<SyncSender<MicLevel>>>,
     monitor_gain: std::sync::atomic::AtomicU32,
+    input_gain: std::sync::atomic::AtomicU32,
+    output_gain: std::sync::atomic::AtomicU32,
 }
 /// A call owns exactly one WASAPI capture/render worker. Stop/Drop signals a
 /// Win32 event, joins, then all clients close. No idle singleton audio engine.
@@ -433,6 +443,21 @@ impl VoiceSession {
             return Err(Error::Invalid("remote volume must be 0..200%".into()));
         }
         self.command(Command::Volume(user, percent))
+    }
+    /// Software gain, never changes hardware controls or Bluetooth profiles.
+    pub fn set_gains(&self, input_percent: u16, output_percent: u16) -> Result<()> {
+        if input_percent > 200 || output_percent > 200 {
+            return Err(Error::Invalid("device gain must be 0..200%".into()));
+        }
+        // Store percent + 1 so zero-initialized Shared has unity defaults.
+        self.shared
+            .input_gain
+            .store(u32::from(input_percent) + 1, Ordering::Release);
+        self.shared
+            .output_gain
+            .store(u32::from(output_percent) + 1, Ordering::Release);
+        self.wake.signal();
+        Ok(())
     }
     pub fn push_remote(&self, user: u64, packet: AudioPacket) -> Result<()> {
         if packet.data.len() > MAX_PACKET_BYTES {
@@ -805,6 +830,15 @@ fn voice_loop(
             processor.reset_device_state();
             mixer.flush();
         }
+        // Seed AEC3 with actual negotiated endpoint buffers after each open /
+        // hot-plug, rather than retaining a calibrated delay from an old device.
+        // AEC3's native estimator remains enabled and refines this reference.
+        let endpoint_frames = [&input_stream, &output_stream]
+            .into_iter()
+            .flatten()
+            .filter_map(|s| s.client.get_buffer_size().ok())
+            .sum::<u32>();
+        processor.set_stream_delay_ms((endpoint_frames.div_ceil(48)).min(500))?;
         previous = Some(current.clone());
         if !ready_sent {
             ready.send(Ok(())).map_err(|_| Error::Stopped)?;
@@ -883,6 +917,15 @@ fn voice_loop(
                 }
                 while playback.len() < count * 8 {
                     let mut mixed = mixer.render_stereo()?;
+                    let percent = shared.output_gain.load(Ordering::Acquire);
+                    let output_gain = if percent == 0 {
+                        1.0
+                    } else {
+                        (percent - 1) as f32 / 100.0
+                    };
+                    for sample in &mut mixed {
+                        *sample = (*sample * output_gain).clamp(-1.0, 1.0);
+                    }
                     let gain = f32::from_bits(shared.monitor_gain.load(Ordering::Acquire));
                     if gain > 0.0 {
                         for i in 0..TICK {
@@ -931,6 +974,15 @@ fn voice_loop(
                             let mut frame = [0.0; TICK * 2];
                             for sample in &mut frame {
                                 *sample = pcm.pop_front().unwrap();
+                            }
+                            let percent = shared.input_gain.load(Ordering::Acquire);
+                            let input_gain = if percent == 0 {
+                                1.0
+                            } else {
+                                (percent - 1) as f32 / 100.0
+                            };
+                            for sample in &mut frame {
+                                *sample = (*sample * input_gain).clamp(-1.0, 1.0);
                             }
                             if let Some(packet) = processor.capture_stereo(&frame)? {
                                 let _ = packets.try_send(packet);

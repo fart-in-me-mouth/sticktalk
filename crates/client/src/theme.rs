@@ -40,6 +40,8 @@ pub const SIDEBAR: f32 = 240.;
 pub const MEMBERS: f32 = 240.;
 pub const HEADER: f32 = 48.;
 pub const USER_HEIGHT: f32 = 52.;
+pub const CALL_AVATAR: f32 = 64.;
+pub const CALL_TILE_HEIGHT: f32 = 208.;
 pub const GUILD_ICON: f32 = 48.;
 pub const GUILD_RADIUS: f32 = 16.;
 pub const ROW: f32 = 32.;
@@ -432,4 +434,49 @@ pub fn google_button(theme: &Theme, status: button_widget::Status) -> button_wid
         radius: S8.into(),
     };
     s
+}
+
+pub fn slider(_: &Theme, status: iced::widget::slider::Status) -> iced::widget::slider::Style {
+    use iced::widget::slider::*;
+    Style {
+        rail: Rail {
+            backgrounds: (ACCENT.into(), BG_SELECTED.into()),
+            width: S4,
+            border: Border {
+                radius: S4.into(),
+                ..Default::default()
+            },
+        },
+        handle: Handle {
+            shape: HandleShape::Circle { radius: S8 },
+            background: TEXT_PRIMARY.into(),
+            border_width: 2.,
+            border_color: if matches!(status, Status::Active) {
+                BG_ELEVATED
+            } else {
+                ACCENT
+            },
+        },
+    }
+}
+pub fn checkbox(
+    _: &Theme,
+    status: iced::widget::checkbox::Status,
+) -> iced::widget::checkbox::Style {
+    use iced::widget::checkbox::*;
+    let checked = match status {
+        Status::Active { is_checked }
+        | Status::Hovered { is_checked }
+        | Status::Disabled { is_checked } => is_checked,
+    };
+    Style {
+        background: if checked { ACCENT } else { BG_SELECTED }.into(),
+        icon_color: ACCENT_TEXT,
+        border: Border {
+            color: if checked { ACCENT } else { TEXT_MUTED },
+            width: HAIRLINE,
+            radius: S4.into(),
+        },
+        text_color: Some(TEXT_PRIMARY),
+    }
 }

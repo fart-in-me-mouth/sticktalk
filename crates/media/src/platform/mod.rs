@@ -5,7 +5,9 @@ mod gpu;
 mod pacer;
 mod runtime;
 mod session;
+mod thumbnail;
 mod usage;
+pub use thumbnail::{source_process_id, source_thumbnail, SourceThumbnail};
 
 pub use capture::list_sources;
 pub use decoder::{DecodedFrame, Decoder};

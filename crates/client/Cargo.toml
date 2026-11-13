@@ -7,6 +7,9 @@ license.workspace = true
 [dependencies]
 sticktalk-proto.workspace = true
 sticktalk-client-core = { path = "../client-core" }
+sticktalk-media = { path = "../media" }
+sticktalk-desktop-platform = { path = "../desktop-platform" }
+str0m = { version = "=0.25.0", default-features = false, features = ["rust-crypto"] }
 iced_tiny_skia = { version = "0.14.1", default-features = false, features = ["image", "svg"] }
 iced_runtime = "0.14"
 iced_wgpu = { version = "0.14", optional = true, features = ["image", "svg"] }
@@ -34,7 +37,7 @@ wgpu = ["iced/wgpu", "dep:iced_wgpu"]
 
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Time", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Time", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_LibraryLoader", "Win32_System_Threading"] }
 
 [dev-dependencies]
 sticktalk-server = { path = "../server" }

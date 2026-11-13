@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+body{font-family:var(--font-sans);color:var(--foreground);margin:0}section{margin:0 0 18px}h3{font-size:16px;margin:0 0 8px}p{color:var(--muted-foreground);font-size:12px;line-height:1.5;margin:6px 0}.legend{display:flex;gap:18px;font-size:12px;margin-bottom:12px}.swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}.old{background:var(--chart-2)}.new{background:var(--chart-1)}.group{display:grid;grid-template-columns:75px 1fr;gap:10px;margin:10px 0}.label{font-size:13px;padding-top:12px}.bars{display:grid;gap:5px}.track{height:24px;background:var(--secondary);border-radius:3px;position:relative}.bar{height:100%;border-radius:3px}.value{position:absolute;top:4px;left:8px;font-size:12px;color:var(--foreground);font-weight:600;text-shadow:0 0 3px var(--background)}.note{padding:12px 16px;border-radius:var(--radius);background:var(--warning-surface);color:var(--warning-foreground);font-size:12px;line-height:1.5}.cpu{display:grid;grid-template-columns:90px 1fr;gap:7px 10px;align-items:center;font-size:12px}.cpu .track{height:22px}.cpu .bar{background:var(--chart-3)}
+</style>
+<section>
+<h3>Digital tone latency · before / after</h3>
+<div class="legend"><span><i class="swatch old"></i>Before · 20 ms packets</span><span><i class="swatch new"></i>After · 10 ms packets</span></div>
+<div class="group"><span class="label">Off</span><div class="bars"><div class="track"><div class="bar old" style="width:90.49%"></div><span class="value">99.542 ms</span></div><div class="track"><div class="bar new" style="width:21.44%"></div><span class="value">23.583 ms</span></div></div></div>
+<div class="group"><span class="label">Standard</span><div class="bars"><div class="track"><div class="bar old" style="width:93.84%"></div><span class="value">103.229 ms</span></div><div class="track"><div class="bar new" style="width:30.40%"></div><span class="value">33.438 ms</span></div></div></div>
+<p>Release DSP loopback only. Excludes devices, network and acoustics. Scale: 0–110 ms.</p>
+</section>
+<section><h3>Active DSP CPU · talking</h3><div class="cpu">
+<span>Off</span><div class="track"><div class="bar" style="width:60.75%"></div><span class="value">3.65%</span></div>
+<span>Standard</span><div class="track"><div class="bar" style="width:78.11%"></div><span class="value">4.69%</span></div>
+<span>Full High</span><div class="track"><div class="bar" style="width:95.47%"></div><span class="value">5.73%</span></div>
+<span>Studio</span><div class="track"><div class="bar" style="width:52.08%"></div><span class="value">3.12%</span></div>
+</div><p>Percent of one logical core; 3-second generated-signal runs. Not physical-call CPU.</p></section>
+<div class="note"><strong>≤80 ms mouth-to-ear is not qualified.</strong> The real-speech diagnostic failed correlation coverage. Full High suppresses the synthetic tone, so its tone lag is not accepted speech-latency evidence. Rendered video and production remote control also remain incomplete.</div>

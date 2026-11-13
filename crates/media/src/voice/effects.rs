@@ -1,4 +1,4 @@
-//! Native WebRTC APM and pinned low-latency DeepFilterNet3 inference.
+//! Native WebRTC APM and pinned DeepFilterNet3 inference.
 use super::{NoiseSuppressionMode, VoiceOptions, TICK};
 use crate::{Error, Result};
 use std::{

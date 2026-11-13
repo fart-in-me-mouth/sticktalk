@@ -254,6 +254,17 @@ pub async fn run<R: MaybeSend + 'static, H: MaybeSend + 'static, Lease>(
                             return;
                         };
                         match request {
+                            Request::Voice(v) => {
+                                if !ready {
+                                    output
+                                        .emit(Data::Error(
+                                            "Offline. Voice action not queued.".into(),
+                                        ))
+                                        .await;
+                                } else if send(&mut socket, &ClientMsg::Voice(v)).await.is_err() {
+                                    break;
+                                }
+                            }
                             Request::Applied(v) => {
                                 if recovery.cursor.is_none() {
                                     recovery.fresh(v);

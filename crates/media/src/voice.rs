@@ -1,6 +1,6 @@
 //! Device-independent 48 kHz call engine. No threads, devices, timers or network.
 //! Supply exactly 480 mono samples per capture/render tick (10 ms). Wire packets
-//! are 960 samples (20 ms); sequence numbers are extended, not wrapping RTP u16.
+//! are 480 or 960 samples (10/20 ms); sequences are extended, not wrapping RTP u16.
 use crate::{Error, Result};
 use std::collections::BTreeMap;
 mod effects;
@@ -30,6 +30,42 @@ pub const MAX_PACKET_BYTES: usize = 1275;
 pub const MAX_REMOTES: usize = 128;
 const MAX_JITTER_PACKETS: usize = 12;
 
+#[cfg(test)]
+mod low_latency_tests {
+    use super::*;
+    #[test]
+    fn ten_ms_voice_packets_and_explicit_jitter_startup_floor() {
+        let mut processor = VoiceProcessor::new(VoiceOptions {
+            packet_duration_ms: 10,
+            noise_mode: NoiseSuppressionMode::Off,
+            echo_cancellation: false,
+            automatic_gain: false,
+            mode: InputMode::PushToTalk,
+            ..Default::default()
+        })
+        .unwrap();
+        processor.set_push_to_talk(true);
+        let mut mixer = VoiceMixer::new(1).unwrap();
+        mixer.add_remote(1).unwrap();
+        assert_eq!(mixer.statistics(1).unwrap().target_delay_ms, 20);
+        let mut energy = 0.;
+        for tick in 0..80 {
+            let pcm = std::array::from_fn(|i| ((tick * TICK + i) as f32 * 0.03).sin() * 0.1);
+            let packet = processor.capture(&pcm).unwrap().unwrap();
+            assert_eq!(packet.timestamp, (tick * TICK) as u64);
+            assert_eq!(
+                opus::packet::get_nb_samples(&packet.data, SAMPLE_RATE).unwrap(),
+                TICK
+            );
+            mixer.push(1, packet).unwrap();
+            energy += mixer.render().unwrap().iter().map(|s| s * s).sum::<f32>();
+        }
+        assert!(energy > 1.);
+        mixer.flush();
+        assert_eq!(mixer.statistics(1).unwrap().target_delay_ms, 20);
+    }
+}
+
 fn codec_error(e: impl std::fmt::Display) -> Error {
     Error::Platform(format!("audio: {e}"))
 }
@@ -43,6 +79,8 @@ pub enum InputMode {
 
 #[derive(Clone, Debug)]
 pub struct VoiceOptions {
+    /// 10 ms for low-latency calls, 20 ms for legacy/file/share-audio clients.
+    pub packet_duration_ms: u16,
     pub bitrate: u32,
     pub profile: VoiceProfile,
     pub noise_mode: NoiseSuppressionMode,
@@ -63,6 +101,7 @@ pub struct VoiceOptions {
 impl Default for VoiceOptions {
     fn default() -> Self {
         Self {
+            packet_duration_ms: 20,
             bitrate: 64_000,
             profile: VoiceProfile::Voice,
             noise_mode: NoiseSuppressionMode::Auto,
@@ -97,7 +136,10 @@ impl VoiceOptions {
         } else {
             32_000..=128_000
         };
-        if !range.contains(&self.bitrate) || self.ptt_release_delay_ms > 1000 {
+        if !range.contains(&self.bitrate)
+            || self.ptt_release_delay_ms > 1000
+            || ![10, 20].contains(&self.packet_duration_ms)
+        {
             return Err(Error::Invalid(
                 "voice bitrate/profile or PTT release delay out of range".into(),
             ));
@@ -177,9 +219,11 @@ impl OpusEncoder {
             .map_err(codec_error)
     }
     pub fn encode(&mut self, pcm: &[f32], timestamp: u64) -> Result<AudioPacket> {
-        if pcm.len() != PACKET_SAMPLES * self.channels || pcm.iter().any(|s| !s.is_finite()) {
+        if ![TICK * self.channels, PACKET_SAMPLES * self.channels].contains(&pcm.len())
+            || pcm.iter().any(|s| !s.is_finite())
+        {
             return Err(Error::Invalid(
-                "Opus requires 20 ms finite 48 kHz PCM".into(),
+                "Opus requires 10 or 20 ms finite 48 kHz PCM".into(),
             ));
         }
         let mut bytes = vec![0; MAX_PACKET_BYTES];
@@ -297,6 +341,11 @@ impl VoiceProcessor {
             self.deep = None;
         }
         self.selected_noise = selected;
+        if options.packet_duration_ms != self.options.packet_duration_ms {
+            self.half = false;
+            self.packet_pcm.fill(0.0);
+            self.stereo_pcm.fill(0.0);
+        }
         if options.echo_cancellation != self.options.echo_cancellation
             || options.automatic_gain != self.options.automatic_gain
         {
@@ -420,6 +469,13 @@ impl VoiceProcessor {
         self.ptt_release_ticks = self.ptt_release_ticks.saturating_sub(1);
         self.set_speaking(open && rms_dbfs(pcm) >= self.sensitivity_dbfs());
         self.clock += TICK as u64;
+        if self.options.packet_duration_ms == 10 {
+            self.half = false;
+            return self
+                .encoder
+                .encode(&self.stereo_pcm[..TICK * 2], self.clock - TICK as u64)
+                .map(Some);
+        }
         self.half = !self.half;
         if self.half {
             Ok(None)
@@ -481,6 +537,13 @@ impl VoiceProcessor {
             self.packet_pcm[offset + n] = if open { sample.clamp(-1.0, 1.0) } else { 0.0 };
         }
         self.clock += TICK as u64;
+        if self.options.packet_duration_ms == 10 {
+            self.half = false;
+            return self
+                .encoder
+                .encode(&self.packet_pcm[..TICK], self.clock - TICK as u64)
+                .map(Some);
+        }
         self.half = !self.half;
         if self.half {
             Ok(None)
@@ -794,7 +857,7 @@ mod tests {
     fn opus_rejects_invalid_pcm_and_stereo_roundtrips() {
         assert!(OpusEncoder::new(false, 0).is_err());
         let mut enc = OpusEncoder::new(true, 96000).unwrap();
-        assert!(enc.encode(&[0.0; 960], 0).is_err());
+        assert!(enc.encode(&[0.0; 958], 0).is_err());
         assert!(enc.encode(&[f32::NAN; 1920], 0).is_err());
         let pcm: Vec<_> = (0..960)
             .flat_map(|i| [(i as f32 * 0.03).sin() * 0.1, (i as f32 * 0.07).sin() * 0.2])

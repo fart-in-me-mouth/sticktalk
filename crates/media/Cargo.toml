@@ -11,14 +11,14 @@ openh264 = "0.9.8"
 opus = "=0.4.0"
 nnnoiseless = { version = "=0.5.2", default-features = false }
 webrtc-audio-processing = { path = "vendor/webrtc-audio-processing", features = ["bundled"] }
-deep_filter = { git = "https://github.com/Rikorose/DeepFilterNet", rev = "7b14b895fe7fc42cab72b4a4c1e49c982bd6404b", default-features = false, features = ["tract", "default-model-ll"] }
+deep_filter = { git = "https://github.com/Rikorose/DeepFilterNet", rev = "7b14b895fe7fc42cab72b4a4c1e49c982bd6404b", default-features = false, features = ["tract", "default-model"] }
 ndarray = "0.15"
 # libDF uses the pre-ndarray-0.16 Tract API; upstream's caret allows breaking patches.
 tract-core = "=0.21.4"
 tract-hir = "=0.21.4"
 tract-onnx = "=0.21.4"
 tract-pulse = "=0.21.4"
-neteq = { version = "=0.9.1", default-features = false }
+neteq = { path = "vendor/neteq", version = "=0.9.1", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 wasapi = "=0.27.0"

@@ -1,0 +1,2 @@
+FILE speech digital loopback: mode=Off, correlated=52/109 voiced windows, delay p50=23.667 ms, p95=78.083 ms, max=194.250 ms, playout=Some(PlayoutStatistics { current_buffer_size_ms: 10, target_delay_ms: 20, packets_awaiting_decode: 1, packets_per_sec: 101 }); excludes devices/acoustics/network
+Error: "speech correlation coverage below 70%; latency not qualified"

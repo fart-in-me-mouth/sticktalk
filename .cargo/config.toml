@@ -1,2 +1,8 @@
 [build]
+jobs = 4
 target-dir = "C:/Users/dwhee/.cargo-target/sticktalk"
+
+# cmake-rs otherwise guesses VS 2026 from the installed compiler, but the
+# bundled CMake only knows VS 2022. Keep both Opus builds on one installed SDK.
+[env]
+CMAKE_GENERATOR = { value = "Visual Studio 17 2022", force = false }

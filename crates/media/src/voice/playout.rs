@@ -59,7 +59,11 @@ impl neteq::codec::AudioDecoder for OpusPlayout {
         let gap = state
             .last_sequence
             .map_or(0, |last| seq.saturating_sub(last).saturating_sub(1));
-        let samples = PACKET_SAMPLES * usize::from(self.channels);
+        let packet_samples = self
+            .decoder
+            .get_nb_samples(bytes)
+            .map_err(|e| neteq::NetEqError::InvalidPacket(e.to_string()))?;
+        let samples = packet_samples * usize::from(self.channels);
         let mut out = Vec::with_capacity(samples * (gap.min(10) as usize + 1));
         if gap > 10 {
             let _ = self.decoder.reset_state();
@@ -176,6 +180,9 @@ impl VoiceMixer {
                 repair: repair.clone(),
             }),
         );
+        // Upstream starts at 80 ms regardless of our floor. Start at the explicit
+        // floor and retain its adaptive quantile/time-stretch + 80 ms ceiling.
+        playout.set_start_delay(minimum);
         self.streams.insert(
             user,
             Stream {
@@ -220,6 +227,7 @@ impl VoiceMixer {
     pub fn flush(&mut self) {
         for s in self.streams.values_mut() {
             s.playout.flush();
+            s.playout.set_start_delay((self.jitter * 20) as u32);
             s.highest = None;
             let mut repair = s.repair.lock().unwrap();
             repair.last_sequence = None;
@@ -251,16 +259,16 @@ impl VoiceMixer {
             .streams
             .get_mut(&user)
             .ok_or_else(|| Error::Invalid("unknown remote".into()))?;
+        let samples = opus::packet::get_nb_samples(&packet.data, SAMPLE_RATE).map_err(invalid)?;
         if packet.data.is_empty()
             || packet.data.len() > MAX_PACKET_BYTES
-            || opus::packet::get_nb_samples(&packet.data, SAMPLE_RATE).map_err(invalid)?
-                != PACKET_SAMPLES
+            || ![TICK, PACKET_SAMPLES].contains(&samples)
             || (s.channels == 1
                 && opus::packet::get_nb_channels(&packet.data).map_err(invalid)?
                     != opus::Channels::Mono)
         {
             return Err(Error::Invalid(
-                "expected bounded 20ms Opus with registered channels".into(),
+                "expected bounded 10/20ms Opus with registered channels".into(),
             ));
         }
         if let Some(highest) = s.highest {
@@ -287,7 +295,7 @@ impl VoiceMixer {
             data,
             SAMPLE_RATE,
             s.channels,
-            20,
+            (samples / 48) as u32,
         );
         packet.arrival_time = arrival;
         s.playout.insert_packet(packet).map_err(invalid)

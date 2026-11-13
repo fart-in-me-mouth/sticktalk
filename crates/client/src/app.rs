@@ -21,6 +21,7 @@ use sticktalk_client_core::state::ClientState;
 pub use sticktalk_client_core::state::{Dialog, Form, FriendTab, GuildTab, Screen};
 #[derive(Debug, Clone)]
 pub enum Msg {
+    Call(crate::voice_ui::Action),
     Server(String),
     Username(String),
     Password(String),
@@ -157,6 +158,7 @@ struct RowCache {
 }
 
 pub struct App {
+    pub calls: crate::voice_ui::State,
     pub state: ClientState,
     trace: Option<PathBuf>,
     trace_counts: BTreeMap<&'static str, u64>,
@@ -253,6 +255,7 @@ impl App {
             None
         };
         let state = Self {
+            calls: crate::voice_ui::State::default(),
             state: ClientState {
                 session,
                 ..ClientState::default()
@@ -437,6 +440,39 @@ impl App {
                 Subscription::run_with(s.config.clone(), backend::subscription).map(Msg::Net),
             );
         }
+        if let Some(config) = &self.calls.config {
+            subs.push(
+                Subscription::run_with(config.clone(), sticktalk::voice::subscription)
+                    .with(config.generation)
+                    .map(|(generation, e)| {
+                        Msg::Call(crate::voice_ui::Action::Media(generation, e))
+                    }),
+            );
+        }
+        if self.calls.save_dirty {
+            subs.push(Subscription::run_with(
+                self.calls.save_revision,
+                |revision| {
+                    let revision = *revision;
+                    iced::futures::stream::once(async move {
+                        tokio::time::sleep(Duration::from_millis(400)).await;
+                        Msg::Call(crate::voice_ui::Action::Save(revision))
+                    })
+                },
+            ));
+        }
+        if let Some((_, deadline)) = self.calls.call.control.pending {
+            subs.push(Subscription::run_with(deadline, |deadline| {
+                let deadline = *deadline;
+                iced::futures::stream::once(async move {
+                    tokio::time::sleep(Duration::from_millis(
+                        deadline.saturating_sub(crate::mock::now()),
+                    ))
+                    .await;
+                    Msg::Call(crate::voice_ui::Action::ConsentTimeout(deadline))
+                })
+            }));
+        }
         Subscription::batch(subs)
     }
     pub fn update(&mut self, message: Msg) -> Task<Msg> {
@@ -464,6 +500,7 @@ impl App {
             }
         }
         match message {
+            Msg::Call(action) => return self.call_update(action),
             Msg::Hover(id) => {
                 self.hover_serial += 1;
                 self.hovered = id;
@@ -1518,6 +1555,8 @@ impl App {
                 self.send(Command::SetPresence { status });
             }
             Msg::Logout => {
+                let effects = self.calls.call.leave();
+                self.call_effects(effects, None);
                 if let Some(s) = self.state.session.take() {
                     let account = self.me();
                     self.tx = None;
@@ -1637,6 +1676,7 @@ impl App {
         Task::none()
     }
     fn network(&mut self, data: Data) -> Task<Msg> {
+        self.call_network(&data);
         match data {
             Data::Connected(tx) => self.tx = Some(tx),
             Data::Rejected { nonce, reason } => {
@@ -2329,6 +2369,15 @@ impl App {
         }
     }
     fn navigate(&mut self, id: Id) -> Task<Msg> {
+        if self
+            .state
+            .model
+            .channels
+            .get(&id)
+            .is_some_and(|c| c.kind == ChannelKind::Voice)
+        {
+            return self.call_update(crate::voice_ui::Action::Join(id));
+        }
         if !self.state.model.channels.contains_key(&id) {
             return Task::none();
         }
@@ -3514,6 +3563,7 @@ impl App {
             app.fast_scrolling = true;
         }
         app.error.clear();
+        app.mock_call_screen(screen);
         app
     }
     pub(crate) fn headless_scroll(&mut self) {

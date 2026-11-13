@@ -1,5 +1,39 @@
 # sticktalk-media
 
+## Desktop integration update (2026-11-12)
+
+The client integration is documented in `../client/VOICE_INTEGRATION.md`.
+Normal PowerShell builds no longer need `build-env.ps1`: the workspace pins the
+installed VS 2022 CMake generator, and the vendored native APM build discovers
+MSVC and the existing portable per-user Meson/Ninja/libclang tools itself. See
+`vendor/BUILD_CHANGES.md` for prerequisites and precise changes. No installer,
+admin rights, global PATH edit, second target directory or prebuilt DSP DLL.
+
+`VoiceOptions::packet_duration_ms` accepts 10 or 20 ms (legacy default 20; desktop
+calls choose 10). The adaptive mixer accepts both durations and starts at its
+explicit floor, not an empty-histogram-derived 80 ms. Real ingress timestamps
+now feed the vendored delay estimator. Native WASAPI first tries IAudioClient3
+minimum-period shared mode with a 10 ms auto-convert fallback, and seeds AEC3
+from the negotiated endpoint buffers. Physical-device latency is not certified.
+
+The **full** pinned DeepFilterNet3 model now initializes successfully: the
+file-only retry took 1.141 s and 100 inference hops took 109.092 ms total on this
+PC. High/Auto now use `default-model`, not the LL variant described in the
+historical notes below. The CPU probe still selects Standard on an incapable
+CPU. The updated call benchmark, rather than initialization alone, is the
+CPU evidence, not a speech-latency or acoustic quality qualification. The new
+speech-window latency diagnostic fails its coverage gate; <=80 ms mouth-to-ear
+remains unqualified. See `../client/bench/voice-2026-11-12/REPORT.md`. No acoustic
+superiority claim is made.
+
+`VoiceSession::set_gains` applies validated 0–200% input/output gain without
+changing hardware controls, and uses post-output-gain playback as AEC reference.
+Picker-only `source_thumbnail` performs a bounded one-shot readback, never a
+continuous preview or a readback in the share encode/decode path.
+
+The remaining sections and older BENCH entries describe the pre-integration
+baseline; their previous LL/full-model and latency gaps are historical.
+
 Windows call-media APIs only: voice, optional system/process share audio, camera,
 GPU screen capture and H.264. No client/server/SFU integration, networking, UI,
 permission requests or implicit device activation. All sessions are explicit

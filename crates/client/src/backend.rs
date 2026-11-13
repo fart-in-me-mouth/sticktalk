@@ -23,6 +23,9 @@ pub struct Handle {
 impl Handle {
     pub fn try_send(&self, request: Request) -> Result<(), String> {
         let bytes = match &request {
+            Request::Voice(v) => rmp_serde::to_vec_named(&ClientMsg::Voice(v.clone()))
+                .map_err(|_| "Could not encode voice signal".to_string())?
+                .len(),
             Request::Command(v) => rmp_serde::to_vec_named(&ClientMsg::Command(v.clone()))
                 .map_err(|_| "Could not encode action".to_string())?
                 .len(),

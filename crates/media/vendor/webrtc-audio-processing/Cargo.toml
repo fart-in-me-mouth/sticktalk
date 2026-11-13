@@ -73,3 +73,4 @@ version = "2.1.0"
 [dependencies.webrtc-audio-processing-sys]
 package = "pocketstation-webrtc-audio-processing-sys"
 version = "=2.1.1"
+path = "../webrtc-audio-processing-sys"

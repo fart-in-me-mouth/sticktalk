@@ -1,0 +1,12 @@
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\client)
+    Finished `test` profile [unoptimized] target(s) in 10.79s
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-client-calls\debug\deps\voice-016ca9517170314f.exe)
+
+running 2 tests
+test file_1080p60_decodes_at_least_58_fps_for_sixty_seconds ... ignored, 60-second generated FILE video + hardware encoder/decoder; no capture devices
+file audio: 75/75 frames, correlation=1.0000, speaking and guild state received
+test two_native_endpoints_exchange_file_opus_through_real_server ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 4.84s
+

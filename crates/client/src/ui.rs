@@ -14,6 +14,10 @@ use iced::{
     Border, Color, Element, Fill, Length, Padding,
 };
 use sticktalk_proto::*;
+mod call;
+mod share_picker;
+mod stream_view;
+mod voice_settings;
 fn txt<'a>(value: impl Into<String>) -> widget::Text<'a> {
     text(value.into())
         .font(t::regular())
@@ -371,6 +375,14 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             sidebar(app),
             match app.state.screen {
                 Screen::Friends(tab) => friends(app, tab),
+                Screen::Channel(id)
+                    if app
+                        .state
+                        .model
+                        .channels
+                        .get(&id)
+                        .is_some_and(|c| c.kind == ChannelKind::Voice) =>
+                    call::view(app, id),
                 Screen::Channel(id) => chat(app, id),
             }
         ]
@@ -378,6 +390,24 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         .into()
     };
     let mut layers = vec![main];
+    if app.calls.picker {
+        layers.push(
+            container(opaque(share_picker::view(app)))
+                .center_x(Fill)
+                .center_y(Fill)
+                .style(t::dim)
+                .into(),
+        );
+    }
+    if app.calls.call.control.pending.is_some() {
+        layers.push(
+            container(opaque(call::consent(app)))
+                .center_x(Fill)
+                .center_y(Fill)
+                .style(t::dim)
+                .into(),
+        );
+    }
     if !matches!(
         app.dialog,
         Dialog::None | Dialog::UserSettings | Dialog::GuildSettings(_)
@@ -825,7 +855,9 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
             let selected = app.state.screen == Screen::Channel(c.id);
             let content = app.state.model.channel_name(c);
             let mut channel = row![
-                if c.kind == ChannelKind::Text {
+                if c.kind == ChannelKind::Voice {
+                    icon("volume-2", t::CHANNEL_ICON, t::TEXT_MUTED).into()
+                } else if c.kind == ChannelKind::Text {
                     icon("hash", t::CHANNEL_ICON, t::TEXT_MUTED).into()
                 } else if c.kind == ChannelKind::GroupDm {
                     container(icon("users", t::INLINE_ICON, t::TEXT_SECONDARY))
@@ -889,6 +921,24 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
                 .center_y(t::ROW)
                 .style(t::bare)
             ]);
+            if c.kind == ChannelKind::Voice {
+                for state in app
+                    .calls
+                    .call
+                    .guild_states
+                    .values()
+                    .filter(|s| s.channel_id == c.id)
+                {
+                    list = list.push(
+                        container(call::participant(app, &state.participant, true)).padding(
+                            Padding {
+                                left: 36.,
+                                ..Padding::ZERO
+                            },
+                        ),
+                    );
+                }
+            }
         }
     }
     if app.state.guild.is_none()
@@ -913,7 +963,8 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
         row![
             avatar(app, me, t::SMALL_AVATAR, true),
             column![
-                txt(ellipsis(&app.state.model.name(me), 16))
+                txt(ellipsis(&app.state.model.name(me), 7))
+                    .wrapping(widget::text::Wrapping::None)
                     .font(t::semibold())
                     .size(t::USER_NAME),
                 hint(ellipsis(
@@ -926,9 +977,23 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
             ]
             .spacing(t::S4)
             .width(Fill),
+            icon_button(
+                if app.calls.call.muted {
+                    "mic-off"
+                } else {
+                    "mic"
+                },
+                "Mute",
+                Msg::Call(crate::voice_ui::Action::Mute)
+            ),
+            icon_button(
+                "headphones",
+                "Deafen",
+                Msg::Call(crate::voice_ui::Action::Deafen)
+            ),
             icon_button("settings", "User settings", Msg::Open(Dialog::UserSettings))
         ]
-        .spacing(t::S8)
+        .spacing(t::S4)
         .align_y(Center),
     )
     .padding([t::S8, t::S12])
@@ -941,6 +1006,7 @@ fn sidebar(app: &App) -> Element<'_, Msg> {
             .height(Fill)
             .padding([t::S8, t::S8])
             .style(t::bare),
+        call::connected(app),
         footer
     ])
     .width(t::SIDEBAR)
@@ -2314,6 +2380,9 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
             }
         }
         Dialog::MemberMenu(id) => {
+            if app.calls.call.channel.is_some() {
+                items = items.push(call::user_audio(app, *id));
+            }
             if let Some(guild_id) = app.state.guild {
                 if app.permissions().contains(Permissions::KICK_MEMBERS) {
                     items = items.push(menu_item(
@@ -3214,6 +3283,7 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
             ("user-round", "My Account", 0),
             ("pencil", "Profile", 1),
             ("palette", "Appearance", 2),
+            ("mic", "Voice & Video", 3),
         ] {
             navs = navs.push(nav(name, label, Msg::UserTab(value), app.user_tab == value));
         }
@@ -3225,6 +3295,7 @@ fn settings<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
             .push(hint("StickTalk 0.1"));
         let id = app.me().unwrap();
         match app.user_tab {
+            3 => content = content.push(voice_settings::view(app)),
             0 => {
                 content = content
                     .push(title("My Account"))
