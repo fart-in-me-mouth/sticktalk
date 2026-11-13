@@ -54,6 +54,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &PathBuf::from(&args[2]),
             )? {
                 Command::new(exe)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
                     .env("STICKTALK_UPDATE_ROLLED_BACK", "1")
                     .creation_flags(0x08000000)
                     .spawn()?;

@@ -17,6 +17,16 @@ const OWNED: &[&str] = &[
     "sticktalk.ico",
     "Twemoji-NOTICE.txt",
     "Twemoji-LICENSE.txt",
+    "concrt140.dll",
+    "msvcp140_1.dll",
+    "msvcp140_2.dll",
+    "msvcp140_atomic_wait.dll",
+    "msvcp140_codecvt_ids.dll",
+    "msvcp140.dll",
+    "vccorlib140.dll",
+    "vcruntime140_1.dll",
+    "vcruntime140_threads.dll",
+    "vcruntime140.dll",
 ];
 const GRACE_MS: u32 = 15_000;
 /// Called by the client only after its actual window/UI has initialized. Merely
@@ -93,6 +103,9 @@ pub async fn apply(
             .collect::<String>();
         let health = staging.join(format!("health-{nonce}"));
         let launched = Command::new(exe)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .env("STICKTALK_UPDATE_HEALTH_FILE", &health)
             .env("STICKTALK_UPDATE_HEALTH_NONCE", &nonce)
             .creation_flags(0x08000000)
@@ -133,6 +146,9 @@ pub async fn apply(
             ),
         )?;
         Command::new(exe)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .env("STICKTALK_UPDATE_ROLLED_BACK", "1")
             .creation_flags(0x08000000)
             .spawn()?;

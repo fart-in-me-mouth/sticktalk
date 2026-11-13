@@ -5,6 +5,7 @@ param(
     [string]$Output = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng-out",
     [string]$TargetDir = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng",
     [string]$MakeNsis,
+    [string]$RuntimeDir,
     [switch]$SkipBuild,
     # Only for local installer/update fixtures; never used by the publishing script.
     [switch]$TestFixture
@@ -53,11 +54,23 @@ try {
             }
         }
     }
+    if (!$RuntimeDir) {
+        $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+        if (!(Test-Path -LiteralPath $vswhere)) { throw 'MSVC redistributable directory required; pass -RuntimeDir.' }
+        $vs = & $vswhere -latest -products '*' -property installationPath
+        $candidates = Get-ChildItem -LiteralPath "$vs/VC/Redist/MSVC" -Directory | Where-Object Name -Match '^14\.' | Sort-Object Name -Descending
+        foreach ($candidate in $candidates) {
+            $found = Get-ChildItem -LiteralPath "$($candidate.FullName)/x64" -Directory -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $RuntimeDir = $found.FullName; break }
+        }
+    }
+    if (!(Test-Path -LiteralPath "$RuntimeDir/vcruntime140.dll") -or !(Test-Path -LiteralPath "$RuntimeDir/msvcp140.dll")) { throw 'App-local x64 MSVC runtime DLLs not found.' }
+    $RuntimeDir = (Resolve-Path -LiteralPath $RuntimeDir).Path
     $MakeNsis = (Resolve-Path -LiteralPath $MakeNsis).Path
     New-Item -ItemType Directory -Force -Path $Output | Out-Null
     $installer = Join-Path (Resolve-Path -LiteralPath $Output).Path "StickTalk-Setup-$Version.exe"
     $release = Join-Path $env:CARGO_TARGET_DIR 'release'
-    & $MakeNsis "/DCLIENT=$release\sticktalk.exe" "/DMAINTENANCE=$release\sticktalk-maintenance.exe" "/DOUTPUT=$installer" "/DVERSION=$Version" "$repo/tools/release/installer.nsi"
+    & $MakeNsis "/DCLIENT=$release\sticktalk.exe" "/DMAINTENANCE=$release\sticktalk-maintenance.exe" "/DOUTPUT=$installer" "/DVERSION=$Version" "/DCRT=$RuntimeDir" "$repo/tools/release/installer.nsi"
     CheckExit 'NSIS'
     Get-Item -LiteralPath $installer | Select-Object FullName, Length
 } finally { Pop-Location }

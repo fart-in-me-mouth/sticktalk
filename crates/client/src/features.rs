@@ -211,8 +211,15 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
         Event::Update(crate::platform_glue::UpdateEvent::Ready(version)) => {
             app.features.update_ready = Some(version)
         }
-        Event::Update(crate::platform_glue::UpdateEvent::Failed(error)) => {
-            app.error = format!("Update check failed: {error}")
+        Event::Update(crate::platform_glue::UpdateEvent::Failed(_)) => {
+            // Offline startup must not replace sign-in errors or interrupt typing.
+            let root = crate::storage::root().join("Updates");
+            if !app.mock_mode && std::fs::create_dir_all(&root).is_ok() {
+                let _ = std::fs::write(
+                    root.join("check-error.log"),
+                    "Could not check for updates. Will retry at the next scheduled check.",
+                );
+            }
         }
         Event::StartMinimized(enabled) => {
             if !app.mock_mode {

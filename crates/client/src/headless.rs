@@ -195,11 +195,23 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
                 .unwrap_or("guild-chat");
             load_fonts();
             let size = crate::window_size();
-            render(
+            let scale: f64 = args
+                .iter()
+                .position(|v| v == "--scale")
+                .and_then(|i| args.get(i + 1))
+                .map(|v| v.parse())
+                .transpose()
+                .map_err(|_| "Invalid scale")?
+                .unwrap_or(1.);
+            if !(1.0..=2.0).contains(&scale) {
+                return Err("Scale must be between 1 and 2".into());
+            }
+            render_scaled(
                 screen,
                 size.width as u32,
                 size.height as u32,
                 Path::new(path),
+                scale,
             )
         })());
     }
@@ -278,6 +290,11 @@ pub(crate) fn load_fonts() {
     }
 }
 pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
+    render_scaled(screen, w, h, path, 1.)
+}
+fn render_scaled(screen: &str, w: u32, h: u32, path: &Path, scale: f64) -> Result<(), String> {
+    let physical_w = (f64::from(w) * scale).round() as u32;
+    let physical_h = (f64::from(h) * scale).round() as u32;
     let size = Size::new(w as f32, h as f32);
     let mut app = App::headless(screen, size);
     let mut cache = Cache::new();
@@ -419,7 +436,10 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
     };
     let rgba = iced_tiny_skia::window::compositor::screenshot(
         &mut renderer,
-        &iced_tiny_skia::graphics::Viewport::with_physical_size(Size::new(w, h), 1.),
+        &iced_tiny_skia::graphics::Viewport::with_physical_size(
+            Size::new(physical_w, physical_h),
+            scale as f32,
+        ),
         t::BG_CHAT,
     );
     use image::{
@@ -429,7 +449,12 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
     // Lossless fast encoding keeps the full parity suite practical in debug builds.
     let file = std::fs::File::create(path).map_err(|e| e.to_string())?;
     PngEncoder::new_with_quality(file, CompressionType::Fast, FilterType::Sub)
-        .write_image(&rgba, w, h, image::ExtendedColorType::Rgba8)
+        .write_image(
+            &rgba,
+            physical_w,
+            physical_h,
+            image::ExtendedColorType::Rgba8,
+        )
         .map_err(|e| e.to_string())
 }
 

@@ -39,19 +39,21 @@ pub fn save(hwnd: HWND, root: &Path) {
     }
 }
 pub fn restore(hwnd: HWND, root: &Path, background: bool) {
+    if !restore_inner(hwnd, root, background) && !background {
+        let _ = unsafe { ShowWindow(hwnd, SW_SHOWNOACTIVATE) };
+    }
+}
+fn restore_inner(hwnd: HWND, root: &Path, background: bool) -> bool {
     let Some(state) = std::fs::read(path(root))
         .ok()
         .filter(|v| v.len() < 1024)
         .and_then(|v| serde_json::from_slice::<Placement>(&v).ok())
     else {
-        if !background {
-            let _ = unsafe { ShowWindow(hwnd, SW_SHOWNOACTIVATE) };
-        }
-        return;
+        return false;
     };
     let [left, top, right, bottom] = state.rect;
     if right.checked_sub(left).is_none() || bottom.checked_sub(top).is_none() {
-        return;
+        return false;
     }
     let mut rect = windows::Win32::Foundation::RECT {
         left,
@@ -65,7 +67,7 @@ pub fn restore(hwnd: HWND, root: &Path, background: bool) {
         ..Default::default()
     };
     if !unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool() {
-        return;
+        return false;
     }
     state.clamp_to(&info.rcWork, &mut rect);
     let mut placement = WINDOWPLACEMENT {
@@ -83,7 +85,7 @@ pub fn restore(hwnd: HWND, root: &Path, background: bool) {
     if background && state.maximized {
         placement.flags = WPF_RESTORETOMAXIMIZED;
     }
-    let _ = unsafe { SetWindowPlacement(hwnd, &placement) };
+    unsafe { SetWindowPlacement(hwnd, &placement) }.is_ok()
 }
 impl Placement {
     fn clamp_to(

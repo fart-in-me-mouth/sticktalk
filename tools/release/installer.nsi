@@ -33,6 +33,10 @@ Section "StickTalk (required)" Main
   ClearErrors
   File /oname=sticktalk.exe "${CLIENT}"
   File /oname=sticktalk-maintenance.exe "${MAINTENANCE}"
+!ifdef CRT
+  ; App-local redistributables: no separate VC redist installer or administrator.
+  File "${CRT}\*.dll"
+!endif
   File /oname=sticktalk.ico "..\..\crates\client\assets\sticktalk.ico"
   File /oname=Twemoji-NOTICE.txt "..\..\crates\client\assets\emoji\README.md"
   File /oname=Twemoji-LICENSE.txt "..\..\crates\client\assets\emoji\LICENSE-GRAPHICS"
@@ -115,8 +119,22 @@ Section "Uninstall"
   SetShellVarContext current
   Delete "$SMPROGRAMS\StickTalk.lnk"
   Delete "$DESKTOP\StickTalk.lnk"
+  ClearErrors
   Delete "$INSTDIR\sticktalk.exe"
   Delete "$INSTDIR\sticktalk-maintenance.exe"
+  IfErrors 0 +3
+  SetErrorLevel 1
+  Abort "Close StickTalk before uninstalling."
+  Delete "$INSTDIR\concrt140.dll"
+  Delete "$INSTDIR\msvcp140_1.dll"
+  Delete "$INSTDIR\msvcp140_2.dll"
+  Delete "$INSTDIR\msvcp140_atomic_wait.dll"
+  Delete "$INSTDIR\msvcp140_codecvt_ids.dll"
+  Delete "$INSTDIR\msvcp140.dll"
+  Delete "$INSTDIR\vccorlib140.dll"
+  Delete "$INSTDIR\vcruntime140_1.dll"
+  Delete "$INSTDIR\vcruntime140_threads.dll"
+  Delete "$INSTDIR\vcruntime140.dll"
   Delete "$INSTDIR\sticktalk.ico"
   Delete "$INSTDIR\Twemoji-NOTICE.txt"
   Delete "$INSTDIR\Twemoji-LICENSE.txt"

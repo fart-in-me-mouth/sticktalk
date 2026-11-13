@@ -99,11 +99,13 @@ fn main() -> iced::Result {
         .subscription(app::App::subscription)
         .window(iced::window::Settings {
             size: window_size(),
-            icon: iced::window::icon::from_file_data(
-                include_bytes!("../assets/sticktalk.png"),
-                Some(image::ImageFormat::Png),
-            )
-            .ok(),
+            icon: image::load_from_memory(include_bytes!("../assets/sticktalk.png"))
+                .ok()
+                .and_then(|i| {
+                    let rgba = i.into_rgba8();
+                    let (w, h) = rgba.dimensions();
+                    iced::window::icon::from_rgba(rgba.into_raw(), w, h).ok()
+                }),
             visible: (!cfg!(windows) || dry)
                 && !agent_window::enabled()
                 && !std::env::args().any(|a| a == "--background"),

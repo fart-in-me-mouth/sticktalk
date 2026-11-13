@@ -320,41 +320,52 @@ fn empty<'a>(name: &str, label: impl Into<String>, button: Button<'a>) -> Elemen
 }
 pub fn view(app: &App) -> Element<'_, Msg> {
     let content = content_view(app);
+    let content: Element<'_, Msg> = if app.state.model.me.is_none() && app.features.confirm_update {
+        if let Some(overlay) = crate::features::overlay(app) {
+            stack![content, overlay].into()
+        } else {
+            content
+        }
+    } else {
+        content
+    };
     if !app.features.crash_notice {
         return content;
     }
     stack![
         content,
-        container(
+        opaque(
             container(
-                column![
-                    title("StickTalk closed unexpectedly"),
-                    hint("A local diagnostic log is available. Nothing was uploaded."),
-                    row![
-                        action(
-                            "Dismiss",
-                            Msg::feature(crate::features::Event::Desktop(
-                                crate::desktop_host::Event::DismissCrash
-                            ))
-                        ),
-                        primary(
-                            "Open logs folder",
-                            Msg::feature(crate::features::Event::Desktop(
-                                crate::desktop_host::Event::OpenLogs
-                            ))
-                        )
+                container(
+                    column![
+                        title("StickTalk closed unexpectedly"),
+                        hint("A local diagnostic log is available. Nothing was uploaded."),
+                        row![
+                            action(
+                                "Dismiss",
+                                Msg::feature(crate::features::Event::Desktop(
+                                    crate::desktop_host::Event::DismissCrash
+                                ))
+                            ),
+                            primary(
+                                "Open logs folder",
+                                Msg::feature(crate::features::Event::Desktop(
+                                    crate::desktop_host::Event::OpenLogs
+                                ))
+                            )
+                        ]
+                        .spacing(t::S8)
                     ]
-                    .spacing(t::S8)
-                ]
-                .spacing(t::S16)
+                    .spacing(t::S16)
+                )
+                .padding(t::S24)
+                .width(t::LOGIN_W)
+                .style(t::modal)
             )
-            .padding(t::S24)
-            .width(t::LOGIN_W)
-            .style(t::modal)
+            .center_x(Fill)
+            .center_y(Fill)
+            .style(t::dim)
         )
-        .center_x(Fill)
-        .center_y(Fill)
-        .style(t::dim)
     ]
     .into()
 }
@@ -669,6 +680,9 @@ fn login(app: &App) -> Element<'_, Msg> {
             .spacing(t::S4)
             .align_y(Center),
         );
+    }
+    if app.features.update_ready.is_some() {
+        form = form.push(crate::features::update_pill(app));
     }
     let body = column![container(scroller(form).height(Length::Shrink))
         .padding(t::S32)

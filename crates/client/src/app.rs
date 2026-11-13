@@ -4220,11 +4220,21 @@ impl App {
             rgba: image.into_raw(),
         });
         match screen {
-            "login" | "register" | "google-login" | "pick-username" => {
+            "login" | "register" | "google-login" | "pick-username" | "login-error"
+            | "login-connecting" | "crash-recovery" => {
                 app.state.session = None;
                 app.register = screen == "register";
-                if screen == "login" {
+                if matches!(
+                    screen,
+                    "login" | "login-error" | "login-connecting" | "crash-recovery"
+                ) {
                     app.google_id = None;
+                }
+                app.meta_loading = screen == "login-connecting";
+                app.features.crash_notice = screen == "crash-recovery";
+                if screen == "login-error" {
+                    app.meta_error =
+                        "Could not connect. Check the server address and try again.".into();
                 }
                 if screen == "pick-username" {
                     app.signup = match app.mock_account.lock().unwrap().google("mock-new").unwrap()

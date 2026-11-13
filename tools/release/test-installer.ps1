@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory)][string]$Installer,
     [Parameter(Mandatory)][string]$Client,
     [string]$InstallDir = "$env:TEMP/StickTalk-InstallerTest-$PID",
-    [string]$Scratch = "$env:USERPROFILE/.cargo-target/sticktalk-desktop-platform/installer-test"
+    [string]$Scratch = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng/installer-test"
 )
 $ErrorActionPreference = 'Stop'
 function Assert([bool]$Condition, [string]$Message) { if (!$Condition) { throw $Message } }
@@ -27,7 +27,7 @@ New-Item -ItemType Directory -Force -Path $Scratch | Out-Null
 $uninstallCopy = Join-Path (Resolve-Path -LiteralPath $Scratch).Path 'test-uninstall.exe'
 $installed = $false
 try {
-    $p = Start-Process -FilePath $Installer -ArgumentList "/S /D=$InstallDir" -WindowStyle Hidden -Wait -PassThru
+    $p = Start-Process -FilePath $Installer -ArgumentList "/S /DESKTOP=1 /D=$InstallDir" -WindowStyle Hidden -Wait -PassThru
     $installed = Test-Path -LiteralPath (Join-Path $InstallDir 'Uninstall.exe')
     Assert ($p.ExitCode -eq 0) "Silent install failed: $($p.ExitCode)"
     Assert ((Get-FileHash -LiteralPath (Join-Path $InstallDir 'sticktalk.exe')).Hash -eq (Get-FileHash -LiteralPath $Client).Hash) 'Installed client differs from built binary.'
