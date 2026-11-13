@@ -140,11 +140,11 @@ mod platform;
 #[cfg(windows)]
 pub use platform::{
     audio_devices, camera_devices, choose_audio_device, enumerate_audio_devices, hardware_encoders,
-    initialize_audio_apartment, list_sources, measure_mic_level, process_usage, source_process_id,
-    source_thumbnail, uninitialize_audio_apartment, AppAttenuation, AudioDevice,
-    AudioDeviceBackend, AudioDeviceEvent, AudioDeviceWatcher, AudioDirection, AudioSessionEvent,
-    CameraDevice, CameraFrameEncoder, CameraOptions, CameraSession, DecodedFrame, Decoder,
-    FilePlayer, LoopbackSession, LoopbackSource, MicLevel, MicTestSession,
-    NativeAudioDeviceBackend, PlayerFrame, ProcessUsage, ShareSession, SourceThumbnail,
-    VoiceDevices, VoiceSession,
+    initialize_audio_apartment, list_sources, measure_mic_level, process_usage,
+    source_gpu_thumbnail, source_process_id, source_thumbnail, uninitialize_audio_apartment,
+    AppAttenuation, AudioDevice, AudioDeviceBackend, AudioDeviceEvent, AudioDeviceWatcher,
+    AudioDirection, AudioSessionEvent, CameraDevice, CameraFrameEncoder, CameraOptions,
+    CameraSession, DecodedFrame, Decoder, DisplayBridge, DisplayFrame, FilePlayer, GpuThumbnailer,
+    LoopbackSession, LoopbackSource, MicLevel, MicTestSession, NativeAudioDeviceBackend,
+    PlayerFrame, ProcessUsage, ShareSession, SourceThumbnail, VoiceDevices, VoiceSession,
 };

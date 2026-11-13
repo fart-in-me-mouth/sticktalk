@@ -1,11 +1,17 @@
 //! Desktop call lifetime. Importing this module never opens a device or socket.
 pub mod control;
+mod control_banner;
 pub mod hotkeys;
 #[cfg(windows)]
 mod native;
 pub mod peer;
 pub mod rtp;
-use std::sync::mpsc::{SyncSender, TrySendError};
+#[cfg(feature = "wgpu")]
+pub mod video;
+use std::sync::{
+    mpsc::{SyncSender, TrySendError},
+    Arc, Mutex,
+};
 use sticktalk_client_core::voice::{settings::NoiseSuppression, VoiceSettings};
 pub use sticktalk_desktop_platform::sound::Sound;
 use sticktalk_media::{
@@ -101,6 +107,7 @@ mod wake_tests {
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
         let h = Handle(
             tx,
+            Default::default(),
             std::sync::Arc::new(std::sync::Mutex::new(Some(socket.try_clone().unwrap()))),
         );
         h.send(Command::Stop).unwrap();
@@ -116,26 +123,58 @@ pub enum Command {
     Gate(bool, bool),
     PushToTalk(bool),
     Configure(VoiceSettings),
-    Share(sticktalk_media::Source, Option<u32>),
+    Share(
+        sticktalk_media::Source,
+        Option<u32>,
+        sticktalk_media::Quality,
+    ),
     StopShare,
     Quality(Quality),
     Camera(Option<sticktalk_media::CameraDevice>),
+    Visible(Vec<(VoiceSession, TrackKind)>),
+    ControlState(
+        sticktalk_client_core::voice::control::Consent,
+        Option<VoiceSession>,
+        String,
+    ),
+    ControlInput(ControlData),
+    ReleaseInput,
     Stop,
 }
-#[derive(Debug, Clone)]
+type Emergency = Arc<Mutex<Option<Arc<dyn Fn() + Send + Sync>>>>;
+#[derive(Clone)]
 pub struct Handle(
     SyncSender<Command>,
-    std::sync::Arc<std::sync::Mutex<Option<std::net::UdpSocket>>>,
+    Emergency,
+    Arc<Mutex<Option<std::net::UdpSocket>>>,
 );
+impl std::fmt::Debug for Handle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Handle").finish()
+    }
+}
 impl Handle {
     pub fn send(&self, command: Command) -> Result<(), String> {
+        let stop = matches!(
+            &command,
+            Command::Stop | Command::ReleaseInput | Command::StopShare
+        ) || matches!(&command,Command::ControlState(consent,own,_) if !own.zip(consent.grant).is_some_and(|(o,g)|consent.may_inject(o,g.token)));
+        // Emergency notification must precede the bounded queue: it works even
+        // during a blocked codec/device operation or an overloaded command queue.
+        if stop {
+            if let Ok(callback) = self.1.lock() {
+                if let Some(callback) = &*callback {
+                    callback();
+                }
+            }
+        }
         self.0.try_send(command).map_err(|e| -> String {
             match e {
                 TrySendError::Full(_) => "Media command queue full; retry".into(),
                 _ => "Call stopped".into(),
             }
         })?;
-        if let Some(socket) = self.1.lock().unwrap().as_ref() {
+        if let Some(socket) = self.2.lock().unwrap().as_ref() {
             if let Ok(address) = socket.local_addr() {
                 let _ = socket.send_to(&[], address);
             }
@@ -154,6 +193,14 @@ pub enum Event {
     Sharing(bool),
     Camera(bool),
     Hotkey(hotkeys::Hotkey),
+    Video {
+        session: VoiceSession,
+        kind: TrackKind,
+        frame: std::sync::Arc<sticktalk_media::DisplayFrame>,
+        decode_ms: f32,
+        dropped: u64,
+        bps: u64,
+    },
     /// Decoded hardware surfaces remain on the media worker; never CPU-read back.
     Decoded {
         user: Id,
@@ -220,12 +267,14 @@ pub fn subscription(config: &Config) -> impl iced::futures::Stream<Item = Event>
             let (sender, commands) = std::sync::mpsc::sync_channel(128);
             let (events, mut received) = tokio::sync::mpsc::channel(128);
             let wake = std::sync::Arc::new(std::sync::Mutex::new(None));
-            let handle = Handle(sender, wake.clone());
+            let emergency: Emergency = Default::default();
+            let handle = Handle(sender, emergency.clone(), wake.clone());
+
             if output.send(Event::Ready(handle.clone())).await.is_err() {
                 return;
             }
             let worker = tokio::task::spawn_blocking(move || {
-                if let Err(e) = native::run(config, commands, &events, wake) {
+                if let Err(e) = native::run(config, commands, &events, wake, emergency) {
                     let _ = events.blocking_send(Event::Error(e));
                 }
             });
@@ -309,5 +358,23 @@ mod tests {
         assert!(!o.automatic_gain);
         assert!(!o.noise_suppression);
         assert_eq!(quality(&loaded).unwrap(), Quality::default());
+    }
+    #[test]
+    fn emergency_release_does_not_depend_on_command_queue_capacity() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let (sender, _receiver) = std::sync::mpsc::sync_channel(1);
+        sender.try_send(Command::Gate(true, true)).unwrap();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let flag = stopped.clone();
+        let callback: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
+            flag.store(true, Ordering::Release);
+        });
+        let handle = Handle(
+            sender,
+            Arc::new(Mutex::new(Some(callback))),
+            Default::default(),
+        );
+        assert!(handle.send(Command::Stop).is_err());
+        assert!(stopped.load(Ordering::Acquire));
     }
 }

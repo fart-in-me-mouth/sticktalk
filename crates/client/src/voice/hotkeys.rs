@@ -1,4 +1,7 @@
 //! Passive low-level hooks: no window, no focus changes, no swallowed game input.
+fn physical_mouse(flags: u32) -> bool {
+    flags & windows_sys::Win32::UI::WindowsAndMessaging::LLMHF_INJECTED == 0
+} // LLMHF_INJECTED
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Hotkey {
@@ -31,6 +34,12 @@ fn action(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn injected_mouse_never_revokes_and_physical_mouse_does() {
+        assert!(physical_mouse(0));
+        assert!(!physical_mouse(1));
+        assert!(!physical_mouse(3));
+    }
     #[test]
     fn stop_chord_cannot_be_shadowed_by_ptt() {
         assert_eq!(
@@ -81,6 +90,7 @@ mod native {
         down: BTreeSet<u32>,
         control: Arc<AtomicBool>,
         notify: Option<Arc<dyn Fn() + Send + Sync>>,
+        emergency: Option<Arc<dyn Fn() + Send + Sync>>,
     }
     static STATE: OnceLock<Mutex<Option<State>>> = OnceLock::new();
     unsafe extern "system" fn keyboard(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
@@ -101,6 +111,12 @@ mod native {
                             let alt = s.down.contains(&0xa4) || s.down.contains(&0xa5);
                             let event = action(s.ptt, data.vkCode, down, ctrl, shift, alt);
                             if let Some(event) = event {
+                                if event == Hotkey::Revoke {
+                                    s.control.store(false, Ordering::Release);
+                                    if let Some(stop) = &s.emergency {
+                                        stop();
+                                    }
+                                }
                                 let _ = s.sender.try_send(event);
                                 if let Some(notify) = &s.notify {
                                     notify();
@@ -116,11 +132,14 @@ mod native {
     unsafe extern "system" fn mouse(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
         if code >= 0
             && w as u32 == WM_MOUSEMOVE
-            && (*(l as *const MSLLHOOKSTRUCT)).flags & LLMHF_INJECTED == 0
+            && physical_mouse((*(l as *const MSLLHOOKSTRUCT)).flags)
         {
             if let Ok(state) = STATE.get().unwrap().lock() {
                 if let Some(s) = state.as_ref() {
                     if s.control.swap(false, Ordering::AcqRel) {
+                        if let Some(stop) = &s.emergency {
+                            stop();
+                        }
                         let _ = s.sender.try_send(Hotkey::Revoke);
                         if let Some(notify) = &s.notify {
                             notify();
@@ -154,6 +173,7 @@ mod native {
                     down: BTreeSet::new(),
                     control: control.clone(),
                     notify: None,
+                    emergency: None,
                 });
             }
             let thread = thread::Builder::new()
@@ -199,6 +219,16 @@ mod native {
                     Err(e)
                 }
             }
+        }
+        pub fn set_emergency(&self, stop: Arc<dyn Fn() + Send + Sync>) {
+            if let Ok(mut state) = STATE.get().unwrap().lock() {
+                if let Some(s) = state.as_mut() {
+                    s.emergency = Some(stop);
+                }
+            }
+        }
+        pub fn control_flag(&self) -> Arc<AtomicBool> {
+            self.control.clone()
         }
         pub fn set_control_active(&self, active: bool) {
             self.control.store(active, Ordering::Release);

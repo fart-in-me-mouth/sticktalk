@@ -90,6 +90,18 @@ pub(super) struct Converter {
 }
 impl Converter {
     pub fn new(gpu: &Gpu, input: Size, output: Size, fps: u32) -> Result<Self> {
+        Self::with_format(gpu, input, output, fps, DXGI_FORMAT_NV12)
+    }
+    pub fn rgb(gpu: &Gpu, input: Size, output: Size) -> Result<Self> {
+        Self::with_format(gpu, input, output, 60, DXGI_FORMAT_B8G8R8A8_UNORM)
+    }
+    fn with_format(
+        gpu: &Gpu,
+        input: Size,
+        output: Size,
+        fps: u32,
+        format: DXGI_FORMAT,
+    ) -> Result<Self> {
         unsafe {
             let video: ID3D11VideoDevice = gpu.device.cast()?;
             let context: ID3D11VideoContext = gpu.context.cast()?;
@@ -111,8 +123,7 @@ impl Converter {
             };
             let enumerator = video.CreateVideoProcessorEnumerator(&desc)?;
             let processor = video.CreateVideoProcessor(&enumerator, 0)?;
-            let texture =
-                gpu.texture(output, DXGI_FORMAT_NV12, D3D11_BIND_RENDER_TARGET.0 as u32)?;
+            let texture = gpu.texture(output, format, D3D11_BIND_RENDER_TARGET.0 as u32)?;
             let view_desc = D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC {
                 ViewDimension: D3D11_VPOV_DIMENSION_TEXTURE2D,
                 ..Default::default()
@@ -168,7 +179,11 @@ impl Converter {
             );
             colors.VideoProcessorSetOutputColorSpace1(
                 &processor,
-                DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709,
+                if format == DXGI_FORMAT_NV12 {
+                    DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709
+                } else {
+                    DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+                },
             );
             Ok(Self {
                 video,

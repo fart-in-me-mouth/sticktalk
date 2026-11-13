@@ -431,13 +431,20 @@ impl App {
         let mut subs = vec![
             crate::features::subscription(self),
             iced::event::listen_with(|event, _status, _id| match event {
-                UiEvent::Window(window::Event::Resized(size)) => Some(Msg::Resize(size)),
-                UiEvent::Window(window::Event::CloseRequested) => Some(Msg::feature(
-                    crate::features::Event::Desktop(crate::desktop_host::Event::Close),
-                )),
+                UiEvent::Window(window::Event::CloseRequested) => {
+                    Some(Msg::Call(crate::voice_ui::Action::WindowClosed(_id)))
+                }
+                UiEvent::Window(window::Event::Resized(size)) => {
+                    Some(Msg::Call(crate::voice_ui::Action::WindowResized(_id, size)))
+                }
+
                 UiEvent::Window(window::Event::Moved(_)) => Some(Msg::ScrollMonitorQuery),
-                UiEvent::Window(window::Event::Focused) => Some(Msg::Focus(true)),
-                UiEvent::Window(window::Event::Unfocused) => Some(Msg::Focus(false)),
+                UiEvent::Window(window::Event::Focused) => {
+                    Some(Msg::Call(crate::voice_ui::Action::WindowFocus(_id, true)))
+                }
+                UiEvent::Window(window::Event::Unfocused) => {
+                    Some(Msg::Call(crate::voice_ui::Action::WindowFocus(_id, false)))
+                }
                 UiEvent::Window(window::Event::FileDropped(path)) => Some(Msg::Drop(path)),
                 UiEvent::Window(window::Event::FileHovered(_)) => {
                     Some(Msg::Main(crate::main_window::Message::DropHover(true)))
@@ -576,6 +583,21 @@ impl App {
                         Msg::Call(crate::voice_ui::Action::Media(generation, e))
                     }),
             );
+        }
+        let visible = crate::voice_ui::Visible(self.call_visible());
+        subs.push(Subscription::run_with(visible, |v| {
+            let v = v.0.clone();
+            iced::futures::stream::once(
+                async move { Msg::Call(crate::voice_ui::Action::Visibility(v)) },
+            )
+        }));
+        if self.calls.picker && !self.mock_mode {
+            subs.push(Subscription::run_with(self.calls.picker_revision, |_| {
+                iced::futures::stream::once(async {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    Msg::Call(crate::voice_ui::Action::RefreshSources)
+                })
+            }));
         }
         if self.calls.save_dirty {
             subs.push(Subscription::run_with(
@@ -1258,6 +1280,15 @@ impl App {
                 return operation::focus(field);
             }
             Msg::Close | Msg::Escape => {
+                if self.calls.fullscreen {
+                    return self.call_update(crate::voice_ui::Action::Fullscreen);
+                }
+                if self.calls.picker {
+                    return self.call_update(crate::voice_ui::Action::ClosePicker);
+                }
+                if self.calls.camera_picker {
+                    return self.call_update(crate::voice_ui::Action::CloseCameras);
+                }
                 if self.features.video.fullscreen.is_some() {
                     return crate::video::update(self, crate::video::Event::CloseFullscreen);
                 }

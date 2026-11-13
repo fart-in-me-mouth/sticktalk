@@ -10,6 +10,21 @@ pub(super) fn participant<'a>(
     p: &VoiceParticipant,
     compact: bool,
 ) -> Element<'a, Msg> {
+    let has_stream = p.tracks.iter().any(|t| t.kind == TrackKind::Screen);
+    let watch = || {
+        action(
+            if Some(p.session) == app.calls.call.own {
+                "Stream quality"
+            } else {
+                "Watch stream"
+            },
+            msg(if Some(p.session) == app.calls.call.own {
+                Action::Picker
+            } else {
+                Action::Focus(Some(p.session))
+            }),
+        )
+    };
     let speaking = app.calls.call.speaking.contains(&p.session);
     let face = container(avatar(
         app,
@@ -71,10 +86,34 @@ pub(super) fn participant<'a>(
         ]
         .spacing(t::S8)
         .align_x(Center);
-        if p.tracks.iter().any(|t| t.kind == TrackKind::Screen) {
-            body = body.push(action("Watch stream", msg(Action::Focus(Some(p.session)))));
+        if has_stream {
+            body = body.push(watch());
         }
-        body.width(Fill).height(t::CALL_TILE_HEIGHT).into()
+        if p.tracks.iter().any(|t| t.kind == TrackKind::Camera) {
+            let mut footer = row![
+                txt(ellipsis(&app.state.model.name(p.session.user_id), 16)).width(Fill),
+                flags_for_camera(p)
+            ]
+            .spacing(t::S4)
+            .align_y(Center)
+            .height(t::BUTTON);
+            if has_stream {
+                footer = footer.push(watch());
+            }
+            column![
+                super::stream_view::video(
+                    app,
+                    p.session,
+                    TrackKind::Camera,
+                    t::CALL_TILE_HEIGHT - t::BUTTON - 2. * t::S4
+                ),
+                container(footer).padding([t::S4, t::S8])
+            ]
+            .width(Fill)
+            .into()
+        } else {
+            body.width(Fill).height(t::CALL_TILE_HEIGHT).into()
+        }
     };
     mouse_area(
         container(body)
@@ -207,15 +246,19 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
         .padding([t::S8, t::S16])
         .height(t::HEADER),
         line(),
-        container(scroller(grid))
-            .padding(t::S24)
-            .height(Fill)
-            .width(Fill),
+        container(if let Some(stream) = app.calls.focus.filter(|_| in_call) {
+            super::stream_view::view(app, stream)
+        } else {
+            scroller(grid).into()
+        })
+        .padding(t::S24)
+        .height(Fill)
+        .width(Fill),
     ];
+    if app.calls.call.control.grant.is_some() {
+        content = content.push(controlling(app));
+    }
     if in_call {
-        if let Some(stream) = app.calls.focus {
-            content = content.push(super::stream_view::view(app, stream));
-        }
         content = content.push(
             container(controls(app))
                 .padding(t::S16)
@@ -229,7 +272,7 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
                 .center_x(Fill),
         );
     }
-    if app.calls.stats {
+    if app.calls.stats && app.calls.focus.is_none() {
         content = content.push(super::stream_view::stats(app));
     }
     container(content)
@@ -248,8 +291,9 @@ pub(super) fn consent(app: &App) -> Element<'_, Msg> {
                 "{} wants to control your screen",
                 app.state.model.name(requester.user_id)
             )),
-            hint("Remote control is not available on this build."),
-            row![action("Deny", msg(Action::DecideControl(false)))].spacing(t::S8)
+            hint("Only allow people you trust. Control ends when you move your mouse or stop sharing."),
+            hint("This request expires after 30 seconds."),
+            row![action("Deny", msg(Action::DecideControl(false))), primary("Allow", msg(Action::DecideControl(true)))].spacing(t::S8)
         ]
         .spacing(t::S16),
     )
@@ -276,5 +320,39 @@ pub(super) fn user_audio(app: &App, id: Id) -> Element<'_, Msg> {
         ),
     ]
     .spacing(t::S8)
+    .into()
+}
+
+fn flags_for_camera(p: &VoiceParticipant) -> Element<'static, Msg> {
+    icon(
+        if p.muted { "mic-off" } else { "video" },
+        t::INLINE_ICON,
+        t::TEXT_SECONDARY,
+    )
+    .into()
+}
+
+pub(super) fn controlling(app: &App) -> Element<'_, Msg> {
+    let Some(grant) = app.calls.call.control.grant else {
+        return space().into();
+    };
+    let name = app.state.model.name(grant.controller.user_id);
+    let own = Some(grant.sharer) == app.calls.call.own;
+    container(
+        row![
+            icon("monitor-up", t::INLINE_ICON, t::ACCENT),
+            txt(if own {
+                format!("{name} is controlling your screen — Stop (Ctrl+Alt+Shift+S)")
+            } else {
+                format!("{name} is controlling")
+            })
+            .width(Fill),
+            action("Stop", msg(Action::Revoke))
+        ]
+        .spacing(t::S12)
+        .align_y(Center),
+    )
+    .padding(t::S8)
+    .style(t::elevated)
     .into()
 }

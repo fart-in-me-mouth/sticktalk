@@ -1,0 +1,8 @@
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+    Finished `release` profile [optimized] target(s) in 1.34s
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-calls2\release\deps\voice-2ad3b19df6f2a1e8.exe)
+
+thread 'live_calls2_two_viewers_ten_minutes' (32696) panicked at crates\client\tests\voice.rs:876:5:
+acceptance failed for: ["viewer_b", "viewer_c"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p sticktalk --test voice`

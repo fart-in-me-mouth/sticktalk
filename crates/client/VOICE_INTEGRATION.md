@@ -1,3 +1,50 @@
+# Calls2 video, picker and remote-control integration
+
+Round-2 evidence: [`bench/calls2-2026-11-12/REPORT.md`](bench/calls2-2026-11-12/REPORT.md).
+**End-to-end release acceptance is still failing:** viewers 12.837/12.950 fps
+and +166/+170 ms drift; sharer CPU 0.633%, WS +101.85 MiB. Do not label this
+launch-ready. The round-1 status below is historical; its missing GPU bridge, camera chooser,
+monitor application-audio chooser and disabled native-control statements are
+superseded by this section. Audio/settings remain owned by the parallel work.
+
+- Decoded NV12 stays on the GPU: D3D11 plane shader → immutable shared BGRA
+  texture + shared fence → DX12/wgpu iced primitive. Decoder textures need a
+  GPU copy before plane sampling; there is no production streaming readback.
+  This requires a DX12 renderer on the same adapter. Other adapters/backends
+  fail closed; cross-adapter and software display fallback are not qualified.
+- The sender explicitly declares desired BWE capacity (without a bandwidth
+  floor), so an idle-to-video transition can probe upward. Unsent video is
+  bounded independently of the RTX cache; congestion drops dependent frames
+  and requests a fresh IDR rather than accumulating latency and RAM.
+- Screen playback, local/remote camera tiles and source previews use the bridge.
+  Picker snapshots refresh only while open, with measured tiny CPU fallback.
+  Logical window/channel/focused-view visibility unsubscribes video layers and
+  discards decoders; per-pixel grid occlusion is not tracked.
+  Focus/fullscreen/pop-out share the call transport; the stats overlay is optional.
+- Picker includes monitor/window tabs, explicit application process audio,
+  camera selection and persisted 1080p60-default quality. Quality updates the
+  active share without republishing. Source labels show the selected real size.
+- Native injection, passive revoke hooks and a no-activate always-on-top Stop
+  banner are one fail-closed safety unit. Real mouse input closes an atomic
+  injection gate before notifying an independent release thread. Stop/disconnect
+  signal this thread before a potentially full media queue. All held keys and
+  buttons are released; retired grants cannot re-enable injection.
+- Input uses USB HID scan-code construction, physical PMv2 surface bounds,
+  negative-origin virtual-desktop mapping and pixel-center absolute coordinates.
+  Window focus is restricted to the consented HWND; monitor keyboard input
+  requires the foreground window to remain wholly inside the shared monitor.
+  Viewer capture requires a local video click and ends on focus loss or Esc held
+  for one second. Consent expires after 30 seconds and controller state is shared.
+- **Safety:** no real SendInput, microphone, camera, sounds, notifications or
+  visible windows were used in qualification. Input construction and recording
+  mock tests are not live OS integration acceptance. Native banner placement,
+  physical hotkeys/takeback, games and DPI behavior still require a controlled
+  manual test on a dedicated machine, never the owner's active PC.
+
+---
+
+## Historical round-1 status
+
 # Native call integration — implementation status
 
 This is a **partial Phase 2 integration**, not launch acceptance. No real

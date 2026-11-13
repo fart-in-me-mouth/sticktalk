@@ -1,0 +1,99 @@
+
+running 1 test
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds
+Per-process GPU engine means; GPU provider runs outside the measured clients. Values sum matching engines, not whole-adapter utilization.
+sharer 3D: 1.2280% (596 samples)
+sharer Copy: 0.0000% (596 samples)
+sharer LegacyOverlay: 0.0000% (596 samples)
+sharer OFA_0: 0.0000% (596 samples)
+sharer Security: 0.0000% (596 samples)
+sharer VR: 0.0000% (596 samples)
+sharer VideoDecode: 0.0000% (596 samples)
+sharer VideoEncode: 27.0736% (596 samples)
+viewer_b 3D: 0.0001% (596 samples)
+viewer_b Copy: 0.0001% (596 samples)
+viewer_b LegacyOverlay: 0.0000% (596 samples)
+viewer_b OFA_0: 0.0000% (596 samples)
+viewer_b Security: 0.0000% (596 samples)
+viewer_b VR: 0.0000% (596 samples)
+viewer_b VideoDecode: 4.0562% (596 samples)
+viewer_b VideoEncode: 0.0000% (596 samples)
+viewer_c 3D: 0.0001% (596 samples)
+viewer_c Copy: 0.0002% (596 samples)
+viewer_c LegacyOverlay: 0.0000% (596 samples)
+viewer_c OFA_0: 0.0000% (596 samples)
+viewer_c Security: 0.0000% (596 samples)
+viewer_c VR: 0.0000% (596 samples)
+viewer_c VideoDecode: 4.7940% (596 samples)
+viewer_c VideoEncode: 0.0000% (596 samples)
+
+
+running 1 test
+live WGC hardware encoder=Hardware { name: "NVIDIA H.264 Encoder MFT" }, GPU=NVIDIA GeForce RTX 3060 Ti
+stage after media startup: working_set_mib=70.11 private_mib=88.27
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds
+CALLS2 role=sharer seconds=600.013 frames=35976 avg_fps=59.959 min_1s_fps=53 latency_drift_ms=0.000 cpu_machine_pct=0.238 working_set_mib=326.61 working_set_delta_mib=308.42 peak_working_set_mib=326.62 bitrate_mbps=2.734 last_working_set_mib=326.07
+private_bytes_mib=354.30 private_delta_mib=351.71
+capture stats: SessionStats { captured: 15286, encoded: 36476, dropped: 25, repeated: 26443, bytes: 207622189, reconfigurations: 0 }
+
+thread 'live_calls2_two_viewers_ten_minutes' (25628) panicked at crates\client\tests\voice.rs:1022:9:
+assertion failed: after.rss_bytes.saturating_sub(baseline.rss_bytes) < 150_000_000
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test live_calls2_two_viewers_ten_minutes ... FAILED
+
+failures:
+
+failures:
+    live_calls2_two_viewers_ten_minutes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 608.99s
+
+
+
+running 1 test
+stage after media startup: working_set_mib=46.32 private_mib=50.04
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds
+CALLS2 role=viewer_b seconds=600.012 frames=8556 avg_fps=14.260 min_1s_fps=0 latency_drift_ms=379895.257 cpu_machine_pct=0.154 working_set_mib=76.23 working_set_delta_mib=58.02 peak_working_set_mib=76.23 bitrate_mbps=0.554 last_working_set_mib=76.23
+private_bytes_mib=88.76 private_delta_mib=86.16
+
+thread 'live_calls2_two_viewers_ten_minutes' (28092) panicked at crates\client\tests\voice.rs:1018:5:
+below 58fps
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test live_calls2_two_viewers_ten_minutes ... FAILED
+
+failures:
+
+failures:
+    live_calls2_two_viewers_ten_minutes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 608.94s
+
+
+
+running 1 test
+stage after media startup: working_set_mib=46.32 private_mib=49.20
+test live_calls2_two_viewers_ten_minutes has been running for over 60 seconds
+CALLS2 role=viewer_c seconds=600.012 frames=10080 avg_fps=16.800 min_1s_fps=0 latency_drift_ms=379592.250 cpu_machine_pct=0.168 working_set_mib=76.13 working_set_delta_mib=57.91 peak_working_set_mib=76.13 bitrate_mbps=0.663 last_working_set_mib=76.13
+private_bytes_mib=88.04 private_delta_mib=85.43
+
+thread 'live_calls2_two_viewers_ten_minutes' (20728) panicked at crates\client\tests\voice.rs:1018:5:
+below 58fps
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test live_calls2_two_viewers_ten_minutes ... FAILED
+
+failures:
+
+failures:
+    live_calls2_two_viewers_ten_minutes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 608.94s
+
+
+test live_calls2_two_viewers_ten_minutes ... FAILED
+
+failures:
+
+failures:
+    live_calls2_two_viewers_ten_minutes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 609.74s
