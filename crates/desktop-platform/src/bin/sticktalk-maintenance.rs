@@ -11,11 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
     }
-    use std::{
-        os::windows::{fs::OpenOptionsExt, process::CommandExt},
-        path::PathBuf,
-        process::Command,
-    };
+    use std::{os::windows::process::CommandExt, path::PathBuf, process::Command};
     use sticktalk_desktop_platform::{
         updater::Updater,
         windows::{register_shortcut_aumid, wait_for_exit, Apartment},
@@ -37,28 +33,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Err("invalid restart executable".into());
             }
             wait_for_exit(parent)?;
-            let stage = updater.pending().await?.ok_or("no pending update")?;
-            // Keep the verified installer immutable through process creation/execution.
-            let _installer_lock = std::fs::OpenOptions::new()
-                .read(true)
-                .share_mode(1)
-                .open(stage.installer())?;
-            let stage = updater.pending().await?.ok_or("no pending update")?;
-            let status = Command::new(stage.installer())
-                .arg("/S")
-                // NSIS consumes /D= through end of command line; raw_arg avoids
-                // Rust's outer quoting when an installation path contains spaces.
-                .raw_arg(format!(
-                    "/D={}",
-                    exe.parent().ok_or("no install directory")?.display()
-                ))
-                .creation_flags(0x08000000)
-                .status()?;
-            if !status.success() {
-                return Err("installer failed; stage retained for retry".into());
+            sticktalk_desktop_platform::windows::update_install::apply(
+                &updater,
+                &exe,
+                &PathBuf::from(&args[3]),
+                &args[2],
+            )
+            .await?;
+        }
+        Some("recover") if args.len() == 4 => {
+            let exe = PathBuf::from(&args[1]);
+            if !exe.is_absolute()
+                || exe.file_name().and_then(|n| n.to_str()) != Some("sticktalk.exe")
+            {
+                return Err("invalid executable".into());
             }
-            updater.clear_pending().await?;
-            Command::new(exe).spawn()?;
+            wait_for_exit(args[3].parse()?)?;
+            if sticktalk_desktop_platform::windows::update_install::recover(
+                &exe,
+                &PathBuf::from(&args[2]),
+            )? {
+                Command::new(exe)
+                    .env("STICKTALK_UPDATE_ROLLED_BACK", "1")
+                    .creation_flags(0x08000000)
+                    .spawn()?;
+            }
         }
         _ => return Err(
             "expected shortcut <lnk> or apply <origin> <version> <stage> <pid> <exe> --confirmed"

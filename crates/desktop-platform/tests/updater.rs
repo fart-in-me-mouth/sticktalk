@@ -308,3 +308,29 @@ async fn timer_is_immediate_then_six_hours_and_stops_on_receiver_drop() {
         .unwrap()
         .unwrap();
 }
+
+#[tokio::test]
+async fn failed_startup_is_not_offered_again_but_a_new_release_is() {
+    let s = Server::start().await;
+    let envelope = s.state.envelope.lock().unwrap().clone();
+    std::fs::write(
+        s.dir.path().join("failed-update.json"),
+        serde_json::to_vec(&envelope).unwrap(),
+    )
+    .unwrap();
+    assert!(s.updater().check().await.unwrap().is_none());
+    s.resign(|m| m.version = "0.3.0".into());
+    assert!(s.updater().check().await.unwrap().is_some());
+}
+#[tokio::test]
+async fn only_current_artifact_is_retained_and_unknown_files_are_not_deleted() {
+    let s = Server::start().await;
+    let stale = s.dir.path().join(format!("{}.exe", "a".repeat(64)));
+    std::fs::write(&stale, b"obsolete").unwrap();
+    std::fs::write(s.dir.path().join("personal.exe"), b"unowned").unwrap();
+    let u = s.updater();
+    let v = u.check().await.unwrap().unwrap();
+    u.download(&v).await.unwrap();
+    assert!(!stale.exists());
+    assert!(s.dir.path().join("personal.exe").exists());
+}

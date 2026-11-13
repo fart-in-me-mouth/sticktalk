@@ -192,6 +192,8 @@ pub struct App {
     pub display: String,
     pub register: bool,
     pub change_server: bool,
+    pub meta_loading: bool,
+    pub meta_error: String,
     pub google_id: Option<String>,
     pub signup: Option<GoogleSignupRequired>,
     pub methods: Option<AuthMethodsResponse>,
@@ -274,7 +276,11 @@ impl App {
             calls: crate::voice_ui::State::default(),
             main: crate::main_window::State::default(),
             extent: crate::history_extent::Window::default(),
-            features: Default::default(),
+            features: crate::features::State {
+                crash_notice: !mock && sticktalk_desktop_platform::diagnostics::previous_crash(),
+                start_minimized: !mock && storage::start_minimized(),
+                ..Default::default()
+            },
             settings: crate::settings_controller::State {
                 preferences: crate::settings_controller::State::load_preferences(mock),
                 ..Default::default()
@@ -299,6 +305,8 @@ impl App {
             display: String::new(),
             register: initial_screen == "register",
             change_server: false,
+            meta_loading: !mock,
+            meta_error: String::new(),
             google_id: mock.then(|| "mock-desktop".into()),
             signup: (initial_screen == "pick-username").then(|| GoogleSignupRequired {
                 ticket: "mock-signup-ticket".into(),
@@ -752,6 +760,8 @@ impl App {
                 }
             }
             Msg::RefreshMeta => {
+                self.meta_loading = true;
+                self.meta_error.clear();
                 self.google_id = None;
                 self.features.gifs.capability = GifCapability::Disabled;
                 let server = self.server.trim().trim_end_matches('/').to_owned();
@@ -761,9 +771,21 @@ impl App {
             }
             Msg::Meta(server, result) => {
                 if server.trim_end_matches('/') == self.server.trim().trim_end_matches('/') {
-                    if let Ok(meta) = result {
-                        self.google_id = meta.google_client_id;
-                        self.features.gifs.capability = meta.gifs;
+                    self.meta_loading = false;
+                    match result {
+                        Ok(meta) => {
+                            self.meta_error.clear();
+                            self.google_id = meta.google_client_id;
+                            self.features.gifs.capability = meta.gifs;
+                            if !self.mock_mode {
+                                storage::save_server(server.trim().trim_end_matches('/'));
+                            }
+                        }
+                        Err(error) => {
+                            self.meta_error = format!(
+                                "Could not connect. {error}. Check the address and try again."
+                            )
+                        }
                     }
                 }
             }
@@ -1109,6 +1131,11 @@ impl App {
                 return Task::batch([saved, operation::focus("composer-editor")]);
             }
             Msg::Server(v) => {
+                if self.busy {
+                    return Task::none();
+                }
+                self.meta_loading = false;
+                self.meta_error.clear();
                 self.google_id = None;
                 self.features.gifs.capability = GifCapability::Disabled;
                 self.server = v;
@@ -4177,7 +4204,7 @@ impl App {
                 scenario: screen.into(),
             },
         });
-        app.server = storage::DEFAULT_SERVER.into();
+        app.server = "https://chat.sticktalk.example".into();
         app.dialog = Dialog::None;
         app.typing_armed = false;
         for id in [Id(2), Id(3)] {
@@ -4955,5 +4982,38 @@ mod tests {
         app.state.seek_loading = true;
         let _ = app.network(Data::Error("Server request failed".into()));
         assert!(!app.state.seek_loading);
+    }
+    #[test]
+    fn server_connection_errors_are_visible_and_stale_meta_is_ignored() {
+        let mut app = App::headless("login", iced::Size::new(1280., 800.));
+        let _ = app.update(Msg::Server("https://new.example".into()));
+        let _ = app.update(Msg::RefreshMeta);
+        assert!(app.meta_loading);
+        let _ = app.update(Msg::Meta(
+            "https://old.example".into(),
+            Err("unreachable".into()),
+        ));
+        assert!(app.meta_error.is_empty());
+        assert!(app.meta_loading);
+        let _ = app.update(Msg::Meta(
+            "https://new.example".into(),
+            Err("unreachable".into()),
+        ));
+        assert!(!app.meta_loading);
+        assert!(app.meta_error.contains("Check the address"));
+        let _ = app.update(Msg::Server("https://fixed.example".into()));
+        assert!(app.meta_error.is_empty());
+        assert!(app.google_id.is_none());
+    }
+    #[test]
+    fn invite_before_login_is_retained_without_losing_login_screen() {
+        let mut app = App::headless("login", iced::Size::new(1280., 800.));
+        let activation =
+            sticktalk_desktop_platform::activation::Activation::Invite("valid-code".into());
+        let _ = app.update(Msg::feature(crate::features::Event::Activation(
+            activation.clone(),
+        )));
+        assert_eq!(app.features.desktop.pending_activation, Some(activation));
+        assert!(app.state.session.is_none());
     }
 }

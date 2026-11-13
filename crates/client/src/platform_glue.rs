@@ -199,7 +199,11 @@ pub fn bootstrap() -> Result<Host, String> {
                 let _ = INSTANCE.set(std::sync::Arc::new(tokio::sync::Mutex::new(instance)));
             }
         }
-        *INITIAL.lock().map_err(|_| "Activation queue unavailable")? = Some(activation);
+        if (!std::env::args().any(|a| a == "--background") && !crate::storage::start_minimized())
+            || activation != Activation::Open
+        {
+            *INITIAL.lock().map_err(|_| "Activation queue unavailable")? = Some(activation);
+        }
         let apartment = sticktalk_desktop_platform::windows::Apartment::initialize()
             .map_err(|e| e.to_string())?;
         sticktalk_desktop_platform::windows::set_app_id().map_err(|e| e.to_string())?;

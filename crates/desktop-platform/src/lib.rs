@@ -25,3 +25,4 @@ pub enum Error {
     Windows(#[from] ::windows::core::Error),
 }
 pub type Result<T> = std::result::Result<T, Error>;
+pub mod diagnostics;

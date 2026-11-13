@@ -81,7 +81,11 @@ pub(super) fn content(app: &App, page: UserPage) -> Element<'_, Msg> {
                 p.start_with_windows,
                 A::Toggle(T::Startup, !p.start_with_windows),
                 true
-            )
+            ),
+            line(),
+            toggle_message("Start minimized to tray", "Keep the window hidden until you open StickTalk.",
+                app.features.start_minimized,
+                Msg::feature(crate::features::Event::StartMinimized(!app.features.start_minimized)), true)
         ]
         .spacing(t::S24)
         .into(),

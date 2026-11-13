@@ -184,7 +184,7 @@ pub(super) fn view(app: &App) -> Element<'_, Msg> {
     if app.calls.mic_test && (s.sensitivity_auto || s.push_to_talk) {
         input = input.push(meter(app));
     }
-    input=input.push(hint("Bluetooth: A2DP gives high-quality stereo playback. Using a headset microphone switches to HFP, reducing playback quality. Select a separate microphone to keep stereo audio."));
+    input=input.push(hint("Bluetooth headsets use lower-quality sound while the mic is on. For best sound, use a separate mic."));
     input = input.push(line()).push(title("Input Mode"));
     let mut mode = row![].spacing(t::S8);
     for (label, ptt) in [("Voice Activity", false), ("Push to Talk", true)] {

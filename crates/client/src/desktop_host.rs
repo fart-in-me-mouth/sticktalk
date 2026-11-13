@@ -6,6 +6,9 @@ use sticktalk_desktop_platform::tray::TrayAction;
 #[derive(Clone, Debug)]
 pub enum Event {
     Installed(bool),
+    Healthy,
+    OpenLogs,
+    DismissCrash,
     Tray(TrayAction),
     Close,
 }
@@ -111,13 +114,25 @@ pub fn update(app: &mut App, event: Event) -> Task<Msg> {
         return Task::none();
     }
     match event {
+        Event::Healthy => {
+            #[cfg(windows)]
+            sticktalk_desktop_platform::windows::update_install::acknowledge_startup();
+        }
+        Event::OpenLogs => {
+            let _ = open::that_detached(crate::storage::root().join("Logs"));
+        }
+        Event::DismissCrash => app.features.crash_notice = false,
         Event::Installed(ok) => {
             if !ok {
                 app.error = "Tray unavailable; closing StickTalk will quit.".into();
-                if std::env::args().any(|a| a == "--background") {
-                    return window_action(TrayAction::Open, false);
-                }
+                return window_action(TrayAction::Open, false);
             }
+            return Task::perform(
+                async {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                },
+                |_| message(Event::Healthy),
+            );
         }
         Event::Tray(TrayAction::Quit) => return iced::exit(),
         Event::Tray(TrayAction::Mute) => return app.main_update(crate::main_window::Message::Mute),

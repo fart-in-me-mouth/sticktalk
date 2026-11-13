@@ -36,3 +36,30 @@ pub fn forget(server: &str) {
         let _ = v.delete_credential();
     }
 }
+
+/// Releases pin updates independently of the user's selected chat server.
+pub fn update_origin(server: &str) -> String {
+    option_env!("STICKTALK_UPDATE_ORIGIN")
+        .unwrap_or(server)
+        .to_string()
+}
+
+pub fn start_minimized() -> bool {
+    std::fs::read(root().join("desktop.json"))
+        .ok()
+        .filter(|b| b.len() <= 128)
+        .and_then(|b| serde_json::from_slice::<bool>(&b).ok())
+        .unwrap_or(false)
+}
+pub fn save_start_minimized(enabled: bool) -> Result<(), String> {
+    std::fs::create_dir_all(root()).map_err(|_| "Could not save desktop settings")?;
+    std::fs::write(
+        root().join("desktop.json"),
+        if enabled {
+            b"true".as_slice()
+        } else {
+            b"false".as_slice()
+        },
+    )
+    .map_err(|_| "Could not save desktop settings".into())
+}

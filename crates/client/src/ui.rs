@@ -319,6 +319,46 @@ fn empty<'a>(name: &str, label: impl Into<String>, button: Button<'a>) -> Elemen
     .into()
 }
 pub fn view(app: &App) -> Element<'_, Msg> {
+    let content = content_view(app);
+    if !app.features.crash_notice {
+        return content;
+    }
+    stack![
+        content,
+        container(
+            container(
+                column![
+                    title("StickTalk closed unexpectedly"),
+                    hint("A local diagnostic log is available. Nothing was uploaded."),
+                    row![
+                        action(
+                            "Dismiss",
+                            Msg::feature(crate::features::Event::Desktop(
+                                crate::desktop_host::Event::DismissCrash
+                            ))
+                        ),
+                        primary(
+                            "Open logs folder",
+                            Msg::feature(crate::features::Event::Desktop(
+                                crate::desktop_host::Event::OpenLogs
+                            ))
+                        )
+                    ]
+                    .spacing(t::S8)
+                ]
+                .spacing(t::S16)
+            )
+            .padding(t::S24)
+            .width(t::LOGIN_W)
+            .style(t::modal)
+        )
+        .center_x(Fill)
+        .center_y(Fill)
+        .style(t::dim)
+    ]
+    .into()
+}
+fn content_view(app: &App) -> Element<'_, Msg> {
     if app.main.avatar_gallery {
         return controls::avatar_gallery(app);
     }
@@ -330,6 +370,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             column![
                 icon("message-circle", t::AVATAR, t::ACCENT),
                 title("Connecting…"),
+                connection_banner(app),
                 skeleton(),
                 action("Sign in instead", Msg::Logout)
             ]
@@ -491,6 +532,34 @@ fn login(app: &App) -> Element<'_, Msg> {
         })
     ]
     .spacing(t::S16);
+    if !signup {
+        form = form.push(line()).push(
+            column![
+                section("SERVER ADDRESS"),
+                text_input("https://chat.example.com", &app.server)
+                    .on_input(Msg::Server)
+                    .on_submit(Msg::RefreshMeta)
+                    .padding([t::S12, t::S16])
+                    .size(t::BODY)
+                    .line_height(iced::Pixels(t::S16))
+                    .style(t::input),
+                hint("Use the server address shared by your host."),
+                action(
+                    if app.meta_loading {
+                        "Connecting…"
+                    } else {
+                        "Connect"
+                    },
+                    Msg::RefreshMeta
+                )
+                .on_press_maybe((!app.meta_loading && !app.busy).then_some(Msg::RefreshMeta))
+            ]
+            .spacing(t::S8),
+        );
+        if !app.meta_error.is_empty() {
+            form = form.push(hint(&app.meta_error).color(t::DANGER));
+        }
+    }
     if !signup && app.google_available() {
         form = form.push(google_button(app)).push(
             row![line(), hint("or"), line()]
@@ -548,7 +617,11 @@ fn login(app: &App) -> Element<'_, Msg> {
     form = form.push(
         primary(
             if app.busy {
-                "Signing in…"
+                if app.register {
+                    "Creating account…"
+                } else {
+                    "Signing in…"
+                }
             } else if signup {
                 "Create account"
             } else if app.register {
@@ -597,45 +670,13 @@ fn login(app: &App) -> Element<'_, Msg> {
             .align_y(Center),
         );
     }
-    let mut body = column![container(scroller(form).height(Length::Shrink))
+    let body = column![container(scroller(form).height(Length::Shrink))
         .padding(t::S32)
         .width(t::LOGIN_W)
-        .max_height(app.height - t::MODAL_INSET - t::HEADER)
+        .max_height(app.height - t::MODAL_INSET)
         .style(t::modal)]
     .spacing(t::S12)
     .align_x(Center);
-    if !signup {
-        body = body.push(
-            button(hint(if app.change_server {
-                "Done"
-            } else {
-                "Change server"
-            }))
-            .on_press(Msg::ChangeServer)
-            .padding(t::S4)
-            .style(t::link),
-        );
-        if app.change_server {
-            body = body.push(
-                container(
-                    column![
-                        section("SERVER ADDRESS"),
-                        text_input("https://chat.example.com", &app.server)
-                            .on_input(Msg::Server)
-                            .on_submit(Msg::RefreshMeta)
-                            .padding([t::S12, t::S16])
-                            .size(t::BODY)
-                            .line_height(iced::Pixels(t::S16))
-                            .style(t::input)
-                    ]
-                    .spacing(t::S8),
-                )
-                .width(t::LOGIN_W)
-                .padding([0., t::S32])
-                .style(t::bare),
-            );
-        }
-    }
     container(body)
         .center_x(Fill)
         .center_y(Fill)
