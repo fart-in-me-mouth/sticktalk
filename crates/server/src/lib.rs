@@ -20,6 +20,7 @@ mod launch;
 mod legacy;
 mod mentions;
 mod reauth;
+mod search;
 pub mod storage_node;
 #[cfg(test)]
 mod storage_tests;

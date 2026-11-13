@@ -11,6 +11,8 @@ use std::{
 use sticktalk_proto::*;
 #[derive(Default)]
 pub struct State {
+    pub search: sticktalk_client_core::features3::SearchState,
+    search_task: Option<iced::task::Handle>,
     pub emoji_name: String,
     pub emoji_edits: BTreeMap<Id, String>,
     pub uploading: bool,
@@ -30,6 +32,11 @@ pub struct Asset {
 }
 #[derive(Debug, Clone)]
 pub enum Event {
+    SearchSubmit,
+    SearchPage(bool),
+    SearchClose,
+    SearchJump(Id, Id),
+    SearchLoaded(u64, u64, Result<Snapshot<MessageSearchPage>, String>),
     Name(String),
     Rename(Id, String),
     Save(Id),
@@ -62,6 +69,60 @@ pub fn candidates(app: &App) -> Vec<&GuildEmoji> {
 }
 pub fn update(app: &mut App, e: Event) -> Task<Msg> {
     match e {
+        Event::SearchSubmit => {
+            app.text_features.search.cursors.clear();
+            return search(app, None);
+        }
+        Event::SearchPage(newer) => {
+            let s = &mut app.text_features.search;
+            let before = if newer {
+                if s.cursors.len() < 2 {
+                    return Task::none();
+                }
+                s.cursors.pop();
+                s.cursors.last().copied().flatten()
+            } else {
+                s.page.as_ref().and_then(|p| p.next_before)
+            };
+            if !newer && before.is_none() {
+                return Task::none();
+            }
+            app.main.search = s.query.clone();
+            return search(app, before);
+        }
+        Event::SearchClose => {
+            app.text_features.search.close();
+            app.text_features.search_task = None;
+            app.main.search.clear();
+        }
+        Event::SearchJump(channel, message) => {
+            if !app.state.model.channels.contains_key(&channel) {
+                return Task::none();
+            }
+            let navigate = if app.state.screen != Screen::Channel(channel) {
+                app.update(Msg::Select(channel))
+            } else {
+                Task::none()
+            };
+            let jump = app.update(Msg::JumpTo(message));
+            app.main.search = app.text_features.search.query.clone();
+            return Task::batch([navigate, jump]);
+        }
+        Event::SearchLoaded(_generation, serial, result) => {
+            if serial == app.text_features.search.serial
+                && app.text_features.search.guild == app.state.guild
+            {
+                app.text_features.search_task = None;
+                let result = result.and_then(|v| {
+                    if app.state.model.snapshot_valid(&v.cursor) {
+                        Ok(v.data)
+                    } else {
+                        Err("Search changed. Try again.".into())
+                    }
+                });
+                app.text_features.search.apply(serial, result);
+            }
+        }
         Event::Name(s) => app.text_features.emoji_name = s.chars().take(32).collect(),
         Event::Rename(id, s) => {
             app.text_features
@@ -224,6 +285,15 @@ pub fn reconcile(app: &mut App) -> Task<Msg> {
             ..Default::default()
         };
     }
+    if let Some(p) = &mut app.text_features.search.page {
+        p.items
+            .retain(|m| app.state.model.channels.contains_key(&m.channel_id));
+    }
+    if app.text_features.search.guild.is_some() && app.text_features.search.guild != app.state.guild
+    {
+        app.text_features.search.close();
+        app.text_features.search_task = None;
+    }
     let Some(c) = app.state.session.as_ref().map(|s| s.config.clone()) else {
         return Task::none();
     };
@@ -345,6 +415,41 @@ pub fn subscription(app: &App) -> Subscription<Msg> {
     }))
 }
 pub fn fixture(app: &mut App, screen: &str) {
+    if screen == "server-search" || screen == "server-search-empty" {
+        let mut items: Vec<_> = app
+            .state
+            .model
+            .messages
+            .get(&Id(11))
+            .into_iter()
+            .flat_map(|m| m.values())
+            .rev()
+            .take(3)
+            .cloned()
+            .collect();
+        for m in &mut items {
+            m.content =
+                "The launch sketches are ready. Please review the updated layout before Friday."
+                    .into();
+        }
+        if screen.ends_with("empty") {
+            items.clear();
+        }
+        let s = &mut app.text_features.search;
+        s.open = true;
+        s.query = "launch in:general".into();
+        s.guild = Some(Id(10));
+        s.cursors = vec![None];
+        s.page = Some(MessageSearchPage {
+            items,
+            users: app.state.model.users.values().cloned().collect(),
+            next_before: Some(Id(900)),
+            has_more: true,
+            terms: vec!["launch".into()],
+        });
+        app.main.search = s.query.clone();
+        return;
+    }
     if !screen.starts_with("custom-emoji") && screen != "guild-settings-emoji" {
         return;
     }
@@ -411,4 +516,68 @@ pub fn fixture(app: &mut App, screen: &str) {
         }
         _ => {}
     }
+}
+fn search(app: &mut App, before: Option<Id>) -> Task<Msg> {
+    let (Some(guild), Some(config)) = (
+        app.state.guild,
+        app.state.session.as_ref().map(|s| s.config.clone()),
+    ) else {
+        app.error = "Select a server to search messages.".into();
+        return Task::none();
+    };
+    let query = app.main.search.trim().to_owned();
+    if query.is_empty() {
+        return Task::none();
+    }
+    app.text_features.search_task = None;
+    let serial = app.text_features.search.start(guild, query.clone(), before);
+    let generation = app.state.generation;
+    if config.mock {
+        let mut items: Vec<_> = app
+            .state
+            .model
+            .messages
+            .values()
+            .flat_map(|m| m.values())
+            .filter(|m| {
+                app.state
+                    .model
+                    .channels
+                    .get(&m.channel_id)
+                    .is_some_and(|c| c.guild_id == Some(guild))
+            })
+            .filter(|m| m.content.to_lowercase().contains(&query.to_lowercase()))
+            .cloned()
+            .collect();
+        items.sort_by_key(|m| std::cmp::Reverse(m.id));
+        items.truncate(25);
+        let page = MessageSearchPage {
+            items,
+            users: app.state.model.users.values().cloned().collect(),
+            next_before: None,
+            has_more: false,
+            terms: vec![query],
+        };
+        app.text_features.search.apply(serial, Ok(page));
+        return Task::none();
+    }
+    let (task, handle) = Task::perform(
+        async move {
+            Http::new(&config.server, &config.token)?
+                .core()
+                .search(
+                    guild,
+                    &MessageSearchQuery {
+                        q: query,
+                        before,
+                        limit: Some(25),
+                    },
+                )
+                .await
+        },
+        move |v| msg(Event::SearchLoaded(generation, serial, v)),
+    )
+    .abortable();
+    app.text_features.search_task = Some(handle.abort_on_drop());
+    task
 }

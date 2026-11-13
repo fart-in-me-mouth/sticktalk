@@ -1818,3 +1818,35 @@ members. Legacy clients never receive this new event.
 - Desktop playback is hover-only and focused/visible-only. Leaving the row
   drops animation frames and removes its one-shot timer; static previews need
   no periodic task.
+
+## Additive text features: server message search
+
+`GET /api/v1/guilds/{id}/messages/search?q=...&before=<id>&limit=25`
+returns `Snapshot<MessageSearchPage>`. `items` and `users` are bounded to
+50; `next_before` is an exclusive descending-ID keyset cursor, absent at
+end. `has_more` never counts inaccessible messages. The entire read, including
+channel permission evaluation, runs under the normal snapshot/mutation gate.
+Only text channels with **both View Channel and Read History**, including
+category and member overwrites, enter the SQL query before pagination.
+
+`q` is 1–512 UTF-8 bytes and at most 32 terms/filters. Plain terms are ANDed
+literal FTS5 prefix phrases; double quotes group a phrase. Raw FTS operators
+are never accepted as query syntax. Filters:
+
+- `from:<username|user-id|me>`
+- `in:<channel-name|channel-id>` (optional `#`)
+- `mentions:<username|user-id|me>`
+- `has:link`, `has:file`, `has:image` (multiple filters are ANDed)
+- `before:YYYY-MM-DD`, `after:YYYY-MM-DD` (UTC midnight, exclusive)
+
+Duplicate single-value filters, invalid dates, malformed quotes, unknown
+`has:` types, and limits outside 1–50 return `invalid_request`. Missing users
+or unreadable channels produce an empty page, not cross-server information.
+Search has its own bounded rate bucket. FTS5 external content uses a
+non-deleted-message view, migration backfill, and insert/update/delete triggers;
+soft-deleted text is removed in the same transaction as message deletion.
+
+Desktop Enter submits the header query to a right-hand results panel. The
+panel retains one page plus at most 64 keyset cursors, highlights literal terms,
+and uses the existing around-message history seek on result activation. No
+background polling; canceled/stale responses cannot replace a newer search.

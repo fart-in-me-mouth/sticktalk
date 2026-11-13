@@ -1027,9 +1027,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
     let header = main_window::header(app, channel);
     let rows = app.visible_items();
     let (_, _, top, tail) = app.visible_range();
-    let history: Element<'_, Msg> = if !app.main.search.is_empty() {
-        main_window::local_results(app, id)
-    } else if app.extent.active() {
+    let history: Element<'_, Msg> = if app.extent.active() {
         history::view(app)
     } else if app.state.loading && rows.is_empty() {
         container(skeleton()).height(Fill).style(t::bare).into()
@@ -1097,7 +1095,9 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
         .height(Fill)
         .width(Fill);
     let mut body = row![center].height(Fill);
-    if app
+    if app.text_features.search.open {
+        body = body.push(features3::search_panel(app));
+    } else if app
         .members_open
         .unwrap_or(app.width >= t::MEMBER_BREAKPOINT)
     {

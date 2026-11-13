@@ -245,3 +245,126 @@ pub fn inline<'a>(
     }
     Some(flow.width(Fill).wrap().into())
 }
+pub fn search_panel(app: &App) -> Element<'_, Msg> {
+    let s = &app.text_features.search;
+    let mut content = column![
+        row![
+            title("Search Results"),
+            space().width(Fill),
+            icon_button("x", "Close Search", f::msg(E::SearchClose))
+        ]
+        .align_y(Center),
+        hint(&s.query),
+        line()
+    ]
+    .spacing(t::S16);
+    if s.loading {
+        content = content.push(hint("Searching messages…"));
+    }
+    if !s.error.is_empty() {
+        content = content
+            .push(txt(&s.error).color(t::DANGER))
+            .push(action("Try again", f::msg(E::SearchSubmit)));
+    }
+    let mut results = column![].spacing(t::S16);
+    if let Some(page) = &s.page {
+        content = content.push(section(format!(
+            "{}{} RESULTS",
+            page.items.len(),
+            if page.has_more { "+" } else { "" }
+        )));
+        if page.items.is_empty() && !s.loading {
+            results = results.push(
+                container(
+                    column![
+                        icon("search", t::AVATAR, t::TEXT_MUTED),
+                        txt("No messages found"),
+                        hint("Try another term or remove a filter.")
+                    ]
+                    .spacing(t::S12)
+                    .align_x(Center),
+                )
+                .padding(t::S24)
+                .center_x(Fill),
+            );
+        }
+        for m in &page.items {
+            if !app.state.model.channels.contains_key(&m.channel_id) {
+                continue;
+            }
+            let channel = app
+                .state
+                .model
+                .channels
+                .get(&m.channel_id)
+                .map_or("Deleted channel".into(), |c| {
+                    format!("#{}", app.state.model.channel_name(c))
+                });
+            let name = page.users.iter().find(|u| u.id == m.author_id).map_or_else(
+                || app.state.model.name(m.author_id),
+                |u| u.display_name.as_deref().unwrap_or(&u.username).to_owned(),
+            );
+            let spans: Vec<_> =
+                sticktalk_client_core::features3::highlights(&m.content, &page.terms)
+                    .into_iter()
+                    .map(|(text, matched)| {
+                        widget::text::Span::<()>::new(text.to_owned()).color(if matched {
+                            t::WARNING
+                        } else {
+                            t::TEXT_PRIMARY
+                        })
+                    })
+                    .collect();
+            let snippet = widget::rich_text(spans)
+                .font(t::regular())
+                .size(t::BODY)
+                .wrapping(widget::text::Wrapping::WordOrGlyph);
+            results = results.push(
+                button(
+                    column![
+                        section(channel),
+                        row![
+                            txt(name).font(t::semibold()),
+                            space().width(Fill),
+                            hint(timestamp(m.created_at, true))
+                        ]
+                        .spacing(t::S8)
+                        .align_y(Center),
+                        snippet,
+                        hint("Jump to message")
+                    ]
+                    .spacing(t::S8),
+                )
+                .on_press(f::msg(E::SearchJump(m.channel_id, m.id)))
+                .padding(t::S12)
+                .width(Fill)
+                .style(t::secondary),
+            );
+        }
+    } else if !s.loading && s.error.is_empty() {
+        results = results.push(hint(
+            "Use from:, in:, has:link/file/image, before:, after:, or mentions: to narrow results.",
+        ));
+    }
+    content = content.push(scroller(results).height(Fill));
+    content = content.push(
+        row![
+            action("Newer", f::msg(E::SearchPage(true))).on_press_maybe(
+                (s.cursors.len() > 1 && !s.loading).then_some(f::msg(E::SearchPage(true)))
+            ),
+            space().width(Fill),
+            action("Older", f::msg(E::SearchPage(false))).on_press_maybe(
+                (s.page.as_ref().is_some_and(|p| p.has_more) && !s.loading)
+                    .then_some(f::msg(E::SearchPage(false)))
+            )
+        ]
+        .spacing(t::S8)
+        .align_y(Center),
+    );
+    container(content)
+        .padding(t::S16)
+        .width(t::SEARCH_RESULTS)
+        .height(Fill)
+        .style(t::sidebar)
+        .into()
+}

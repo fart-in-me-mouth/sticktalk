@@ -11,3 +11,10 @@ Branch: `t3/custom-emoji-search-slowmode-folders`.
 - Intentionally leaves `crates/web` unchanged for the concurrent web agent.
 
 Validation and remaining features are recorded after the final gate.
+
+## Server-side message search
+
+- SQLite FTS5, existing-message backfill, transactional edit/delete indexing,
+  permission-filtered keyset paging, and all requested filters.
+- Desktop right-hand results with term highlighting, older/newer paging, and
+  around-message jumps through the existing bounded history loader.

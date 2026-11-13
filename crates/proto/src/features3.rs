@@ -29,3 +29,20 @@ pub fn custom_emoji_id(token: &str) -> Option<Id> {
     let id = id.parse::<u64>().ok()?;
     (id > 0 && id <= i64::MAX as u64).then_some(Id(id))
 }
+
+/// Raw search syntax is parsed and validated by the server, never interpolated as FTS SQL.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageSearchQuery {
+    pub q: String,
+    pub before: Option<Id>,
+    pub limit: Option<u16>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageSearchPage {
+    pub items: Vec<Message>,
+    pub users: Vec<UserSummary>,
+    pub next_before: Option<Id>,
+    pub has_more: bool,
+    /// Literal FTS phrases, for client-side highlighting. Never HTML.
+    pub terms: Vec<String>,
+}

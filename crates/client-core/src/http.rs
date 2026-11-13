@@ -150,6 +150,25 @@ impl<A: HttpTransport> Http<A> {
             })
             .await
     }
+    pub async fn search(
+        &self,
+        guild: Id,
+        query: &MessageSearchQuery,
+    ) -> Result<Snapshot<MessageSearchPage>, String> {
+        let encoded = {
+            let mut q = url::form_urlencoded::Serializer::new(String::new());
+            q.append_pair("q", &query.q);
+            if let Some(id) = query.before {
+                q.append_pair("before", &id.0.to_string());
+            }
+            if let Some(n) = query.limit {
+                q.append_pair("limit", &n.to_string());
+            }
+            q.finish()
+        };
+        self.json(&format!("/guilds/{}/messages/search?{}", guild.0, encoded))
+            .await
+    }
     pub async fn json<T: DeserializeOwned>(&self, path: &str) -> Result<T, String> {
         decode_json(
             self.execute(

@@ -16,6 +16,8 @@ pub const AUDIO_SCREENS: &[&str] = &[
     "audio-processing",
 ];
 pub const SCREENS: &[&str] = &[
+    "server-search",
+    "server-search-empty",
     "custom-emoji-picker",
     "custom-emoji-completion",
     "custom-emoji-message",

@@ -111,3 +111,159 @@ mod tests {
         assert!(p.emoji.is_empty());
     }
 }
+
+/// A search surface keeps exactly one page and a bounded stack of keyset cursors.
+#[derive(Default)]
+pub struct SearchState {
+    pub open: bool,
+    pub query: String,
+    pub guild: Option<Id>,
+    pub loading: bool,
+    pub error: String,
+    pub page: Option<MessageSearchPage>,
+    pub serial: u64,
+    pub cursors: Vec<Option<Id>>,
+}
+impl SearchState {
+    pub fn start(&mut self, guild: Id, query: String, before: Option<Id>) -> u64 {
+        self.serial = self.serial.wrapping_add(1);
+        self.open = true;
+        self.loading = true;
+        self.error.clear();
+        if self.guild != Some(guild) || self.query != query {
+            self.cursors.clear();
+            self.page = None;
+        }
+        self.guild = Some(guild);
+        self.query = query;
+        if self.cursors.last() != Some(&before) {
+            self.cursors.push(before);
+            if self.cursors.len() > 64 {
+                self.cursors.remove(0);
+            }
+        }
+        self.serial
+    }
+    pub fn apply(&mut self, serial: u64, result: Result<MessageSearchPage, String>) -> bool {
+        if serial != self.serial {
+            return false;
+        }
+        self.loading = false;
+        match result {
+            Ok(mut p) => {
+                p.items.truncate(50);
+                p.users.truncate(50);
+                p.terms.truncate(32);
+                self.page = Some(p);
+            }
+            Err(e) => self.error = e.chars().take(512).collect(),
+        }
+        true
+    }
+    pub fn close(&mut self) {
+        self.serial = self.serial.wrapping_add(1);
+        self.open = false;
+        self.loading = false;
+        self.page = None;
+        self.error.clear();
+    }
+    pub fn purge_channel(&mut self, id: Id) {
+        if let Some(p) = &mut self.page {
+            p.items.retain(|m| m.channel_id != id);
+        }
+    }
+}
+/// Byte-safe Unicode case-fold highlighting; returns text fragments, never markup.
+pub fn highlights<'a>(text: &'a str, terms: &[String]) -> Vec<(&'a str, bool)> {
+    let mut folded = String::new();
+    let mut map = Vec::new();
+    for (i, c) in text.char_indices() {
+        for lower in c.to_lowercase() {
+            let start = folded.len();
+            folded.push(lower);
+            for _ in start..folded.len() {
+                map.push(i);
+            }
+        }
+    }
+    map.push(text.len());
+    let mut ranges = Vec::new();
+    for term in terms.iter().take(32) {
+        let term = term.to_lowercase();
+        if term.is_empty() {
+            continue;
+        }
+        for (start, _) in folded.match_indices(&term) {
+            let end = start + term.len();
+            let a = map[start];
+            let b = if end >= folded.len() {
+                text.len()
+            } else {
+                let pos = map[end];
+                if pos == map[end - 1] {
+                    text[pos..]
+                        .char_indices()
+                        .nth(1)
+                        .map_or(text.len(), |(n, _)| pos + n)
+                } else {
+                    pos
+                }
+            };
+            ranges.push((a, b));
+        }
+    }
+    ranges.sort_unstable();
+    let mut merged: Vec<(usize, usize)> = Vec::new();
+    for (a, b) in ranges {
+        if let Some(last) = merged.last_mut().filter(|v| a <= v.1) {
+            last.1 = last.1.max(b);
+        } else {
+            merged.push((a, b));
+        }
+    }
+    let mut out = Vec::new();
+    let mut cursor = 0;
+    for (a, b) in merged {
+        if a > cursor {
+            out.push((&text[cursor..a], false));
+        }
+        out.push((&text[a..b], true));
+        cursor = b;
+    }
+    if cursor < text.len() {
+        out.push((&text[cursor..], false));
+    }
+    out
+}
+#[cfg(test)]
+mod search_tests {
+    use super::*;
+    #[test]
+    fn stale_searches_do_not_replace_newer_results_and_highlights_are_utf8_safe() {
+        let mut s = SearchState::default();
+        let old = s.start(Id(1), "old".into(), None);
+        let new = s.start(Id(1), "new".into(), None);
+        assert!(!s.apply(old, Err("old error".into())));
+        assert!(s.apply(new, Err("new error".into())));
+        assert_eq!(s.error, "new error");
+        assert_eq!(
+            highlights("你好 WAVE café", &["wave".into(), "café".into()]),
+            vec![
+                ("你好 ", false),
+                ("WAVE", true),
+                (" ", false),
+                ("café", true)
+            ]
+        );
+        assert_eq!(
+            highlights("İstanbul", &["i".into()]),
+            vec![("İ", true), ("stanbul", false)]
+        );
+        for _ in 0..100 {
+            s.start(Id(1), "new".into(), Some(Id(s.serial)));
+        }
+        assert!(s.cursors.len() <= 64);
+        s.close();
+        assert!(!s.apply(new, Err("late".into())));
+    }
+}
