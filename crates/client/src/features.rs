@@ -320,6 +320,7 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
         }
         Event::EmojiSearch(q) => {
             app.features.emoji.query = q;
+            app.features.emoji.hover = None;
             app.features.emoji.y = 0.;
             return operation::scroll_to(
                 "emoji-grid",
@@ -328,6 +329,7 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
         }
         Event::EmojiCategory(c) => {
             app.features.emoji.category = c.min(7);
+            app.features.emoji.hover = None;
             app.features.emoji.query.clear();
             app.features.emoji.y = 0.;
             return operation::scroll_to(
@@ -794,6 +796,19 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             }
         },
         Event::UploadCancel(id) => {
+            if app
+                .features
+                .uploads
+                .get(&id)
+                .and_then(|t| t.job.attachment.as_ref())
+                .is_some_and(|a| {
+                    app.state.pending.values().any(
+                        |c| matches!(c,Command::SendMessage(d)if d.attachment_ids.contains(&a.id)),
+                    )
+                })
+            {
+                return Task::none();
+            }
             if let (Some(t), Some(c), Some(account)) =
                 (app.features.uploads.remove(&id), config(app), app.me())
             {
@@ -1256,6 +1271,7 @@ pub fn fixture(app: &mut App, screen: &str) {
         app.features.emoji.hover = sticktalk_emoji::search("smile", 1).first().copied();
         if screen == "emoji-search" {
             app.features.emoji.query = "cat".into();
+            app.features.emoji.hover = None;
         }
         if screen == "reaction-picker" {
             app.reaction_target = Some(Id(2279));
@@ -1494,5 +1510,51 @@ mod caret_tests {
         assert!(!app.emoji_candidates().is_empty());
         let _ = update(&mut app, Event::EmojiComplete("😄".into()));
         assert_eq!(app.editor.text(), "你好 😄  tail");
+    }
+}
+
+#[cfg(test)]
+mod picker_lifecycle_tests {
+    use super::*;
+    #[test]
+    fn search_clears_the_previous_hover_selection() {
+        let mut app = App::headless("emoji-picker", iced::Size::new(1280., 800.));
+        assert!(app.features.emoji.hover.is_some());
+        let _ = update(&mut app, Event::EmojiSearch("cat".into()));
+        assert!(app.features.emoji.hover.is_none());
+        let expected = app.features.emoji.entries()[0].emoji();
+        let _ = update(
+            &mut app,
+            Event::Key(iced::keyboard::Key::Named(
+                iced::keyboard::key::Named::Enter,
+            )),
+        );
+        assert_eq!(app.editor.text(), expected);
+    }
+    #[test]
+    fn cancel_cannot_delete_an_attachment_in_a_pending_send() {
+        let mut app = App::headless("upload-progress", iced::Size::new(1280., 800.));
+        let a = Attachment {
+            id: Id(99),
+            filename: "file".into(),
+            content_type: "application/octet-stream".into(),
+            byte_size: 1,
+            width: None,
+            height: None,
+            thumbnail: None,
+        };
+        app.features.uploads.get_mut(&42).unwrap().job.attachment = Some(a);
+        app.state.pending.insert(
+            9,
+            Command::SendMessage(MessageDraft {
+                channel_id: Id(12),
+                content: String::new(),
+                reply_to: None,
+                attachment_ids: vec![Id(99)],
+                mention_ids: vec![],
+            }),
+        );
+        let _ = update(&mut app, Event::UploadCancel(42));
+        assert!(app.features.uploads.contains_key(&42));
     }
 }

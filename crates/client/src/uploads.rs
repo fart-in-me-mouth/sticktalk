@@ -32,12 +32,25 @@ pub enum Event {
     Complete(u64, Attachment),
     Failed(u64, String),
 }
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct Worker {
     pub config: Config,
     pub account: Id,
     pub id: u64,
     pub journal: String,
+}
+// The journal is startup payload, not subscription identity. Publishing a newly
+// created session must not cancel/restart the PUT currently using that session.
+impl PartialEq for Worker {
+    fn eq(&self, other: &Self) -> bool {
+        self.config == other.config && self.account == other.account && self.id == other.id
+    }
+}
+impl Eq for Worker {}
+impl std::hash::Hash for Worker {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&(&self.config, self.account, self.id), state);
+    }
 }
 fn dir(config: &Config, account: Id) -> PathBuf {
     crate::media::namespace(config, account).with_file_name(format!(
@@ -195,13 +208,30 @@ async fn run(worker: &Worker, mut job: Job, out: &mut mpsc::Sender<Event>) -> Re
     while state.offset < job.size {
         let offset = state.offset;
         let count = (job.size - offset).min(u64::from(state.chunk_size));
-        let bytes = source.chunks(offset, count).await?;
+        let mut progress = out.clone();
+        let mut sent = 0;
+        let mut last = std::time::Instant::now();
+        let id = job.id;
+        let size = job.size;
+        let bytes = source.chunks(offset, count).await?.map(move |chunk| {
+            if let Ok(bytes) = &chunk {
+                sent += bytes.len() as u64;
+                if last.elapsed() >= std::time::Duration::from_millis(250) || sent == count {
+                    let speed = (offset + sent - initial) as f64
+                        / started.elapsed().as_secs_f64().max(0.001);
+                    // Coalesce UI progress, never back up the file/network stream.
+                    let _ = progress.try_send(Event::Progress(id, offset + sent, size, speed));
+                    last = std::time::Instant::now();
+                }
+            }
+            chunk
+        });
         let response = http
             .execute_with_error(
                 "PUT",
                 &format!("/api/v1{route}"),
                 Body::Stream {
-                    chunks: bytes,
+                    chunks: Box::pin(bytes),
                     length: count,
                 },
                 vec![("Upload-Offset".into(), offset.to_string())],
@@ -250,6 +280,9 @@ pub async fn cancel(
     upload: Option<ResumableUpload>,
     attachment: Option<Attachment>,
 ) {
+    if config.mock {
+        return;
+    }
     if let Ok(h) = Http::new(&config.server, &config.token) {
         let path = if let Some(a) = attachment {
             Some(format!("/uploads/{}", a.id.0))
@@ -310,5 +343,37 @@ mod tests {
         assert!(validate(&state, 3).is_err());
         state.chunk_size = u32::MAX;
         assert!(validate(&state, 3).is_err());
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+    use std::hash::{Hash, Hasher};
+    #[test]
+    fn checkpoints_do_not_restart_an_in_flight_worker() {
+        let w = Worker {
+            config: Config {
+                server: "http://127.0.0.1:1".into(),
+                token: "private".into(),
+                mock: false,
+                generation: 1,
+                scenario: String::new(),
+            },
+            account: Id(1),
+            id: 9,
+            journal: "before create".into(),
+        };
+        let mut checkpoint = w.clone();
+        checkpoint.journal = "after create, offset advanced".into();
+        assert!(w == checkpoint);
+        let hash = |w: &Worker| {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            w.hash(&mut h);
+            h.finish()
+        };
+        assert_eq!(hash(&w), hash(&checkpoint));
+        checkpoint.config.generation += 1;
+        assert!(w != checkpoint);
     }
 }

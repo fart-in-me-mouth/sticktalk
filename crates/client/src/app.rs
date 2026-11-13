@@ -533,6 +533,7 @@ impl App {
             }
             Msg::RefreshMeta => {
                 self.google_id = None;
+                self.features.gifs.capability = GifCapability::Disabled;
                 let server = self.server.trim().trim_end_matches('/').to_owned();
                 return Task::perform(backend::meta(server.clone(), self.mock_mode), move |r| {
                     Msg::Meta(server.clone(), r)
@@ -822,6 +823,7 @@ impl App {
             }
             Msg::Server(v) => {
                 self.google_id = None;
+                self.features.gifs.capability = GifCapability::Disabled;
                 self.server = v;
             }
             Msg::Username(v) => self.username = v,
