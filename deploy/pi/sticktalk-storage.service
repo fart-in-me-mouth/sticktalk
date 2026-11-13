@@ -1,0 +1,33 @@
+[Unit]
+Description=StickTalk private storage node
+After=network-online.target tailscaled.service
+Wants=network-online.target
+RequiresMountsFor=/srv/sticktalk
+ConditionPathIsMountPoint=/srv/sticktalk
+
+[Service]
+User=sticktalk
+Group=sticktalk
+WorkingDirectory=/srv/sticktalk/node
+EnvironmentFile=/etc/sticktalk/storage.env
+ExecStart=/usr/local/bin/sticktalk-server storage --listen ${STICKTALK_STORAGE_LISTEN} --data /srv/sticktalk/node
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/sticktalk/node
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryHigh=256M
+MemoryMax=512M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,8 @@ use sqlx::{
 use sticktalk_proto::*;
 #[derive(Args, Clone)]
 pub struct OperationsConfig {
+    #[command(flatten)]
+    pub storage: crate::blob::StorageOptions,
     #[arg(long, env="STICKTALK_MIN_FREE_DISK_GB", default_value_t=10, value_parser=clap::value_parser!(u64).range(0..=8589934591))]
     pub min_free_disk_gb: u64,
     #[arg(long, env="STICKTALK_USER_QUOTA_MB", default_value_t=0, value_parser=clap::value_parser!(u64).range(0..=8796093022207))]
@@ -32,6 +34,7 @@ pub struct OperationsConfig {
 impl std::fmt::Debug for OperationsConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OperationsConfig")
+            .field("storage", &self.storage)
             .field("min_free_disk_gb", &self.min_free_disk_gb)
             .field("user_quota_mb", &self.user_quota_mb)
             .field("update_public_key", &self.update_public_key)
@@ -46,6 +49,7 @@ impl std::fmt::Debug for OperationsConfig {
 impl Default for OperationsConfig {
     fn default() -> Self {
         Self {
+            storage: Default::default(),
             min_free_disk_gb: 10,
             user_quota_mb: 0,
             update_public_key: None,
@@ -56,6 +60,7 @@ impl Default for OperationsConfig {
 }
 #[derive(Subcommand, Clone, Debug)]
 pub enum Operation {
+    Storage(crate::storage_node::StorageCommand),
     Admin {
         #[command(subcommand)]
         command: AdminCommand,
@@ -63,12 +68,33 @@ pub enum Operation {
 }
 #[derive(Subcommand, Clone, Debug)]
 pub enum AdminCommand {
+    StorageStatus,
+    Backup,
     ListUsers,
     ResetPassword { username: String },
     DisableUser { username: String },
     EnableUser { username: String },
 }
 pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
+    if matches!(command, AdminCommand::Backup) {
+        return crate::backup::run(config).await;
+    }
+    if matches!(command, AdminCommand::StorageStatus) {
+        use crate::blob::BlobStore;
+        let tier = crate::tier::Tier::new(config)?;
+        println!("Local free bytes: {}", tier.local.free_space().await?);
+        match tier.remote {
+            Some(remote) => match remote.free_space().await {
+                Ok(free) => println!("Storage node: online; available bytes above floor: {free}"),
+                Err(_) => {
+                    println!("Storage node: temporarily offline; uploads retained locally");
+                    return Err(crate::blob::offline());
+                }
+            },
+            None => println!("Storage node: not configured (local only)"),
+        }
+        return Ok(());
+    }
     // Do NOT App::open: its startup orphan cleanup is unsafe alongside a live server.
     let mut c = sqlx::SqliteConnection::connect_with(
         &SqliteConnectOptions::new()

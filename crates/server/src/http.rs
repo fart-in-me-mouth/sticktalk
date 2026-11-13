@@ -397,6 +397,7 @@ pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiR
         if let Some(k) = row.get::<Option<String>, _>("thumbnail_key") {
             let _ = tokio::fs::remove_file(app.0.config.data_dir.join("files").join(k)).await;
         }
+        app.0.tier.wake.notify_one();
         return Ok(ApiResponse::empty());
     }
     require(method == "GET", ErrorCode::InvalidRequest)?;
