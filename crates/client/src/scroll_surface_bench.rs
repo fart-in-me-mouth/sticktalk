@@ -27,6 +27,7 @@ pub fn run(args: &[String], index: usize) -> Result<(), String> {
     }
     crate::headless::load_fonts();
     let mut bench = Bench::new(output);
+    bench.offscreen = args.iter().any(|a| a == "--offscreen");
     let event_loop = EventLoop::new().map_err(|e| e.to_string())?;
     event_loop.run_app(&mut bench).map_err(|e| e.to_string())?;
     if let Some(error) = bench.error {
@@ -198,6 +199,7 @@ struct Bench {
     offsets: Vec<f32>,
     refresh: f64,
     visible: bool,
+    offscreen: bool,
     next_input: f64,
     last_time: f64,
     jumps: u8,
@@ -256,6 +258,7 @@ impl Bench {
             offsets: vec![],
             refresh: 60.,
             visible: false,
+            offscreen: false,
             next_input: 0.,
             last_time: 0.,
             jumps: 0,
@@ -401,9 +404,15 @@ impl Bench {
     }
 }
 impl ApplicationHandler for Bench {
-    fn new_events(&mut self, _: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
         if matches!(cause, StartCause::ResumeTimeReached { .. }) && self.idle.is_none() {
-            if let Some(window) = &self.window {
+            if !self.visible && self.gpu.is_some() {
+                // Hidden HWNDs do not reliably receive WM_PAINT. Drive the
+                // offscreen harness from its scheduled deadline instead.
+                if let Err(error) = self.frame(event_loop) {
+                    self.fail(event_loop, error);
+                }
+            } else if let Some(window) = &self.window {
                 window.request_redraw();
             }
         }
@@ -437,7 +446,9 @@ impl ApplicationHandler for Bench {
                 return;
             }
         };
-        self.visible = secondary.is_some() && crate::agent_window::show_secondary(window.as_ref());
+        self.visible = !self.offscreen
+            && secondary.is_some()
+            && crate::agent_window::show_secondary(window.as_ref());
         match Gpu::new(window.clone(), self.visible) {
             Ok(gpu) => self.gpu = Some(gpu),
             Err(e) => {
@@ -452,11 +463,15 @@ impl ApplicationHandler for Bench {
             .map_or(self.refresh, |v| v as f64 / 1000.);
         crate::scroll::pacing::set_refresh_millihertz((self.refresh * 1000.) as u32);
         self.window = Some(window);
-        self.window.as_ref().unwrap().request_redraw();
+        if self.visible {
+            self.window.as_ref().unwrap().request_redraw();
+        } else if let Err(error) = self.frame(event_loop) {
+            self.fail(event_loop, error);
+        }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::RedrawRequested if self.idle.is_none() => {
+            WindowEvent::RedrawRequested if self.idle.is_none() && self.visible => {
                 if let Err(error) = self.frame(event_loop) {
                     self.fail(event_loop, error);
                 }

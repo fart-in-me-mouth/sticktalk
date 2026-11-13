@@ -1,0 +1,65 @@
+{
+  "screens": 86,
+  "sizes": [
+    [
+      1280,
+      800
+    ],
+    [
+      1920,
+      1080
+    ]
+  ],
+  "renderer": "iced-tiny-skia",
+  "os_windows_for_screenshots": 0,
+  "manifest_sha256": "2f6964efa727aec6efaa8485ae79512576d26374479840cf470b4d2deda3cfea",
+  "self_review": "All 43 main-parity scenes at both sizes inspected against UI_SPEC sections 1-8 and UI_PARITY. Corrected bottom spacing and natural-height popout clamping, then re-rendered.",
+  "avatar_sizes_verified": [
+    16,
+    20,
+    24,
+    32,
+    40,
+    80
+  ],
+  "rail_badge_counts_verified": [
+    2,
+    10,
+    99,
+    100
+  ],
+  "regressions": [
+    "long last message",
+    "last image attachment",
+    "typing cleared and restored",
+    "keyboard search focus",
+    "cursor-row menu anchoring and window clamping",
+    "natural profile height near the window bottom",
+    "loaded sparse-history bodies during a pending seek",
+    "fractional wheel and native scrollbar drag"
+  ],
+  "tests_passed": 75,
+  "commands_passed": [
+    "cargo test -p sticktalk -p sticktalk-client-core",
+    "cargo clippy -p sticktalk -p sticktalk-client-core --all-targets -- -D warnings",
+    "cargo fmt --all -- --check",
+    "sticktalk --mock --scroll-bench crates/client/screenshots/main-parity/scroll-bench.json --offscreen",
+    "sticktalk --mock --screenshots crates/client/screenshots/main-parity --main-only --sizes 1280x800,1920x1080"
+  ],
+  "workspace_clippy": {
+    "command": "cargo clippy --all-targets -- -D warnings",
+    "status": "blocked",
+    "reason": "Unrelated pocketstation-webrtc-audio-processing-sys build requires Meson, which is not installed."
+  },
+  "ui_overrides_from_task": [
+    "Search placeholder and 160/240 widths",
+    "Context menu 8 px padding and 4 px radius",
+    "Non-own profile has only the bottom message input, not a primary Message button"
+  ],
+  "remaining": [
+    "Msg::OpenGifPicker is the requested TODO integration hook; the picker itself is assigned to another agent."
+  ],
+  "scroller_audit": "All UI scrolling uses ui::scroller and SmoothScrollable. Literal scrollable( occurrences are trait methods within src/scroll only.",
+  "idle_measurement_note": "idle-proof.json is a 10-second headless software-renderer sample, not GPU client residency.",
+  "known_additional_ui_deviations": []
+}

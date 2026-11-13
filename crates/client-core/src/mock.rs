@@ -314,6 +314,7 @@ impl Mock {
         }
         model.users.get_mut(&Id(2)).unwrap().status_text = Some("Making a little room".into());
         model.users.get_mut(&Id(4)).unwrap().status_text = Some("Sketching the next thing".into());
+        crate::launch_mock::seed(&mut model, now());
         Self {
             model,
             next: 100_000,
@@ -428,7 +429,24 @@ impl Mock {
                 .iter()
                 .map(|(&user_id, &status)| Presence { user_id, status })
                 .collect(),
-            ..Default::default()
+            roles: self
+                .model
+                .launch
+                .roles
+                .values()
+                .flatten()
+                .cloned()
+                .collect(),
+            memberships: self
+                .model
+                .launch
+                .memberships
+                .values()
+                .filter(|m| m.user.id == self.model.me.as_ref().unwrap().user.id)
+                .cloned()
+                .collect(),
+            notification_settings: self.model.launch.notifications.values().cloned().collect(),
+            voice_states: self.model.launch.voice.values().cloned().collect(),
         }
     }
     pub fn cursor(&self) -> ResumeCursor {
@@ -501,6 +519,10 @@ impl Mock {
     ) -> Option<crate::backend::Data<H>> {
         use crate::backend::{Data, HistoryAnchor, Request};
         Some(match request {
+            Request::Launch { read, generation } => Data::Launch {
+                data: crate::launch_mock::read(&self.model, read)?,
+                generation,
+            },
             Request::NewerHistory {
                 seek,
                 channel,
@@ -766,6 +788,51 @@ impl Mock {
         let transferring = matches!(command, Command::TransferGroupOwnership { .. });
         let ack = CommandResult::Ack;
         match command {
+            Command::Launch(LaunchCommand::PinMessage {
+                channel_id,
+                message_id,
+                pinned,
+            }) => {
+                if pinned {
+                    let message = self
+                        .model
+                        .messages
+                        .get(&channel_id)
+                        .and_then(|ms| ms.get(&message_id))
+                        .ok_or_else(|| error("Message not found"))?
+                        .clone();
+                    let pins = self.model.launch.pins.entry(channel_id).or_default();
+                    if !pins.iter().any(|m| m.id == message_id) {
+                        pins.insert(0, message);
+                    }
+                }
+                events.push(Event::PinsUpdated {
+                    channel_id,
+                    message_id,
+                    pinned,
+                });
+                Ok(ack)
+            }
+            Command::Launch(LaunchCommand::SetNotifications(n)) => {
+                events.push(Event::NotificationSettingsUpdated(n.clone()));
+                Ok(CommandResult::NotificationSettings(n))
+            }
+            Command::Launch(LaunchCommand::SetNickname {
+                guild_id,
+                user_id,
+                nickname,
+            }) => {
+                let mut m = self
+                    .model
+                    .members
+                    .get(&user_id)
+                    .ok_or_else(|| error("Member not found"))?
+                    .clone();
+                m.guild_id = guild_id;
+                m.nickname = nickname;
+                events.push(Event::MemberUpsert(m.clone()));
+                Ok(CommandResult::Member(m))
+            }
             Command::SendMessage(v) => {
                 if v.content.chars().count() > MAX_MESSAGE_CHARS
                     || (v.content.trim().is_empty() && v.attachment_ids.is_empty())

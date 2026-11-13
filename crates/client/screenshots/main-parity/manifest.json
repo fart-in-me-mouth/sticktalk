@@ -1,0 +1,522 @@
+{
+  "renderer": "iced-tiny-skia",
+  "screens": [
+    {
+      "file": "guild-chat-1280x800.png",
+      "height": 800,
+      "sha256": "0b0ad9e8fa0701e8a1a11d9955030d191f0e785b62afb98259e67af0355994df",
+      "width": 1280
+    },
+    {
+      "file": "main-server-menu-1280x800.png",
+      "height": 800,
+      "sha256": "e7e77b616afb7bb44d708b913f3016c277cd6ac8ce9bae552f053be69c044101",
+      "width": 1280
+    },
+    {
+      "file": "main-profile-1280x800.png",
+      "height": 800,
+      "sha256": "4b2e9de03f75feaba08ecc8838d50ce459f711d8952b0c4c6178ec6ed5aba112",
+      "width": 1280
+    },
+    {
+      "file": "main-profile-idle-1280x800.png",
+      "height": 800,
+      "sha256": "13af0f3afecee8342ac336b0558039dc14dc3e15619f321a1b6e3790e22b4b75",
+      "width": 1280
+    },
+    {
+      "file": "main-profile-dnd-1280x800.png",
+      "height": 800,
+      "sha256": "cf0f8202b44abebc4a944beda9386b6f924675b83fa596eb15e406930e5d87ea",
+      "width": 1280
+    },
+    {
+      "file": "main-profile-offline-1280x800.png",
+      "height": 800,
+      "sha256": "966636fc3f3ccac6cf8118f06295bc775aba12b2998900fa59a1319a392939c2",
+      "width": 1280
+    },
+    {
+      "file": "main-no-voice-1280x800.png",
+      "height": 800,
+      "sha256": "530586c8d4ad8277ba81816b173eb8f7b81c562dcab7f96de39d31813577e833",
+      "width": 1280
+    },
+    {
+      "file": "main-members-hidden-1280x800.png",
+      "height": 800,
+      "sha256": "fd5c4c6ac4512c95384828a8130ee1bd015cdd7753f577325cf2f96f01e3d754",
+      "width": 1280
+    },
+    {
+      "file": "main-rail-unread-1280x800.png",
+      "height": 800,
+      "sha256": "92a6a97776f29abee0ee155f430fca7bc6feb81c49cf3c5d10750d8c90ce3cf6",
+      "width": 1280
+    },
+    {
+      "file": "main-own-profile-1280x800.png",
+      "height": 800,
+      "sha256": "6543b6c3912515c3a42a24a838d880d987b32b04f6225cd41077e94e4bac8879",
+      "width": 1280
+    },
+    {
+      "file": "main-pins-1280x800.png",
+      "height": 800,
+      "sha256": "ef2bf1e3ecf752de83f371c67493da51a015205e24163033a2110a807174246b",
+      "width": 1280
+    },
+    {
+      "file": "main-notifications-1280x800.png",
+      "height": 800,
+      "sha256": "775224354bcf3875044334dd5f9fc481cf1b7f269303f86fa9bd9ff23d36403b",
+      "width": 1280
+    },
+    {
+      "file": "main-topic-1280x800.png",
+      "height": 800,
+      "sha256": "d13529f272a16f87a0e96150cb0b64d65e25471ac6003271d8224ffd42db50f4",
+      "width": 1280
+    },
+    {
+      "file": "main-quick-switcher-1280x800.png",
+      "height": 800,
+      "sha256": "fb4382ecbd1dcde0b4fa5ea4bb52b1db3b861023e3bcc0ee6b57afb52f63cbbc",
+      "width": 1280
+    },
+    {
+      "file": "main-user-context-1280x800.png",
+      "height": 800,
+      "sha256": "521261cc9aadb91b72a4dc79c3334bd8b23ad4a6e7372af554962c5f1643ca4b",
+      "width": 1280
+    },
+    {
+      "file": "main-channel-context-1280x800.png",
+      "height": 800,
+      "sha256": "2544aff69732b86efd673309de6ac40b430056a138f17bc6708705318bcca09a",
+      "width": 1280
+    },
+    {
+      "file": "main-server-context-1280x800.png",
+      "height": 800,
+      "sha256": "f4bf8ad56f8b1518e9d6c0c260655ee8d3ea2bfa0e9366ea3268ca7e2d466fda",
+      "width": 1280
+    },
+    {
+      "file": "main-rail-context-1280x800.png",
+      "height": 800,
+      "sha256": "ebc054b511818722f7971892beeba5194db17fbeb10c90837eaa56a62e124249",
+      "width": 1280
+    },
+    {
+      "file": "main-devices-1280x800.png",
+      "height": 800,
+      "sha256": "a51274cdadfe57a33d2b1e440336b47c785f0e0f1c1f851126670b4a60915062",
+      "width": 1280
+    },
+    {
+      "file": "main-mutual-servers-1280x800.png",
+      "height": 800,
+      "sha256": "b2f873628eeacda6e6fb88ad768c82673677f8515a92f9c32540ba004042c23a",
+      "width": 1280
+    },
+    {
+      "file": "main-role-picker-1280x800.png",
+      "height": 800,
+      "sha256": "37da7705e43f8e39e74e978bd28ae099b1604db6a99085c38f7408f81d97c2bb",
+      "width": 1280
+    },
+    {
+      "file": "main-nickname-1280x800.png",
+      "height": 800,
+      "sha256": "899e0e67e5cfb8fa2b7b3de4e659df8cae19a0503e140dde9acc9fadc44a2eab",
+      "width": 1280
+    },
+    {
+      "file": "main-rail-hover-1280x800.png",
+      "height": 800,
+      "sha256": "1ce11c54b757d1996613c469d78df89f8f2e5b9bc7ff3d14d9bff45a4383f6c3",
+      "width": 1280
+    },
+    {
+      "file": "main-channel-hover-1280x800.png",
+      "height": 800,
+      "sha256": "c63f1ee5f5081c77bc1595cf72c9bdc7afb8d9f64849d24f5f2e7583406463c9",
+      "width": 1280
+    },
+    {
+      "file": "main-category-hover-1280x800.png",
+      "height": 800,
+      "sha256": "d7990ec88b495725b15ae4a7a592e796376610455c92bcda29a426e3402fcf62",
+      "width": 1280
+    },
+    {
+      "file": "main-category-collapsed-1280x800.png",
+      "height": 800,
+      "sha256": "02303f14e1a69ab60175fb7ea7dc5141a4decbeb141c791cd41f530bd9167626",
+      "width": 1280
+    },
+    {
+      "file": "main-muted-controls-1280x800.png",
+      "height": 800,
+      "sha256": "826303aea5869c02498f6c5f503a5c00b5cd6acaa565bc39bb5cec75c5d0a9bd",
+      "width": 1280
+    },
+    {
+      "file": "main-user-hover-1280x800.png",
+      "height": 800,
+      "sha256": "bb6a76bc9270f42c8e0421da065db5630d79fc35f4bcdec039bc6a22a4f108b9",
+      "width": 1280
+    },
+    {
+      "file": "main-offline-hover-1280x800.png",
+      "height": 800,
+      "sha256": "31649420065e3c2ede9e756f61936c2d10412ef56a36959a848424451e583125",
+      "width": 1280
+    },
+    {
+      "file": "main-drop-overlay-1280x800.png",
+      "height": 800,
+      "sha256": "1f026bd5aed25aa96110f8d6ad6c52091635562f833ae35f861e26b47b427bd6",
+      "width": 1280
+    },
+    {
+      "file": "main-local-search-1280x800.png",
+      "height": 800,
+      "sha256": "ca6d2b93d73c3dabafbda36cff4c4e3e5bd2d3125110926d8b096f79e296c085",
+      "width": 1280
+    },
+    {
+      "file": "main-message-menu-1280x800.png",
+      "height": 800,
+      "sha256": "e231a674b7e9d3408cb5d67bb2b11238fd4a4e65cf52b7fee629d8a1793129d9",
+      "width": 1280
+    },
+    {
+      "file": "main-tooltip-1280x800.png",
+      "height": 800,
+      "sha256": "61ab36b9868ad00cb6051603301723ae038afe30b40aa07aae6963ae1ae65a3e",
+      "width": 1280
+    },
+    {
+      "file": "main-streaming-1280x800.png",
+      "height": 800,
+      "sha256": "8da570f38037f672851acc5b5c4bfd96723d9d711f5cfbc508e7b91e478c11d4",
+      "width": 1280
+    },
+    {
+      "file": "main-history-extent-1280x800.png",
+      "height": 800,
+      "sha256": "d41204a5ffa6f28ed65d76e93a3c57168ea806ca8b34acb1c85a5c666991cd7f",
+      "width": 1280
+    },
+    {
+      "file": "main-history-skeleton-1280x800.png",
+      "height": 800,
+      "sha256": "8d24a3fa5677939226b82a6de888a338e22055a450c264d89a6737e545ffac39",
+      "width": 1280
+    },
+    {
+      "file": "main-server-menu-member-1280x800.png",
+      "height": 800,
+      "sha256": "91003d4c8a3aedfe786f82d7b82927e443cb7daf7d120267dab601d2b6e42be4",
+      "width": 1280
+    },
+    {
+      "file": "main-last-long-1280x800.png",
+      "height": 800,
+      "sha256": "7a4e69c0d7a8bd6dead1c6f2cce2f43fcbe0d5f040745d1ab8cbdfd12099b7df",
+      "width": 1280
+    },
+    {
+      "file": "main-last-long-no-typing-1280x800.png",
+      "height": 800,
+      "sha256": "7421fc3eec5639b885e135247bf002ef4be6a83017955d6d6ca974eaadd6dc60",
+      "width": 1280
+    },
+    {
+      "file": "main-last-image-1280x800.png",
+      "height": 800,
+      "sha256": "9be7c4ff821334149b66166f35214668c4a603046c4fcc027da9b1f46f595233",
+      "width": 1280
+    },
+    {
+      "file": "main-search-focused-1280x800.png",
+      "height": 800,
+      "sha256": "e9b026e370508528dafd28a48c7ae9040d4f4ea3e901f0808a584f92f8b530ec",
+      "width": 1280
+    },
+    {
+      "file": "main-rail-counts-1280x800.png",
+      "height": 800,
+      "sha256": "2dbc55e1d916adf45575541a97d665b731986fd0beaebf19f14046861570c022",
+      "width": 1280
+    },
+    {
+      "file": "main-avatar-sizes-1280x800.png",
+      "height": 800,
+      "sha256": "68059a6f61c0bf1c2ce20ea71d7420d7899e52c9062befdba162004822b29d76",
+      "width": 1280
+    },
+    {
+      "file": "guild-chat-1920x1080.png",
+      "height": 1080,
+      "sha256": "d798f6b3b0bb5bf143b272e4493a7ad0998fd3c656d20170edbe44d55baa97ba",
+      "width": 1920
+    },
+    {
+      "file": "main-server-menu-1920x1080.png",
+      "height": 1080,
+      "sha256": "8275140bc11717ef79234fcb36a259eef6d3a77fe538d6512f66456641d965ab",
+      "width": 1920
+    },
+    {
+      "file": "main-profile-1920x1080.png",
+      "height": 1080,
+      "sha256": "59d5efb3d74977bbaa5422fbac1f206a1cd58ecf7fb153526340c82297f01683",
+      "width": 1920
+    },
+    {
+      "file": "main-profile-idle-1920x1080.png",
+      "height": 1080,
+      "sha256": "2d291e20940071cb4d41b848366f6d8e8cb8a3cdd9470df162481f498392520f",
+      "width": 1920
+    },
+    {
+      "file": "main-profile-dnd-1920x1080.png",
+      "height": 1080,
+      "sha256": "f8070f6c1129c9c1a42e7f993ad97c92019b31d93a739830c8da83b1aa307abb",
+      "width": 1920
+    },
+    {
+      "file": "main-profile-offline-1920x1080.png",
+      "height": 1080,
+      "sha256": "f7166044ade8d9e127ee41caa11d8226f2ef8acd30fc384e4925ea6c631cdcb1",
+      "width": 1920
+    },
+    {
+      "file": "main-no-voice-1920x1080.png",
+      "height": 1080,
+      "sha256": "b957f127533e8200b3cd633054ee440e9d78c0c90128dad093730bbcdfbc5c75",
+      "width": 1920
+    },
+    {
+      "file": "main-members-hidden-1920x1080.png",
+      "height": 1080,
+      "sha256": "d4ffad77750389c13e94b44116d07243007e6f52c626c9a616599f660d82de03",
+      "width": 1920
+    },
+    {
+      "file": "main-rail-unread-1920x1080.png",
+      "height": 1080,
+      "sha256": "2c91141f5f6a423c0eea38963c584c5db5a0f27cd5ade213ca1d3095de6ff563",
+      "width": 1920
+    },
+    {
+      "file": "main-own-profile-1920x1080.png",
+      "height": 1080,
+      "sha256": "b09952a2796d3b1ac467909ac1004291f29792d9f79784515d541133c853f47c",
+      "width": 1920
+    },
+    {
+      "file": "main-pins-1920x1080.png",
+      "height": 1080,
+      "sha256": "ddf658c8c9bc0db03c1795447af768f70090d642ec64096b2c90597c6d9b1393",
+      "width": 1920
+    },
+    {
+      "file": "main-notifications-1920x1080.png",
+      "height": 1080,
+      "sha256": "88ee4841d1f2c56f1a0d4ffe5ae8df6a67f173809bb83ed59ad44c0d9214fddc",
+      "width": 1920
+    },
+    {
+      "file": "main-topic-1920x1080.png",
+      "height": 1080,
+      "sha256": "c6c2f80c88e83ae825484ba26664e7a9bece4205072ad0ea2d772735dc28cf82",
+      "width": 1920
+    },
+    {
+      "file": "main-quick-switcher-1920x1080.png",
+      "height": 1080,
+      "sha256": "f3f7a9ebd4db85e54dffe4f8b5962c807c1d5952a65b5c8e4a5e34692c636883",
+      "width": 1920
+    },
+    {
+      "file": "main-user-context-1920x1080.png",
+      "height": 1080,
+      "sha256": "04bcf32b620723006f29c2f5613ef9659f750ce0cf639a256e5181a79b657d07",
+      "width": 1920
+    },
+    {
+      "file": "main-channel-context-1920x1080.png",
+      "height": 1080,
+      "sha256": "e1cae03fcf5e098c2531b9f35cd9bb20532e0b965bbe0290f53d6c90c2d4b72d",
+      "width": 1920
+    },
+    {
+      "file": "main-server-context-1920x1080.png",
+      "height": 1080,
+      "sha256": "76f611546b52c72ef2f0eac09ce01088f631f9e4ee83b1a6e347bf8f4f4567b5",
+      "width": 1920
+    },
+    {
+      "file": "main-rail-context-1920x1080.png",
+      "height": 1080,
+      "sha256": "fdae0e7b9ec4e397e8b948a056f6a482b6469e70e55f36d3bd6223359b01cfcb",
+      "width": 1920
+    },
+    {
+      "file": "main-devices-1920x1080.png",
+      "height": 1080,
+      "sha256": "d93ee35e1e54449873b0d993265d58520f4ccff89b64bf718d18dc63243a5f14",
+      "width": 1920
+    },
+    {
+      "file": "main-mutual-servers-1920x1080.png",
+      "height": 1080,
+      "sha256": "834ca6d8d7f1e818afa1d057d6f7d812ebabe1ef201d2e69a2884d98d823a30a",
+      "width": 1920
+    },
+    {
+      "file": "main-role-picker-1920x1080.png",
+      "height": 1080,
+      "sha256": "0145b8d9cc77286c281530b236a3738599ff743792dc98485c819ace26031396",
+      "width": 1920
+    },
+    {
+      "file": "main-nickname-1920x1080.png",
+      "height": 1080,
+      "sha256": "b3a1e5b44a7c0c56a64b9339439864328944d016bf58027e6cc9b0b8986cdb1c",
+      "width": 1920
+    },
+    {
+      "file": "main-rail-hover-1920x1080.png",
+      "height": 1080,
+      "sha256": "7aecbd4c93b96ec3665a3d380b089cfd111b6d208de866e59460e5671f9ef222",
+      "width": 1920
+    },
+    {
+      "file": "main-channel-hover-1920x1080.png",
+      "height": 1080,
+      "sha256": "f93da2aa97dd166e4f688931df938acd3d587194843b1bfda6cbf5ca2204bc7b",
+      "width": 1920
+    },
+    {
+      "file": "main-category-hover-1920x1080.png",
+      "height": 1080,
+      "sha256": "13d7c7a92dcc38aac1036faf24cd9407421bbc23dd32601369a0e9b09400924c",
+      "width": 1920
+    },
+    {
+      "file": "main-category-collapsed-1920x1080.png",
+      "height": 1080,
+      "sha256": "6866b2927700f40505647e7d80277b7f2dfd25d771015a20bae7b259c861a5e0",
+      "width": 1920
+    },
+    {
+      "file": "main-muted-controls-1920x1080.png",
+      "height": 1080,
+      "sha256": "c2779e5d555ae4a7372bb031ad4b601d30aec455d1eb4e0db867d01bf094bf2a",
+      "width": 1920
+    },
+    {
+      "file": "main-user-hover-1920x1080.png",
+      "height": 1080,
+      "sha256": "5de968bcfc718926c4458ae5a11786c461f27cc4ac08e47ef9e5e1e810307adb",
+      "width": 1920
+    },
+    {
+      "file": "main-offline-hover-1920x1080.png",
+      "height": 1080,
+      "sha256": "4a01496f8639ae793cad9ac6ca33da969c543e512ec2f9e4860742530af125c5",
+      "width": 1920
+    },
+    {
+      "file": "main-drop-overlay-1920x1080.png",
+      "height": 1080,
+      "sha256": "0f176509f65dd200c37cf42cbd8fbc9baac0f8784783068b70e8164a2dcced41",
+      "width": 1920
+    },
+    {
+      "file": "main-local-search-1920x1080.png",
+      "height": 1080,
+      "sha256": "13fbe575be8c0a22908b7982c3e23008aa700a94b340466926cf2214d190d209",
+      "width": 1920
+    },
+    {
+      "file": "main-message-menu-1920x1080.png",
+      "height": 1080,
+      "sha256": "a33f621ffb2354baff7b29e0a82b092ed92ef2cbc585d66d1f1d9c0fc8a8ff38",
+      "width": 1920
+    },
+    {
+      "file": "main-tooltip-1920x1080.png",
+      "height": 1080,
+      "sha256": "2acc80511ba0b6b440bc88cb9ff35a341d14ad19d457e856e2b5f8d2b65eb758",
+      "width": 1920
+    },
+    {
+      "file": "main-streaming-1920x1080.png",
+      "height": 1080,
+      "sha256": "616aa2d4cb284b9560c720d0cdf6bcdb430fda81cfae6e3d106d0064ecc9570d",
+      "width": 1920
+    },
+    {
+      "file": "main-history-extent-1920x1080.png",
+      "height": 1080,
+      "sha256": "9a80af43c875fa1600216b60be7b1ab7d84dfe6fca90fa8aae37607df2cb7d20",
+      "width": 1920
+    },
+    {
+      "file": "main-history-skeleton-1920x1080.png",
+      "height": 1080,
+      "sha256": "f059955bc563e4df7eaf547b569fc70e7d2f24cbb2a9c02ef39e31078c114a89",
+      "width": 1920
+    },
+    {
+      "file": "main-server-menu-member-1920x1080.png",
+      "height": 1080,
+      "sha256": "5c3cfd9637b3ef2837c305d2636c586133e4c494cf5b69318e42c9ad3624c0da",
+      "width": 1920
+    },
+    {
+      "file": "main-last-long-1920x1080.png",
+      "height": 1080,
+      "sha256": "72662930ad8e7c9b985acd7d892eacc913a55b10991240edd87637374532f462",
+      "width": 1920
+    },
+    {
+      "file": "main-last-long-no-typing-1920x1080.png",
+      "height": 1080,
+      "sha256": "345905922273dc82259169f372cecd4885102ac294caf3c446b29836e1adf676",
+      "width": 1920
+    },
+    {
+      "file": "main-last-image-1920x1080.png",
+      "height": 1080,
+      "sha256": "397e9153c9b385b6efc7f21e9683d02ef105096a0bf252372350f766a7c5d6c9",
+      "width": 1920
+    },
+    {
+      "file": "main-search-focused-1920x1080.png",
+      "height": 1080,
+      "sha256": "d5bed78b65043b4d292b38d3069d6d942ac5e5613a3defc671bae2432aaa713e",
+      "width": 1920
+    },
+    {
+      "file": "main-rail-counts-1920x1080.png",
+      "height": 1080,
+      "sha256": "16f38689c608573a8f0c67a9a17aaf711c7c6b29d41017270e71b5c4bd0fe664",
+      "width": 1920
+    },
+    {
+      "file": "main-avatar-sizes-1920x1080.png",
+      "height": 1080,
+      "sha256": "0828b1e1ab521941ce49bd6b0ca231694af4d6d72b0da3d7dcb5dbaddc7ae98c",
+      "width": 1920
+    }
+  ],
+  "window_backend": "none"
+}

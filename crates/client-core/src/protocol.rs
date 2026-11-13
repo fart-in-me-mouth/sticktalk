@@ -158,9 +158,9 @@ pub async fn run<R: MaybeSend + 'static, H: MaybeSend + 'static, Lease>(
                                             &mut socket,
                                             &ClientMsg::Identify(Identify {
                                                 version: PROTOCOL_VERSION,
+                                                launch_features: true,
                                                 token: config.token.clone(),
                                                 resume: recovery.cursor.clone(),
-                                                ..Default::default()
                                             }),
                                         )
                                         .await

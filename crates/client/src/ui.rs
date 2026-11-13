@@ -1,3 +1,15 @@
+mod avatar_mask;
+mod controls;
+mod history;
+mod link_context;
+mod main_window;
+mod members;
+mod menus;
+mod observe;
+mod popout;
+mod rail;
+mod sidebar;
+mod tooltip_delay;
 use crate::{
     app::{editor_binding, App, Dialog, FriendTab, GuildTab, Msg, Screen},
     focus_button::{button, Button},
@@ -18,6 +30,9 @@ mod call;
 mod share_picker;
 mod stream_view;
 mod voice_settings;
+pub(crate) fn purge_main_assets() {
+    avatar_mask::clear();
+}
 fn txt<'a>(value: impl Into<String>) -> widget::Text<'a> {
     text(value.into())
         .font(t::regular())
@@ -46,7 +61,7 @@ fn action<'a>(label: impl Into<String>, message: Msg) -> Button<'a> {
     .on_press(message)
     .height(t::BUTTON)
     .padding([t::S8, t::S16])
-    .style(t::button)
+    .style(t::secondary)
 }
 fn primary<'a>(label: impl Into<String>, message: Msg) -> Button<'a> {
     button(
@@ -102,18 +117,7 @@ fn google_button(app: &App) -> Element<'_, Msg> {
 }
 
 fn icon_button<'a>(name: &str, label: &str, message: Msg) -> Element<'a, Msg> {
-    tooltip(
-        button(icon(name, t::ICON, t::TEXT_SECONDARY))
-            .on_press(message)
-            .padding(t::S8)
-            .style(t::icon),
-        container(hint(label.to_owned()))
-            .padding(t::S8)
-            .style(t::tooltip),
-        tooltip::Position::Top,
-    )
-    .style(t::tooltip)
-    .into()
+    controls::icon_button(name, label, message, false)
 }
 fn member_action(app: &App, user: Id) -> Element<'_, Msg> {
     let size = t::ICON + 2. * t::S8;
@@ -129,20 +133,7 @@ fn member_action(app: &App, user: Id) -> Element<'_, Msg> {
     container(action).width(size).height(size).into()
 }
 fn message_tool<'a>(name: &str, label: &str, message: Msg) -> Element<'a, Msg> {
-    tooltip(
-        button(icon(name, t::INLINE_ICON, t::TEXT_SECONDARY))
-            .on_press(message)
-            .width(t::S32)
-            .height(t::S32)
-            .padding(t::S8)
-            .style(t::icon),
-        container(hint(label.to_owned()))
-            .padding(t::S8)
-            .style(t::tooltip),
-        tooltip::Position::Top,
-    )
-    .style(t::tooltip)
-    .into()
+    controls::icon_button(name, label, message, false)
 }
 fn nav<'a>(name: &str, label: impl Into<String>, message: Msg, selected: bool) -> Button<'a> {
     button(
@@ -246,6 +237,9 @@ fn dot<'a>(color: Color, size: f32) -> Element<'a, Msg> {
         .into()
 }
 fn avatar<'a>(app: &App, id: Id, size: f32, presence: bool) -> Element<'a, Msg> {
+    if presence {
+        return controls::avatar(app, id, size, t::BG_SIDEBAR, false);
+    }
     let face: Element<'_, Msg> = if let Some(handle) = app
         .state
         .model
@@ -267,46 +261,27 @@ fn avatar<'a>(app: &App, id: Id, size: f32, presence: bool) -> Element<'a, Msg> 
             .take(if size <= t::S24 { 1 } else { 2 })
             .filter_map(|v| v.chars().next())
             .collect::<String>();
-        container(txt(initials).size(size * 0.4).font(t::semibold()))
-            .width(size)
-            .height(size)
-            .center_x(size)
-            .center_y(size)
-            .style(move |_| container::Style {
-                border: Border {
-                    radius: t::ROUND.into(),
-                    ..Default::default()
-                },
-                ..t::surface(t::avatar_color(id.0))
-            })
-            .into()
-    };
-    if !presence {
-        return face;
-    }
-    let color = status(
-        app.state
-            .model
-            .presences
-            .get(&id)
-            .copied()
-            .unwrap_or(PresenceStatus::Offline),
-    )
-    .1;
-    let presence = container(dot(color, t::S8))
-        .padding(t::FOCUS)
-        .style(|_| container::Style {
+        container(
+            txt(initials)
+                .size(size * 0.4)
+                .line_height(1.)
+                .wrapping(widget::text::Wrapping::None)
+                .font(t::semibold()),
+        )
+        .width(size)
+        .height(size)
+        .center_x(size)
+        .center_y(size)
+        .style(move |_| container::Style {
             border: Border {
                 radius: t::ROUND.into(),
                 ..Default::default()
             },
-            ..t::surface(t::BG_SIDEBAR)
-        });
-    stack![
-        face,
-        container(presence).align_right(size).align_bottom(size)
-    ]
-    .into()
+            ..t::surface(t::avatar_color(id.0))
+        })
+        .into()
+    };
+    face
 }
 fn emoji<'a>(value: &str, size: f32) -> Element<'a, Msg> {
     let bytes: Option<&'static [u8]> = match value {
@@ -344,6 +319,9 @@ fn empty<'a>(name: &str, label: impl Into<String>, button: Button<'a>) -> Elemen
     .into()
 }
 pub fn view(app: &App) -> Element<'_, Msg> {
+    if app.main.avatar_gallery {
+        return controls::avatar_gallery(app);
+    }
     if app.state.session.is_none() {
         return login(app);
     }
@@ -417,21 +395,23 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             Dialog::MessageActions(_) | Dialog::GuildMenu | Dialog::MemberMenu(_)
         );
         let overlay = if context {
-            container(opaque(context_menu(app)))
-                .id("dialog-scope")
-                .align_right(Fill)
-                .align_top(Fill)
-                .padding(Padding {
-                    top: t::HEADER + t::S8,
-                    right: if matches!(app.dialog, Dialog::GuildMenu) {
-                        (app.width - t::RAIL - t::SIDEBAR).max(t::S16)
-                    } else {
-                        t::MEMBERS + t::S16
-                    },
-                    bottom: 0.,
-                    left: 0.,
-                })
-                .style(t::bare)
+            let body = widget::sensor(
+                container(context_menu(app))
+                    .id("main-popover")
+                    .max_height(app.height - t::S16),
+            )
+            .key(app.main.measurement_revision)
+            .on_show(|s| crate::main_window::mm(crate::main_window::Message::PopoverSize(s)))
+            .on_resize(|s| crate::main_window::mm(crate::main_window::Message::PopoverSize(s)));
+            container(observe::popup(
+                opaque(body),
+                app.main.position,
+                app.main.anchor,
+            ))
+            .id("dialog-scope")
+            .width(Fill)
+            .height(Fill)
+            .style(t::bare)
         } else {
             container(opaque(modal(app)))
                 .id("dialog-scope")
@@ -448,6 +428,12 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             ]
             .into(),
         );
+    }
+    if let Some(overlay) = main_window::overlay(app) {
+        layers.push(overlay);
+    }
+    if app.main.dropping {
+        layers.push(main_window::drop_overlay());
     }
     let is_error = !app.error.is_empty() && matches!(app.dialog, Dialog::None);
     if !app.notice.is_empty() || is_error {
@@ -648,371 +634,11 @@ fn login(app: &App) -> Element<'_, Msg> {
         .into()
 }
 fn rail(app: &App) -> Element<'_, Msg> {
-    let mut list = column![
-        guild_button(app, None, "Home", "message-circle"),
-        container(rule::horizontal(t::FOCUS).style(t::divider))
-            .width(t::S32)
-            .padding([t::S8, 0.])
-            .style(t::bare)
-    ]
-    .spacing(t::S8)
-    .align_x(Center);
-    for g in app.state.model.guilds.values() {
-        list = list.push(guild_button(app, Some(g.guild.id), &g.guild.name, ""));
-    }
-    list = list.push(
-        tooltip(
-            button(icon("plus", t::ICON, t::ACCENT))
-                .on_press(Msg::Open(Dialog::AddGuild))
-                .width(t::GUILD_ICON)
-                .height(t::GUILD_ICON)
-                .padding(t::S12)
-                .style(t::icon),
-            container(hint("Create or join a server"))
-                .padding(t::S8)
-                .style(t::tooltip),
-            tooltip::Position::Right,
-        )
-        .style(t::tooltip),
-    );
-    container(scroller(list).height(Fill))
-        .padding([t::S12, 0.])
-        .width(t::RAIL)
-        .height(Fill)
-        .style(t::rail)
-        .into()
+    rail::view(app)
 }
-fn guild_button<'a>(app: &App, id: Option<Id>, name: &str, home_icon: &str) -> Element<'a, Msg> {
-    let selected = app.state.guild == id;
-    let hovered = app.hovered_guild == Some(id);
-    let glyph: Element<'_, Msg> = if id.is_none() {
-        icon(home_icon, t::ICON, t::ACCENT).into()
-    } else if let Some(h) = id
-        .and_then(|g| app.state.model.guilds.get(&g))
-        .and_then(|g| g.guild.icon_id)
-        .and_then(|i| app.images.get(i))
-    {
-        image(h.clone())
-            .width(t::GUILD_ICON)
-            .height(t::GUILD_ICON)
-            .border_radius(if selected { t::GUILD_RADIUS } else { t::ROUND })
-            .into()
-    } else {
-        txt(name
-            .split_whitespace()
-            .take(2)
-            .filter_map(|w| w.chars().next())
-            .collect::<String>())
-        .font(t::semibold())
-        .into()
-    };
-    let btn = button(
-        container(glyph)
-            .center_x(t::GUILD_ICON)
-            .center_y(t::GUILD_ICON)
-            .style(t::bare),
-    )
-    .on_press(Msg::Guild(id))
-    .padding(0)
-    .style(move |theme, status| {
-        let mut s = t::button(theme, status);
-        s.border.radius = if selected { t::GUILD_RADIUS } else { t::ROUND }.into();
-        s.background = Some(
-            if selected {
-                t::BG_SELECTED
-            } else {
-                t::BG_ELEVATED
-            }
-            .into(),
-        );
-        s
-    });
-    let unread = id.is_some_and(|g| {
-        app.state
-            .model
-            .channels
-            .values()
-            .filter(|c| c.guild_id == Some(g))
-            .any(|c| {
-                app.state
-                    .model
-                    .reads
-                    .get(&c.id)
-                    .is_some_and(|r| r.unread_count > 0)
-            })
-    });
-    let marker = container(space())
-        .width(if selected || hovered { t::S4 } else { t::S8 })
-        .height(if selected {
-            t::INPUT
-        } else if hovered {
-            t::ICON
-        } else {
-            t::S8
-        })
-        .style(move |_| container::Style {
-            border: Border {
-                radius: t::S4.into(),
-                ..Default::default()
-            },
-            ..t::surface(if selected || unread || hovered {
-                t::TEXT_PRIMARY
-            } else {
-                t::TRANSPARENT
-            })
-        });
-    let cell = stack![
-        container(btn).center_x(t::RAIL).style(t::bare),
-        container(marker).center_y(t::GUILD_ICON).style(t::bare)
-    ];
-    tooltip(
-        mouse_area(cell)
-            .on_enter(Msg::GuildHover(Some(id)))
-            .on_exit(Msg::GuildHover(None)),
-        container(hint(name.to_owned()))
-            .padding(t::S8)
-            .style(t::tooltip),
-        tooltip::Position::Right,
-    )
-    .style(t::tooltip)
-    .into()
-}
+
 fn sidebar(app: &App) -> Element<'_, Msg> {
-    let name = app
-        .state
-        .guild
-        .and_then(|g| app.state.model.guilds.get(&g))
-        .map_or("Direct messages".into(), |g| g.guild.name.clone());
-    let header = button(
-        row![
-            txt(ellipsis(&name, 24)).font(t::semibold()).width(Fill),
-            icon(
-                if app.state.guild.is_some() {
-                    "chevron-down"
-                } else {
-                    "search"
-                },
-                t::INLINE_ICON,
-                t::TEXT_SECONDARY
-            )
-        ]
-        .align_y(Center),
-    )
-    .on_press(Msg::Open(if app.state.guild.is_some() {
-        Dialog::GuildMenu
-    } else {
-        Dialog::AddFriend
-    }))
-    .height(t::HEADER)
-    .width(Fill)
-    .padding([t::S12, t::S16])
-    .style(t::icon);
-    let mut list = column![].spacing(t::S4);
-    if app.state.guild.is_none() {
-        list = list
-            .push(nav(
-                "users",
-                "Friends",
-                Msg::Friends(FriendTab::Online),
-                matches!(app.state.screen, Screen::Friends(_)),
-            ))
-            .push(space().height(t::S16))
-            .push(
-                row![
-                    section("DIRECT MESSAGES"),
-                    space().width(Fill),
-                    icon_button("plus", "New group", Msg::Open(Dialog::NewGroup))
-                ]
-                .align_y(Center),
-            );
-    }
-    for c in app.sorted_channels() {
-        if c.kind == ChannelKind::Category {
-            list = list.push(space().height(t::S12)).push(
-                row![
-                    icon("chevron-down", t::S12, t::TEXT_MUTED),
-                    section(ellipsis(
-                        &app.state.model.channel_name(c).to_uppercase(),
-                        23
-                    ))
-                    .width(Fill),
-                    if app.permissions().contains(Permissions::MANAGE_CHANNELS) {
-                        icon_button(
-                            "plus",
-                            "Create channel",
-                            Msg::Open(Dialog::NewChannel(ChannelKind::Text, Some(c.id))),
-                        )
-                    } else {
-                        space().width(0).into()
-                    }
-                ]
-                .spacing(t::S4)
-                .align_y(Center),
-            );
-        } else {
-            let read = app.state.model.reads.get(&c.id);
-            let unread = read.is_some_and(|r| r.unread_count > 0);
-            let selected = app.state.screen == Screen::Channel(c.id);
-            let content = app.state.model.channel_name(c);
-            let mut channel = row![
-                if c.kind == ChannelKind::Voice {
-                    icon("volume-2", t::CHANNEL_ICON, t::TEXT_MUTED).into()
-                } else if c.kind == ChannelKind::Text {
-                    icon("hash", t::CHANNEL_ICON, t::TEXT_MUTED).into()
-                } else if c.kind == ChannelKind::GroupDm {
-                    container(icon("users", t::INLINE_ICON, t::TEXT_SECONDARY))
-                        .width(t::S24)
-                        .height(t::S24)
-                        .center_x(t::S24)
-                        .center_y(t::S24)
-                        .style(t::elevated)
-                        .into()
-                } else {
-                    avatar(
-                        app,
-                        c.recipient_ids
-                            .iter()
-                            .copied()
-                            .find(|id| Some(*id) != app.me())
-                            .unwrap_or(Id(1)),
-                        t::S24,
-                        true,
-                    )
-                },
-                txt(ellipsis(&content, 20))
-                    .font(if unread { t::semibold() } else { t::medium() })
-                    .color(if unread || selected {
-                        t::TEXT_PRIMARY
-                    } else {
-                        t::TEXT_SECONDARY
-                    })
-                    .width(Fill)
-            ]
-            .spacing(t::S8)
-            .align_y(Center);
-            if let Some(read) = read.filter(|r| r.mention_count > 0) {
-                channel = channel.push(
-                    container(hint(read.mention_count.to_string()).color(t::TEXT_PRIMARY))
-                        .padding([0., t::S8])
-                        .style(|_| container::Style {
-                            border: Border {
-                                radius: t::ROUND.into(),
-                                ..Default::default()
-                            },
-                            ..t::surface(t::DANGER)
-                        }),
-                );
-            }
-            let row = button(channel)
-                .on_press(Msg::Select(c.id))
-                .height(t::ROW)
-                .width(Fill)
-                .padding([t::S4, t::S8])
-                .style(t::navigation(selected));
-            list = list.push(stack![
-                row,
-                container(container(space()).width(t::S4).height(t::S8).style(
-                    move |_| t::surface(if unread && !selected {
-                        t::TEXT_PRIMARY
-                    } else {
-                        t::TRANSPARENT
-                    })
-                ))
-                .center_y(t::ROW)
-                .style(t::bare)
-            ]);
-            if c.kind == ChannelKind::Voice {
-                for state in app
-                    .calls
-                    .call
-                    .guild_states
-                    .values()
-                    .filter(|s| s.channel_id == c.id)
-                {
-                    list = list.push(
-                        container(call::participant(app, &state.participant, true)).padding(
-                            Padding {
-                                left: 36.,
-                                ..Padding::ZERO
-                            },
-                        ),
-                    );
-                }
-            }
-        }
-    }
-    if app.state.guild.is_none()
-        && app
-            .state
-            .model
-            .channels
-            .values()
-            .all(|c| c.guild_id.is_some())
-    {
-        list = list.push(
-            column![
-                hint("No conversations yet."),
-                action("Find a friend", Msg::Open(Dialog::AddFriend)).style(t::link)
-            ]
-            .spacing(t::S8),
-        );
-    }
-    let me = app.me().unwrap();
-    let own = app.state.model.me.as_ref().unwrap();
-    let footer = container(
-        row![
-            avatar(app, me, t::SMALL_AVATAR, true),
-            column![
-                txt(ellipsis(&app.state.model.name(me), 7))
-                    .wrapping(widget::text::Wrapping::None)
-                    .font(t::semibold())
-                    .size(t::USER_NAME),
-                hint(ellipsis(
-                    own.user
-                        .status_text
-                        .as_deref()
-                        .unwrap_or(status(own.desired_presence).0),
-                    22
-                ))
-            ]
-            .spacing(t::S4)
-            .width(Fill),
-            icon_button(
-                if app.calls.call.muted {
-                    "mic-off"
-                } else {
-                    "mic"
-                },
-                "Mute",
-                Msg::Call(crate::voice_ui::Action::Mute)
-            ),
-            icon_button(
-                "headphones",
-                "Deafen",
-                Msg::Call(crate::voice_ui::Action::Deafen)
-            ),
-            icon_button("settings", "User settings", Msg::Open(Dialog::UserSettings))
-        ]
-        .spacing(t::S4)
-        .align_y(Center),
-    )
-    .padding([t::S8, t::S12])
-    .height(t::USER_HEIGHT)
-    .style(|_| t::surface(t::USER_PANEL));
-    container(column![
-        header,
-        line(),
-        container(scroller(list).height(Fill))
-            .height(Fill)
-            .padding([t::S8, t::S8])
-            .style(t::bare),
-        call::connected(app),
-        footer
-    ])
-    .width(t::SIDEBAR)
-    .height(Fill)
-    .style(t::sidebar)
-    .into()
+    sidebar::view(app)
 }
 fn connection_banner(app: &App) -> Element<'_, Msg> {
     if matches!(app.state.connection, ConnectionState::Ready) {
@@ -1265,71 +891,14 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
         );
     };
     let name = app.state.model.channel_name(channel);
-    let topic = app
-        .state
-        .model
-        .topics
-        .get(&id)
-        .cloned()
-        .flatten()
-        .unwrap_or_default();
-    let header = container(
-        row![
-            icon(
-                if channel.kind == ChannelKind::Text {
-                    "hash"
-                } else if channel.kind == ChannelKind::GroupDm {
-                    "users"
-                } else {
-                    "at-sign"
-                },
-                t::ICON,
-                t::TEXT_MUTED
-            ),
-            txt(ellipsis(&name, 34)).font(t::semibold()),
-            container(rule::vertical(t::HAIRLINE).style(t::divider))
-                .height(t::S24)
-                .style(t::bare),
-            hint(ellipsis(
-                &topic,
-                ((app.width - t::RAIL - t::SIDEBAR - t::MEMBERS - t::SIDEBAR).max(t::S32)
-                    / t::GLYPH_WIDTH) as usize
-            ))
-            .width(Fill),
-            icon_button(
-                "search",
-                "Jump to message or date",
-                Msg::Open(Dialog::HistoryJump)
-            ),
-            icon_button("users", "Toggle member list", Msg::ToggleMembers),
-            icon_button(
-                "more-horizontal",
-                "Conversation settings",
-                Msg::Open(if channel.kind == ChannelKind::GroupDm {
-                    Dialog::GroupSettings(id)
-                } else if channel.kind == ChannelKind::Direct {
-                    Dialog::Profile(
-                        channel
-                            .recipient_ids
-                            .iter()
-                            .copied()
-                            .find(|v| Some(*v) != app.me())
-                            .unwrap_or(Id(1)),
-                    )
-                } else {
-                    Dialog::ChannelSettings(id)
-                })
-            )
-        ]
-        .spacing(t::S12)
-        .align_y(Center),
-    )
-    .padding([t::S8, t::S16])
-    .height(t::HEADER)
-    .style(t::chat);
+    let header = main_window::header(app, channel);
     let rows = app.visible_items();
     let (_, _, top, tail) = app.visible_range();
-    let history: Element<'_, Msg> = if app.state.loading && rows.is_empty() {
+    let history: Element<'_, Msg> = if !app.main.search.is_empty() {
+        main_window::local_results(app, id)
+    } else if app.extent.active() {
+        history::view(app)
+    } else if app.state.loading && rows.is_empty() {
         container(skeleton()).height(Fill).style(t::bare).into()
     } else if rows.is_empty() {
         empty(
@@ -1367,7 +936,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
             )
         });
         list = list.push(widget::keyed_column(visible).width(Fill));
-        list = list.push(space().height(tail));
+        list = list.push(space().height(tail + t::HISTORY_BOTTOM));
         scroller(list)
             .id("messages")
             .on_scroll(Msg::Scroll)
@@ -1388,15 +957,12 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
                 .into(),
         );
     }
-    let center = column![
-        header,
-        line(),
-        connection_banner(app),
-        stack(history_layers).height(Fill),
-        composer(app, channel)
-    ]
-    .height(Fill)
-    .width(Fill);
+    let history = widget::sensor(stack(history_layers).height(Fill).width(Fill))
+        .on_show(Msg::HistoryViewport)
+        .on_resize(Msg::HistoryViewport);
+    let center = column![connection_banner(app), history, composer(app, channel)]
+        .height(Fill)
+        .width(Fill);
     let mut body = row![center].height(Fill);
     if app
         .members_open
@@ -1404,7 +970,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
     {
         body = body.push(member_panel(app, channel));
     }
-    container(body)
+    container(column![header, line(), body].height(Fill).width(Fill))
         .width(Fill)
         .height(Fill)
         .style(t::chat)
@@ -1570,8 +1136,8 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                         Msg::PickUpload(UploadPurpose::Message)
                     ),
                     editor,
-                    icon_button("smile", "Choose an emoji", Msg::Open(Dialog::EmojiPicker)),
-                    icon_button("send", "Send message", Msg::Send)
+                    controls::gif_button(),
+                    icon_button("smile", "Choose an emoji", Msg::Open(Dialog::EmojiPicker))
                 ]
                 .spacing(t::S12)
                 .align_y(Center),
@@ -1618,6 +1184,7 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
             .style(t::bare),
     );
     container(body)
+        .id("composer")
         .padding(Padding {
             top: t::S8,
             right: t::S16,
@@ -1628,81 +1195,7 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         .into()
 }
 fn member_panel<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
-    let ids: Vec<_> = if channel.guild_id.is_some() {
-        app.state.model.members.keys().take(50).copied().collect()
-    } else {
-        channel.recipient_ids.clone()
-    };
-    let mut list = column![].spacing(t::S4);
-    for online in [true, false] {
-        let group: Vec<_> = ids
-            .iter()
-            .copied()
-            .filter(|id| {
-                app.state
-                    .model
-                    .presences
-                    .get(id)
-                    .is_some_and(|s| *s != PresenceStatus::Offline)
-                    == online
-            })
-            .collect();
-        if group.is_empty() {
-            continue;
-        }
-        list = list
-            .push(space().height(t::S16))
-            .push(section(format!(
-                "{} — {}",
-                if online { "ONLINE" } else { "OFFLINE" },
-                group.len()
-            )))
-            .push(space().height(t::S4));
-        for id in group {
-            let name = app.state.model.name(id);
-            let status_text = app
-                .state
-                .model
-                .users
-                .get(&id)
-                .and_then(|u| u.status_text.clone())
-                .unwrap_or_default();
-            list = list.push(
-                button(
-                    row![
-                        avatar(app, id, t::SMALL_AVATAR, true),
-                        column![
-                            txt(ellipsis(&name, 16))
-                                .color(if online {
-                                    t::TEXT_SECONDARY
-                                } else {
-                                    t::TEXT_MUTED
-                                })
-                                .font(t::medium()),
-                            hint(ellipsis(&status_text, 24))
-                        ]
-                        .spacing(t::S4)
-                    ]
-                    .spacing(t::S12)
-                    .align_y(Center),
-                )
-                .on_press(Msg::Open(Dialog::Profile(id)))
-                .width(Fill)
-                .height(t::MEMBER_ROW)
-                .padding(t::S4)
-                .style(t::navigation(false)),
-            );
-        }
-    }
-    if app.state.member_after.is_some() {
-        list = list.push(action("More members", Msg::MoreMembers).style(t::link));
-    }
-    container(scroller(list).height(Fill))
-        .width(t::MEMBERS)
-        .height(Fill)
-        .padding([t::S8, t::S16])
-        .style(t::sidebar)
-        .into()
+    members::view(app, channel)
 }
 fn message_skeleton<'a>(height: f32) -> Element<'a, Msg> {
     let bar = |width| {
@@ -1751,36 +1244,60 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
             .messages
             .get(&m.channel_id)
             .and_then(|ms| ms.get(&reply));
-        let line = row![
-            icon("reply", t::INLINE_ICON, t::TEXT_MUTED),
-            avatar(
-                app,
-                target.map_or(Id(1), |m| m.author_id),
-                t::TINY_AVATAR,
-                false
-            ),
-            hint(target.map_or(
-                "Original message deleted or unavailable".into(),
-                |v| format!(
-                    "{}  {}",
-                    app.state.model.name(v.author_id),
-                    ellipsis(&app.state.model.content(v), 70)
-                )
-            ))
-        ]
-        .spacing(t::S8)
-        .align_y(Center);
-        content = content.push(
-            button(line)
-                .on_press(Msg::PreviewReply(reply))
-                .padding(0)
-                .style(t::icon),
-        );
+        let mut line = row![icon("reply", t::INLINE_ICON, t::TEXT_MUTED)]
+            .spacing(t::S8)
+            .align_y(Center);
+        if let Some(target) = target {
+            line = line
+                .push(link_context::wrap(
+                    button(avatar(app, target.author_id, t::TINY_AVATAR, false))
+                        .on_press(controls::profile_message(target.author_id))
+                        .padding(0)
+                        .style(t::icon),
+                ))
+                .push(link_context::wrap(
+                    button(
+                        hint(ellipsis(&app.state.model.name(target.author_id), 20))
+                            .color(controls::name_color(app, target.author_id)),
+                    )
+                    .on_press(controls::profile_message(target.author_id))
+                    .padding(0)
+                    .style(t::icon),
+                ))
+                .push(
+                    button(hint(ellipsis(
+                        &app.state.model.content(target),
+                        ((app.viewport_w - t::MESSAGE_GUTTER - t::S32 * 5.) / t::GLYPH_WIDTH)
+                            .clamp(16., 70.) as usize,
+                    )))
+                    .on_press(Msg::PreviewReply(reply))
+                    .padding(0)
+                    .style(t::icon),
+                );
+        } else {
+            line = line.push(
+                button(hint("Original message deleted or unavailable"))
+                    .on_press(Msg::PreviewReply(reply))
+                    .padding(0)
+                    .style(t::icon),
+            );
+        }
+        content = content.push(line);
     }
     if !grouped {
         content = content.push(
             row![
-                txt(app.state.model.name(m.author_id)).font(t::semibold()),
+                link_context::wrap(
+                    button(
+                        txt(app.state.model.name(m.author_id))
+                            .font(t::medium())
+                            .size(t::CHANNEL_NAME)
+                            .color(controls::name_color(app, m.author_id))
+                    )
+                    .on_press(controls::profile_message(m.author_id))
+                    .padding(0)
+                    .style(t::icon)
+                ),
                 hint(timestamp(m.created_at, false))
             ]
             .spacing(t::S8)
@@ -1900,11 +1417,12 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
         .style(t::bare)
         .into()
     } else {
-        button(avatar(app, m.author_id, t::AVATAR, false))
-            .on_press(Msg::Open(Dialog::Profile(m.author_id)))
-            .padding(0)
-            .style(t::icon)
-            .into()
+        link_context::wrap(
+            button(avatar(app, m.author_id, t::AVATAR, false))
+                .on_press(Msg::Open(Dialog::Profile(m.author_id)))
+                .padding(0)
+                .style(t::icon),
+        )
     };
     let (date, new) = app.row_decorations(m);
     let top = if grouped { t::CONTINUATION } else { t::S16 };
@@ -1940,7 +1458,10 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
         if Some(m.author_id) == app.me() {
             tools = tools.push(message_tool("pencil", "Edit", Msg::Edit(m.id)));
         }
-        if Some(m.author_id) == app.me() || app.permissions().contains(Permissions::MANAGE_MESSAGES)
+        if Some(m.author_id) == app.me()
+            || app
+                .channel_permissions(m.channel_id)
+                .contains(Permissions::MANAGE_MESSAGES)
         {
             tools = tools.push(message_tool(
                 "trash-2",
@@ -1984,11 +1505,12 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
             .into(),
         );
     }
-    let message: Element<'_, Msg> = mouse_area(stack(layers))
-        .on_enter(Msg::Hover(Some(m.id)))
-        .on_exit(Msg::HoverLeave(m.id))
-        .on_right_press(Msg::Open(Dialog::MessageActions(m.id)))
-        .into();
+    let message: Element<'_, Msg> = observe::anchor(
+        mouse_area(stack(layers))
+            .on_enter(Msg::Hover(Some(m.id)))
+            .on_exit(Msg::HoverLeave(m.id))
+            .on_right_press(Msg::Open(Dialog::MessageActions(m.id))),
+    );
     let mut full = column![].spacing(0);
     if date {
         full = full.push(
@@ -2032,25 +1554,29 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
     let width = app.viewport_w.to_bits();
     let seq = app.row_revision(m);
     let editing = app.state.editing == Some(id);
-    widget::sensor(full.push(message))
-        .key((id, generation, width, seq, editing))
-        .on_show(move |size| Msg::Measured {
-            message: id,
-            generation,
-            width,
-            seq,
-            editing,
-            height: size.height,
-        })
-        .on_resize(move |size| Msg::Measured {
-            message: id,
-            generation,
-            width,
-            seq,
-            editing,
-            height: size.height,
-        })
-        .into()
+    widget::sensor(
+        container(full.push(message))
+            .id(format!("message-{}", id.0))
+            .width(Fill),
+    )
+    .key((id, generation, width, seq, editing))
+    .on_show(move |size| Msg::Measured {
+        message: id,
+        generation,
+        width,
+        seq,
+        editing,
+        height: size.height,
+    })
+    .on_resize(move |size| Msg::Measured {
+        message: id,
+        generation,
+        width,
+        seq,
+        editing,
+        height: size.height,
+    })
+    .into()
 }
 fn thumb_size(a: &Attachment) -> (f32, f32) {
     if let Some(thumb) = &a.thumbnail {
@@ -2074,6 +1600,7 @@ fn timestamp(ms: u64, short: bool) -> String {
 enum RichLink {
     Url(String, bool),
     Spoiler(Id, usize),
+    Profile(Id),
 }
 fn inline_content<'a>(
     app: &App,
@@ -2122,8 +1649,9 @@ fn inline_content<'a>(
                     label = format!("@{}", app.state.model.name(*id));
                     span = widget::span(label)
                         .font(font)
-                        .color(t::ACCENT)
-                        .background(t::alpha(t::ACCENT, 0.15))
+                        .color(controls::mention_color(app, *id))
+                        .link(RichLink::Profile(*id))
+                        .background(t::alpha(controls::mention_color(app, *id), 0.20))
                         .border(Border {
                             radius: t::S4.into(),
                             ..Default::default()
@@ -2145,17 +1673,19 @@ fn inline_content<'a>(
         }
         spans.push(span);
     }
-    widget::rich_text(spans)
-        .font(t::regular())
-        .size(size)
-        .line_height(t::LINE)
-        .style(t::primary_text)
-        .on_link_click(|link| match link {
-            RichLink::Url(url, true) => Msg::Link(url),
-            RichLink::Url(url, false) => Msg::OpenLink(url),
-            RichLink::Spoiler(id, i) => Msg::Reveal(id, i),
-        })
-        .into()
+    link_context::wrap(
+        widget::rich_text(spans)
+            .font(t::regular())
+            .size(size)
+            .line_height(t::LINE)
+            .style(t::primary_text)
+            .on_link_click(|link| match link {
+                RichLink::Url(url, true) => Msg::Link(url),
+                RichLink::Url(url, false) => Msg::OpenLink(url),
+                RichLink::Spoiler(id, i) => Msg::Reveal(id, i),
+                RichLink::Profile(id) => controls::profile_message(id),
+            }),
+    )
 }
 fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
     use crate::markdown::Block;
@@ -2241,28 +1771,12 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
     app.message_layouts.wrap(m.id, hash.finish(), body.into())
 }
 fn menu_item<'a>(name: &str, label: &str, message: Msg, danger: bool) -> Element<'a, Msg> {
-    button(
-        row![
-            icon(
-                name,
-                t::INLINE_ICON,
-                if danger { t::DANGER } else { t::TEXT_SECONDARY }
-            ),
-            txt(label.to_owned())
-                .color(if danger { t::DANGER } else { t::TEXT_PRIMARY })
-                .width(Fill)
-        ]
-        .spacing(t::S12)
-        .align_y(Center),
-    )
-    .on_press(message)
-    .height(t::ROW)
-    .width(Fill)
-    .padding([t::S4, t::S8])
-    .style(t::navigation(false))
-    .into()
+    controls::item(label, name, message, danger)
 }
 fn context_menu(app: &App) -> Element<'_, Msg> {
+    if matches!(app.dialog, Dialog::GuildMenu) {
+        return menus::server(app);
+    }
     let mut items = Column::new().spacing(t::S4);
     match &app.dialog {
         Dialog::GuildMenu => {
@@ -2335,6 +1849,39 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
                     if Some(m.author_id) == app.me() {
                         items = items.push(menu_item("pencil", "Edit", Msg::Edit(*id), false));
                     }
+                    if app
+                        .channel_permissions(channel_id)
+                        .contains(Permissions::MANAGE_MESSAGES)
+                    {
+                        let pinned = app
+                            .state
+                            .model
+                            .launch
+                            .pins
+                            .get(&channel_id)
+                            .is_some_and(|pins| pins.iter().any(|m| m.id == *id));
+                        items = items.push(controls::item(
+                            if pinned {
+                                "Unpin Message"
+                            } else {
+                                "Pin Message"
+                            },
+                            "pin",
+                            crate::main_window::mm(crate::main_window::Message::Pin(
+                                channel_id, *id, !pinned,
+                            )),
+                            false,
+                        ));
+                    }
+                    if app.main.developer {
+                        items = items.push(controls::item(
+                            "Copy ID",
+                            "copy",
+                            Msg::Copy(id.0.to_string()),
+                            false,
+                        ));
+                    }
+
                     items = items.push(menu_item(
                         "copy",
                         "Copy Text",
@@ -2360,7 +1907,9 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
                             false,
                         ));
                     if Some(m.author_id) == app.me()
-                        || app.permissions().contains(Permissions::MANAGE_MESSAGES)
+                        || app
+                            .channel_permissions(channel_id)
+                            .contains(Permissions::MANAGE_MESSAGES)
                     {
                         items = items.push(line()).push(menu_item(
                             "trash-2",
@@ -2417,11 +1966,7 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
         _ => {}
     }
 
-    container(items)
-        .padding(t::S8)
-        .width(t::CONTEXT_W)
-        .style(t::elevated)
-        .into()
+    menus::card(items)
 }
 fn modal(app: &App) -> Element<'_, Msg> {
     if matches!(app.dialog, Dialog::GuildSettings(_) | Dialog::UserSettings) {
