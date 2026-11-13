@@ -1,0 +1,124 @@
+{
+  "revision": "5470c80f88a389066a73",
+  "raw": 2609329,
+  "compressed": 676346,
+  "firstLoadBytes": 669234,
+  "firstLoadMeaning": "Complete installable shell cache, not cold-login network transfer",
+  "assets": [
+    {
+      "file": "boot-c066202c08c28b10f232.css",
+      "bytes": 124,
+      "brotli": 90
+    },
+    {
+      "file": "bootstrap-7290cbf7e9f6c39a0f17.js",
+      "bytes": 3456,
+      "brotli": 1204
+    },
+    {
+      "file": "index.html",
+      "bytes": 2387,
+      "brotli": 784
+    },
+    {
+      "file": "live-ea4884973c7d9faa.css",
+      "bytes": 19662,
+      "brotli": 3629
+    },
+    {
+      "file": "public/fonts/Inter-Medium.woff2",
+      "bytes": 18568,
+      "brotli": 18563
+    },
+    {
+      "file": "public/fonts/Inter-OFL.txt",
+      "bytes": 4380,
+      "brotli": 1419
+    },
+    {
+      "file": "public/fonts/Inter-Regular.woff2",
+      "bytes": 18264,
+      "brotli": 18250
+    },
+    {
+      "file": "public/fonts/Inter-SemiBold.woff2",
+      "bytes": 18656,
+      "brotli": 18660
+    },
+    {
+      "file": "public/fonts/JetBrainsMono-OFL.txt",
+      "bytes": 4399,
+      "brotli": 1413
+    },
+    {
+      "file": "public/fonts/JetBrainsMono-Regular.woff2",
+      "bytes": 28656,
+      "brotli": 28660
+    },
+    {
+      "file": "public/google-g.svg",
+      "bytes": 7483,
+      "brotli": 5621
+    },
+    {
+      "file": "public/icons/apple-touch-icon.png",
+      "bytes": 4779,
+      "brotli": 4689
+    },
+    {
+      "file": "public/icons/icon-192.png",
+      "bytes": 5072,
+      "brotli": 4947
+    },
+    {
+      "file": "public/icons/icon-512.png",
+      "bytes": 12256,
+      "brotli": 11357
+    },
+    {
+      "file": "public/icons/LICENSE",
+      "bytes": 3208,
+      "brotli": 1146
+    },
+    {
+      "file": "public/icons/maskable-512.png",
+      "bytes": 12256,
+      "brotli": 11357
+    },
+    {
+      "file": "public/live.js",
+      "bytes": 14957,
+      "brotli": 3843
+    },
+    {
+      "file": "public/manifest.webmanifest",
+      "bytes": 638,
+      "brotli": 239
+    },
+    {
+      "file": "public/media.js",
+      "bytes": 24180,
+      "brotli": 6036
+    },
+    {
+      "file": "public/push.js",
+      "bytes": 1424,
+      "brotli": 583
+    },
+    {
+      "file": "sticktalk-web-2992444879860484_bg.wasm",
+      "bytes": 2354735,
+      "brotli": 526282
+    },
+    {
+      "file": "sticktalk-web-a5e69f688320f169.js",
+      "bytes": 49012,
+      "brotli": 7213
+    },
+    {
+      "file": "ui-tokens-500c88b5b36ff764fdd6.css",
+      "bytes": 777,
+      "brotli": 361
+    }
+  ]
+}

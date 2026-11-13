@@ -4319,3 +4319,11 @@ textarea {
   width: 100%;
   height: auto;
 }
+
+/* Lead review: AA contrast, phone channel chrome and call layout. */
+:root { --text-muted: #A0A0AA; }
+.participant-tile .presence { display: none; }
+.voice-view .participant-grid { flex: 1; min-height: 0; grid-auto-rows: minmax(180px,1fr); }
+.offline-member { opacity: 1; }
+.badge.count,.badge.server-count,.badge.live { color: #08170F; }
+@media(max-width:767px) { #sticktalk[data-screen=chat] .bottom-tabs,#sticktalk[data-screen=dm] .bottom-tabs,#sticktalk[data-screen=voice] .bottom-tabs { display:none; } #sticktalk[data-screen=chat] .app-shell,#sticktalk[data-screen=dm] .app-shell,#sticktalk[data-screen=voice] .app-shell { padding-bottom:env(safe-area-inset-bottom); } .channel-header > .icon { display:block; } }

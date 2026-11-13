@@ -5,8 +5,24 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+default = []
+# Screenshot fixtures are excluded from the production WASM. Also requires ?mock.
+mock = []
+
 [dependencies]
+sticktalk-client-core = { path = "../client-core", features = ["web"] }
+sticktalk-proto.workspace = true
+sticktalk-emoji = { path = "../emoji" }
+serde.workspace = true
+serde_json.workspace = true
+rmp-serde.workspace = true
+futures-channel = "0.3"
+futures-util = { version = "0.3", features = ["sink"] }
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+sha2 = "0.10"
 leptos = { version = "0.8.20", features = ["csr"] }
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "Event", "CustomEvent", "CustomEventInit", "Location", "KeyboardEvent"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlTextAreaElement", "Event", "CustomEvent", "CustomEventInit", "Location", "KeyboardEvent", "Blob", "File", "FileList", "HtmlSelectElement", "Navigator"] }

@@ -93,7 +93,7 @@ try {
     const page = await context.newPage();
     page.on("pageerror", (e) => errors.push(e.stack));
     for (const [name, query] of cases) {
-      await page.goto(`${base}/?${query}`);
+      await page.goto(`${base}/?mock&${query}`);
       await ready(page);
       // Encoded fixture route values are exercised by actions as a real user does.
       if (name === "server-menu") {
@@ -111,7 +111,7 @@ try {
     }
     if (w < 768) {
       for (const panel of ["left", "right"]) {
-        await page.goto(base);
+        await page.goto(base + "/?mock");
         await ready(page);
         await page
           .getByRole("button", {
@@ -122,7 +122,7 @@ try {
         await page.waitForTimeout(280);
         await capture(page, `phone-${panel}-panel`, w, h);
       }
-      await page.goto(base);
+      await page.goto(base + "/?mock");
       await ready(page);
       // Real CDP touch down held for >500 ms exercises long-press, not a fixture route.
       const cdp = await context.newCDPSession(page);
@@ -138,7 +138,7 @@ try {
       });
       await page.getByRole("dialog", { name: "Message Actions" }).waitFor();
       await capture(page, "phone-long-press", w, h);
-      await page.goto(base);
+      await page.goto(base + "/?mock");
       await ready(page);
       // Headless Chromium has no OS IME. Emulate the visualViewport resize contract
       // and draw a clearly labeled test keyboard, never open an OS keyboard/window.
@@ -183,7 +183,7 @@ try {
       assert(rect.y + rect.height <= h - 300, "composer above keyboard");
       await capture(page, "phone-keyboard-open", w, h);
       // Verify swipe physics settle to the correct panel without animation loops.
-      await page.goto(base);
+      await page.goto(base + "/?mock");
       await ready(page);
       await cdp.send("Input.dispatchTouchEvent", {
         type: "touchStart",
@@ -207,7 +207,7 @@ try {
   });
   const page = await context.newPage();
   page.on("pageerror", (e) => errors.push(e.stack));
-  await page.goto(base);
+  await page.goto(base + "/?mock");
   await ready(page);
   // Visible-window bound, top/bottom spacers and fixed-height history correctness.
   await page.locator("#messages").evaluate((e) => {
@@ -239,7 +239,7 @@ try {
     await page.locator(".channel-header h1").textContent(),
     "projects",
   );
-  await page.goto(base + "/?screen=role-editor");
+  await page.goto(base + "/?mock&screen=role-editor");
   await ready(page);
   await page
     .getByRole("switch", { name: /Display role members separately/ })
@@ -252,16 +252,16 @@ try {
   );
   await page.getByRole("button", { name: "Save Changes", exact: true }).click();
   await page.getByRole("status").waitFor();
-  await page.goto(base + "/?modal=delete-server");
+  await page.goto(base + "/?mock&modal=delete-server");
   await ready(page);
   assert(await page.locator("[data-confirm]").isDisabled());
   await page.locator("#confirm-server").fill("The Den");
   assert(!(await page.locator("[data-confirm]").isDisabled()));
-  await page.goto(base + "/?screen=login");
+  await page.goto(base + "/?mock&screen=login");
   await ready(page);
   await page.getByRole("button", { name: "Log In", exact: true }).click();
   assert(await page.locator("#auth-error").isVisible());
-  await page.goto(base);
+  await page.goto(base + "/?mock");
   await ready(page);
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
@@ -290,7 +290,7 @@ try {
     viewport: { width: 390, height: 844 },
   });
   const coldPage = await coldContext.newPage();
-  await coldPage.goto(base);
+  await coldPage.goto(base + "/?mock");
   await ready(coldPage);
   await coldPage.evaluate(() => navigator.serviceWorker.ready);
   const firstLoad = await (await fetch(base + "/__metrics")).json();

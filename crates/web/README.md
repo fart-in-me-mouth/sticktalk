@@ -1,98 +1,133 @@
-# StickTalk web shell
+# StickTalk web / phone client
 
-Leptos 0.8 CSR / wasm32, built with Trunk, in the shared root workspace and
-lockfile. Its dedicated `web-release` size profile lives in the root manifest without
-changing native profiles. It remains a fixture shell and does
-not yet depend on `client` / `client-core`; live adapter wiring is follow-up work.
+Leptos CSR with `sticktalk-client-core`'s **web** adapters and bounded shared
+model. The default build connects to the real same-origin StickTalk server.
+**This is a working live-client foundation, not completion of every launch flow.**
+See [live QA and remaining work](screenshots/live/REPORT.md).
 
-## Build and test (PowerShell, per-user tools only)
+## Runtime boundary
+
+- `src/live/`: cookie session recovery/login/register/Google completion; one binary
+  MessagePack WebSocket; typed protocol commands; heartbeat deadlines, jittered
+  reconnect and bounded nonce correlation. Identify has an empty bearer token and
+  opts into launch events. Focus follows document visibility/focus.
+- `CookieFetch` adds **X-StickTalk-CSRF** to unsafe requests. It wraps core `Fetch`
+  without its obsolete `X-CSRF-Token` option. Same-origin cookies, response limits,
+  timeouts and fetch cancellation remain core-owned. No bearer credential is
+  exposed to script, URLs or localStorage.
+- Core `Model` owns event ordering, snapshot reconciliation, message/cache bounds,
+  unread state and names. Core markdown renders escaped DOM text, not untrusted
+  HTML. Browser launch projections add roles, devices and notification settings.
+- History uses the real count/anchors endpoint and around-message seeks, estimated
+  extent spacers and at most 50 rendered messages. A newer navigation aborts the
+  previous fetch, including its browser AbortController.
+- Uploads hash 64 KiB `Blob.slice` reads and send one bounded protocol chunk at a
+  time. SessionStorage stores only nonsecret upload ID/hash metadata. Selecting
+  the same file validates its digest and resumes the server offset. Cancel pauses
+  between chunks; completed uploads are retained for their original channel.
+- `public/live.js`: DOM/focus/draft/visualViewport/gesture adapter.
+- `public/media.js`: dynamically imported only for calls/device settings. One SFU
+  RTCPeerConnection; Opus plus H.264; complete offers, recvonly subscriptions,
+  camera/display capture, mute/deafen, RTP speaking state and active-call-only
+  local level measurements. Answer normalization supports the SFU's dynamic forwarding
+  SSRCs while retaining fingerprints/MIDs. Tracks, timers and peer state stop on leave/WS loss.
+  Microphone constraints enable echo cancellation, noise suppression and AGC.
+  Device pickers use enumerateDevices/devicechange; output uses setSinkId when
+  supported. Desktop display capture offers 15/30/60 fps and 720/1080/1440p ideals.
+- `public/push.js` is also lazy. Permission is requested only from the explainer's
+  button handler. The generated service worker caches only an app-shell allowlist,
+  never API/account content; its push handler uses generic lock-screen text and
+  validates same-origin deep links without rounding Snowflake IDs.
+- `public/boot.js` provides a real progressive login form. The packager injects
+  dynamic WASM startup only after successful login, session recovery or Google
+  completion. This improves **login** TTI; it does not prove cold chat TTI.
+
+## Design changes requested by the lead
+
+`text.muted`: **#74747C -> #A0A0AA** in the generated web token sheet (the only
+explicit UI_SPEC token override). Contrast is 5.21:1 on bg.selected and 5.81:1
+on bg.elevated. Very dark custom role-name colors are lightened for AA legibility;
+the saved role swatch stays exact. Call tiles have no presence dots, speaking uses
+an accent ring, controls sit at the bottom, and the sidebar has camera/share/leave.
+Phone conversations have no bottom tabs and retain the header's # icon.
+
+Fonts preload and use font-display: swap. Production critical CSS is `live.css`;
+the much larger fixture stylesheet and media/push modules are not on the login
+critical path. Heavy Rust settings/picker code is **not yet split out of WASM**.
+
+## Build and validate (PowerShell)
+
+Use exactly one task target directory outside OneDrive, and delete it after QA.
+Trunk, wasm-bindgen matching Cargo.lock, wasm-opt, Rust's wasm32 target, Node and
+headless Playwright Chromium must be available per-user; no admin install needed.
 
 ```powershell
-# Reuse the ONE target directory already chosen for the whole task.
-if (!$env:CARGO_TARGET_DIR) { throw 'Set the task-wide CARGO_TARGET_DIR first' }
+$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-web-live'
 $env:TRUNK_BUILD_DIST = Join-Path $env:CARGO_TARGET_DIR 'web-dist'
+$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $env:CARGO_TARGET_DIR 'browsers'
+$env:CARGO_INCREMENTAL = '0'
 $env:CARGO_PROFILE_DEV_DEBUG = '0'
 $env:CARGO_PROFILE_TEST_DEBUG = '0'
-$env:CARGO_INCREMENTAL = '0'
 cd crates/web
-rustup target add wasm32-unknown-unknown
-trunk build --release --cargo-profile web-release
-cargo test
-cargo clippy --all-targets -- -D warnings
-cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings
-cargo fmt --all -- --check
 npm ci
-npx playwright install chromium
-npm test
+trunk --skip-version-check build --release --cargo-profile web-release
 cargo build -p sticktalk-server
-$env:STICKTALK_SERVER_EXE = Join-Path $env:CARGO_TARGET_DIR "debug/sticktalk-server.exe"
+$env:STICKTALK_SERVER_EXE = Join-Path $env:CARGO_TARGET_DIR 'debug/sticktalk-server.exe'
+npx playwright install chromium
+cargo test -p sticktalk-web
+cargo clippy -p sticktalk-web --all-targets -- -D warnings
+cargo clippy -p sticktalk-web --target wasm32-unknown-unknown --all-targets -- -D warnings
+cargo fmt --all -- --check
+npm test
 npm run test:server
 npm run audit
+npm run test:idle
+npm audit --audit-level=high
 ```
 
-Do not use `trunk serve` with a wildcard address. The included test server binds
-**127.0.0.1 only**. Both proof scripts launch headless Chromium, mute audio,
-disable notifications, close their browser and stop their own server. Lighthouse
-uses a loopback-only debugging address. Nothing requests elevation, media access,
-Google OAuth, push permission, or an OS window.
+All QA servers and remote debugging bind to 127.0.0.1. Tests launch **headless**
+browsers, mute OS audio, disable real notifications, use fake media devices/UI,
+and close processes/temporary profiles. The extra Chromium loopback-ICE flag is
+necessary for a loopback-only SFU; no external STUN/TURN is used. Push permission
+and PushManager are mocked in browser QA; the subscription REST endpoint is real.
+Provider delivery, actual OS notifications and real Google are never launched.
 
-`dist/` is deployable at the server's HTTPS origin root. Serve `.wasm` as
-`application/wasm`; negotiate adjacent `.br` files with `Content-Encoding: br`
-and `Vary: Accept-Encoding`. Do not cache `index.html` / `sw.js` indefinitely.
-The post-build hook creates a SHA-256-revisioned app-shell service worker and a
-size inventory. Its allowlist never intercepts `/api/`, non-GETs, or other origins.
-Old StickTalk shell caches are deleted on activation. Offline launch shows
-“Reconnecting…”. No account or message payloads are stored by the worker.
+`npm test` runs the pure service-worker contract and real-server two-browser flow.
+It writes login/chat/call screenshots at 1440x900, 390x844, 412x915 and 820x1180,
+plus RTP evidence. `npm run audit` separately measures progressive login and cold
+authenticated chat with current Lighthouse. `sizes.json` is a full bundle/cache
+inventory; its firstLoadBytes field is **not** a cold-login transfer measurement.
 
-## Adapter boundary
+## Opt-in screenshot fixtures
 
-- `src/model.rs`: local `AppVm`, `PersonVm`, `MessageVm`, `RoleVm`, fixture data,
-  local action reducer, markdown sanitization, and bounded history-window math.
-- `src/components.rs`: stateless DOM primitives.
-- `src/views/`: pure view functions of local models; only the message viewport
-  has independent scroll-window state. At most the visible history plus ten rows
-  on either side are mounted, along with the eight rich fixture tail messages.
-- `public/platform.js`: DOM-event adapter (actions, touch gestures, long press,
-  visualViewport, focus, keyboard shortcuts, file-drop preview, PWA registration).
-  Only one-shot long-press/toast deadlines and idle service-worker startup; no animation frames,
-  polling, audio, notifications, browser launching, or remote requests.
-- `scripts/finalize.mjs`: derives CSS properties directly from `docs/UI_SPEC.md`,
-  externalizes Trunk bootstrap/boot styles, and hashes all generated assets for
-  the strict same-origin script/style-element CSP. Dynamic style attributes are
-  the only inline-style exception (avatar colors and virtual spacer heights).
-- `scripts/assets.py`: rebuilds WOFF2 Latin/punctuation subsets from the native
-  assets, Lucide inline symbols from native/vendored SVGs, and the simple PWA
-  mark. Requires Python fontTools, Brotli and Pillow; no network access.
+Production WASM excludes fixture modules. The packager also removes fixture
+images, emoji PNGs, fixture JS and its stylesheet. To run historical visual tests:
 
-Replace fixture construction with client-core conversion, then translate local
-actions into core commands. No view should acquire a socket or deserialize wire
-messages. The markdown renderer rejects raw HTML, unsafe URLs and remote images;
-mentions are inserted only into text nodes, never link attributes or code.
+```powershell
+$env:STICKTALK_WEB_MOCK = '1'
+trunk --skip-version-check build --release --cargo-profile web-release --features mock
+npm run test:mock
+```
 
-## Proof and scope
+The fixture build still requires `?mock`; all other URLs use the live app. Clear
+STICKTALK_WEB_MOCK and rebuild without --features mock before deployment. Old
+root screenshots/reports are historical fixture baselines, not live-flow proof.
 
-`npm test` writes each screen at 1440×900, 390×844, 412×915 and 820×1180 to
-`screenshots/`. It also covers both phone panels, CDP long-press and swipe,
-keyboard-resize handling, scrolling bounds, sending a local message, Quick
-Switcher, role editing, confirmation guards, auth errors, and offline reload.
-The keyboard PNGs use a **labeled emulated keyboard and visualViewport resize**:
-headless Chromium cannot show or certify a real iOS/Android OS keyboard.
+## Known remaining launch work
 
-`npm run audit` records current Lighthouse mobile/desktop performance and
-accessibility, plus Lighthouse **11.7.1**'s PWA category separately (removed from
-Lighthouse 12). Scores are lab measurements on this PC, not physical-phone or
-4G/60-fps certification. See `screenshots/REPORT.md` for final numbers and gaps.
-
-This is a **fixture UI shell**, not a connected client. Authentication, real
-message persistence, uploads/downloads, GIF search, sessions, media/WebRTC,
-notifications/Web Push and server permissions are not connected. Account and
-server mutations are local previews. No account credentials leave the page.
-
-Visual limitations dictated by the authoritative spec: the muted token,
-white-on-danger small badges, and 30%-opacity offline rows fail WCAG text
-contrast; they are retained rather than silently replacing owner-approved tokens.
-Settings and long content scroll natively. All screen motion uses CSS transforms
-and one-shot transitions; reduced-motion disables them.
-
-Fonts are Inter and JetBrains Mono (OFL). Icons are Lucide (ISC/MIT); reaction
-images are Twemoji (CC-BY 4.0). License copies ship with the static assets.
+- Full Phase 1 administration/group-DM/invite-management flows and all native
+  settings/profile/avatar interactions are not yet exposed in the live UI.
+- Settings are compact functional dialogs, not the complete two-pane parity
+  layouts. Role reorder, complete member/message grouping, mention autocomplete,
+  complete picker UX, rich GIF
+  embeds/favorites/categories and the full image-viewer toolbar remain.
+- Proxy GIF search is wired; direct KLIPY metadata requests are intentionally not
+  attempted because the server's browser CSP only permits same-origin connect-src.
+  Direct mode needs a coordinated server CSP/provider-policy change.
+- Google redirect/completion is wired and capability-gated, but this work has not
+  rerun mock OAuth end-to-end. Screen capture options are implemented but not
+  certified by a headless display-capture test. Real phone/Safari behavior, external
+  push delivery, offline/version-upgrade behavior, network impairment and large-call
+  quality need separate validation.
+- Real WASM screen splitting and the <2 s **cold authenticated chat** target remain;
+  do not confuse the progressive login result with completion of that requirement.

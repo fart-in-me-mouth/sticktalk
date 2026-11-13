@@ -48,10 +48,10 @@ try {
   const csp = response.headers()["content-security-policy"];
   assert(csp.includes("script-src 'self' 'wasm-unsafe-eval';"));
   assert(csp.includes("style-src 'self'; style-src-attr 'unsafe-inline';"));
-  await page.waitForSelector("#sticktalk");
+  await page.waitForSelector(".auth-card");
   await page.evaluate(() => document.fonts.ready);
   assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim().toUpperCase()), "#3DDC97");
-  assert(await page.evaluate(() => getComputedStyle(document.querySelector(".avatar")).getPropertyValue("--avatar-color").trim()));
+  assert(await page.locator("#auth-username").isVisible());
   assert.deepEqual(await page.evaluate(() => window.__cspViolations), [], "no application CSP violations");
   assert.deepEqual(errors, []);
   await page.evaluate(() => {

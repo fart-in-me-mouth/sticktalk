@@ -1,1 +1,18 @@
-{"private":true,"type":"module","scripts":{"test":"node tests/browser.mjs","audit":"node tests/audit.mjs","serve":"node scripts/serve.mjs","test:server":"node tests/server-smoke.mjs"},"devDependencies":{"lighthouse":"^12.8.2","lighthouse-pwa":"npm:lighthouse@^11.7.1","playwright":"^1.56.1"}}
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/platform.mjs && node tests/live.mjs",
+    "audit": "node tests/audit.mjs",
+    "serve": "node scripts/serve.mjs",
+    "test:server": "node tests/server-smoke.mjs",
+    "test:live": "node tests/live.mjs",
+    "test:platform": "node tests/platform.mjs",
+    "test:mock": "node tests/browser.mjs",
+    "test:idle": "node tests/idle.mjs"
+  },
+  "devDependencies": {
+    "lighthouse": "^13.6.0",
+    "playwright": "^1.65.0"
+  }
+}

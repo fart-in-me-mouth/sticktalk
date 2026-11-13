@@ -1,0 +1,55 @@
+{
+  "bundleRevision": "5470c80f88a389066a73",
+  "headless": true,
+  "realServer": true,
+  "view": "Authenticated empty Friends screen; voice/video inactive",
+  "sampleMs": 60006.4437,
+  "cpuPercentOfOneLogicalCore": 0.07221057827827915,
+  "blank": {
+    "processes": [
+      {
+        "id": 19716,
+        "type": "browser"
+      },
+      {
+        "id": 13380,
+        "type": "renderer"
+      },
+      {
+        "id": 27380,
+        "type": "GPU"
+      },
+      {
+        "id": 28496,
+        "type": "network.mojom.NetworkService"
+      }
+    ],
+    "workingSetBytes": 192577536,
+    "privateBytes": 80887808
+  },
+  "authenticated": {
+    "processes": [
+      {
+        "id": 19716,
+        "type": "browser"
+      },
+      {
+        "id": 13380,
+        "type": "renderer"
+      },
+      {
+        "id": 27380,
+        "type": "GPU"
+      },
+      {
+        "id": 28496,
+        "type": "network.mojom.NetworkService"
+      }
+    ],
+    "workingSetBytes": 497623040,
+    "privateBytes": 121884672
+  },
+  "deltaPrivateBytes": 40996864,
+  "deltaWorkingSetBytes": 305045504,
+  "note": "Whole separate headless Chromium process-tree totals; working-set sum double-counts shared pages. Not native-client or physical-phone memory."
+}
