@@ -68,6 +68,7 @@ fn main() -> iced::Result {
         .executor::<platform_glue::Executor>()
         .title("StickTalk")
         .theme(theme::theme)
+        .scale_factor(|_| agent_window::scale_factor())
         .subscription(app::App::subscription)
         .window(iced::window::Settings {
             size: window_size(),

@@ -253,7 +253,37 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         content = content.push(container(hint("Loading GIFs…")).padding(t::S16));
     }
     if !s.error.is_empty() {
-        content = content.push(hint(&s.error).color(t::DANGER));
+        content = content.push(
+            container(
+                column![
+                    icon("circle-help", t::S32, t::DANGER),
+                    txt(&s.error).color(t::DANGER),
+                    action("Try again", Msg::feature(Event::GifSearch(s.query.clone())))
+                ]
+                .spacing(t::S16)
+                .align_x(Center),
+            )
+            .center_x(Fill)
+            .padding(t::S24),
+        );
+    } else if !s.tab && !s.query.is_empty() && s.items.is_empty() && !s.loading {
+        content = content.push(
+            container(
+                column![
+                    icon("search", t::S32, t::TEXT_SECONDARY),
+                    txt("No GIFs found"),
+                    hint("Try a different word.").color(t::TEXT_SECONDARY),
+                    action(
+                        "Clear search",
+                        Msg::feature(Event::GifSearch(String::new()))
+                    )
+                ]
+                .spacing(t::S16)
+                .align_x(Center),
+            )
+            .center_x(Fill)
+            .padding(t::S24),
+        );
     }
     if s.tab && s.favorite_items.is_empty() && !s.loading {
         content = content.push(
@@ -282,7 +312,10 @@ pub fn view(app: &App) -> Element<'_, Msg> {
                 .style(t::input),
             scroller(content)
                 .id("gif-results")
-                .height(t::GIF_VIEWPORT_H)
+                .height(
+                    (app.height - t::ATTACHMENT_CARD - t::S24 - t::S8 - t::S32 * 6.)
+                        .clamp(t::S32 * 4., t::GIF_VIEWPORT_H)
+                )
                 .on_scroll(|v| Msg::feature(Event::GifScroll(
                     v.relative_offset().y,
                     v.absolute_offset().y

@@ -120,6 +120,8 @@ fn cell(e: Emoji, s: &State) -> Element<'static, Msg> {
 }
 pub fn view(app: &App) -> Element<'_, Msg> {
     let s = &app.features.emoji;
+    let body_height = (app.height - t::ATTACHMENT_CARD - t::S24 - t::S8 - t::S32 * 7.)
+        .clamp(t::S32 * 6., t::S32 * 10. - t::S4);
     let mut tabs = column![].spacing(t::S4);
     for (i, (category, icon_name)) in data::categories()
         .iter()
@@ -170,6 +172,21 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         grid = grid.push(container(line).height(row_h));
     }
     grid = grid.push(space().height((count - end) as f32 * row_h));
+    if count == 0 {
+        grid = grid.push(
+            container(
+                column![
+                    icon("search", t::S32, t::TEXT_SECONDARY),
+                    txt("No emoji found"),
+                    hint("Try another word or shortcode.").color(t::TEXT_SECONDARY)
+                ]
+                .spacing(t::S12)
+                .align_x(Center),
+            )
+            .center_x(Fill)
+            .padding(t::S16),
+        );
+    }
     let mut frequent = Row::new().spacing(t::S4);
     let defaults = [
         "joy", "heart", "thumbsup", "fire", "tada", "eyes", "wave", "sparkles",
@@ -235,7 +252,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
                 .size(t::BODY)
                 .style(t::input),
             row![
-                tabs,
+                scroller(tabs).height(body_height),
                 column![
                     section("FREQUENTLY USED"),
                     frequent,
@@ -246,7 +263,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
                     }),
                     scroller(grid)
                         .id("emoji-grid")
-                        .height(220)
+                        .height(body_height - t::S32 * 3.)
                         .on_scroll(|v| Msg::feature(Event::EmojiScroll(v.absolute_offset().y)))
                 ]
                 .spacing(t::S8)
@@ -288,7 +305,17 @@ pub fn autocomplete(app: &App) -> Option<Element<'_, Msg>> {
             .style(t::navigation(i == app.suggestion)),
         );
     }
-    Some(container(rows).padding(t::S8).style(t::popover).into())
+    Some(
+        container(
+            scroller(rows)
+                .id("composer-suggestions")
+                .height(Length::Shrink),
+        )
+        .max_height((app.height * 0.4).min(t::S32 * 10.))
+        .padding(t::S8)
+        .style(t::popover)
+        .into(),
+    )
 }
 
 #[cfg(test)]

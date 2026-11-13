@@ -109,26 +109,44 @@ pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {
                 false,
             ));
             if Some(*id) != app.me() {
-                list = list
-                    .push(item(
+                let relationship = app.state.model.relationships.get(id).map(|r| r.kind);
+                if relationship == Some(RelationshipKind::Blocked) {
+                    list = list.push(item(
+                        "Unblock",
+                        "user-round",
+                        Msg::Command(Command::UnblockUser { user_id: *id }),
+                        false,
+                    ));
+                } else {
+                    list = list.push(item(
                         "Message",
                         "message-circle",
                         Msg::Command(Command::OpenDm { user_id: *id }),
                         false,
-                    ))
-                    .push(item(
-                        "Add Friend",
-                        "user-plus",
-                        Msg::Command(Command::SendFriendRequest {
-                            username: app
-                                .state
-                                .model
-                                .users
-                                .get(id)
-                                .map_or(String::new(), |u| u.username.clone()),
-                        }),
-                        false,
                     ));
+                    let action = match relationship {
+                        Some(RelationshipKind::IncomingRequest) => Some((
+                            "Accept Friend Request",
+                            Command::AcceptFriendRequest { user_id: *id },
+                        )),
+                        Some(RelationshipKind::OutgoingRequest) => Some((
+                            "Cancel Friend Request",
+                            Command::CancelFriendRequest { user_id: *id },
+                        )),
+                        None => app.state.model.users.get(id).map(|u| {
+                            (
+                                "Add Friend",
+                                Command::SendFriendRequest {
+                                    username: u.username.clone(),
+                                },
+                            )
+                        }),
+                        _ => None,
+                    };
+                    if let Some((label, action)) = action {
+                        list = list.push(item(label, "user-plus", Msg::Command(action), false));
+                    }
+                }
             }
             if Some(*id) != app.me() && app.calls.call.channel.is_some() {
                 list = list

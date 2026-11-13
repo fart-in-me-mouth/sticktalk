@@ -350,6 +350,16 @@ fn render_scaled(screen: &str, w: u32, h: u32, scale: f32, path: &Path) -> Resul
         app.headless_scroll();
         let y = app.scroll_y;
         let mut ui = UserInterface::build(crate::ui::view(&app), size, cache, &mut renderer);
+        let focus = match screen {
+            "audit-login-focused" => Some("login-username"),
+            "audit-composer-focused" => Some("composer-editor"),
+            "audit-quick-focused" => Some("quick-switcher"),
+            "main-search-focused" => Some("header-search"),
+            _ => None,
+        };
+        if let Some(id) = focus {
+            ui.operate(&renderer, &mut operation::focusable::focus::<()>(id.into()));
+        }
         let mut scroll = operation::scrollable::scroll_to::<()>(
             "messages".into(),
             operation::scrollable::AbsoluteOffset {
@@ -590,6 +600,171 @@ fn idle_proof(_: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn audit_inventory_covers_each_settings_page_without_duplicates_or_call_surfaces() {
+        let screens = audit_screens();
+        let unique: std::collections::BTreeSet<_> = screens.iter().collect();
+        assert_eq!(screens.len(), unique.len());
+        assert!(screens.len() > 170);
+        assert!(crate::ui::settings::SCREENS
+            .iter()
+            .all(|s| screens.contains(s)));
+        assert!(!screens.contains(&"voice-call"));
+        assert!(!screens.contains(&"share-picker"));
+    }
+    #[test]
+    fn minimum_window_autocomplete_and_wrapping_reactions_keep_the_composer_on_screen() {
+        load_fonts();
+        let size = Size::new(940., 600.);
+        for screen in [
+            "emoji-autocomplete",
+            "mention-autocomplete",
+            "audit-many-reactions",
+            "audit-long-names",
+            "audit-long-message",
+        ] {
+            let mut app = App::headless(screen, size);
+            let (_, geometry) = settle(&mut app, size, Cache::new());
+            assert!(
+                geometry.composer.height > 0.,
+                "{screen}: composer disappeared"
+            );
+            assert!(
+                geometry.composer.y >= t::HEADER,
+                "{screen}: composer crossed the header"
+            );
+            assert!(
+                geometry.composer.y + geometry.composer.height <= size.height + 1.,
+                "{screen}: composer below window: {:?}",
+                geometry.composer
+            );
+            assert!(app.viewport_h > 0., "{screen}: no history viewport");
+        }
+    }
+    #[test]
+    fn scaled_capture_preserves_logical_layout_and_physical_dimensions() {
+        load_fonts();
+        let path =
+            std::env::temp_dir().join(format!("sticktalk-audit-scale-{}.png", std::process::id()));
+        render_scaled("login", 940, 600, 1.5, &path).unwrap();
+        let png = image::open(&path).unwrap().into_rgba8();
+        assert_eq!(png.dimensions(), (1410, 900));
+        assert_eq!(png.get_pixel(0, 0).0, [0x11, 0x11, 0x13, 255]);
+        let _ = std::fs::remove_file(path);
+    }
+    #[test]
+    fn huge_member_list_only_shapes_visible_names_and_overscan() {
+        use iced::advanced::widget::Operation;
+        #[derive(Default)]
+        struct Names(usize);
+        impl Operation for Names {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn text(
+                &mut self,
+                _: Option<&iced::advanced::widget::Id>,
+                _: iced::Rectangle,
+                text: &str,
+            ) {
+                if text.starts_with("Member ") {
+                    self.0 += 1;
+                }
+            }
+        }
+        load_fonts();
+        let size = Size::new(1280., 800.);
+        let mut app = App::headless("audit-many-members", size);
+        assert!(app.state.model.members.len() >= 1000);
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            t::regular(),
+            iced::Pixels(t::BODY),
+        ));
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+        for offset in [0., 20_000., 40_000.] {
+            app.main.members_scroll = offset;
+            let mut ui =
+                UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+            let mut names = Names::default();
+            ui.operate(&renderer, &mut names);
+            assert!(
+                (1..=32).contains(&names.0),
+                "offset {offset}: {} member widgets",
+                names.0
+            );
+        }
+    }
+    #[test]
+    fn popup_tab_order_wraps_without_reaching_the_background() {
+        use iced::advanced::widget::{operation as op, Operation};
+        #[derive(Default)]
+        struct Focused(std::sync::Arc<std::sync::Mutex<Vec<iced::Rectangle>>>);
+        impl Operation for Focused {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn focusable(
+                &mut self,
+                _: Option<&iced::advanced::widget::Id>,
+                bounds: iced::Rectangle,
+                state: &mut dyn op::Focusable,
+            ) {
+                if state.is_focused() {
+                    self.0.lock().unwrap().push(bounds);
+                }
+            }
+        }
+        load_fonts();
+        let size = Size::new(940., 600.);
+        for screen in [
+            "audit-quick-long",
+            "main-user-context",
+            "main-server-menu",
+            "emoji-picker",
+            "gif-picker",
+        ] {
+            let app = App::headless(screen, size);
+            #[cfg(feature = "wgpu")]
+            let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+                t::regular(),
+                iced::Pixels(t::BODY),
+            ));
+            #[cfg(not(feature = "wgpu"))]
+            let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+            let mut ui =
+                UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+            for previous in [false, true] {
+                for _ in 0..20 {
+                    let mut operation: Box<dyn Operation<()>> = Box::new(op::scope(
+                        "dialog-scope".into(),
+                        crate::focus_button::cycle(previous),
+                    ));
+                    loop {
+                        ui.operate(&renderer, operation.as_mut());
+                        match operation.finish() {
+                            op::Outcome::Chain(next) => operation = next,
+                            _ => break,
+                        }
+                    }
+                    let mut all = Focused::default();
+                    ui.operate(&renderer, &mut all);
+                    let focused = Focused::default();
+                    let scoped_count = focused.0.clone();
+                    let mut scoped = op::scope("dialog-scope".into(), focused);
+                    ui.operate(&renderer, &mut scoped);
+                    let all = all.0.lock().unwrap().clone();
+                    assert_eq!(all.len(), 1, "{screen}: missing/duplicate focus: {all:?}");
+                    assert_eq!(
+                        scoped_count.lock().unwrap().len(),
+                        1,
+                        "{screen}: focus escaped the popup"
+                    );
+                }
+            }
+        }
+    }
     #[test]
     fn delete_confirmation_backdrop_blocks_settings_navigation() {
         load_fonts();

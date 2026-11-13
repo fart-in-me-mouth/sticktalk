@@ -45,12 +45,8 @@ pub fn menu_style(
             status,
             widget::button::Status::Hovered | widget::button::Status::Pressed
         ) {
-            s.background = Some(if danger { t::DANGER } else { t::ACCENT }.into());
-            s.text_color = if danger {
-                t::TEXT_PRIMARY
-            } else {
-                t::ACCENT_TEXT
-            };
+            s.background = Some(if danger { t::DANGER_BUTTON } else { t::ACCENT }.into());
+            s.text_color = if danger { Color::WHITE } else { t::ACCENT_TEXT };
         }
         s
     }
@@ -151,7 +147,7 @@ pub fn icon_button<'a>(glyph: &str, label: &str, message: Msg, active: bool) -> 
 }
 pub fn toggle<'a>(label: impl Into<String>, on: bool, message: Msg) -> Element<'a, Msg> {
     let glyph: Element<'a, Msg> = if on {
-        icon("check", t::S12, t::ACCENT).into()
+        icon("check", t::S12, t::ACCENT_TEXT).into()
     } else {
         space().into()
     };

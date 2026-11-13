@@ -2,31 +2,46 @@ use super::*;
 use crate::main_window::{mm, Entity, Message as Main, Popover};
 use iced::widget::column;
 pub fn view(app: &App) -> Element<'_, Msg> {
-    let mut list = column![
+    let home = column![
         cell(app, None, "Home"),
         container(line()).width(t::S32).padding([t::S8, 0.])
     ]
     .spacing(t::S8)
     .align_x(Center);
+    let mut list = Column::new().spacing(t::S8).align_x(Center);
     for g in app.state.model.guilds.values() {
         list = list.push(cell(app, Some(g.guild.id), &g.guild.name));
     }
-    list = list.push(controls::tip(
-        button(icon("plus", t::ICON, t::ACCENT))
+    let add = controls::tip(
+        button(crate::icons::inherited("plus", t::ICON))
             .on_press(Msg::Open(Dialog::AddGuild))
             .width(t::GUILD_ICON)
             .height(t::GUILD_ICON)
             .padding(t::S12)
-            .style(t::icon),
+            .style(|theme, status| {
+                let mut style = t::icon(theme, status);
+                let active = matches!(
+                    status,
+                    widget::button::Status::Hovered | widget::button::Status::Pressed
+                );
+                style.border.radius = if active { t::GUILD_RADIUS } else { t::ROUND }.into();
+                style.background = Some(if active { t::ACCENT } else { t::BG_ELEVATED }.into());
+                style.text_color = if active { t::ACCENT_TEXT } else { t::ACCENT };
+                style
+            }),
         "Add a Server",
         tooltip::Position::Right,
-    ));
+    );
     mouse_area(
-        container(scroller(list).height(Fill))
-            .padding([t::S12, 0.])
-            .width(t::RAIL)
-            .height(Fill)
-            .style(t::rail),
+        container(
+            column![home, scroller(list).id("server-rail").height(Fill), add]
+                .spacing(t::S8)
+                .align_x(Center),
+        )
+        .padding([t::S12, 0.])
+        .width(t::RAIL)
+        .height(Fill)
+        .style(t::rail),
     )
     .on_right_press(mm(Main::Open(Popover::Context(Entity::Rail))))
     .into()
@@ -140,7 +155,7 @@ fn cell<'a>(app: &App, id: Option<Id>, name: &str) -> Element<'a, Msg> {
                             radius: t::ROUND.into(),
                             ..Default::default()
                         },
-                        ..t::surface(t::DANGER)
+                        ..t::surface(t::DANGER_BUTTON)
                     }),
                 )
                 .padding(t::BADGE_RING)
@@ -171,7 +186,7 @@ fn cell<'a>(app: &App, id: Option<Id>, name: &str) -> Element<'a, Msg> {
     )
 }
 
-fn mention_label(count: u32) -> String {
+pub(super) fn mention_label(count: u32) -> String {
     if count > 99 {
         "99+".into()
     } else {

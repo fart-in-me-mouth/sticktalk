@@ -25,12 +25,48 @@ pub(crate) const SCREENS: &[&str] = &[
     "audit-new-messages",
     "audit-server-name-long",
     "audit-user-name-long",
+    "audit-login-focused",
+    "audit-composer-focused",
+    "audit-quick-focused",
+    "audit-new-channel",
+    "audit-new-category",
+    "audit-new-group",
+    "audit-group-settings",
+    "audit-delete-message",
+    "audit-invite-loading",
+    "audit-form-error",
+    "audit-role-long",
+    "audit-members-long",
+    "audit-update-confirm",
+    "audit-image-forward",
+    "audit-image-more",
+    "audit-profile-pending",
+    "audit-profile-blocked",
+    "audit-profile-stranger",
 ];
 
 pub(crate) fn configure(app: &mut App, screen: &str) {
     use crate::main_window::{mm, Message as Main};
     let long = "WWWW Wide names with a very long descriptive suffix";
     match screen {
+        "audit-update-confirm" => app.features.confirm_update = true,
+        "audit-image-forward" | "audit-image-more" => {
+            crate::features::fixture(app, "image-viewer");
+            app.features.viewer.forwarding = screen == "audit-image-forward";
+            app.features.viewer.more = screen == "audit-image-more";
+        }
+        "audit-profile-pending" | "audit-profile-blocked" | "audit-profile-stranger" => {
+            let id = match screen {
+                "audit-profile-pending" => Id(5),
+                "audit-profile-blocked" => Id(6),
+                _ => Id(4),
+            };
+            if screen == "audit-profile-stranger" {
+                app.state.model.relationships.remove(&id);
+            }
+            app.main.popover = Some(Popover::Profile(id));
+            app.main.position = iced::Point::new(app.width - t::S8, t::HEADER + t::S8);
+        }
         "audit-long-names" | "audit-quick-long" | "audit-profile-long" => {
             for user in app.state.model.users.values_mut() {
                 user.display_name = Some(long.into());
@@ -127,11 +163,13 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
                 .collect();
             }
         }
+        "audit-quick-focused" => app.main.popover = Some(Popover::Quick),
         "audit-quick-empty" => {
             app.main.quick = "no-such-channel-zzzzz".into();
             app.main.popover = Some(Popover::Quick);
         }
         "audit-search-empty" => app.main.search = "no-such-message-zzzzz".into(),
+        "audit-login-focused" => app.state.session = None,
         "audit-login-error" | "audit-register-error" | "audit-login-busy" => {
             app.state.session = None;
             app.register = screen == "audit-register-error";
@@ -173,7 +211,7 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
                 read.last_read_id = Some(Id(2275));
                 read.unread_count = 4;
             }
-            app.state.at_present = false;
+            app.state.at_present = true;
             app.scroll_y = 0.;
         }
         "audit-server-name-long" => {
@@ -186,8 +224,63 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
             if let Some(me) = app.state.model.me.as_mut() {
                 me.user.display_name = Some(long.into());
             }
+            app.state.model.users.get_mut(&Id(1)).unwrap().display_name = Some(long.into());
+        }
+        "audit-new-channel" => {
+            let _ = app.update(Msg::Open(Dialog::NewChannel(
+                ChannelKind::Text,
+                Some(Id(11)),
+            )));
+        }
+        "audit-new-category" => {
+            let _ = app.update(Msg::Open(Dialog::NewChannel(ChannelKind::Category, None)));
+        }
+        "audit-new-group" => {
+            let _ = app.update(Msg::Open(Dialog::NewGroup));
+        }
+        "audit-group-settings" => {
+            let _ = app.update(Msg::Open(Dialog::GroupSettings(Id(21))));
+        }
+        "audit-delete-message" => {
+            let _ = app.update(Msg::Open(Dialog::Confirm(
+                "Delete this message? This cannot be undone.".into(),
+                Command::DeleteMessage {
+                    channel_id: Id(12),
+                    message_id: Id(2279),
+                },
+            )));
+        }
+        "audit-invite-loading" => {
+            let _ = app.update(Msg::Open(Dialog::Invite));
+        }
+        "audit-form-error" => {
+            let _ = app.update(Msg::Open(Dialog::JoinGuild));
+            app.form.code = "expired-invite".into();
+            app.error = "This invite has expired or is no longer available.".into();
+        }
+        "audit-role-long" | "audit-members-long" => {
+            crate::ui::settings::configure(
+                app,
+                if screen == "audit-role-long" {
+                    "guild-settings-role-display"
+                } else {
+                    "guild-settings-members"
+                },
+            );
+            for role in app.state.model.settings.roles.values_mut() {
+                role.name = long.into();
+            }
+            for user in app.state.model.users.values_mut() {
+                user.display_name = Some(long.into());
+            }
+            if let Some(role) = app.settings.role.as_mut() {
+                role.name = long.into();
+            }
         }
         _ => {}
+    }
+    if matches!(screen, "audit-invite-copied" | "audit-invite-loading") {
+        app.error.clear();
     }
     // Exercise the same reducer used by keyboard navigation without executing tasks.
     if screen == "audit-quick-long" {

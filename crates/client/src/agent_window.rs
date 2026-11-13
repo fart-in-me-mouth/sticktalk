@@ -2,6 +2,22 @@
 pub fn enabled() -> bool {
     std::env::var("STICKTALK_AGENT_WINDOW").is_ok_and(|v| v == "secondary")
 }
+/// Test application scaling without changing the owner's Windows display settings.
+/// Production windows always use the OS scale unchanged.
+pub fn scale_factor() -> f32 {
+    static SCALE: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *SCALE.get_or_init(|| {
+        if enabled() {
+            std::env::var("STICKTALK_AGENT_SCALE")
+                .ok()
+                .and_then(|v| v.parse::<f32>().ok())
+                .filter(|v| v.is_finite() && (1. ..=2.).contains(v))
+                .unwrap_or(1.)
+        } else {
+            1.
+        }
+    })
+}
 pub fn show_secondary(window: &dyn iced_runtime::window::Window) -> bool {
     #[cfg(windows)]
     {

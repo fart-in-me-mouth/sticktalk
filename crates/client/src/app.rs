@@ -250,7 +250,15 @@ impl App {
                 .and_then(|i| args.get(i + 1))
                 .cloned()
         };
-        let capture = flag("--capture").map(PathBuf::from);
+        let capture = flag("--capture")
+            .or_else(|| {
+                if mock && crate::agent_window::enabled() {
+                    flag("--native-capture")
+                } else {
+                    None
+                }
+            })
+            .map(PathBuf::from);
         let initial_screen = flag("--screen").unwrap_or_default();
         let server = storage::server();
         let session = if mock
@@ -1044,6 +1052,7 @@ impl App {
                 }
             }
             Msg::ToggleMembers => {
+                self.main.members_scroll = 0.;
                 let current = self
                     .members_open
                     .unwrap_or(self.width >= crate::theme::MEMBER_BREAKPOINT);
@@ -1074,6 +1083,14 @@ impl App {
                 if matches!(
                     self.dialog,
                     Dialog::MessageActions(_) | Dialog::GuildMenu | Dialog::MemberMenu(_)
+                ) || matches!(
+                    self.main.popover,
+                    Some(
+                        crate::main_window::Popover::Context(_)
+                            | crate::main_window::Popover::Server
+                            | crate::main_window::Popover::Devices(_)
+                            | crate::main_window::Popover::Notifications(_, _)
+                    )
                 ) {
                     return self.update(Msg::Tab(previous));
                 }
@@ -1189,6 +1206,9 @@ impl App {
                 }
             }
             Msg::Login => {
+                if self.busy {
+                    return Task::none();
+                }
                 if self.mock_mode {
                     if self.username.trim().len() < 3 || self.password.len() < 12 {
                         self.error="Use a username of at least 3 characters and a password of at least 12 bytes.".into();
@@ -1292,6 +1312,9 @@ impl App {
                 });
             }
             Msg::Open(dialog) => {
+                if let Dialog::Profile(id) = dialog {
+                    return self.main_open(crate::main_window::Popover::Profile(id));
+                }
                 if matches!(dialog, Dialog::EmojiPicker) {
                     self.reaction_target = None;
                     return crate::features::update(
@@ -1326,6 +1349,10 @@ impl App {
                 return operation::focus(field);
             }
             Msg::Close | Msg::Escape => {
+                if self.features.confirm_update {
+                    self.features.confirm_update = false;
+                    return operation::focus("composer-editor");
+                }
                 if self.features.video.fullscreen.is_some() {
                     return crate::video::update(self, crate::video::Event::CloseFullscreen);
                 }
@@ -1347,8 +1374,13 @@ impl App {
                     return self.settings_attention();
                 }
                 if matches!(self.dialog, Dialog::None) && self.features.viewer.current().is_some() {
+                    if self.features.viewer.forwarding || self.features.viewer.more {
+                        self.features.viewer.forwarding = false;
+                        self.features.viewer.more = false;
+                        return crate::focus_button::focus_dialog();
+                    }
                     self.features.viewer.close();
-                    return Task::none();
+                    return operation::focus("composer-editor");
                 }
                 if self.features.picker != crate::features::Picker::None {
                     return crate::features::update(
@@ -1357,7 +1389,7 @@ impl App {
                     );
                 }
                 if self.main.popover.take().is_some() {
-                    return Task::none();
+                    return operation::focus("composer-editor");
                 }
                 if matches!(message, Msg::Escape) && matches!(self.dialog, Dialog::None) {
                     self.mark_channel_read();
@@ -1558,6 +1590,16 @@ impl App {
                 if count > 0 {
                     self.suggestion =
                         (self.suggestion as i32 + delta).rem_euclid(count as i32) as usize;
+                    return operation::scroll_to(
+                        "composer-suggestions",
+                        scrollable::AbsoluteOffset {
+                            x: 0.,
+                            y: (self.suggestion as f32
+                                * (crate::theme::AUTOCOMPLETE + crate::theme::S4)
+                                - (self.height * 0.4).min(crate::theme::S32 * 10.) / 2.)
+                                .max(0.),
+                        },
+                    );
                 }
             }
             Msg::CompleteMention => {
@@ -1978,27 +2020,18 @@ impl App {
                 }
             }
             Msg::Tab(previous) => {
-                if !matches!(self.dialog, Dialog::None) {
-                    use iced::advanced::widget::{operate, operation as op};
-                    return if previous {
-                        operate(op::scope(
-                            "dialog-scope".into(),
-                            op::focusable::focus_previous(),
-                        ))
-                        .map(|_: ()| Msg::Activity)
-                    } else {
-                        operate(op::scope(
-                            "dialog-scope".into(),
-                            op::focusable::focus_next(),
-                        ))
-                        .map(|_: ()| Msg::Activity)
-                    };
+                use iced::advanced::widget::{operate, operation as op};
+                let cycle = crate::focus_button::cycle(previous);
+                if !matches!(self.dialog, Dialog::None)
+                    || self.main.popover.is_some()
+                    || self.features.picker != crate::features::Picker::None
+                    || self.features.viewer.current().is_some()
+                    || self.features.confirm_update
+                {
+                    return operate(op::scope("dialog-scope".into(), cycle))
+                        .map(|_: ()| Msg::Activity);
                 }
-                return if previous {
-                    operation::focus_previous()
-                } else {
-                    operation::focus_next()
-                };
+                return operate(cycle).map(|_: ()| Msg::Activity);
             }
             Msg::FocusComposer => return operation::focus("composer-editor"),
             Msg::GuildHover(id) => self.hovered_guild = id,
@@ -2109,6 +2142,12 @@ impl App {
             }
             Msg::LoggedOut => self.notice.clear(),
             Msg::Resize(size) => {
+                if self.members_open.is_none()
+                    && (self.width >= crate::theme::MEMBER_BREAKPOINT)
+                        != (size.width >= crate::theme::MEMBER_BREAKPOINT)
+                {
+                    self.main.members_scroll = 0.;
+                }
                 self.width = size.width;
                 self.height = size.height;
                 self.viewport_w = size.width
@@ -3130,7 +3169,10 @@ impl App {
         }
         self.main_channel(id);
         self.subscribe();
-        self.jump()
+        Task::batch([
+            self.jump(),
+            operation::scroll_to("members", scrollable::AbsoluteOffset { x: 0., y: 0. }),
+        ])
     }
     fn subscribe(&mut self) {
         if self.state.connection != ConnectionState::Ready {
@@ -4050,6 +4092,10 @@ pub fn editor_binding(
     autocomplete: bool,
 ) -> Option<text_editor::Binding<Msg>> {
     if matches!(event.status, text_editor::Status::Focused { .. }) {
+        // Global shortcuts must not also edit or move the composer caret.
+        if crate::main_window::key(&event.key, event.modifiers).is_some() {
+            return None;
+        }
         if autocomplete {
             let custom = match event.key {
                 keyboard::Key::Named(Named::ArrowDown) => Some(Msg::Suggest(1)),
@@ -4749,6 +4795,9 @@ mod tests {
     }
     #[test]
     fn composer_keyboard_contract() {
+        assert!(
+            editor_binding(key(Named::ArrowUp, keyboard::Modifiers::ALT), true, true).is_none()
+        );
         assert!(matches!(
             editor_binding(
                 key(Named::Enter, keyboard::Modifiers::empty()),

@@ -38,12 +38,18 @@ pub(crate) fn view<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
     let mut nav = Column::new().spacing(t::S4);
     if guild {
         nav = nav
-            .push(section(
-                app.state
-                    .guild
-                    .and_then(|g| app.state.model.guilds.get(&g))
-                    .map_or("SERVER SETTINGS", |g| &g.guild.name),
-            ))
+            .push(
+                super::elided::label(
+                    app.state
+                        .guild
+                        .and_then(|g| app.state.model.guilds.get(&g))
+                        .map_or("SERVER SETTINGS", |g| &g.guild.name),
+                )
+                .size(t::HINT)
+                .font(t::semibold())
+                .color(t::TEXT_MUTED)
+                .width(Fill),
+            )
             .push(space().height(t::S8));
     } else if channel {
         nav = nav
@@ -56,7 +62,10 @@ pub(crate) fn view<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
                     row![
                         avatar(app, id, t::AVATAR, true),
                         column![
-                            label_text(ellipsis(&app.state.model.name(id), 20)),
+                            super::elided::label(app.state.model.name(id))
+                                .size(st::LABEL)
+                                .font(t::semibold())
+                                .width(Fill),
                             row![
                                 hint("Edit Profiles").size(t::HINT),
                                 icon("pencil", t::HINT, t::TEXT_MUTED)
