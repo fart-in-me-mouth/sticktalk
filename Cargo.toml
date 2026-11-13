@@ -22,6 +22,14 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 argon2 = "0.5"
 iced = { version = "0.14", default-features = false, features = ["tiny-skia", "tokio"] }
 
+# Disk is tight on the dev PC: keep debug info small (line tables only for our
+# crates, none for dependencies). Cuts target dirs by more than half.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 opt-level = 3
 lto = "fat"
