@@ -650,7 +650,9 @@ fn login(app: &App) -> Element<'_, Msg> {
             } else {
                 "Change server"
             }))
-            .on_press(Msg::ChangeServer)
+            .on_press_maybe(
+                (!app.busy && !app.server.trim().is_empty()).then_some(Msg::ChangeServer),
+            )
             .padding(t::S4)
             .style(t::link),
         );
@@ -2334,8 +2336,15 @@ fn modal(app: &App) -> Element<'_, Msg> {
                 .push(footer("Join server", Msg::Submit));
         }
         Dialog::Invite => {
+            let ready = !app.form.code.is_empty();
+            let retry = !app.error.is_empty();
             let code = if app.form.code.is_empty() {
-                "Creating your invite…".into()
+                if retry {
+                    "Invite unavailable"
+                } else {
+                    "Creating your invite…"
+                }
+                .into()
             } else {
                 app.form.code.clone()
             };
@@ -2345,7 +2354,12 @@ fn modal(app: &App) -> Element<'_, Msg> {
                         row![
                             icon("link", t::ICON, t::TEXT_MUTED),
                             txt(ellipsis(&code, 36)).width(Fill),
-                            icon_button("copy", "Copy invite code", Msg::Copy(code))
+                            controls::icon_button_maybe(
+                                "copy",
+                                "Copy invite code",
+                                ready.then(|| Msg::Copy(app.form.code.clone())),
+                                false
+                            )
                         ]
                         .spacing(t::S12)
                         .align_y(Center),
@@ -2357,13 +2371,24 @@ fn modal(app: &App) -> Element<'_, Msg> {
             if let Some(guild_id) = app.state.guild {
                 body = body.push(
                     action(
-                        "Create a new invite",
+                        if retry {
+                            "Try again"
+                        } else {
+                            "Create a new invite"
+                        },
                         Msg::Command(Command::CreateInvite {
                             guild_id,
                             ttl_seconds: 604800,
                             max_uses: 100,
                         }),
                     )
+                    .on_press_maybe((ready || retry).then_some(Msg::Command(
+                        Command::CreateInvite {
+                            guild_id,
+                            ttl_seconds: 604800,
+                            max_uses: 100,
+                        },
+                    )))
                     .style(t::link),
                 );
             }

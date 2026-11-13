@@ -35,6 +35,7 @@ pub(crate) const SCREENS: &[&str] = &[
     "audit-group-settings",
     "audit-delete-message",
     "audit-invite-loading",
+    "audit-invite-error",
     "audit-form-error",
     "audit-role-long",
     "audit-members-long",
@@ -50,6 +51,11 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
     use crate::main_window::{mm, Message as Main};
     let long = "WWWW Wide names with a very long descriptive suffix";
     match screen {
+        "audit-invite-error" => {
+            let _ = app.update(Msg::Open(Dialog::Invite));
+            app.form.code.clear();
+            app.error = "Could not create an invite. Try again.".into();
+        }
         "audit-first-launch" => {
             app.state.session = None;
             app.google_id = None;

@@ -601,6 +601,47 @@ fn idle_proof(_: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
+    fn invite_placeholder_cannot_be_copied_and_failure_exposes_only_retry() {
+        use iced::advanced::widget::{operation as op, Operation};
+        #[derive(Default)]
+        struct Controls(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+        impl Operation for Controls {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn focusable(
+                &mut self,
+                _: Option<&iced::advanced::widget::Id>,
+                _: iced::Rectangle,
+                _: &mut dyn op::Focusable,
+            ) {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+        load_fonts();
+        let size = Size::new(940., 600.);
+        for (screen, count) in [("audit-invite-loading", 1), ("audit-invite-error", 2)] {
+            let app = App::headless(screen, size);
+            #[cfg(feature = "wgpu")]
+            let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+                t::regular(),
+                iced::Pixels(t::BODY),
+            ));
+            #[cfg(not(feature = "wgpu"))]
+            let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+            let mut ui =
+                UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+            let controls = Controls::default();
+            let found = controls.0.clone();
+            ui.operate(&renderer, &mut op::scope("dialog-scope".into(), controls));
+            assert_eq!(
+                found.load(std::sync::atomic::Ordering::Relaxed),
+                count,
+                "{screen}"
+            );
+        }
+    }
+    #[test]
     fn first_launch_requires_an_explicit_server_and_keeps_its_field_visible() {
         let mut app = App::headless("audit-first-launch", Size::new(940., 600.));
         assert!(app.server.is_empty());

@@ -1442,6 +1442,12 @@ impl App {
             }
             Msg::Submit => return self.submit(),
             Msg::Command(command) => {
+                if matches!(self.dialog, Dialog::Invite)
+                    && matches!(command, Command::CreateInvite { .. })
+                {
+                    self.form.code.clear();
+                    self.error.clear();
+                }
                 if matches!(
                     self.main.popover,
                     Some(crate::main_window::Popover::Context(_))
