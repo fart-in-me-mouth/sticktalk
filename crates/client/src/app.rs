@@ -21,6 +21,7 @@ use sticktalk_client_core::state::ClientState;
 pub use sticktalk_client_core::state::{Dialog, Form, FriendTab, GuildTab, Screen};
 #[derive(Debug, Clone)]
 pub enum Msg {
+    Main(crate::main_window::Message),
     Server(String),
     Username(String),
     Password(String),
@@ -160,6 +161,8 @@ struct RowCache {
 }
 
 pub struct App {
+    pub main: crate::main_window::State,
+    pub extent: crate::history_extent::Window,
     pub state: ClientState,
     trace: Option<PathBuf>,
     trace_counts: BTreeMap<&'static str, u64>,
@@ -256,6 +259,8 @@ impl App {
             None
         };
         let state = Self {
+            main: crate::main_window::State::default(),
+            extent: crate::history_extent::Window::default(),
             state: ClientState {
                 session,
                 ..ClientState::default()
@@ -404,10 +409,24 @@ impl App {
                 UiEvent::Window(window::Event::Focused) => Some(Msg::Focus(true)),
                 UiEvent::Window(window::Event::Unfocused) => Some(Msg::Focus(false)),
                 UiEvent::Window(window::Event::FileDropped(path)) => Some(Msg::Drop(path)),
+                UiEvent::Window(window::Event::FileHovered(_)) => {
+                    Some(Msg::Main(crate::main_window::Message::DropHover(true)))
+                }
+                UiEvent::Window(window::Event::FilesHoveredLeft) => {
+                    Some(Msg::Main(crate::main_window::Message::DropHover(false)))
+                }
+                UiEvent::Mouse(iced::mouse::Event::CursorMoved { position }) => {
+                    Some(Msg::Main(crate::main_window::Message::Pointer(position)))
+                }
+                UiEvent::Keyboard(keyboard::Event::KeyPressed {
+                    ref key, modifiers, ..
+                }) if crate::main_window::key(key, modifiers).is_some() => {
+                    crate::main_window::key(key, modifiers).map(Msg::Main)
+                }
                 UiEvent::Keyboard(keyboard::Event::KeyPressed {
                     key: keyboard::Key::Named(Named::Escape),
                     ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::Escape),
+                }) => Some(Msg::Escape),
                 UiEvent::Keyboard(keyboard::Event::KeyPressed {
                     key: keyboard::Key::Named(Named::Tab),
                     modifiers,
@@ -439,6 +458,25 @@ impl App {
                 iced::futures::stream::once(async {
                     tokio::time::sleep(Duration::from_secs(4)).await;
                     Msg::Dismiss
+                })
+            }));
+        }
+        if let Some(expiry) = self
+            .state
+            .model
+            .launch
+            .notifications
+            .values()
+            .filter(|n| n.muted)
+            .filter_map(|n| n.mute_until)
+            .filter(|t| *t > now())
+            .min()
+        {
+            subs.push(Subscription::run_with(expiry, |expiry| {
+                let expiry = *expiry;
+                iced::futures::stream::once(async move {
+                    tokio::time::sleep(Duration::from_millis(expiry.saturating_sub(now()))).await;
+                    Msg::Main(crate::main_window::Message::NotificationExpiry)
                 })
             }));
         }
@@ -474,6 +512,7 @@ impl App {
             }
         }
         match message {
+            Msg::Main(m) => return self.main_update(m),
             Msg::Hover(id) => {
                 self.hover_serial += 1;
                 self.hovered = id;
@@ -738,6 +777,9 @@ impl App {
                 }
             }
             Msg::MenuMove(previous) => {
+                if self.main.popover == Some(crate::main_window::Popover::Quick) {
+                    return self.main_update(crate::main_window::Message::QuickMove(previous));
+                }
                 if matches!(
                     self.dialog,
                     Dialog::MessageActions(_) | Dialog::GuildMenu | Dialog::MemberMenu(_)
@@ -756,6 +798,7 @@ impl App {
                 self.error.clear();
             }
             Msg::Copy(code) => {
+                self.main.popover = None;
                 self.notice = "Copied!".into();
                 return iced::clipboard::write(code);
             }
@@ -803,7 +846,20 @@ impl App {
                     Msg::BrowserOpened,
                 );
             }
-            Msg::JumpTo(message) => self.jump_history(backend::HistoryAnchor::Message(message)),
+            Msg::JumpTo(message) => {
+                self.main.popover = None;
+                self.main.search.clear();
+                self.jump_history(backend::HistoryAnchor::Message(message));
+                if self.extent.active() {
+                    return operation::scroll_to(
+                        "messages",
+                        scrollable::AbsoluteOffset {
+                            x: 0.,
+                            y: self.scroll_y,
+                        },
+                    );
+                }
+            }
             Msg::PreviewReply(message) => {
                 if let Screen::Channel(channel) = self.state.screen {
                     self.preview = self
@@ -890,6 +946,8 @@ impl App {
             }
             Msg::Net(delivery) => return self.network((*delivery.data).clone()),
             Msg::Guild(g) => {
+                self.main.popover = None;
+                self.state.model.active_guild = g;
                 self.state.guild = g;
                 self.state.model.members.clear();
                 self.state.member_after = None;
@@ -911,8 +969,21 @@ impl App {
                     });
                 }
             }
-            Msg::Select(id) => return self.navigate(id),
+            Msg::Select(id) => {
+                if self
+                    .state
+                    .model
+                    .channels
+                    .get(&id)
+                    .is_some_and(|c| c.kind == ChannelKind::Voice)
+                {
+                    return self.main_update(crate::main_window::Message::Voice(id));
+                }
+                return self.navigate(id);
+            }
             Msg::Friends(tab) => {
+                self.main.popover = None;
+                self.state.model.active_guild = None;
                 self.state.guild = None;
                 self.state.screen = Screen::Friends(tab);
                 self.dialog = Dialog::None;
@@ -945,6 +1016,12 @@ impl App {
                 return operation::focus(field);
             }
             Msg::Close | Msg::Escape => {
+                if self.main.popover.take().is_some() {
+                    return Task::none();
+                }
+                if matches!(message, Msg::Escape) && matches!(self.dialog, Dialog::None) {
+                    self.mark_channel_read();
+                }
                 self.form_revision = self.form_revision.wrapping_add(1);
                 if matches!(self.dialog, Dialog::CreateGuild) {
                     if let Some(id) = self.form.icon.take() {
@@ -976,6 +1053,12 @@ impl App {
             }
             Msg::Submit => return self.submit(),
             Msg::Command(command) => {
+                if matches!(
+                    self.main.popover,
+                    Some(crate::main_window::Popover::Context(_))
+                ) {
+                    self.main.popover = None;
+                }
                 self.send(command);
             }
             Msg::Confirm(command) => {
@@ -1222,6 +1305,14 @@ impl App {
                 while self.heights.len() > 20_000 {
                     self.heights.pop_first();
                 }
+                if self.extent.active() {
+                    if self.extent.landed_anchor.is_some_and(|id| message < id) {
+                        if let Some(top) = self.extent.window_top.as_mut() {
+                            *top = (*top + old - height).max(0.);
+                        }
+                    }
+                    return Task::none();
+                }
                 if (old - height).abs() > 0.5 {
                     if self.state.at_present {
                         self.scroll_y = (self.history_height() - self.viewport_h).max(0.);
@@ -1267,6 +1358,12 @@ impl App {
                 self.viewport_h = v.bounds().height;
                 self.viewport_w = v.bounds().width;
                 self.total_h = v.content_bounds().height;
+                if self.extent.active() {
+                    self.state.at_present =
+                        self.scroll_y + self.viewport_h >= self.extent.total() - 24.;
+                    self.extent_landing();
+                    return Task::none();
+                }
                 self.state.at_present = self.state.after.is_none()
                     && self.scroll_y + self.viewport_h >= self.total_h - 24.0;
                 let mut tasks = vec![];
@@ -1325,6 +1422,7 @@ impl App {
             }
             Msg::Older => return self.older(),
             Msg::Present => {
+                self.extent = crate::history_extent::Window::default();
                 if let Screen::Channel(channel) = self.state.screen {
                     self.state.history_seek = self.state.history_seek.wrapping_add(1);
                     self.state.jump_seek = None;
@@ -1426,11 +1524,12 @@ impl App {
             }
             Msg::Picked(_, None, _) => {}
             Msg::Drop(path) => {
+                self.main.dropping = false;
                 return self.update(Msg::Picked(
                     UploadPurpose::Message,
                     Some(path),
                     self.form_revision,
-                ))
+                ));
             }
             Msg::RemoveUpload(id) => {
                 self.state.attachments.retain(|v| v.id != id);
@@ -1535,6 +1634,9 @@ impl App {
                 self.send(Command::SetPresence { status });
             }
             Msg::Logout => {
+                self.main = crate::main_window::State::default();
+                self.extent = crate::history_extent::Window::default();
+                crate::ui::purge_main_assets();
                 if let Some(s) = self.state.session.take() {
                     let account = self.me();
                     self.tx = None;
@@ -1559,6 +1661,7 @@ impl App {
                     self.message_layouts.clear();
                     self.revealed.clear();
                     self.images = Images::default();
+                    crate::ui::purge_main_assets();
                     self.state.drafts.clear();
                     self.state.draft_mentions.clear();
                     self.state.selected_mentions.clear();
@@ -1655,6 +1758,34 @@ impl App {
     }
     fn network(&mut self, data: Data) -> Task<Msg> {
         match data {
+            Data::Launch { data, generation } => {
+                if generation == self.state.generation
+                    && self.state.model.snapshot_valid(data.cursor())
+                {
+                    if let sticktalk_client_core::launch::SnapshotData::Extent(v) = &data {
+                        self.extent_snapshot(&v.data);
+                    }
+                    let cursor = data.cursor().clone();
+                    let acl = matches!(
+                        data,
+                        sticktalk_client_core::launch::SnapshotData::Overwrites(..)
+                    );
+                    if let sticktalk_client_core::launch::SnapshotData::Profile(v) = &data {
+                        self.state
+                            .model
+                            .users
+                            .insert(v.data.profile.user.id, v.data.profile.user.clone());
+                    }
+                    self.state.model.launch.snapshot(data);
+                    if acl {
+                        self.main_next_acl();
+                    }
+                    self.state.model.reconcile_metadata(&cursor);
+                    if self.extent.active() && self.state.at_present {
+                        return self.jump();
+                    }
+                }
+            }
             Data::Connected(tx) => self.tx = Some(tx),
             Data::Rejected { nonce, reason } => {
                 let files = self.state.pending_files.remove(&nonce).unwrap_or_default();
@@ -1682,7 +1813,10 @@ impl App {
             Data::Frame(frame) => match frame {
                 ServerMsg::Ready(ready) => {
                     let old = self.state.screen;
+                    self.main.popover = None;
+                    self.main.pending_dm = None;
                     self.state.model.ready(*ready);
+                    self.main_sync_voice();
                     self.markdown.clear();
                     self.message_layouts.clear();
                     self.revealed.clear();
@@ -1691,6 +1825,7 @@ impl App {
                         tokio::task::spawn_blocking(move || media::maintain(&config, account));
                     }
                     self.images = Images::default();
+                    crate::ui::purge_main_assets();
                     self.state.connection = ConnectionState::Ready;
                     self.state.loading = false;
                     self.state.generation += 1;
@@ -1858,6 +1993,7 @@ impl App {
                             self.history_slots.borrow_mut().remove(message_id);
                         }
                     }
+                    self.main_live_event(&envelope.event);
                     self.state.model.apply(*envelope);
                     self.ack();
                     if removed {
@@ -1882,6 +2018,7 @@ impl App {
                             .pending_files
                             .retain(|nonce, _| self.state.pending.contains_key(nonce));
                         self.images = Images::default();
+                        crate::ui::purge_main_assets();
                         if let (Some(s), Some(id)) = (&self.state.session, self.me()) {
                             let c = s.config.clone();
                             tokio::task::spawn_blocking(move || media::purge(&c, id));
@@ -1942,6 +2079,20 @@ impl App {
                                                     | Command::CreateGroupDm { .. }
                                             )
                                         ) {
+                                            if let Some((user, content)) =
+                                                self.main.pending_dm.take()
+                                            {
+                                                if c.summary.recipient_ids.contains(&user) {
+                                                    self.send(Command::SendMessage(MessageDraft {
+                                                        channel_id: id,
+                                                        content,
+                                                        reply_to: None,
+                                                        attachment_ids: vec![],
+                                                        mention_ids: vec![],
+                                                    }));
+                                                }
+                                            }
+                                            self.main.popover = None;
                                             self.state.guild = None;
                                             return self.navigate(id);
                                         }
@@ -1984,6 +2135,7 @@ impl App {
                     self.layout_cache.borrow_mut().take();
                     self.state.model = Model::default();
                     self.images = Images::default();
+                    crate::ui::purge_main_assets();
                     self.state.connection = ConnectionState::Connecting;
                     self.state.loading = false;
                 }
@@ -1997,6 +2149,7 @@ impl App {
                     self.ack();
                     self.subscribe();
                 }
+                ServerMsg::Voice(v) => self.main_voice(v),
                 ServerMsg::Error(e) => self.error = e.message,
                 _ => {}
             },
@@ -2029,6 +2182,9 @@ impl App {
                     || self.state.screen != Screen::Channel(channel)
                 {
                     return Task::none();
+                }
+                if let Some(task) = self.extent_page(channel, seek, page.clone()) {
+                    return task;
                 }
                 self.state.seek_loading = false;
                 if !self.state.model.snapshot_valid(&page.cursor) {
@@ -2098,6 +2254,12 @@ impl App {
                     return Task::none();
                 }
                 self.layout_revision = self.layout_revision.wrapping_add(1);
+                if self.extent.active() && self.state.at_present {
+                    self.extent.start_rank =
+                        self.extent.count.saturating_sub(self.rows().len() as u64);
+                    self.extent.loaded = true;
+                    self.extent.ends_at_present = true;
+                }
                 let images = self.load_images();
                 if self.state.session.as_ref().is_some_and(|s| {
                     s.config.mock
@@ -2368,6 +2530,7 @@ impl App {
         for a in std::mem::take(&mut self.state.attachments) {
             self.request(Request::DiscardUpload(a.id));
         }
+        self.extent = crate::history_extent::Window::default();
         let old_guild = self.state.guild;
         self.state.guild = self.state.model.channels[&id].guild_id;
         self.state.manual_unread.remove(&id);
@@ -2426,6 +2589,7 @@ impl App {
                 });
             }
         }
+        self.main_channel(id);
         self.subscribe();
         self.jump()
     }
@@ -2434,7 +2598,7 @@ impl App {
             return;
         }
         let ids = if self.state.guild.is_some() {
-            self.state.model.members.keys().take(30).copied().collect()
+            self.state.model.members.keys().take(100).copied().collect()
         } else {
             vec![]
         };
@@ -2448,6 +2612,36 @@ impl App {
             self.dialog = Dialog::None;
             self.state.history_seek = self.state.history_seek.wrapping_add(1);
             self.state.jump_seek = Some(self.state.history_seek);
+            self.state.at_present = false;
+            if self.extent.active() {
+                match anchor {
+                    backend::HistoryAnchor::Message(id) => {
+                        let rank = self
+                            .extent
+                            .anchors
+                            .iter()
+                            .rev()
+                            .find(|a| a.message_id <= id)
+                            .map_or(0, |a| a.rank);
+                        self.scroll_y = (rank as f32 * crate::theme::HISTORY_ROW
+                            - self.viewport_h / 2.)
+                            .clamp(0., (self.extent.total() - self.viewport_h).max(0.));
+                        self.extent.loaded = false;
+                        self.extent.landing_y = None;
+                        self.extent.ends_at_present = false;
+                        self.extent.pending = Some((
+                            self.state.history_seek,
+                            sticktalk_proto::HistoryAnchor {
+                                rank,
+                                message_id: id,
+                            },
+                        ));
+                    }
+                    backend::HistoryAnchor::Timestamp(_) => {
+                        self.extent = crate::history_extent::Window::default()
+                    }
+                }
+            }
             self.request(Request::View);
             self.state.seek_loading = self.request(Request::AroundHistory {
                 channel,
@@ -2752,7 +2946,15 @@ impl App {
             .filter_map(|(_, m, h, g)| m.map(|m| (m, h, g)))
             .collect()
     }
+    pub(crate) fn reset_history_geometry(&mut self) {
+        self.history_slots.borrow_mut().clear();
+        self.layout_cache.replace(None);
+        self.layout_revision = self.layout_revision.wrapping_add(1);
+    }
     pub fn history_height(&self) -> f32 {
+        if self.extent.active() {
+            return self.extent.total();
+        }
         self.ensure_rows();
         self.layout_cache
             .borrow()
@@ -3000,6 +3202,20 @@ impl App {
             && (self.mock_mode || crate::oauth::configured(self.google_id.as_deref()))
     }
     fn open(&mut self, dialog: Dialog) {
+        if let Dialog::Profile(id) = dialog {
+            let _ = self.main_open(crate::main_window::Popover::Profile(id));
+            return;
+        }
+        self.main.popover = None;
+        self.main.position = self.main.pointer;
+        if matches!(dialog, Dialog::MessageActions(_)) {
+            if let Screen::Channel(id) = self.state.screen {
+                self.request(Request::Launch {
+                    read: sticktalk_client_core::launch::Read::Pins(id),
+                    generation: self.state.generation,
+                });
+            }
+        }
         self.form_revision = self.form_revision.wrapping_add(1);
         if matches!(self.dialog, Dialog::CreateGuild) {
             if let Some(id) = self.form.icon.take() {
@@ -3336,13 +3552,27 @@ impl App {
             - crate::theme::TYPING
             - crate::theme::S8;
         let mut mock = crate::mock::Mock::new();
-        mock.configure(screen);
+        mock.configure(
+            if matches!(screen, "main-history-extent" | "main-history-skeleton") {
+                "scroll-5000"
+            } else {
+                screen
+            },
+        );
         let channel = match screen {
             "dm-chat" => Id(20),
             "group-chat" => Id(21),
             _ => Id(12),
         };
         let page = mock.history(channel, None);
+        let extent = if matches!(screen, "main-history-extent" | "main-history-skeleton") {
+            mock.request::<PathBuf, backend::Handle>(Request::Launch {
+                read: sticktalk_client_core::launch::Read::Extent(channel),
+                generation: 0,
+            })
+        } else {
+            None
+        };
         let benchmark_messages = (matches!(screen, "scroll-5000" | "scroll-skeleton"))
             .then(|| mock.model.messages[&channel].clone());
         app.state.model = std::mem::take(&mut mock.model);
@@ -3360,6 +3590,7 @@ impl App {
         app.state.connection = ConnectionState::Ready;
         app.state.screen = Screen::Channel(channel);
         app.state.guild = app.state.model.channels[&channel].guild_id;
+        app.state.model.active_guild = app.state.guild;
         app.google_id = Some("mock-desktop".into());
         app.signup = None;
         app.state.session = Some(Session {
@@ -3515,6 +3746,124 @@ impl App {
             }
             _ => {}
         }
+        use crate::main_window::{Entity, Popover};
+        if screen.starts_with("main-") {
+            app.main.developer = true;
+            app.main.pointer = iced::Point::new(size.width - crate::theme::MEMBERS + 40., 160.);
+            app.main.position = app.main.pointer;
+            app.main.popover = match screen {
+                "main-server-menu" | "main-server-menu-member" => Some(Popover::Server),
+                "main-profile" => Some(Popover::Profile(Id(2))),
+                "main-profile-idle" => Some(Popover::Profile(Id(3))),
+                "main-profile-dnd" => {
+                    app.state.model.presences.insert(Id(4), PresenceStatus::Dnd);
+                    Some(Popover::Profile(Id(4)))
+                }
+                "main-profile-offline" => Some(Popover::Profile(Id(5))),
+                "main-own-profile" => Some(Popover::Profile(Id(1))),
+                "main-pins" => Some(Popover::Pins(Id(12))),
+                "main-notifications" => Some(Popover::Notifications(Some(Id(10)), Some(Id(12)))),
+                "main-topic" => Some(Popover::Topic(Id(12))),
+                "main-quick-switcher" => {
+                    app.main.quick = "gnrl".into();
+                    Some(Popover::Quick)
+                }
+                "main-user-context" => Some(Popover::Context(Entity::User(Id(2)))),
+                "main-channel-context" => Some(Popover::Context(Entity::Channel(Id(22)))),
+                "main-server-context" => Some(Popover::Context(Entity::Guild(Id(10)))),
+                "main-rail-context" => Some(Popover::Context(Entity::Rail)),
+                "main-devices" => Some(Popover::Devices(true)),
+                "main-mutual-servers" => Some(Popover::Mutual(Id(2), true)),
+                "main-role-picker" => Some(Popover::Roles(Id(2))),
+                "main-nickname" => Some(Popover::Nickname(Id(2))),
+                _ => None,
+            };
+            match screen {
+                "main-notifications" => {
+                    app.main.position = iced::Point::new(
+                        size.width - crate::theme::SEARCH_W - crate::theme::S32 * 3.,
+                        crate::theme::HEADER,
+                    )
+                }
+                "main-topic" => {
+                    app.main.position = iced::Point::new(
+                        crate::theme::RAIL + crate::theme::SIDEBAR + crate::theme::S32 * 5.,
+                        crate::theme::HEADER,
+                    )
+                }
+                "main-channel-context" => {
+                    app.main.position = iced::Point::new(
+                        crate::theme::RAIL + crate::theme::S32 * 4.,
+                        crate::theme::HEADER + crate::theme::S32 * 4.,
+                    )
+                }
+                "main-server-context" | "main-rail-context" => {
+                    app.main.position =
+                        iced::Point::new(crate::theme::RAIL / 2., crate::theme::GUILD_ICON * 3.)
+                }
+                "main-own-profile" => {
+                    app.main.position = iced::Point::new(
+                        crate::theme::RAIL + crate::theme::S24,
+                        size.height - crate::theme::S32,
+                    )
+                }
+                "main-server-menu-member" => {
+                    app.state
+                        .model
+                        .guilds
+                        .get_mut(&Id(10))
+                        .unwrap()
+                        .guild
+                        .owner_id = Id(2);
+                }
+                "main-no-voice" => {
+                    app.state.model.launch.voice.clear();
+                    app.state.model.launch.speaking.clear();
+                }
+                "main-members-hidden" => app.members_open = Some(false),
+                "main-rail-unread" => {
+                    if let Some(r) = app.state.model.reads.get_mut(&Id(41)) {
+                        r.unread_count = 4;
+                    }
+                }
+                "main-rail-hover" => app.hovered_guild = Some(Some(Id(30))),
+                "main-channel-hover" => app.main.hovered_channel = Some(Id(22)),
+                "main-category-hover" => app.main.hovered_category = Some(Id(11)),
+                "main-category-collapsed" => {
+                    app.main.collapsed.insert(Id(11));
+                }
+                "main-streaming" => {
+                    if let Some(v) = app
+                        .state
+                        .model
+                        .launch
+                        .voice
+                        .values_mut()
+                        .find(|v| v.participant.session.user_id == Id(1))
+                    {
+                        v.participant.tracks.push(PublishedTrack {
+                            mid: "screen".into(),
+                            kind: TrackKind::Screen,
+                            codec: Some(VideoCodec::H264),
+                            layers: vec![],
+                            surface: Some(ShareSurface::Monitor),
+                        });
+                    }
+                }
+                "main-muted-controls" => {
+                    app.main.muted = true;
+                    app.main.deafened = true;
+                }
+                "main-user-hover" => app.main.user_hover = true,
+                "main-offline-hover" => app.main.hovered_member = Some(Id(5)),
+                "main-drop-overlay" => app.main.dropping = true,
+                "main-local-search" => app.main.search = "sketches".into(),
+                "main-message-menu" => {
+                    app.open(Dialog::MessageActions(Id(2279)));
+                }
+                _ => {}
+            }
+        }
         if let Some(methods) = &app.methods {
             app.mock_account.lock().unwrap().methods = methods.clone();
         }
@@ -3522,6 +3871,44 @@ impl App {
             app.state.at_present = false;
             app.scroll_y = app.history_height() * 0.5;
             app.fast_scrolling = true;
+        }
+        if let Some(Data::Launch {
+            data: sticktalk_client_core::launch::SnapshotData::Extent(v),
+            ..
+        }) = extent
+        {
+            app.extent_snapshot(&v.data);
+            app.state.at_present = false;
+            app.scroll_y = app.extent.total() * 0.5;
+            app.extent.loaded = false;
+            app.extent.ends_at_present = false;
+            if screen == "main-history-extent" {
+                let anchor = app
+                    .extent
+                    .nearest(app.scroll_y + app.viewport_h / 2.)
+                    .unwrap();
+                let mut peer = crate::mock::Mock::new();
+                peer.configure("scroll-5000");
+                if let Some(Data::AroundHistory { page, .. }) = peer
+                    .request::<PathBuf, backend::Handle>(Request::AroundHistory {
+                        channel,
+                        anchor: backend::HistoryAnchor::Message(anchor.message_id),
+                        seek: 0,
+                        generation: 0,
+                    })
+                {
+                    let before = page
+                        .items
+                        .iter()
+                        .filter(|m| m.id < anchor.message_id)
+                        .count() as u64;
+                    app.extent.start_rank = anchor.rank.saturating_sub(before);
+                    app.state.model.messages.remove(&channel);
+                    app.state.model.merge_page(channel, page);
+                    app.reset_history_geometry();
+                    app.extent.loaded = true;
+                }
+            }
         }
         app.error.clear();
         app

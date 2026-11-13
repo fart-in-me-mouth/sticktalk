@@ -19,6 +19,11 @@ impl std::fmt::Debug for Session {
 }
 #[derive(Debug, Clone)]
 pub enum Request<R = String> {
+    Launch {
+        read: crate::launch::Read,
+        generation: u64,
+    },
+    Voice(VoicePayload),
     Command(CommandRequest),
     Applied(ResumeCursor),
     View,
@@ -152,6 +157,10 @@ impl HistoryAnchor {
 }
 #[derive(Debug, Clone)]
 pub enum Data<H = ()> {
+    Launch {
+        data: crate::launch::SnapshotData,
+        generation: u64,
+    },
     Connected(H),
     Rejected {
         nonce: Nonce,

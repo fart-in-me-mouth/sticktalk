@@ -23,7 +23,7 @@ pub const DANGER: Color = Color::from_rgb8(0xf2, 0x5f, 0x5c);
 pub const WARNING: Color = Color::from_rgb8(0xf2, 0xb8, 0x4b);
 pub const USER_PANEL: Color = Color::from_rgb8(0x14, 0x14, 0x17);
 pub const INPUT_BG: Color = Color::from_rgb8(0x12, 0x12, 0x15);
-pub const BACKDROP: Color = Color::from_rgba8(0, 0, 0, 0.7);
+pub const BACKDROP: Color = Color::from_rgba8(0, 0, 0, 0.6);
 pub const TRANSPARENT: Color = Color::TRANSPARENT;
 pub const S4: f32 = 4.;
 pub const S8: f32 = 8.;
@@ -62,6 +62,7 @@ pub const MARKDOWN_H3: f32 = 16.;
 pub const CONTEXT_W: f32 = 240.;
 pub const ICON: f32 = 20.;
 pub const INLINE_ICON: f32 = 16.;
+#[allow(dead_code)] // Retained token used by parallel settings work.
 pub const CHANNEL_ICON: f32 = 18.;
 pub const AVATAR: f32 = 40.;
 pub const SMALL_AVATAR: f32 = 32.;
@@ -162,6 +163,7 @@ pub fn modal(_: &Theme) -> container::Style {
         ..surface(BG_ELEVATED)
     }
 }
+#[allow(dead_code)] // Retained public style for parallel UI work.
 pub fn tooltip(_: &Theme) -> container::Style {
     container::Style {
         border: Border {
@@ -433,3 +435,46 @@ pub fn google_button(theme: &Theme, status: button_widget::Status) -> button_wid
     };
     s
 }
+
+// Additive UI_PARITY §0 / §1 tokens.
+pub const MENU_BG: Color = Color::from_rgb8(0x11, 0x12, 0x14);
+pub const TOOLTIP_RADIUS: f32 = 6.;
+pub const TOOL_ICON_PADDING: f32 = 6.;
+pub const MENU_PADDING: f32 = 6.;
+pub const MENU_ICON: f32 = 18.;
+pub const CHANNEL_ROW: f32 = 34.;
+pub const CHANNEL_NAME: f32 = 16.;
+pub const PARITY_MEMBER_ROW: f32 = 42.;
+pub const VOICE_USER_ROW: f32 = 28.;
+pub const POPOUT_W: f32 = 340.;
+pub const BANNER_H: f32 = 105.;
+pub const PROFILE_AVATAR: f32 = 80.;
+pub const TOGGLE_W: f32 = 40.;
+pub const TOGGLE_KNOB: f32 = 20.;
+pub const TOGGLE_OFF: Color = Color::from_rgba8(0x72, 0x76, 0x7d, 0.6);
+pub const SECONDARY_BG: Color = Color::from_rgb8(0x3a, 0x3a, 0x41);
+pub const SECONDARY_HOVER: Color = Color::from_rgb8(0x45, 0x45, 0x4d);
+pub const ROLE_CHIP: Color = Color::from_rgb8(0x2b, 0x2b, 0x30);
+pub const CROWN: f32 = 14.;
+pub const SEARCH_W: f32 = 240.;
+pub const SEARCH_NARROW: f32 = 144.;
+pub const QUICK_W: f32 = 560.;
+pub const HISTORY_ROW: f32 = 96.;
+
+pub fn secondary(theme: &Theme, status: button_widget::Status) -> button_widget::Style {
+    let mut style = button(theme, status);
+    style.background = Some(
+        if matches!(
+            status,
+            button_widget::Status::Hovered | button_widget::Status::Pressed
+        ) {
+            SECONDARY_HOVER
+        } else {
+            SECONDARY_BG
+        }
+        .into(),
+    );
+    style
+}
+
+pub const PROFILE_ACTION: f32 = 36.;

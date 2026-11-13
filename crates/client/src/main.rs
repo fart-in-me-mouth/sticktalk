@@ -8,6 +8,8 @@ mod headless;
 mod icons;
 use sticktalk::markdown;
 use sticktalk::media;
+mod history_extent;
+mod main_window;
 mod message_layout;
 use sticktalk::mock;
 use sticktalk::model;

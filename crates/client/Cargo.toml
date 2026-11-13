@@ -37,6 +37,7 @@ wgpu = ["iced/wgpu", "dep:iced_wgpu", "dep:winit"]
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Time", "Win32_System_Threading", "Win32_System_ProcessStatus", "Win32_System_Performance", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
 
+
 [dev-dependencies]
 sticktalk-server = { path = "../server" }
 tempfile = "3"
