@@ -160,6 +160,7 @@ struct Route {
 struct Peer {
     failed: bool,
     idr_starts: u64,
+    media_cap_drops: u64,
     gated_packets: u64,
     keyframe_times: BTreeMap<(Mid, Option<String>), Instant>,
     keyframe_forwarded: u64,
@@ -721,6 +722,7 @@ impl Sfu {
         let p = Peer {
             failed: false,
             idr_starts: 0,
+            media_cap_drops: 0,
             gated_packets: 0,
             keyframe_times: BTreeMap::new(),
             keyframe_forwarded: 0,
@@ -1498,18 +1500,28 @@ impl Sfu {
                         // Unmapped/withdrawn SSRCs (including probes) cannot escape
                         // publication authorization via a paced or retransmit queue.
                         let video = route.video;
-                        // Final wire budget includes RTX and probes.
-                        if video
-                            && (!peer.video_budget.take(bytes.len(), self.now)
-                                || !self
-                                    .room_budgets
-                                    .get_mut(&peer.channel)
-                                    .ok_or(Error::Config)?
-                                    .take(bytes.len(), self.now)
-                                || !self.budget.take(bytes.len(), self.now))
-                        {
-                            peer.stats.cap_dropped_packets += 1;
-                            continue;
+                        // Probe padding uses RTX or the RTP padding bit. Preserve
+                        // original-media burst headroom without bypassing any cap.
+                        let repair = route.rtx.is_some_and(|r| *r == ssrc) || bytes[0] & 0x20 != 0;
+                        if video {
+                            let room = self
+                                .room_budgets
+                                .get_mut(&peer.channel)
+                                .ok_or(Error::Config)?;
+                            if !peer.video_budget.available(bytes.len(), repair, self.now)
+                                || !room.available(bytes.len(), repair, self.now)
+                                || !self.budget.available(bytes.len(), repair, self.now)
+                            {
+                                peer.stats.cap_dropped_packets += 1;
+                                if !repair {
+                                    peer.media_cap_drops += 1;
+                                }
+                                continue;
+                            }
+                            // Commit all three only after every preflight succeeds.
+                            peer.video_budget.take(bytes.len(), self.now);
+                            room.take(bytes.len(), self.now);
+                            self.budget.take(bytes.len(), self.now);
                         }
                         if video && bytes[1] & 0x80 != 0 {
                             peer.tx_frames += 1;
@@ -1722,8 +1734,10 @@ impl Sfu {
                 .map(|q| (q.packet_count(), q.byte_size(), q.first_unsent()));
             self.collect(to)?;
             if queued.is_some_and(|(packets, bytes, first)| {
-                packets >= 128
-                    || bytes >= 128 * 1024
+                // A desktop IDR can exceed 128 KiB without being stale. Bound
+                // memory independently of the unchanged 250 ms latency ceiling.
+                packets >= 2048
+                    || bytes >= 2 * 1024 * 1024
                     || first.is_some_and(|t| {
                         self.now.saturating_duration_since(t) > Duration::from_millis(250)
                     })
@@ -1830,7 +1844,7 @@ impl Sfu {
             .as_secs_f64()
             .max(0.001);
         if self.video_trace {
-            eprintln!("VIDEO_TRACE sfu_peer peer={:?} seconds={:.3} bwe={} target={} rx_fps={:.1} tx_fps={:.1} wire_tx_bytes={} idr_starts={} gated_packets={} cap_drops={} queue_drops={} mtu_drops={}", key, self.now.saturating_duration_since(p.created).as_secs_f64(), p.bwe, p.bwe_target, p.rx_frames as f64 / elapsed, p.tx_frames as f64 / elapsed, p.wire_tx_bytes, p.idr_starts, p.gated_packets, p.stats.cap_dropped_packets, p.stats.queue_dropped_packets, p.stats.mtu_dropped_packets);
+            eprintln!("VIDEO_TRACE sfu_peer peer={:?} seconds={:.3} bwe={} target={} rx_fps={:.1} tx_fps={:.1} wire_tx_bytes={} idr_starts={} gated_packets={} cap_drops={} media_cap_drops={} queue_drops={} mtu_drops={}", key, self.now.saturating_duration_since(p.created).as_secs_f64(), p.bwe, p.bwe_target, p.rx_frames as f64 / elapsed, p.tx_frames as f64 / elapsed, p.wire_tx_bytes, p.idr_starts, p.gated_packets, p.stats.cap_dropped_packets, p.media_cap_drops, p.stats.queue_dropped_packets, p.stats.mtu_dropped_packets);
         }
         p.stats.tx_bps =
             ((p.wire_tx_bytes.saturating_sub(p.tx_bytes)) as f64 * 8.0 / elapsed) as u64;

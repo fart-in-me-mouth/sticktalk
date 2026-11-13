@@ -149,8 +149,10 @@ impl ShareSession {
                 .unwrap_or(Error::Stopped)),
         }
     }
-    /// Coalesces rapid changes. Prepares a replacement on an MTA worker while
-    /// the old encoder continues. Commits only on the replacement IDR/SPS/PPS;
+    /// Coalesces rapid changes. Bitrate-only updates use in-place rate control
+    /// with 15% hysteresis and a two-second minimum interval. Format changes
+    /// prepare a replacement on an MTA worker while the old encoder continues,
+    /// committing only on the replacement IDR/SPS/PPS;
     /// capture is never restarted. Briefly owns two encoder surface pools.
     /// Failure keeps the old stream and reports an error through recv_timeout.
     pub fn set_quality(&self, quality: Quality, bitrate: u32) -> Result<()> {
@@ -527,6 +529,7 @@ fn run(
                 stats.encoded += 1;
                 stats.keyframes += u64::from(keyframe);
                 stats.bytes += bytes.len() as u64;
+                stats.max_access_unit_bytes = stats.max_access_unit_bytes.max(bytes.len());
                 drop(stats);
                 let frame = EncodedFrame {
                     data: bytes,

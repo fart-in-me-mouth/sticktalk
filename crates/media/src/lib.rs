@@ -120,8 +120,9 @@ pub struct EncodedFrame {
     pub duration: i64,
     pub keyframe: bool,
     pub size: Size,
-    /// Incremented when encoder configuration changes. Decoder renegotiates on
-    /// the first keyframe of a new generation, without restarting capture.
+    /// Incremented on encoded format (size/fps) changes, not live bitrate
+    /// updates. Decoder renegotiates on the first keyframe of a new generation
+    /// without restarting capture or invalidating bitrate-only references.
     pub generation: u64,
     pub encode_latency: Duration,
 }
@@ -133,6 +134,7 @@ pub struct SessionStats {
     pub dropped: u64,
     pub repeated: u64,
     pub bytes: u64,
+    pub max_access_unit_bytes: usize,
     pub reconfigurations: u64,
     pub quality_requests: u64,
     pub keyframe_requests: u64,

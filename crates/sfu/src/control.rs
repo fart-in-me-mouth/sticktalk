@@ -76,14 +76,41 @@ impl Budget {
         }
     }
     pub fn take(&mut self, bytes: usize, now: Instant) -> bool {
-        self.tokens = (self.tokens
-            + now.saturating_duration_since(self.last).as_secs_f64() * self.bps as f64 / 8.0)
-            .min(self.capacity);
-        self.last = now;
-        if self.tokens < bytes as f64 {
+        if !self.available(bytes, false, now) {
             return false;
         }
         self.tokens -= bytes as f64;
         true
+    }
+    /// Preflight without spending: peer/room/global admission must be atomic.
+    /// Reserve half the burst for original media, so capacity probes/RTX cannot
+    /// consume the last tokens and break an otherwise admissible reference chain.
+    /// Both classes still share the SAME strict wire rate and burst ceiling.
+    pub fn available(&mut self, bytes: usize, repair: bool, now: Instant) -> bool {
+        self.tokens = (self.tokens
+            + now.saturating_duration_since(self.last).as_secs_f64() * self.bps as f64 / 8.0)
+            .min(self.capacity);
+        self.last = now;
+        self.tokens >= bytes as f64 + if repair { self.capacity * 0.5 } else { 0.0 }
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+
+    #[test]
+    fn probes_leave_media_headroom_without_increasing_wire_budget() {
+        let now = Instant::now();
+        let mut b = Budget::new(80_000, 1000, now); // 1000-byte burst
+        assert!(b.available(500, true, now));
+        assert!(b.take(500, now));
+        assert!(!b.available(1, true, now));
+        assert!(b.take(500, now));
+        assert!(!b.take(1, now));
+        // A rejected preflight never spends tokens in any other bucket.
+        assert!(!b.available(1001, false, now + Duration::from_secs(1)));
+        assert!(b.take(1000, now + Duration::from_secs(1)));
+        assert!(!b.take(1, now + Duration::from_secs(1)));
     }
 }

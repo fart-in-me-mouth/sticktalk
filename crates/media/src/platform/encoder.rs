@@ -230,6 +230,20 @@ impl Hardware {
                 VARIANT::from(options.bitrate),
                 "bitrate",
             )?;
+            // H.264 HRD is in BYTES (CodecAPI). Default hardware buffers can
+            // accumulate a second of bits into one desktop IDR, overwhelming a
+            // low-latency RTP queue. 100 ms bounds bursts, not the frame rate.
+            // Optional on third-party MFTs; never fall back to software solely
+            // because a vendor lacks this tuning property.
+            match property(
+                &codec_api,
+                &CODECAPI_AVEncCommonBufferSize,
+                VARIANT::from((options.bitrate / 80).max(1)),
+                "100 ms HRD buffer",
+            ) {
+                Ok(()) => eprintln!("video encoder HRD buffer={} bytes", options.bitrate / 80),
+                Err(error) => eprintln!("video encoder HRD tuning unavailable: {error}"),
+            }
             if options.rate_control == RateControl::Vbr {
                 property(
                     &codec_api,
