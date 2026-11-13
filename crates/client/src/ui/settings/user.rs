@@ -32,7 +32,12 @@ pub(super) fn content(app: &App, page: UserPage) -> Element<'_, Msg> {
                 N::FontScale,
                 "%"
             ),
-            preview_message(app)
+            preview_message(app),
+            line(),
+            crate::ui::media_settings::view(app),
+            line(),
+            section("CREDITS"),
+            small("Inter by Rasmus Andersson (SIL OFL). JetBrains Mono by JetBrains (SIL OFL). Lucide icons (ISC). Twemoji artwork by Twitter and contributors (CC BY 4.0).")
         ]
         .spacing(t::S24)
         .into(),
@@ -67,6 +72,14 @@ pub(super) fn content(app: &App, page: UserPage) -> Element<'_, Msg> {
                 "Show Copy ID actions in entity menus.",
                 p.developer_mode,
                 A::Toggle(T::Developer, !p.developer_mode),
+                true
+            ),
+            line(),
+            toggle(
+                "Start with Windows",
+                "Open StickTalk in the tray when you sign in.",
+                p.start_with_windows,
+                A::Toggle(T::Startup, !p.start_with_windows),
                 true
             )
         ]
@@ -128,9 +141,11 @@ pub(super) fn content(app: &App, page: UserPage) -> Element<'_, Msg> {
                     "",
                     p.notification_sounds,
                     A::Toggle(T::Sounds, !p.notification_sounds),
-                    false,
+                    true,
                 ))
-                .push(small("Sounds are not enabled on this device."))
+                .push(small(
+                    "Play a short, subtle sound only while StickTalk is unfocused.",
+                ))
                 .into()
         }
         UserPage::Keybinds => {

@@ -1,0 +1,27 @@
+{
+  "installer_bytes": 9780276,
+  "installed": false,
+  "executed": false,
+  "files": [
+    {
+      "bytes": 22365696,
+      "file": "sticktalk.exe",
+      "sha256": "791436217BDD418D2357401E1E3518942300CDCAE6F7BC330CFC0416956DAEC0"
+    },
+    {
+      "bytes": 739328,
+      "file": "sticktalk-maintenance.exe",
+      "sha256": "37901AF31653A5FAEF7C1D4EFA01CDDA1D6F91219104A03DE162BA5BDA6473D8"
+    }
+  ],
+  "nsis": "3.13",
+  "flags": "release; default wgpu/DX12; system allocator",
+  "nsis_zip_sha256": "ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8",
+  "notices": [
+    "Twemoji-NOTICE.txt",
+    "Twemoji-LICENSE.txt"
+  ],
+  "installer_sha256": "6F337EB0F852AC69C06F82ADF6CAAD00078D7F0A39C4D98227E05839DA041ED1",
+  "binary_source_commit": "38b7d34042686254c70df138d5f4e90b11fa7b12",
+  "installer_script_sha256": "FD094B02C4810B4EB9C0BEEA49A9B1ADD2802CEFBA1C55154FFE93AC14E222E4"
+}

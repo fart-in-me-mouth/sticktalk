@@ -50,3 +50,29 @@ pub fn label(ms: u64, short: bool) -> String {
         short,
     )
 }
+
+pub fn member_since(d: Parts) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let month = MONTHS
+        .get(d.month.saturating_sub(1) as usize)
+        .unwrap_or(&"Jan");
+    format!("{month} {}, {}", d.day, d.year)
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn membership_date_is_readable() {
+        assert_eq!(
+            super::member_since(super::Parts {
+                year: 2026,
+                month: 7,
+                day: 15,
+                hour: 0,
+                minute: 0
+            }),
+            "Jul 15, 2026"
+        );
+    }
+}

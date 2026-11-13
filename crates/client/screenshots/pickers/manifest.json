@@ -1,0 +1,90 @@
+{
+  "renderer": "iced-tiny-skia",
+  "screens": [
+    {
+      "file": "emoji-picker-1280x800.png",
+      "height": 800,
+      "sha256": "93413f379381a30779281ddfc7683663aa22ddff258e164d0238ce9a6feb880d",
+      "width": 1280
+    },
+    {
+      "file": "emoji-search-1280x800.png",
+      "height": 800,
+      "sha256": "a3b802f6ff6c241b846e15bee33f2543f9c05883eb0d7c2e95d827d5c087c6e1",
+      "width": 1280
+    },
+    {
+      "file": "emoji-autocomplete-1280x800.png",
+      "height": 800,
+      "sha256": "de0c7e2cc243d2aa168e8672b4a76d22af75e5a1fd066ee5c5cdf1e926630fd6",
+      "width": 1280
+    },
+    {
+      "file": "reaction-picker-1280x800.png",
+      "height": 800,
+      "sha256": "93413f379381a30779281ddfc7683663aa22ddff258e164d0238ce9a6feb880d",
+      "width": 1280
+    },
+    {
+      "file": "gif-picker-1280x800.png",
+      "height": 800,
+      "sha256": "8f9f575976c8f8af3d17b02757defc0cc13fc4d8e4fad54c6c9dd007751cdfd3",
+      "width": 1280
+    },
+    {
+      "file": "gif-search-1280x800.png",
+      "height": 800,
+      "sha256": "d65854bdc5655e2bed758480b9f45d2286c1a642e97e12d35e1738feec92a053",
+      "width": 1280
+    },
+    {
+      "file": "gif-favorites-1280x800.png",
+      "height": 800,
+      "sha256": "9fe91398d87a19618896fcf603e27cbac67864c1e78d8ce287c36079ec67f73d",
+      "width": 1280
+    },
+    {
+      "file": "emoji-picker-1920x1080.png",
+      "height": 1080,
+      "sha256": "2380b383e37eeababbd7ce1d048475e7e0155be441470539014279f8d7b01e4c",
+      "width": 1920
+    },
+    {
+      "file": "emoji-search-1920x1080.png",
+      "height": 1080,
+      "sha256": "18e32294714134e2440a260d2ff804556e1f4ced1f1ac9b16a552333494335a2",
+      "width": 1920
+    },
+    {
+      "file": "emoji-autocomplete-1920x1080.png",
+      "height": 1080,
+      "sha256": "26250276375cec32bf3760a853e2ba74cdc9178f48f916c4ea08cd8859509f3f",
+      "width": 1920
+    },
+    {
+      "file": "reaction-picker-1920x1080.png",
+      "height": 1080,
+      "sha256": "2380b383e37eeababbd7ce1d048475e7e0155be441470539014279f8d7b01e4c",
+      "width": 1920
+    },
+    {
+      "file": "gif-picker-1920x1080.png",
+      "height": 1080,
+      "sha256": "59fc9ecf70cd78b8e34b8fa893736b5e29d2e236acdd74ded1f3cc7855b8de1a",
+      "width": 1920
+    },
+    {
+      "file": "gif-search-1920x1080.png",
+      "height": 1080,
+      "sha256": "4c53c30f1548cba3d857fac142c9376f4556e42c0a834de93291dff1dc25ba60",
+      "width": 1920
+    },
+    {
+      "file": "gif-favorites-1920x1080.png",
+      "height": 1080,
+      "sha256": "c7a4831af46fd260ae8cf7e29000e33d95c342a9f6516cf371e1f084245d4def",
+      "width": 1920
+    }
+  ],
+  "window_backend": "none"
+}

@@ -22,6 +22,7 @@ use windows::{
     },
 };
 
+pub mod host;
 pub mod instance;
 
 /// COM apartment guard, deliberately !Send / !Sync.
@@ -124,6 +125,27 @@ impl Icon {
         };
         Ok(Self(HICON(handle.0)))
     }
+    pub fn brand() -> Result<Self> {
+        let mut rgba = [0u8; 16 * 16 * 4];
+        let mut mask = [255u8; 16 * 2];
+        for y in 2..14 {
+            for x in 1..15 {
+                if !(3..13).contains(&y) && !(3..13).contains(&x) {
+                    continue;
+                }
+                let pixel = if (y == 6 || y == 9) && (4..12).contains(&x) {
+                    [0x0f, 0x17, 0x08, 255]
+                } else {
+                    [0x97, 0xdc, 0x3d, 255]
+                };
+                rgba[(y * 16 + x) * 4..(y * 16 + x + 1) * 4].copy_from_slice(&pixel);
+                mask[y * 2 + x / 8] &= !(0x80 >> (x % 8));
+            }
+        }
+        Ok(Self(unsafe {
+            CreateIcon(None, 16, 16, 1, 32, mask.as_ptr(), rgba.as_ptr())?
+        }))
+    }
     pub fn unread(count: u32) -> Result<Self> {
         let mut rgba = [0u8; 16 * 16 * 4];
         let mut mask = [255u8; 16 * 2];
@@ -218,6 +240,11 @@ pub fn focus_window(hwnd: HWND) {
     unsafe {
         let _ = ShowWindow(hwnd, SW_RESTORE);
         let _ = SetForegroundWindow(hwnd);
+    }
+}
+pub fn show_window_inactive(hwnd: HWND) {
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
     }
 }
 pub fn hide_window(hwnd: HWND) {

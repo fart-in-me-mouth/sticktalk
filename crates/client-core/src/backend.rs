@@ -19,6 +19,10 @@ impl std::fmt::Debug for Session {
 }
 #[derive(Debug, Clone)]
 pub enum Request<R = String> {
+    Launch {
+        read: crate::launch::Read,
+        generation: u64,
+    },
     /// Ephemeral: never queued/replayed as a durable command.
     Voice(VoicePayload),
     Settings {
@@ -158,6 +162,10 @@ impl HistoryAnchor {
 }
 #[derive(Debug, Clone)]
 pub enum Data<H = ()> {
+    Launch {
+        data: crate::launch::SnapshotData,
+        generation: u64,
+    },
     Settings {
         snapshot: Snapshot<crate::settings::SnapshotData>,
         generation: u64,

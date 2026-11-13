@@ -166,6 +166,27 @@ impl<A: HttpTransport> Http<A> {
     }
     pub async fn request<R, H>(&self, request: Request<R>) -> Result<Data<H>, String> {
         match request {
+            Request::Launch { read, generation } => {
+                use crate::launch::{Read, SnapshotData};
+                let data = match read {
+                    Read::Profile(id) => {
+                        SnapshotData::Profile(self.json(&format!("/users/{}/profile", id.0)).await?)
+                    }
+                    Read::Pins(id) => SnapshotData::Pins(
+                        id,
+                        self.json(&format!("/channels/{}/pins", id.0)).await?,
+                    ),
+                    Read::Overwrites(id) => SnapshotData::Overwrites(
+                        id,
+                        self.json(&format!("/channels/{}/overwrites", id.0)).await?,
+                    ),
+                    Read::Extent(id) => SnapshotData::Extent(
+                        self.json(&format!("/channels/{}/history-extent", id.0))
+                            .await?,
+                    ),
+                };
+                Ok(Data::Launch { data, generation })
+            }
             Request::Settings { query, generation } => {
                 use crate::settings::{Query, SnapshotData as S};
                 let path = query.path();

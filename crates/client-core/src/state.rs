@@ -149,6 +149,7 @@ impl ClientState {
             }
             self.member_after = page.next_after;
             for m in page.items {
+                self.model.launch.member(&m);
                 self.model.users.insert(m.user.id, m.user.clone());
                 self.model.members.insert(m.user.id, m);
             }

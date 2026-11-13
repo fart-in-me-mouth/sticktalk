@@ -386,6 +386,7 @@ pub struct Preferences {
     pub friend_requests: bool,
     pub notification_level: NotificationLevel,
     pub notification_sounds: bool,
+    pub start_with_windows: bool,
     pub keybinds: BTreeMap<String, String>,
 }
 impl Default for Preferences {
@@ -401,6 +402,7 @@ impl Default for Preferences {
             friend_requests: true,
             notification_level: NotificationLevel::Mentions,
             notification_sounds: false,
+            start_with_windows: false,
             keybinds: [
                 ("Toggle Mute".into(), "Ctrl+Shift+M".into()),
                 ("Toggle Deafen".into(), "Ctrl+Shift+D".into()),
@@ -599,5 +601,16 @@ mod tests {
             cursor,
             data: SnapshotData::Sessions(vec![])
         }));
+    }
+}
+
+#[cfg(test)]
+mod desktop_preference_tests {
+    use super::*;
+    #[test]
+    fn startup_is_explicitly_opt_in_and_legacy_preferences_are_compatible() {
+        let p: Preferences = serde_json::from_str("{}").unwrap();
+        assert!(!p.start_with_windows);
+        assert!(!p.notification_sounds);
     }
 }

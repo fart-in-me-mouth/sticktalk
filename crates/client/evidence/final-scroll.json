@@ -1,0 +1,103 @@
+{
+  "messages": 5000,
+  "method": "actual iced view; synthetic fractional wheel offsets, random cold seeks and fast-drag skeleton offsets; tiny-skia persistent pixmap + damaged chat region only; GPU full offscreen texture and synchronous submission completion; no PNG encoding/readback/OS window; not physical monitor cadence",
+  "renderer": "wgpu-vulkan",
+  "results": [
+    {
+      "draw_primitives": {
+        "max_ms": 2.0947999999999998,
+        "p50_ms": 0.7503,
+        "p99_ms": 1.6375000000000002,
+        "samples": 600
+      },
+      "input": "wheel-deltas",
+      "layout": {
+        "max_ms": 41.31,
+        "p50_ms": 4.5752,
+        "p99_ms": 21.5291,
+        "samples": 600
+      },
+      "max_visible_rows": 36,
+      "message_layout_hits": 22901,
+      "message_layout_misses": 223,
+      "render": {
+        "max_ms": 15.3673,
+        "p50_ms": 9.6453,
+        "p99_ms": 13.309,
+        "samples": 600
+      },
+      "total": {
+        "max_ms": 52.9214,
+        "p50_ms": 16.2283,
+        "p99_ms": 36.5618,
+        "samples": 600
+      }
+    },
+    {
+      "draw_primitives": {
+        "max_ms": 3.1355,
+        "p50_ms": 0.766,
+        "p99_ms": 1.7096,
+        "samples": 600
+      },
+      "input": "scrollbar-seek",
+      "layout": {
+        "max_ms": 474.24280000000005,
+        "p50_ms": 110.9166,
+        "p99_ms": 332.8325,
+        "samples": 600
+      },
+      "max_visible_rows": 36,
+      "message_layout_hits": 0,
+      "message_layout_misses": 23036,
+      "render": {
+        "max_ms": 93.6236,
+        "p50_ms": 6.2397,
+        "p99_ms": 41.702200000000005,
+        "samples": 600
+      },
+      "total": {
+        "max_ms": 551.059,
+        "p50_ms": 124.2872,
+        "p99_ms": 387.5285,
+        "samples": 600
+      }
+    },
+    {
+      "draw_primitives": {
+        "max_ms": 1.1816000000000002,
+        "p50_ms": 0.2876,
+        "p99_ms": 0.6174999999999999,
+        "samples": 600
+      },
+      "input": "scrollbar-drag-skeleton",
+      "layout": {
+        "max_ms": 1.8148000000000002,
+        "p50_ms": 0.7749,
+        "p99_ms": 1.5927,
+        "samples": 600
+      },
+      "max_visible_rows": 35,
+      "message_layout_hits": 0,
+      "message_layout_misses": 0,
+      "render": {
+        "max_ms": 2.5052,
+        "p50_ms": 0.8907999999999999,
+        "p99_ms": 1.9708999999999999,
+        "samples": 600
+      },
+      "total": {
+        "max_ms": 4.1828,
+        "p50_ms": 2.0271,
+        "p99_ms": 3.9475,
+        "samples": 600
+      }
+    }
+  ],
+  "size": [
+    2560,
+    1440
+  ],
+  "warmup_frames": 60,
+  "window_backend": "none"
+}

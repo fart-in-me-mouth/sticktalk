@@ -20,3 +20,6 @@ pub use audio::*;
 
 mod camera;
 pub use camera::*;
+
+mod player;
+pub use player::{FilePlayer, PlayerFrame};

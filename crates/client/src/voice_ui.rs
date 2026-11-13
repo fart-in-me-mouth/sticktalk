@@ -558,6 +558,8 @@ impl App {
             Action::Saved(Err(e)) => self.error = e,
             Action::Saved(Ok(())) => {}
         }
+        self.main.muted = self.calls.call.muted;
+        self.main.deafened = self.calls.call.deafened;
         Task::none()
     }
     fn call_apply_settings(&mut self) {

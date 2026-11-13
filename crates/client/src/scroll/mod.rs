@@ -12,3 +12,6 @@ pub use gpu_counter::GpuCounter;
 mod subpixel;
 
 pub mod pacing;
+
+#[cfg(test)]
+pub(crate) mod test_geometry;

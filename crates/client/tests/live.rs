@@ -317,6 +317,13 @@ impl Peer {
                     Data::Frame(ServerMsg::Event(e)) => {
                         model.apply(*e.clone());
                     }
+                    Data::Frame(ServerMsg::Voice(v)) => {
+                        model.voice_payload(v);
+                    }
+                    Data::Launch { data, .. } => {
+                        assert!(model.snapshot_valid(data.cursor()));
+                        model.launch.snapshot(data.clone());
+                    }
                     Data::Frame(ServerMsg::Resumed(r)) => {
                         let cursor = model.cursor.as_mut().unwrap();
                         assert_eq!(cursor.stream_id, r.cursor.stream_id);
@@ -1300,6 +1307,447 @@ async fn cut_socket_replays_into_the_real_client_reducer() {
     alice
         .projection(|m| m.messages[&dm].contains_key(&missed.id))
         .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn launch_main_window_real_clients() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        use sticktalk_client_core::launch::{Read, SnapshotData};
+        let fixture = Fixture::start().await;
+        let a = fixture.register("parity_owner").await;
+        let b = fixture.register("parity_member").await;
+        let mut owner = Peer::connect(&fixture.url, &a).await;
+        let mut member = Peer::connect(&fixture.url, &b).await;
+        let CommandResult::Guild(g) = owner
+            .command(Command::CreateGuild {
+                name: "Parity server".into(),
+                icon_id: None,
+            })
+            .await
+        else {
+            panic!()
+        };
+        let guild = g.summary.guild.id;
+        let CommandResult::Invite(invite) = owner
+            .command(Command::CreateInvite {
+                guild_id: guild,
+                ttl_seconds: 3600,
+                max_uses: 5,
+            })
+            .await
+        else {
+            panic!()
+        };
+        member
+            .command(Command::JoinGuild {
+                invite_code: invite.code,
+            })
+            .await;
+        let CommandResult::Role(mut role) = owner
+            .command(Command::Launch(LaunchCommand::CreateRole {
+                guild_id: guild,
+                name: "Moderators".into(),
+            }))
+            .await
+        else {
+            panic!()
+        };
+        role.color = 0x79b8ff;
+        role.hoist = true;
+        role.permissions = Permissions::MANAGE_MESSAGES;
+        owner
+            .command(Command::Launch(LaunchCommand::UpdateRole {
+                role: role.clone(),
+            }))
+            .await;
+        owner
+            .command(Command::Launch(LaunchCommand::SetMemberRoles {
+                guild_id: guild,
+                user_id: b.user.user.id,
+                role_ids: vec![role.id],
+            }))
+            .await;
+        owner
+            .command(Command::Launch(LaunchCommand::SetNickname {
+                guild_id: guild,
+                user_id: b.user.user.id,
+                nickname: Some("Blue Nickname".into()),
+            }))
+            .await;
+        member
+            .projection(|m| {
+                m.launch.name(Some(guild), b.user.user.id) == Some("Blue Nickname")
+                    && m.launch.color(Some(guild), b.user.user.id) == Some(0x79b8ff)
+            })
+            .await;
+        {
+            let model = member.model.lock().await;
+            assert_eq!(
+                model.launch.hoist(guild, b.user.user.id).unwrap().name,
+                "Moderators"
+            );
+        }
+        let text = g
+            .channels
+            .iter()
+            .find(|c| c.kind == ChannelKind::Text)
+            .unwrap()
+            .id;
+        let message = owner
+            .message(text, "A pinned message from the real server")
+            .await;
+        member
+            .command(Command::Launch(LaunchCommand::PinMessage {
+                channel_id: text,
+                message_id: message.id,
+                pinned: true,
+            }))
+            .await;
+        owner
+            .handle
+            .try_send(Request::Launch {
+                read: Read::Pins(text),
+                generation: 1,
+            })
+            .unwrap();
+        let Data::Launch {
+            data: SnapshotData::Pins(_, pins),
+            ..
+        } = owner
+            .until(|d| {
+                matches!(
+                    d,
+                    Data::Launch {
+                        data: SnapshotData::Pins(..),
+                        ..
+                    }
+                )
+            })
+            .await
+        else {
+            panic!()
+        };
+        assert_eq!(pins.data[0].id, message.id);
+        owner
+            .handle
+            .try_send(Request::Launch {
+                read: Read::Profile(b.user.user.id),
+                generation: 1,
+            })
+            .unwrap();
+        let Data::Launch {
+            data: SnapshotData::Profile(profile),
+            ..
+        } = owner
+            .until(|d| {
+                matches!(
+                    d,
+                    Data::Launch {
+                        data: SnapshotData::Profile(..),
+                        ..
+                    }
+                )
+            })
+            .await
+        else {
+            panic!()
+        };
+        assert!(profile
+            .data
+            .mutual_servers
+            .iter()
+            .any(|s| s.guild.id == guild));
+        owner
+            .handle
+            .try_send(Request::Launch {
+                read: Read::Extent(text),
+                generation: 1,
+            })
+            .unwrap();
+        let Data::Launch {
+            data: SnapshotData::Extent(extent),
+            ..
+        } = owner
+            .until(|d| {
+                matches!(
+                    d,
+                    Data::Launch {
+                        data: SnapshotData::Extent(..),
+                        ..
+                    }
+                )
+            })
+            .await
+        else {
+            panic!()
+        };
+        assert_eq!(extent.data.message_count, 1);
+        assert_eq!(extent.data.anchors[0].message_id, message.id);
+        let CommandResult::Channel(private) = owner
+            .command(Command::CreateChannel {
+                guild_id: guild,
+                parent_id: None,
+                kind: ChannelKind::Text,
+                name: "private".into(),
+                topic: None,
+            })
+            .await
+        else {
+            panic!()
+        };
+        owner
+            .command(Command::Launch(LaunchCommand::SetOverwrites {
+                channel_id: private.summary.id,
+                overwrites: vec![PermissionOverwrite {
+                    kind: OverwriteKind::Role,
+                    target_id: guild,
+                    allow: Permissions::empty(),
+                    deny: Permissions::VIEW_CHANNEL,
+                }],
+            }))
+            .await;
+        member
+            .projection(|m| !m.channels.contains_key(&private.summary.id))
+            .await;
+        owner
+            .handle
+            .try_send(Request::Launch {
+                read: Read::Overwrites(private.summary.id),
+                generation: 1,
+            })
+            .unwrap();
+        owner
+            .until(|d| {
+                matches!(
+                    d,
+                    Data::Launch {
+                        data: SnapshotData::Overwrites(..),
+                        ..
+                    }
+                )
+            })
+            .await;
+        {
+            let model = owner.model.lock().await;
+            assert!(model.launch.is_private(&private.summary));
+        }
+        let CommandResult::Channel(voice) = owner
+            .command(Command::CreateChannel {
+                guild_id: guild,
+                parent_id: None,
+                kind: ChannelKind::Voice,
+                name: "Lounge".into(),
+                topic: None,
+            })
+            .await
+        else {
+            panic!()
+        };
+        owner
+            .command(Command::SubscribeGuild {
+                guild_id: Some(guild),
+                presence_user_ids: vec![b.user.user.id],
+            })
+            .await;
+        member
+            .command(Command::SubscribeGuild {
+                guild_id: Some(guild),
+                presence_user_ids: vec![a.user.user.id],
+            })
+            .await;
+        let signal = |s| {
+            Request::Voice(VoicePayload {
+                nonce: backend::nonce(),
+                version: VOICE_VERSION,
+                kind: "signal".into(),
+                payload: rmp_serde::to_vec_named(&s).unwrap(),
+            })
+        };
+        member
+            .handle
+            .try_send(signal(VoiceSignal::Join {
+                channel_id: voice.summary.id,
+                capabilities: VoiceCapabilities {
+                    video: vec![VideoCodec::H264],
+                    hardware_decode: vec![],
+                },
+            }))
+            .unwrap();
+        owner
+            .projection(|m| {
+                m.launch.voice.values().any(|v| {
+                    v.channel_id == voice.summary.id
+                        && v.participant.session.user_id == b.user.user.id
+                })
+            })
+            .await;
+        member
+            .handle
+            .try_send(signal(VoiceSignal::State {
+                muted: true,
+                deafened: true,
+            }))
+            .unwrap();
+        owner
+            .projection(|m| {
+                m.launch.voice.values().any(|v| {
+                    v.participant.session.user_id == b.user.user.id
+                        && v.participant.muted
+                        && v.participant.deafened
+                })
+            })
+            .await;
+        member.handle.try_send(signal(VoiceSignal::Leave)).unwrap();
+        owner
+            .projection(|m| {
+                m.launch
+                    .voice
+                    .values()
+                    .all(|v| v.participant.session.user_id != b.user.user.id)
+            })
+            .await;
+        member
+            .command(Command::Launch(LaunchCommand::PinMessage {
+                channel_id: text,
+                message_id: message.id,
+                pinned: false,
+            }))
+            .await;
+        owner
+            .projection(|m| m.launch.pins.get(&text).is_none_or(|p| p.is_empty()))
+            .await;
+        let n = NotificationSettings {
+            guild_id: Some(guild),
+            channel_id: Some(text),
+            level: NotificationLevel::Mentions,
+            muted: true,
+            mute_until: None,
+            suppress_everyone: true,
+            hide_muted_channels: false,
+        };
+        member
+            .command(Command::Launch(LaunchCommand::SetNotifications(n)))
+            .await;
+        member
+            .projection(|m| m.launch.muted(Some(guild), text, sticktalk::mock::now()))
+            .await;
+    })
+    .await
+    .expect("main window live deadline");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_upload_worker_checkpoints_completion_and_download_replaces_atomically() {
+    let fixture = Fixture::start().await;
+    let a = fixture.register("queue_alice").await;
+    let b = fixture.register("queue_bob").await;
+    let mut alice = Peer::connect(&fixture.url, &a).await;
+    let mut bob = Peer::connect(&fixture.url, &b).await;
+    alice
+        .command(Command::SendFriendRequest {
+            username: "queue_bob".into(),
+        })
+        .await;
+    bob.command(Command::AcceptFriendRequest {
+        user_id: a.user.user.id,
+    })
+    .await;
+    let CommandResult::Channel(channel) = alice
+        .command(Command::OpenDm {
+            user_id: b.user.user.id,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("image.jpg");
+    tokio::fs::write(&path, sticktalk_client_core::mock::IMAGE)
+        .await
+        .unwrap();
+    let (size, modified_ms) = sticktalk::uploads::fingerprint(&path).unwrap();
+    let config = sticktalk::backend::Config {
+        server: fixture.url.clone(),
+        token: a.token.clone(),
+        mock: false,
+        generation: 1,
+        scenario: String::new(),
+    };
+    let id = sticktalk::backend::nonce();
+    let account = a.user.user.id;
+    let job = sticktalk::uploads::Job {
+        id,
+        path,
+        channel: channel.summary.id,
+        forward: false,
+        size,
+        modified_ms,
+        upload: None,
+        attachment: None,
+    };
+    sticktalk::uploads::save(&config, account, &job).unwrap();
+    let worker = sticktalk::uploads::Worker {
+        config: config.clone(),
+        account,
+        id,
+        journal: serde_json::to_string(&job).unwrap(),
+    };
+    let mut stream = Box::pin(sticktalk::uploads::subscription(&worker));
+    let attachment = loop {
+        let event = tokio::time::timeout(Duration::from_secs(15), stream.next())
+            .await
+            .unwrap()
+            .expect("worker ended without completion");
+        match event {
+            sticktalk::uploads::Event::Complete(_, attachment) => break attachment,
+            sticktalk::uploads::Event::Failed(_, e) => panic!("{e}"),
+            _ => {}
+        }
+    };
+    drop(stream);
+    let restored = sticktalk::uploads::restore(&config, account)
+        .into_iter()
+        .find(|j| j.id == id)
+        .unwrap();
+    assert_eq!(restored.attachment.as_ref().unwrap().id, attachment.id);
+    assert!(!std::fs::read_to_string(
+        sticktalk::uploads::preferences(&config, account)
+            .parent()
+            .unwrap()
+            .join(format!("{id}.json"))
+    )
+    .unwrap()
+    .contains(&a.token));
+    // Bind the pending upload before downloading it, just like the composer.
+    alice
+        .command(Command::SendMessage(MessageDraft {
+            channel_id: channel.summary.id,
+            content: String::new(),
+            reply_to: None,
+            attachment_ids: vec![attachment.id],
+            mention_ids: vec![],
+        }))
+        .await;
+    let destination = dir.path().join("saved.jpg");
+    tokio::fs::write(&destination, b"old destination")
+        .await
+        .unwrap();
+    alice
+        .http
+        .download(attachment.id, destination.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        tokio::fs::read(&destination).await.unwrap(),
+        sticktalk_client_core::mock::IMAGE
+    );
+    sticktalk::uploads::remove(&config, account, id);
+    let journal_dir = sticktalk::uploads::preferences(&config, account)
+        .parent()
+        .unwrap()
+        .to_owned();
+    let _ = std::fs::remove_file(journal_dir.join(format!("{id}.cancelled")));
+    let _ = std::fs::remove_dir(journal_dir);
 }
 
 /// Launch settings exercise the production socket, REST adapter, SQLite authorization,
