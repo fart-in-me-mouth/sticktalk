@@ -1,0 +1,25 @@
+    Blocking waiting for file lock on build directory
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+   Compiling neteq v0.9.1 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\neteq)
+   Compiling sticktalk-media v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media)
+    Finished `release` profile [optimized] target(s) in 17m 15s
+     Running `C:/Users/dwhee/.cargo-target/sticktalk-client-calls\release\examples\voice_quality_bench.exe --seconds 3 --ten-ms`
+AUTO probe: NoiseCpuProbe { recommended: HighQuality, mean_frame: 976.883µs, p95_frame: 2.7355ms, failure: None }
+mode=Off, studio=false, talking=true, bitrate=42.945 kbit/s: seconds=3.000, CPU machine=0.2604% / one-core=4.1662%, RSS=48.86 MiB
+playout: Some((20, 21, 1))
+mode=Off, studio=false, talking=false, bitrate=27.371 kbit/s: seconds=3.000, CPU machine=0.4882% / one-core=7.8120%, RSS=48.89 MiB
+playout: Some((20, 21, 1))
+mode=Standard, studio=false, talking=true, bitrate=45.230 kbit/s: seconds=3.002, CPU machine=0.3578% / one-core=5.7245%, RSS=48.91 MiB
+playout: Some((20, 21, 1))
+mode=Standard, studio=false, talking=false, bitrate=27.244 kbit/s: seconds=3.000, CPU machine=0.1953% / one-core=3.1248%, RSS=48.95 MiB
+playout: Some((20, 21, 1))
+mode=HighQuality, studio=false, talking=true, bitrate=51.265 kbit/s: seconds=3.000, CPU machine=1.7577% / one-core=28.1225%, RSS=98.32 MiB
+playout: Some((20, 21, 1))
+mode=HighQuality, studio=false, talking=false, bitrate=26.132 kbit/s: seconds=3.000, CPU machine=2.4413% / one-core=39.0607%, RSS=98.29 MiB
+playout: Some((20, 21, 1))
+mode=Off, studio=true, talking=true, bitrate=130.997 kbit/s: seconds=3.000, CPU machine=0.1953% / one-core=3.1246%, RSS=57.07 MiB
+playout: Some((20, 25, 1))
+Digital PCM->Opus->adaptive playout->PCM: mode=Off, correlation delay=23.583 ms; EXCLUDES WASAPI/acoustics/network
+Digital PCM->Opus->adaptive playout->PCM: mode=Standard, correlation delay=33.438 ms; EXCLUDES WASAPI/acoustics/network
+Digital PCM->Opus->adaptive playout->PCM: mode=HighQuality, correlation delay=45.979 ms; EXCLUDES WASAPI/acoustics/network
+all processors dropped: seconds=5.000, CPU machine=0.0000% / one-core=0.0000%, RSS=56.76 MiB

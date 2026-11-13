@@ -19,6 +19,8 @@ impl std::fmt::Debug for Session {
 }
 #[derive(Debug, Clone)]
 pub enum Request<R = String> {
+    /// Ephemeral: never queued/replayed as a durable command.
+    Voice(VoicePayload),
     Command(CommandRequest),
     Applied(ResumeCursor),
     View,

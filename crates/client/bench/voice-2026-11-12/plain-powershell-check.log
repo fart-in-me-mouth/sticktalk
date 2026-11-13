@@ -1,0 +1,18 @@
+    Checking tract-linalg v0.21.4
+   Compiling pocketstation-webrtc-audio-processing-sys v2.1.1 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\webrtc-audio-processing-sys)
+    Checking opusic-sys v0.7.7
+    Checking neteq v0.9.1 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\neteq)
+    Checking opus v0.4.0
+    Checking wasapi v0.27.0
+    Checking tract-core v0.21.4
+    Checking tract-nnef v0.21.4
+    Checking tract-hir v0.21.4
+    Checking tract-onnx-opl v0.21.4
+    Checking tract-pulse-opl v0.21.4
+    Checking tract-pulse v0.21.4
+    Checking tract-onnx v0.21.4
+    Checking deep_filter v0.5.7-pre (https://github.com/Rikorose/DeepFilterNet?rev=7b14b895fe7fc42cab72b4a4c1e49c982bd6404b#7b14b895)
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+    Checking webrtc-audio-processing v2.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\webrtc-audio-processing)
+    Checking sticktalk-media v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7m 05s

@@ -7,6 +7,10 @@ use iced::{advanced::widget::operation, mouse, Size};
 use iced_runtime::user_interface::{Cache, UserInterface};
 use std::{path::Path, time::Instant};
 pub const SCREENS: &[&str] = &[
+    "voice-call",
+    "share-picker",
+    "voice-consent",
+    "voice-settings",
     "login",
     "register",
     "home-online",

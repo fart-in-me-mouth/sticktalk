@@ -19,6 +19,7 @@ mod scroll_surface_bench;
 use sticktalk::storage;
 mod theme;
 mod ui;
+mod voice_ui;
 fn main() -> iced::Result {
     std::env::set_var("TOKIO_WORKER_THREADS", "2");
     // Avoid loading both Vulkan and D3D driver stacks on Windows. iced's compositor

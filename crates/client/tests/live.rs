@@ -570,8 +570,12 @@ async fn phase_one() {
             "**bold** _italic_ `code`\n> quote\nhttps://example.invalid",
         )
         .await;
-    bob.projection(|m| m.messages[&dm].contains_key(&message.id))
-        .await;
+    bob.projection(|m| {
+        m.messages
+            .get(&dm)
+            .is_some_and(|messages| messages.contains_key(&message.id))
+    })
+    .await;
     assert!(
         sticktalk::markdown::parse(&bob.model.lock().await.messages[&dm][&message.id].content)
             .blocks

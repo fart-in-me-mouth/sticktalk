@@ -10,6 +10,7 @@ pub mod oauth;
 pub mod protocol;
 pub mod state;
 pub mod upload;
+pub mod voice;
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub mod web;
 

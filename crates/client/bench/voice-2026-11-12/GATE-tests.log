@@ -1,0 +1,147 @@
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\client)
+    Finished `test` profile [unoptimized] target(s) in 14.30s
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-client-calls\debug\deps\sticktalk-1dc6f691f0e26963.exe)
+
+running 12 tests
+test backend::tests::inbound_budget_counts_large_non_frame_payloads_and_releases_on_drop ... ok
+test backend::tests::outgoing_queue_obeys_byte_budget_and_accepts_maximum_message ... ok
+test backend::tests::requires_secure_server ... ok
+test media::tests::decoded_lru_is_bounded_and_touches_preserve_recent_images ... ok
+test oauth::flow_tests::full_oauth_exchange_uses_mock_authorization_and_token_servers_only ... ok
+test oauth::flow_tests::timeout_and_cancellation_drop_the_loopback_listener ... ok
+test platform::tests::dropping_a_spawned_task_cancels_its_work ... ok
+test voice::control::tests::grant_revoke_dry_run_releases_keys_and_replay_fails_closed ... ok
+test voice::hotkeys::tests::stop_chord_cannot_be_shadowed_by_ptt ... ok
+test voice::rtp::tests::fragmented_idr_round_trip_and_loss_is_dropped ... ok
+test voice::tests::explicit_bind_policy_never_uses_wildcards_or_network_enumeration ... ok
+test voice::tests::settings_roundtrip_and_studio_bypass ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.10s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-client-calls\debug\deps\sticktalk-f2b99cc06904cd0c.exe)
+
+running 16 tests
+test app::tests::cancelled_server_icon_upload_cannot_apply_to_another_form ... ok
+test app::tests::composer_keyboard_contract ... ok
+test app::tests::failed_history_request_does_not_leave_the_landing_loader_stuck ... ok
+test app::tests::high_refresh_drag_uses_velocity_not_only_single_event_distance ... ok
+test app::tests::jump_to_unloaded_reply_replaces_only_the_region_and_ignores_stale_results ... ok
+test app::tests::mention_selection_and_editor_replacement ... ok
+test app::tests::metadata_continuation_pages_append_instead_of_replacing ... ok
+test app::tests::settings_escape_modal_return_and_google_cancel_are_local ... ok
+test app::tests::subpixel_row_measurements_do_not_invalidate_layout_forever ... ok
+test app::tests::unrelated_stream_events_do_not_invalidate_message_geometry ... ok
+test app::tests::virtual_index_keeps_evicted_slots_and_only_builds_visible_rows ... ok
+test app::tests::virtualized_rows_are_bounded_and_measurements_override_estimates ... ok
+test headless::tests::offscreen_png_has_exact_size_and_neutral_rgba_tokens ... ok
+test message_layout::tests::shaped_tree_and_layout_survive_leaving_the_visible_window ... ok
+test scroll_bench::input_tests::native_iced_fractional_wheel_and_scrollbar_drag_are_headless ... ok
+test ui::integration_layout_tests::owner_and_member_reserve_the_same_action_column ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s
+
+     Running tests\live.rs (C:/Users/dwhee/.cargo-target/sticktalk-client-calls\debug\deps\live-15317abd67762f57.exe)
+
+running 2 tests
+test cut_socket_replays_into_the_real_client_reducer ... ok
+test phase_one_real_clients ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 121.54s
+
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-client-calls\debug\deps\voice-016ca9517170314f.exe)
+
+running 2 tests
+test file_1080p60_decodes_at_least_58_fps_for_sixty_seconds ... ignored, 60-second generated FILE video + hardware encoder/decoder; no capture devices
+test two_native_endpoints_exchange_file_opus_through_real_server ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 7.38s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-client-calls\debug\deps\sticktalk_client_core-d14e53d817b35b16.exe)
+
+running 25 tests
+test backend::tests::jump_targets_validate_dates_and_ids_without_a_timezone_or_clock ... ok
+test backend::tests::rejects_trailing_and_large_frames ... ok
+test markdown::tests::cache_reuses_and_invalidates_edits ... ok
+test markdown::tests::discord_subset_and_escapes ... ok
+test markdown::tests::unsafe_links_remain_text_and_nesting_is_bounded ... ok
+test mock::google_tests::google_signup_collision_replay_and_last_method ... ok
+test mock::tests::guild_channel_invite_and_moderation_flows ... ok
+test mock::tests::messages_reactions_and_receipt_replay ... ok
+test mock::tests::profile_presence_pagination_and_read ... ok
+test mock::tests::relationships_and_group_lifecycle ... ok
+test model::tests::bounded_cache_and_purge ... ok
+test model::tests::ordered_upserts_and_duplicate_sequences ... ok
+test model::tests::pagination_replays_deletion_and_edit ... ok
+test model::tests::read_counts_are_authoritative_and_idempotent ... ok
+test model::tests::reconnect_resume_backoff_and_terminal_close ... ok
+test model::tests::replay_budget_includes_reactions_and_mentions ... ok
+test oauth::tests::loopback_parser_rejects_spoofing_duplicates_and_denial ... ok
+test oauth::tests::pkce_rfc7636_vector_and_random_state ... ok
+test tests::http_upload_hashes_and_uses_durable_offset_then_finishes ... ok
+test tests::injected_driver_correlates_heartbeats_retries_applied_cursor_and_expires_receipts ... ok
+test tests::state_read_permissions_mentions_and_timestamp_formatting_are_portable ... ok
+test voice::control::tests::explicit_fresh_consent_and_timeout ... ok
+test voice::tests::envelope_is_bounded_and_rejects_trailing_data ... ok
+test voice::tests::reconnect_rejoins_but_kick_does_not ... ok
+test voice::tests::server_flags_cannot_be_locally_bypassed ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.66s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-client-calls\debug\deps\sticktalk_media-0185cfdaeab94bce.exe)
+
+running 33 tests
+test annexb::tests::normalize_and_reject_malformed ... ok
+test platform::audio::recovery_tests::follows_defaults_pins_falls_back_and_retains_output_without_mic ... ok
+test platform::camera::tests::default_camera_and_fake_frame_validation_do_not_open_devices ... ok
+test platform::camera::tests::fake_source_reader_callback_delivers_errors_without_a_camera ... ok
+test platform::encoder::tests::preserve_parameter_sets_for_later_idrs ... ok
+test platform::gpu::tests::odd_nv12_source_crops_last_row_column_through_real_encoder ... ignored, explicit headless GPU diagnostic; requires a hardware H.264 encoder
+test platform::session::tests::invalid_config_is_rejected_before_creating_any_device ... ok
+test quality::tests::all_fifteen_quality_combinations ... ok
+test quality::tests::native_and_portrait_and_invalid ... ok
+test selection::tests::amf_qsv_nvenc_unknown_and_codec_filter ... ok
+test selection::tests::fake_enumerations_try_other_hardware_after_a_vendor_rejects_format ... ok
+test selection::tests::fallback_is_explicit_and_only_after_hardware_failure ... ok
+test voice::effects::tests::inference_fp_guard_restores_callers_thread_state ... ok
+test voice::hq_tests::deepfilternet3_model_loads_and_processes_generated_pcm ... ignored, explicit embedded DFN3 inference diagnostic; no devices, but model loading is heavy in debug
+test voice::hq_tests::native_apm_abi_and_standard_pipeline_work_without_devices ... ok
+test voice::hq_tests::studio_is_stereo_ungated_and_dsp_bypassed ... ok
+test voice::low_latency_tests::ten_ms_voice_packets_and_explicit_jitter_startup_floor ... ok
+test voice::playout::repair_tests::opus_fec_restores_gaps_without_replaying_already_concealed_time ... ok
+test voice::playout::tests::adaptive_bounds_stereo_deafen_and_loss_do_not_create_devices ... ok
+test voice::playout::tests::telemetry_reports_per_channel_milliseconds_for_mono_and_stereo ... ok
+test voice::tests::aec3_reduces_a_synthetic_delayed_echo ... ok
+test voice::tests::fec_plc_loss_recovery_and_deafen ... ok
+test voice::tests::full_aec_agc_rnnoise_pipeline_handles_silence_and_toggle ... ok
+test voice::tests::jitter_reorders_rejects_duplicates_late_and_bounds_queue ... ok
+test voice::tests::malformed_opus_payloads_are_concealed_not_call_fatal ... ok
+test voice::tests::malformed_packets_cannot_allocate_unbounded_or_create_streams ... ok
+test voice::tests::mixer_volume_zero_double_and_limit ... ok
+test voice::tests::opus_fec_dtx_and_bitrate_are_real_controls ... ok
+test voice::tests::opus_rejects_invalid_pcm_and_stereo_roundtrips ... ok
+test voice::tests::ptt_mute_and_event_crossings_no_per_frame_events ... ok
+test voice::tests::settings_validate_nonfinite_and_bounds ... ok
+test voice::tests::stereo_share_tracks_preserve_left_and_right_in_mixer ... ok
+test voice::tests::vad_sensitivity_and_48k_sample_clock ... ok
+
+test result: ok. 31 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 7.50s
+
+   Doc-tests sticktalk
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_client_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_media
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

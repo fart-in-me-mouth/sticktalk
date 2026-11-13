@@ -7,3 +7,5 @@ pub mod model;
 pub mod oauth;
 pub mod platform;
 pub mod storage;
+#[cfg(windows)]
+pub mod voice;

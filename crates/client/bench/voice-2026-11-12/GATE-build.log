@@ -1,0 +1,3 @@
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\client)
+    Finished `dev` profile [unoptimized] target(s) in 14.95s

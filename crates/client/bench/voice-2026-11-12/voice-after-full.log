@@ -1,0 +1,28 @@
+    Blocking waiting for file lock on build directory
+   Compiling pocketstation-webrtc-audio-processing-sys v2.1.1 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\webrtc-audio-processing-sys)
+   Compiling deep_filter v0.5.7-pre (https://github.com/Rikorose/DeepFilterNet?rev=7b14b895fe7fc42cab72b4a4c1e49c982bd6404b#7b14b895)
+   Compiling neteq v0.9.1 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\neteq)
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+   Compiling webrtc-audio-processing v2.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\webrtc-audio-processing)
+   Compiling sticktalk-media v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media)
+    Finished `release` profile [optimized] target(s) in 11m 06s
+     Running `C:/Users/dwhee/.cargo-target/sticktalk-client-calls\release\examples\voice_quality_bench.exe --seconds 3 --ten-ms`
+AUTO probe: NoiseCpuProbe { recommended: HighQuality, mean_frame: 172.787µs, p95_frame: 195.4µs, failure: None }
+mode=Off, studio=false, talking=true, bitrate=42.942 kbit/s: seconds=3.000, CPU machine=0.2278% / one-core=3.6452%, RSS=21.92 MiB
+playout: Some((20, 21, 1))
+mode=Off, studio=false, talking=false, bitrate=27.371 kbit/s: seconds=3.000, CPU machine=0.1302% / one-core=2.0832%, RSS=22.10 MiB
+playout: Some((20, 21, 1))
+mode=Standard, studio=false, talking=true, bitrate=45.260 kbit/s: seconds=3.000, CPU machine=0.2929% / one-core=4.6868%, RSS=22.02 MiB
+playout: Some((20, 21, 1))
+mode=Standard, studio=false, talking=false, bitrate=27.242 kbit/s: seconds=3.000, CPU machine=0.1627% / one-core=2.6038%, RSS=22.12 MiB
+playout: Some((20, 21, 1))
+mode=HighQuality, studio=false, talking=true, bitrate=2.661 kbit/s: seconds=3.001, CPU machine=0.3580% / one-core=5.7282%, RSS=41.63 MiB
+playout: Some((20, 21, 1))
+mode=HighQuality, studio=false, talking=false, bitrate=17.631 kbit/s: seconds=3.000, CPU machine=0.6184% / one-core=9.8952%, RSS=42.32 MiB
+playout: Some((20, 21, 1))
+mode=Off, studio=true, talking=true, bitrate=131.009 kbit/s: seconds=3.000, CPU machine=0.1953% / one-core=3.1249%, RSS=30.51 MiB
+playout: Some((20, 25, 1))
+Digital PCM->Opus->adaptive playout->PCM: mode=Off, correlation delay=23.583 ms; EXCLUDES WASAPI/acoustics/network
+Digital PCM->Opus->adaptive playout->PCM: mode=Standard, correlation delay=33.438 ms; EXCLUDES WASAPI/acoustics/network
+Digital PCM->Opus->adaptive playout->PCM: mode=HighQuality, correlation delay=154.667 ms; EXCLUDES WASAPI/acoustics/network
+all processors dropped: seconds=5.000, CPU machine=0.0000% / one-core=0.0000%, RSS=29.57 MiB

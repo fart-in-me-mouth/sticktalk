@@ -1,0 +1,224 @@
+//! Desktop call lifetime. Importing this module never opens a device or socket.
+pub mod control;
+pub mod hotkeys;
+#[cfg(windows)]
+mod native;
+pub mod peer;
+pub mod rtp;
+use std::sync::mpsc::{SyncSender, TrySendError};
+use sticktalk_client_core::voice::{settings::NoiseSuppression, VoiceSettings};
+pub use sticktalk_desktop_platform::sound::Sound;
+use sticktalk_media::{
+    voice::{InputMode, NoiseSuppressionMode, VoiceOptions},
+    FrameRate, Quality, Resolution,
+};
+use sticktalk_proto::*;
+
+/// Host policy hook. Never call with true without explicit audible consent and
+/// known quiet-state policy; headless/mock hosts leave the callback unset.
+pub fn play_cue(sound: Sound, quiet_state_confirmed: bool) -> Result<bool, String> {
+    sticktalk_desktop_platform::windows::play_sound(sound, quiet_state_confirmed)
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct Config {
+    pub bind_ip: String,
+    pub generation: u64,
+    pub mtu: u16,
+    pub settings_json: String,
+}
+pub fn bind_address(value: &str) -> Result<std::net::IpAddr, String> {
+    let ip: std::net::IpAddr = value
+        .parse()
+        .map_err(|_| "Voice bind address must be a literal IP")?;
+    if ip.is_unspecified()
+        || ip.is_multicast()
+        || matches!(ip,std::net::IpAddr::V4(v4) if v4.is_broadcast())
+    {
+        return Err("Voice bind address must be a specific unicast IP".into());
+    }
+    Ok(ip)
+}
+#[derive(Debug, Clone)]
+pub enum Command {
+    Event(VoiceEvent),
+    Participants(Option<VoiceSession>, Vec<VoiceParticipant>),
+    Gate(bool, bool),
+    PushToTalk(bool),
+    Configure(VoiceSettings),
+    Share(sticktalk_media::Source, Option<u32>),
+    StopShare,
+    Quality(Quality),
+    Camera(Option<sticktalk_media::CameraDevice>),
+    Stop,
+}
+#[derive(Debug, Clone)]
+pub struct Handle(SyncSender<Command>);
+impl Handle {
+    pub fn send(&self, command: Command) -> Result<(), String> {
+        self.0.try_send(command).map_err(|e| match e {
+            TrySendError::Full(_) => "Media command queue full; retry".into(),
+            _ => "Call stopped".into(),
+        })
+    }
+}
+#[derive(Debug, Clone)]
+pub enum Event {
+    Ready(Handle),
+    Signal(VoiceSignal),
+    Connected,
+    Speaking(Option<u64>, bool),
+    Toast(String),
+    Error(String),
+    Sharing(bool),
+    Camera(bool),
+    Hotkey(hotkeys::Hotkey),
+    /// Decoded hardware surfaces remain on the media worker; never CPU-read back.
+    Decoded {
+        user: Id,
+        kind: TrackKind,
+        frames: u64,
+    },
+}
+pub fn options(s: &VoiceSettings) -> Result<VoiceOptions, String> {
+    s.validate()?;
+    let mut o = if s.studio_mode {
+        VoiceOptions::studio()
+    } else {
+        VoiceOptions::default()
+    };
+    o.packet_duration_ms = 10;
+    if !s.studio_mode {
+        o.noise_mode = match s.noise_suppression {
+            NoiseSuppression::Off => NoiseSuppressionMode::Off,
+            NoiseSuppression::Standard => NoiseSuppressionMode::Standard,
+            NoiseSuppression::High => NoiseSuppressionMode::Auto,
+        };
+        o.echo_cancellation = s.echo_cancellation;
+        o.automatic_gain = s.agc;
+        o.automatic_sensitivity = s.sensitivity_auto;
+        o.sensitivity_dbfs = s.sensitivity_dbfs;
+    }
+    o.mode = if s.push_to_talk {
+        InputMode::PushToTalk
+    } else {
+        InputMode::VoiceActivity
+    };
+    o.ptt_release_delay_ms = s.push_to_talk_release_delay_ms;
+    Ok(o)
+}
+pub fn quality(s: &VoiceSettings) -> Result<Quality, String> {
+    s.validate()?;
+    Ok(Quality {
+        fps: FrameRate::try_from(s.share_fps).map_err(|e| e.to_string())?,
+        resolution: match s.share_height {
+            0 => Resolution::Source,
+            480 => Resolution::P480,
+            720 => Resolution::P720,
+            1440 => Resolution::P1440,
+            _ => Resolution::P1080,
+        },
+    })
+}
+/// Bounded, cancellable bridge. The blocking actor exists ONLY in a joined call.
+#[cfg(windows)]
+pub fn subscription(config: &Config) -> impl iced::futures::Stream<Item = Event> {
+    use iced::futures::SinkExt;
+    let config = config.clone();
+    iced::stream::channel(
+        128,
+        move |mut output: iced::futures::channel::mpsc::Sender<Event>| async move {
+            let (sender, commands) = std::sync::mpsc::sync_channel(128);
+            let (events, mut received) = tokio::sync::mpsc::channel(128);
+            let handle = Handle(sender);
+            if output.send(Event::Ready(handle.clone())).await.is_err() {
+                return;
+            }
+            let worker = tokio::task::spawn_blocking(move || {
+                if let Err(e) = native::run(config, commands, &events) {
+                    let _ = events.blocking_send(Event::Error(e));
+                }
+            });
+            // Subscription cancellation drops this guard and asks the actor to stop.
+            struct Stop(Handle);
+            impl Drop for Stop {
+                fn drop(&mut self) {
+                    let _ = self.0.send(Command::Stop);
+                }
+            }
+            let _stop = Stop(handle);
+            while let Some(event) = received.recv().await {
+                if output.send(event).await.is_err() {
+                    break;
+                }
+            }
+            let _ = worker.await;
+        },
+    )
+}
+
+pub fn load_settings(path: &std::path::Path) -> VoiceSettings {
+    std::fs::File::open(path)
+        .ok()
+        .and_then(|f| {
+            use std::io::Read;
+            let mut bytes = vec![];
+            f.take(256 * 1024 + 1).read_to_end(&mut bytes).ok()?;
+            if bytes.len() > 256 * 1024 {
+                return None;
+            }
+            let s: VoiceSettings = serde_json::from_slice(&bytes).ok()?;
+            s.validate().ok()?;
+            Some(s)
+        })
+        .unwrap_or_default()
+}
+pub fn save_settings(path: &std::path::Path, s: &VoiceSettings) -> Result<(), String> {
+    s.validate()?;
+    let bytes = serde_json::to_vec(s).map_err(|e| e.to_string())?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(path, bytes).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn explicit_bind_policy_never_uses_wildcards_or_network_enumeration() {
+        assert!(bind_address("127.0.0.1").unwrap().is_loopback());
+        // Injected addresses only: this test never binds these interfaces.
+        assert!(bind_address("100.64.1.2").is_ok());
+        for bad in ["0.0.0.0", "::", "224.0.0.1", "255.255.255.255", "localhost"] {
+            assert!(bind_address(bad).is_err());
+        }
+    }
+    #[test]
+    fn settings_roundtrip_and_studio_bypass() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("voice.json");
+        let mut s = VoiceSettings {
+            studio_mode: true,
+            ..Default::default()
+        };
+        s.set_user(
+            Id(42),
+            sticktalk_client_core::voice::settings::UserAudio {
+                volume: 200,
+                muted: true,
+            },
+        )
+        .unwrap();
+        save_settings(&path, &s).unwrap();
+        let loaded = load_settings(&path);
+        assert_eq!(loaded.user(Id(42)).volume, 200);
+        assert!(loaded.user(Id(42)).muted);
+        let o = options(&loaded).unwrap();
+        assert!(!o.echo_cancellation);
+        assert!(!o.automatic_gain);
+        assert!(!o.noise_suppression);
+        assert_eq!(quality(&loaded).unwrap(), Quality::default());
+    }
+}

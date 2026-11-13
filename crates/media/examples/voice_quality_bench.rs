@@ -67,6 +67,11 @@ fn options(
         VoiceOptions::studio()
     } else {
         VoiceOptions {
+            packet_duration_ms: if std::env::args().any(|s| s == "--ten-ms") {
+                10
+            } else {
+                20
+            },
             noise_mode: mode,
             mode: InputMode::PushToTalk,
             automatic_sensitivity: false,

@@ -1,0 +1,10 @@
+    Blocking waiting for file lock on build directory
+   Compiling pocketstation-webrtc-audio-processing-sys v2.1.1 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\webrtc-audio-processing-sys)
+   Compiling neteq v0.9.1 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\neteq)
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+   Compiling webrtc-audio-processing v2.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\webrtc-audio-processing)
+   Compiling sticktalk-media v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media)
+    Finished `release` profile [optimized] target(s) in 20m 38s
+     Running `C:/Users/dwhee/.cargo-target/sticktalk-client-calls\release\examples\dfn_full_probe.exe C:\Users\dwhee\.cargo\git\checkouts\deepfilternet-6ca5774fd310b300\7b14b89\models\DeepFilterNet3_onnx.tar.gz`
+FULL DeepFilterNet3 initialized in 1.1410795s: 48000 Hz, hop 480
+FULL model 100-hop compute: 109.0924ms

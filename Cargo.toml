@@ -1,6 +1,8 @@
 [workspace]
 members = ["crates/proto", "crates/server", "crates/client", "crates/client-core", "crates/media", "crates/sfu", "crates/desktop-platform", "crates/emoji", "crates/web"]
 resolver = "2"
+# Vendored dependencies are not first-party workspace test/example targets.
+exclude = ["crates/media/vendor/neteq", "crates/media/vendor/webrtc-audio-processing", "crates/media/vendor/webrtc-audio-processing-sys"]
 
 [workspace.package]
 version = "0.1.0"

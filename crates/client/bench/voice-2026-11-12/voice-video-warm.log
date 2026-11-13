@@ -1,0 +1,18 @@
+    Blocking waiting for file lock on build directory
+   Compiling pocketstation-webrtc-audio-processing-sys v2.1.1 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\webrtc-audio-processing-sys)
+   Compiling deep_filter v0.5.7-pre (https://github.com/Rikorose/DeepFilterNet?rev=7b14b895fe7fc42cab72b4a4c1e49c982bd6404b#7b14b895)
+   Compiling neteq v0.9.1 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\neteq)
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+   Compiling webrtc-audio-processing v2.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media\vendor\webrtc-audio-processing)
+   Compiling sticktalk-media v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\media)
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-2c81ffc4-03ff007881e9e524\crates\client)
+    Finished `test` profile [unoptimized] target(s) in 4m 06s
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-client-calls\debug\deps\voice-016ca9517170314f.exe)
+
+running 1 test
+test file_1080p60_decodes_at_least_58_fps_for_sixty_seconds has been running for over 60 seconds
+1080p60 FILE/SRTP/hardware-decode: sent=3597, access_units=3597, decoded=3597, queue_drops=0, fps=59.950; process before=ProcessUsage { cpu_seconds: 4.65625, rss_bytes: 111276032, peak_rss_bytes: 111276032, logical_cpus: 16 }, after=ProcessUsage { cpu_seconds: 37.640625, rss_bytes: 113508352, peak_rss_bytes: 136245248, logical_cpus: 16 }
+test file_1080p60_decodes_at_least_58_fps_for_sixty_seconds ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 65.93s
+

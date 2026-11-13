@@ -2,6 +2,14 @@
 use iced::{widget::svg, Color};
 pub fn icon(name: &str, size: f32, color: Color) -> svg::Svg<'static> {
     let bytes: &'static [u8] = match name {
+        "mic" => include_bytes!("../assets/icons/mic.svg"),
+        "mic-off" => include_bytes!("../assets/icons/mic-off.svg"),
+        "headphones" => include_bytes!("../assets/icons/headphones.svg"),
+        "video" => include_bytes!("../assets/icons/video.svg"),
+        "monitor-up" => include_bytes!("../assets/icons/monitor-up.svg"),
+        "phone-off" => include_bytes!("../assets/icons/phone-off.svg"),
+        "volume-2" => include_bytes!("../assets/icons/volume-2.svg"),
+        "signal" => include_bytes!("../assets/icons/signal.svg"),
         "arrow-down" => include_bytes!("../assets/icons/arrow-down.svg"),
         "arrow-left" => include_bytes!("../assets/icons/arrow-left.svg"),
         "arrow-right" => include_bytes!("../assets/icons/arrow-right.svg"),
