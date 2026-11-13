@@ -1,0 +1,18 @@
+# Keep the SFU/server and all debug assertions in test mode. Optimize the
+# RustCrypto arithmetic used to construct thousands of fresh DTLS sessions.
+[profile.test.package.crypto-bigint]
+opt-level = 3
+[profile.test.package.elliptic-curve]
+opt-level = 3
+[profile.test.package.primefield]
+opt-level = 3
+[profile.test.package.primeorder]
+opt-level = 3
+[profile.test.package.p256]
+opt-level = 3
+[profile.test.package.dimpl]
+opt-level = 3
+[profile.test.package.str0m]
+opt-level = 2
+[profile.test.package.str0m-rust-crypto]
+opt-level = 2

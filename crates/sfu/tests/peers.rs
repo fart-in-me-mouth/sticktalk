@@ -5,6 +5,41 @@ use str0m::{media::KeyframeRequestKind, Event};
 use support::*;
 
 #[test]
+fn per_peer_and_room_caps_apply_to_real_encrypted_1232_byte_path() {
+    for (peer_cap, room_cap) in [(128_000, 2_000_000), (2_000_000, 256_000)] {
+        let mut n = Network::with_config(
+            sticktalk_sfu::Config {
+                ports: 52000..=52999,
+                video_egress_bps: 32_000_000,
+                peer_video_egress_bps: peer_cap,
+                room_video_egress_bps: room_cap,
+                ..Default::default()
+            },
+            std::sync::Arc::new(|_: VoiceSession, _: Id| true),
+        );
+        let a = n.add(true);
+        let b = n.add(false);
+        let c = n.add(false);
+        n.subscribe(b, a, TrackKind::Camera);
+        n.subscribe(c, a, TrackKind::Camera);
+        n.clear();
+        let before = n.video_bytes;
+        for seq in 1..=200 {
+            let mut payload = vec![7; 1180];
+            payload[0] = 0x65;
+            n.send(a, TrackKind::Camera, seq, seq as u32 * 900, &payload, true);
+            n.advance(Duration::from_millis(10));
+        }
+        let limit = room_cap.min(peer_cap * 2);
+        // Two seconds plus initial 100 ms bursts (one bucket per receiver).
+        assert!(n.video_bytes - before <= limit / 8 * 21 / 10 + 2 * 1232);
+        assert!(n.video_bytes > before, "must not reject all media");
+        assert!(n.max_rtp <= 1232);
+        assert_eq!(n.sfu.session_count(), 3);
+    }
+}
+
+#[test]
 fn three_peers_audio_camera_screen_receive_mute_deafen_leave() {
     let mut n = Network::new(40_000_000);
     let a = n.add(true);

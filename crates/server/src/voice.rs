@@ -761,6 +761,9 @@ async fn output(
                 broadcast(core, c, state.guild_id, &VoiceEvent::GuildState(state)).await?;
             }
         }
+        // SFU fatal failures send a sanitized correlated Error BEFORE Left.
+        // Keep routing errors for joined sessions; only the subsequent Left
+        // revokes this call's lease/projection, never the whole SFU actor.
         VoiceEvent::Left { session } if *session == signal.session => {
             return remove(app, core, c, *session).await;
         }
