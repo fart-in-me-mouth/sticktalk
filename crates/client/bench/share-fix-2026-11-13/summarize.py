@@ -1,6 +1,8 @@
 """Recalculate qualification from saved per-second, per-process measurements."""
 import json
 import re
+import csv
+import zipfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parent
@@ -24,10 +26,24 @@ for path in sorted(root.glob("*/*.metrics.json")):
     })
 
 diagnostics = {}
-for path in sorted(root.glob("*.log")):
+logs = {p.relative_to(root).as_posix(): p.read_text(encoding="utf-8", errors="replace") for p in root.rglob("*.log")}
+if (root / "trace-logs.zip").exists():
+    with zipfile.ZipFile(root / "trace-logs.zip") as archive:
+        for name in archive.namelist():
+            if name.endswith(".log") and name not in logs:
+                logs[name] = archive.read(name).decode("utf-8", errors="replace")
+captures = {}
+series = []
+for name, content in sorted(logs.items()):
+    path = Path(name)
+    if path.name == "sharer.log":
+        matches = re.findall(r"capture stats: SessionStats \{(.*?)\}", content)
+        if matches:
+            captures[path.parent.name] = {k: int(v) for k, v in re.findall(r"(\w+): (\d+)", matches[-1])}
+    if path.parent != Path("."):
+        continue
     if path.stem.endswith((".stdout", ".trace")):
         continue
-    content = path.read_text(errors="replace")
     samples = re.findall(r"VIDEO_TRACE sfu_peer .*?cap_drops=(\d+) (?:media_cap_drops=\d+ )?queue_drops=(\d+) mtu_drops=(\d+)", content)
     if samples:
         diagnostics[path.stem] = {
@@ -40,6 +56,8 @@ for path in sorted(root.glob("*.log")):
             values = dict(re.findall(r"(\w+)=(\S+)", fields))
             record = peers.setdefault(peer, {"bwe_min_after_10s": None, "bwe_max_after_10s": None})
             record["last"] = {key: float(value) for key, value in values.items()}
+            if path.stem.startswith("qualified-"):
+                series.append({"case": path.stem, "peer": peer, "seconds": seconds, **values})
             if float(seconds) > 10:
                 bwe = int(values["bwe"])
                 record["bwe_min_after_10s"] = min(record["bwe_min_after_10s"] or bwe, bwe)
@@ -50,7 +68,28 @@ for path in sorted(root.glob("*.log")):
             hops[f"{hop} {peer} mid={mid}"] = {key: int(value) for key, value in re.findall(r"(\w+)=(\d+)", fields)}
         diagnostics[path.stem]["last_per_hop_counters"] = hops
 
-result = {"endpoints": rows, "sfu_diagnostics": diagnostics}
+expected = {
+    "qualified-synthetic-1080-600": 600, "qualified-wgc-1080-600": 600,
+    "qualified-synthetic-1440-120": 120, "qualified-synthetic-source-120": 120,
+    "qualified-wgc-1440-120": 120, "qualified-wgc-source-120": 120,
+}
+qualified = [row for row in rows if row["case"] in expected]
+complete = all(
+    {row["role"] for row in qualified if row["case"] == name and row["duration"] == seconds}
+    == {"sharer", "viewer_b", "viewer_c"}
+    for name, seconds in expected.items()
+)
+result = {
+    "qualification_complete": complete,
+    "qualification_pass": complete and all(row["pass"] for row in qualified),
+    "endpoints": rows, "sfu_diagnostics": diagnostics, "capture_counters": captures,
+}
 (root / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
+if series:
+    fields = sorted({key for row in series for key in row})
+    with (root / "qualified-bwe.csv").open("w", newline="", encoding="utf-8") as output:
+        writer = csv.DictWriter(output, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(series)
 for row in rows:
     print(f"{row['case']:30} {row['role']:8} {row['fps']:7.3f} fps min={row['minimum_1s_fps']:2} drift={row['drift_ms']:+8.3f}ms CPU={row['cpu_machine_pct']:.3f}% WS+={row['working_set_delta_mib']:.2f}MiB private+={row['private_delta_mib']:.2f}MiB {'PASS' if row['pass'] else 'FAIL'}")
