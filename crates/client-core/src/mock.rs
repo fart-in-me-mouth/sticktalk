@@ -1,4 +1,5 @@
 //! In-process protocol peer. Commands and events are the real proto enums, not UI DTOs.
+mod settings;
 use crate::model::Model;
 use std::collections::BTreeMap;
 use sticktalk_proto::*;
@@ -314,6 +315,7 @@ impl Mock {
         }
         model.users.get_mut(&Id(2)).unwrap().status_text = Some("Making a little room".into());
         model.users.get_mut(&Id(4)).unwrap().status_text = Some("Sketching the next thing".into());
+        settings::seed(&mut model, now());
         Self {
             model,
             next: 100_000,
@@ -416,6 +418,15 @@ impl Mock {
     pub fn ready(&self) -> Ready {
         Ready {
             cursor: self.cursor(),
+            roles: self.model.settings.roles.values().cloned().collect(),
+            memberships: self.model.settings.memberships.values().cloned().collect(),
+            notification_settings: self
+                .model
+                .settings
+                .notifications
+                .values()
+                .cloned()
+                .collect(),
             me: self.model.me.clone().unwrap(),
             guilds: self.model.guilds.values().cloned().collect(),
             channels: self.model.channels.values().cloned().collect(),
@@ -501,6 +512,13 @@ impl Mock {
     ) -> Option<crate::backend::Data<H>> {
         use crate::backend::{Data, HistoryAnchor, Request};
         Some(match request {
+            Request::Settings { query, generation } => Data::Settings {
+                snapshot: Snapshot {
+                    data: settings::query(&self.model, query)?,
+                    cursor: self.cursor(),
+                },
+                generation,
+            },
             Request::NewerHistory {
                 seek,
                 channel,
@@ -766,6 +784,7 @@ impl Mock {
         let transferring = matches!(command, Command::TransferGroupOwnership { .. });
         let ack = CommandResult::Ack;
         match command {
+            Command::Launch(cmd) => settings::command(self, cmd, events),
             Command::SendMessage(v) => {
                 if v.content.chars().count() > MAX_MESSAGE_CHARS
                     || (v.content.trim().is_empty() && v.attachment_ids.is_empty())

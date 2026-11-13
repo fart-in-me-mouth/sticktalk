@@ -327,6 +327,11 @@ impl Peer {
                     | Data::NewerHistory { channel, page, .. } => {
                         assert!(model.merge_page(*channel, page.clone()));
                     }
+                    Data::Settings { snapshot, .. } => {
+                        assert!(model.snapshot_valid(&snapshot.cursor));
+                        model.settings.ingest(snapshot.data.clone());
+                        model.reconcile_metadata(&snapshot.cursor);
+                    }
                     _ => {}
                 }
                 if matches!(
@@ -422,7 +427,7 @@ impl Peer {
                     )))
                     .await
                 }
-                e => panic!("{e:?}"),
+                e => panic!("{e:?} while executing {command:?}"),
             }
         }
     }
@@ -1294,5 +1299,314 @@ async fn cut_socket_replays_into_the_real_client_reducer() {
         .await;
     alice
         .projection(|m| m.messages[&dm].contains_key(&missed.id))
+        .await;
+}
+
+/// Launch settings exercise the production socket, REST adapter, SQLite authorization,
+/// and shared projection. Every listener is loopback and no OS UI is constructed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn settings_roles_overwrites_profiles_devices_and_notification_sync() {
+    use sticktalk_client_core::settings::{Query as SettingsQuery, SnapshotData};
+    let fixture = Fixture::start().await;
+    let owner_auth = fixture.register("settings_owner").await;
+    let member_auth = fixture.register("settings_member").await;
+    let outsider_auth = fixture.register("settings_observer").await;
+    let mut owner = Peer::connect(&fixture.url, &owner_auth).await;
+    let mut member = Peer::connect(&fixture.url, &member_auth).await;
+    let mut observer = Peer::connect(&fixture.url, &outsider_auth).await;
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "Settings E2E".into(),
+            icon_id: None,
+        })
+        .await
+    else {
+        panic!("guild")
+    };
+    let gid = detail.summary.guild.id;
+    let CommandResult::Channel(channel) = owner
+        .command(Command::CreateChannel {
+            guild_id: gid,
+            kind: ChannelKind::Text,
+            name: "private-lab".into(),
+            parent_id: None,
+            topic: None,
+        })
+        .await
+    else {
+        panic!("channel")
+    };
+    let channel_id = channel.summary.id;
+    let CommandResult::Invite(invite) = owner
+        .command(Command::CreateInvite {
+            guild_id: gid,
+            ttl_seconds: 3600,
+            max_uses: 10,
+        })
+        .await
+    else {
+        panic!("invite")
+    };
+    member
+        .command(Command::JoinGuild {
+            invite_code: invite.code.clone(),
+        })
+        .await;
+    observer
+        .command(Command::JoinGuild {
+            invite_code: invite.code,
+        })
+        .await;
+    let CommandResult::Role(mut role) = owner
+        .command(Command::Launch(LaunchCommand::CreateRole {
+            guild_id: gid,
+            name: "Designers".into(),
+        }))
+        .await
+    else {
+        panic!("role")
+    };
+    let CommandResult::Role(other) = owner
+        .command(Command::Launch(LaunchCommand::CreateRole {
+            guild_id: gid,
+            name: "Moderators".into(),
+        }))
+        .await
+    else {
+        panic!("role")
+    };
+    role.name = "Product Designers".into();
+    role.color = 0x3ddc97;
+    role.hoist = true;
+    role.mentionable = true;
+    role.permissions = Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES;
+    // Creation shifts role positions; fetch current replacement before editing.
+    let roles: Snapshot<Vec<Role>> = owner
+        .http
+        .json(&format!("/guilds/{}/roles", gid.0))
+        .await
+        .unwrap();
+    role.position = roles
+        .data
+        .iter()
+        .find(|r| r.id == role.id)
+        .unwrap()
+        .position;
+    owner
+        .command(Command::Launch(LaunchCommand::UpdateRole {
+            role: role.clone(),
+        }))
+        .await;
+    let mut expected_roles: Vec<_> = roles
+        .data
+        .iter()
+        .filter(|r| r.id != role.id && r.id != other.id)
+        .collect();
+    expected_roles.sort_by_key(|r| r.position);
+    let mut expected_roles: Vec<_> = expected_roles.into_iter().map(|r| r.id).collect();
+    expected_roles.insert(1, role.id);
+    expected_roles.insert(2, other.id);
+    owner
+        .command(Command::Launch(LaunchCommand::ReorderRoles {
+            guild_id: gid,
+            role_ids: expected_roles.clone(),
+        }))
+        .await;
+    owner
+        .command(Command::Launch(LaunchCommand::SetMemberRoles {
+            guild_id: gid,
+            user_id: member_auth.user.user.id,
+            role_ids: vec![role.id],
+        }))
+        .await;
+    owner
+        .projection(|m| {
+            m.settings
+                .roles
+                .get(&role.id)
+                .is_some_and(|r| r.name == "Product Designers" && r.position == 1)
+        })
+        .await;
+    let roles: Snapshot<Vec<Role>> = owner
+        .http
+        .json(&format!("/guilds/{}/roles", gid.0))
+        .await
+        .unwrap();
+    let mut ordered = roles.data;
+    ordered.sort_by_key(|r| r.position);
+    assert_eq!(
+        ordered.iter().map(|r| r.id).collect::<Vec<_>>(),
+        expected_roles
+    );
+    let members: Page<Member> = owner
+        .http
+        .json(&format!("/guilds/{}/members", gid.0))
+        .await
+        .unwrap();
+    assert!(members
+        .items
+        .iter()
+        .find(|m| m.user.id == member_auth.user.user.id)
+        .unwrap()
+        .role_ids
+        .contains(&role.id));
+    owner
+        .command(Command::Launch(LaunchCommand::SetOverwrites {
+            channel_id,
+            overwrites: vec![
+                PermissionOverwrite {
+                    kind: OverwriteKind::Role,
+                    target_id: gid,
+                    allow: Permissions::empty(),
+                    deny: Permissions::VIEW_CHANNEL,
+                },
+                PermissionOverwrite {
+                    kind: OverwriteKind::Role,
+                    target_id: role.id,
+                    allow: Permissions::VIEW_CHANNEL,
+                    deny: Permissions::empty(),
+                },
+            ],
+        }))
+        .await;
+    let overwrites: Snapshot<Vec<PermissionOverwrite>> = owner
+        .http
+        .json(&format!("/channels/{}/overwrites", channel_id.0))
+        .await
+        .unwrap();
+    assert_eq!(overwrites.data.len(), 2);
+    assert!(observer
+        .http
+        .json::<Snapshot<Channel>>(&format!("/channels/{}", channel_id.0))
+        .await
+        .is_err());
+    assert!(member
+        .http
+        .json::<Snapshot<Channel>>(&format!("/channels/{}", channel_id.0))
+        .await
+        .is_ok());
+    owner
+        .command(Command::UpdateProfile(ProfilePatch {
+            display_name: Patch::Set("Settings Owner".into()),
+            ..Default::default()
+        }))
+        .await;
+    owner
+        .command(Command::Launch(LaunchCommand::UpdateUserProfile {
+            banner_color: 0x9878d5,
+            pronouns: "they / them".into(),
+            about_me: "Testing the real settings round trip.".into(),
+        }))
+        .await;
+    let profile: Snapshot<ProfileDetail> = owner
+        .http
+        .json(&format!("/users/{}/profile", owner_auth.user.user.id.0))
+        .await
+        .unwrap();
+    assert_eq!(
+        profile.data.profile.user.display_name.as_deref(),
+        Some("Settings Owner")
+    );
+    assert_eq!(profile.data.profile.banner_color, 0x9878d5);
+    assert_eq!(profile.data.profile.pronouns, "they / them");
+    owner
+        .command(Command::Launch(LaunchCommand::UpdateGuildProfile {
+            guild_id: gid,
+            description: "A real server profile".into(),
+            banner_color: 8,
+        }))
+        .await;
+    let preview: Snapshot<GuildPreview> = owner
+        .http
+        .json(&format!("/guilds/{}/preview", gid.0))
+        .await
+        .unwrap();
+    assert_eq!(preview.data.profile.banner_color, 8);
+    let second_auth = password_auth(&fixture.url, "settings_owner", PASSWORD, false)
+        .await
+        .unwrap();
+    let second = Peer::connect(&fixture.url, &second_auth).await;
+    let notification = NotificationSettings {
+        guild_id: Some(gid),
+        channel_id: None,
+        level: NotificationLevel::Mentions,
+        muted: true,
+        mute_until: Some(sticktalk::mock::now() + 3_600_000),
+        suppress_everyone: true,
+        hide_muted_channels: true,
+    };
+    owner
+        .command(Command::Launch(LaunchCommand::SetNotifications(
+            notification.clone(),
+        )))
+        .await;
+    second
+        .projection(|m| m.settings.notifications.get(&(Some(gid), None)) == Some(&notification))
+        .await;
+    let notifications: Snapshot<Vec<NotificationSettings>> =
+        second.http.json("/me/notifications").await.unwrap();
+    assert_eq!(notifications.data, vec![notification]);
+    owner
+        .handle
+        .try_send(Request::Settings {
+            query: SettingsQuery::Sessions,
+            generation: 1,
+        })
+        .unwrap();
+    let Data::Settings { snapshot, .. } = owner
+        .until(|d| {
+            matches!(
+                d,
+                Data::Settings {
+                    snapshot: Snapshot {
+                        data: SnapshotData::Sessions(_),
+                        ..
+                    },
+                    ..
+                }
+            )
+        })
+        .await
+    else {
+        panic!("sessions")
+    };
+    let SnapshotData::Sessions(sessions) = snapshot.data else {
+        unreachable!()
+    };
+    assert_eq!(sessions.len(), 2);
+    assert_eq!(sessions.iter().filter(|s| s.current).count(), 1);
+    let other_session = sessions.iter().find(|s| !s.current).unwrap();
+    owner
+        .command(Command::Launch(LaunchCommand::LogoutSession {
+            session_id: other_session.id.clone(),
+        }))
+        .await;
+    assert!(second
+        .http
+        .json::<Snapshot<Vec<DeviceSession>>>("/me/sessions")
+        .await
+        .is_err());
+    let third_auth = password_auth(&fixture.url, "settings_owner", PASSWORD, false)
+        .await
+        .unwrap();
+    let third_http = Http::new(&fixture.url, &third_auth.token).unwrap();
+    owner
+        .command(Command::Launch(LaunchCommand::LogoutAllOthers))
+        .await;
+    assert!(third_http
+        .json::<Snapshot<Vec<DeviceSession>>>("/me/sessions")
+        .await
+        .is_err());
+    let sessions: Snapshot<Vec<DeviceSession>> = owner.http.json("/me/sessions").await.unwrap();
+    assert_eq!(sessions.data.len(), 1);
+    assert!(sessions.data[0].current);
+    owner
+        .command(Command::Launch(LaunchCommand::DeleteRole {
+            guild_id: gid,
+            role_id: other.id,
+        }))
+        .await;
+    owner
+        .projection(|m| !m.settings.roles.contains_key(&other.id))
         .await;
 }

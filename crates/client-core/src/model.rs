@@ -8,6 +8,7 @@ const JOURNAL_LIMIT: usize = 2_048;
 
 #[derive(Default)]
 pub struct Model {
+    pub settings: crate::settings::Projection,
     pub cursor: Option<ResumeCursor>,
     pub layout_revision: u64,
     pub me: Option<SelfUser>,
@@ -33,6 +34,17 @@ pub struct Model {
 impl Model {
     pub fn ready(&mut self, ready: Ready) {
         *self = Self::default();
+        self.settings.roles = ready.roles.into_iter().map(|r| (r.id, r)).collect();
+        self.settings.memberships = ready
+            .memberships
+            .into_iter()
+            .map(|m| (m.guild_id, m))
+            .collect();
+        self.settings.notifications = ready
+            .notification_settings
+            .into_iter()
+            .map(|s| ((s.guild_id, s.channel_id), s))
+            .collect();
         self.cursor = Some(ready.cursor);
         self.users.insert(ready.me.user.id, ready.me.user.clone());
         self.me = Some(ready.me);
@@ -77,6 +89,8 @@ impl Model {
     }
 
     pub fn reduce(&mut self, event: Event) {
+        self.settings
+            .event(&event, self.me.as_ref().map(|m| m.user.id));
         if matches!(
             &event,
             Event::MessageCreated { .. }
@@ -289,6 +303,24 @@ impl Model {
             .is_some_and(|v| v.stream_id == cursor.stream_id)
             && cursor.seq >= self.floor
     }
+    /// Apply a launch snapshot and replay subsequent metadata, like member/history snapshots.
+    /// Session invalidations carry no data, so a racing session snapshot must be refetched.
+    pub fn merge_settings(&mut self, snapshot: Snapshot<crate::settings::SnapshotData>) -> bool {
+        if !self.snapshot_valid(&snapshot.cursor) {
+            return false;
+        }
+        if matches!(snapshot.data, crate::settings::SnapshotData::Sessions(_))
+            && self
+                .journal
+                .iter()
+                .any(|e| e.seq > snapshot.cursor.seq && matches!(e.event, Event::SessionsUpdated))
+        {
+            return false;
+        }
+        self.settings.ingest(snapshot.data);
+        self.reconcile_metadata(&snapshot.cursor);
+        true
+    }
     pub fn reconcile_metadata(&mut self, cursor: &ResumeCursor) {
         let events: Vec<_> = self
             .journal
@@ -401,6 +433,10 @@ impl Model {
         }
     }
     pub fn purge_channel(&mut self, id: Id) {
+        self.settings.overwrites.remove(&id);
+        self.settings
+            .notifications
+            .retain(|(_, c), _| *c != Some(id));
         self.journal.retain(|e| event_channel(&e.event) != Some(id));
         self.journal_bytes = self.journal.iter().map(event_bytes).sum();
         self.channels.remove(&id);
@@ -427,6 +463,14 @@ impl Model {
         })
     }
     pub fn permissions(&self, guild: Option<Id>) -> Permissions {
+        if let Some((g, me)) = guild
+            .and_then(|id| self.guilds.get(&id))
+            .zip(self.me.as_ref())
+        {
+            if self.settings.roles.contains_key(&g.guild.id) {
+                return self.settings.guild_permissions(&g.guild, me.user.id);
+            }
+        }
         guild
             .and_then(|id| self.guilds.get(&id))
             .map_or(Permissions::empty(), |g| g.my_permissions)

@@ -160,7 +160,7 @@ pub async fn run<R: MaybeSend + 'static, H: MaybeSend + 'static, Lease>(
                                                 version: PROTOCOL_VERSION,
                                                 token: config.token.clone(),
                                                 resume: recovery.cursor.clone(),
-                                                ..Default::default()
+                                                launch_features: true,
                                             }),
                                         )
                                         .await

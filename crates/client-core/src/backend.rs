@@ -21,6 +21,10 @@ impl std::fmt::Debug for Session {
 pub enum Request<R = String> {
     /// Ephemeral: never queued/replayed as a durable command.
     Voice(VoicePayload),
+    Settings {
+        query: crate::settings::Query,
+        generation: u64,
+    },
     Command(CommandRequest),
     Applied(ResumeCursor),
     View,
@@ -154,6 +158,10 @@ impl HistoryAnchor {
 }
 #[derive(Debug, Clone)]
 pub enum Data<H = ()> {
+    Settings {
+        snapshot: Snapshot<crate::settings::SnapshotData>,
+        generation: u64,
+    },
     Connected(H),
     Rejected {
         nonce: Nonce,
