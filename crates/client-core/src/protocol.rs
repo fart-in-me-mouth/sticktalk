@@ -158,9 +158,9 @@ pub async fn run<R: MaybeSend + 'static, H: MaybeSend + 'static, Lease>(
                                             &mut socket,
                                             &ClientMsg::Identify(Identify {
                                                 version: PROTOCOL_VERSION,
+                                                launch_features: true,
                                                 token: config.token.clone(),
                                                 resume: recovery.cursor.clone(),
-                                                ..Default::default()
                                             }),
                                         )
                                         .await
@@ -264,6 +264,11 @@ pub async fn run<R: MaybeSend + 'static, H: MaybeSend + 'static, Lease>(
                             Request::View => {
                                 jobs.clear();
                                 rest_queue.clear();
+                            }
+                            Request::Voice(v) => {
+                                if ready && send(&mut socket, &ClientMsg::Voice(v)).await.is_err() {
+                                    break;
+                                }
                             }
                             Request::Command(v) => {
                                 let reason = if !ready {

@@ -8,6 +8,8 @@ const JOURNAL_LIMIT: usize = 2_048;
 
 #[derive(Default)]
 pub struct Model {
+    pub launch: crate::launch::Projection,
+    pub active_guild: Option<Id>,
     pub cursor: Option<ResumeCursor>,
     pub layout_revision: u64,
     pub me: Option<SelfUser>,
@@ -33,6 +35,7 @@ pub struct Model {
 impl Model {
     pub fn ready(&mut self, ready: Ready) {
         *self = Self::default();
+        self.launch.ready(&ready);
         self.cursor = Some(ready.cursor);
         self.users.insert(ready.me.user.id, ready.me.user.clone());
         self.me = Some(ready.me);
@@ -77,6 +80,7 @@ impl Model {
     }
 
     pub fn reduce(&mut self, event: Event) {
+        self.launch.event(&event);
         if matches!(
             &event,
             Event::MessageCreated { .. }
@@ -85,6 +89,8 @@ impl Model {
                 | Event::ReactionUpdated(_)
                 | Event::ReadStateUpdated(_)
                 | Event::UserUpdated(_)
+                | Event::MemberUpsert(_)
+                | Event::RolesUpdated { .. }
         ) {
             self.layout_revision = self.layout_revision.wrapping_add(1);
         }
@@ -218,6 +224,22 @@ impl Model {
         }
     }
 
+    /// Strict bounded voice envelope decoding shared by all hosts.
+    pub fn voice_payload(&mut self, v: &VoicePayload) -> bool {
+        if v.kind != "event" || v.version != VOICE_VERSION || v.payload.len() > 72 * 1024 {
+            return false;
+        }
+        let mut de = rmp_serde::Deserializer::new(std::io::Cursor::new(&v.payload));
+        de.set_max_depth(32);
+        let Ok(event) = serde::Deserialize::deserialize(&mut de) else {
+            return false;
+        };
+        if de.position() != v.payload.len() as u64 {
+            return false;
+        }
+        self.launch.voice_event(event);
+        true
+    }
     pub fn insert(&mut self, message: Message) {
         if self.channels.contains_key(&message.channel_id) {
             self.messages
@@ -411,6 +433,9 @@ impl Model {
         self.lru.retain(|v| *v != id);
     }
     pub fn name(&self, id: Id) -> String {
+        if let Some(name) = self.launch.name(self.active_guild, id) {
+            return name.to_owned();
+        }
         self.users
             .get(&id)
             .map(|v| v.display_name.as_deref().unwrap_or(&v.username).to_owned())
@@ -426,10 +451,33 @@ impl Model {
                 .join(", ")
         })
     }
+    /// Guild-scoped capabilities; channel affordances must use launch::permissions.
     pub fn permissions(&self, guild: Option<Id>) -> Permissions {
-        guild
-            .and_then(|id| self.guilds.get(&id))
-            .map_or(Permissions::empty(), |g| g.my_permissions)
+        let Some(guild) = guild else {
+            return Permissions::empty();
+        };
+        let Some(summary) = self.guilds.get(&guild) else {
+            return Permissions::empty();
+        };
+        let Some(me) = self.me.as_ref().map(|m| m.user.id) else {
+            return Permissions::empty();
+        };
+        if summary.guild.owner_id == me {
+            return Permissions::all();
+        }
+        let roles = self.launch.member_roles(guild, me);
+        let p = if roles.is_empty() {
+            summary.my_permissions
+        } else {
+            roles
+                .iter()
+                .fold(Permissions::empty(), |p, r| p | r.permissions)
+        };
+        if p.contains(Permissions::ADMINISTRATOR) {
+            Permissions::all() & !Permissions::OWNER
+        } else {
+            p & Permissions::all() & !Permissions::OWNER
+        }
     }
     pub fn mention_candidates(&self, text: &str) -> Vec<Id> {
         let Some(query) = text
