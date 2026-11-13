@@ -170,6 +170,7 @@ struct Peer {
     candidates: BTreeSet<String>,
     ssrcs: BTreeSet<u32>,
     video_budget: Budget,
+    pending_media: BTreeMap<Ssrc, VecDeque<(u16, Instant, usize)>>,
     rtc: Rtc,
     channel: ChannelId,
     capabilities: VoiceCapabilities,
@@ -731,6 +732,7 @@ impl Sfu {
             negotiated_mids: BTreeMap::new(),
             candidates: BTreeSet::new(),
             ssrcs: BTreeSet::new(),
+            pending_media: BTreeMap::new(),
             video_budget: Budget::new(
                 self.config.peer_video_egress_bps,
                 self.config.max_datagram_bytes,
@@ -1120,6 +1122,7 @@ impl Sfu {
             let Some(old) = old else {
                 break;
             };
+            self.peers.get_mut(&key).unwrap().pending_media.remove(&old);
             self.peers
                 .get_mut(&key)
                 .unwrap()
@@ -1198,6 +1201,7 @@ impl Sfu {
         }
         if let Some(p) = self.peers.get_mut(&key) {
             if let Some(r) = p.routes.remove(mid) {
+                p.pending_media.remove(&r.ssrc);
                 if !p.failed {
                     p.rtc.direct_api().remove_stream_tx(r.ssrc);
                     self.collect(key)?;
@@ -1503,6 +1507,14 @@ impl Sfu {
                         // Probe padding uses RTX or the RTP padding bit. Preserve
                         // original-media burst headroom without bypassing any cap.
                         let repair = route.rtx.is_some_and(|r| *r == ssrc) || bytes[0] & 0x20 != 0;
+                        if !repair {
+                            let seq = u16::from_be_bytes([bytes[2], bytes[3]]);
+                            if let Some(pending) = peer.pending_media.get_mut(&route.ssrc) {
+                                if let Some(index) = pending.iter().position(|p| p.0 == seq) {
+                                    pending.remove(index);
+                                }
+                            }
+                        }
                         if video {
                             let room = self
                                 .room_budgets
@@ -1721,29 +1733,18 @@ impl Sfu {
             let Some(param) = self.params_exact(to, route.target, source_param) else {
                 continue;
             };
-            // str0m's RTP send queue is NOT bounded by its RTX cache size.
-            // Inspect its refreshed pacer snapshot before every enqueue.
-            let queued = self
-                .peers
-                .get_mut(&to)
-                .unwrap()
-                .rtc
-                .direct_api()
-                .stream_tx(&route.ssrc)
-                .and_then(|stream| stream.queue_info())
-                .map(|q| (q.packet_count(), q.byte_size(), q.first_unsent()));
+            // queue_info includes synthetic probe padding and RTX, NOT just
+            // unsent media. A large probe must never reset a healthy H.264
+            // reference chain. Track original media until encrypted egress.
             self.collect(to)?;
-            if queued.is_some_and(|(packets, bytes, first)| {
-                // A desktop IDR can exceed 128 KiB without being stale. Bound
-                // memory independently of the unchanged 250 ms latency ceiling.
-                packets >= 2048
-                    || bytes >= 2 * 1024 * 1024
-                    || first.is_some_and(|t| {
-                        self.now.saturating_duration_since(t) > Duration::from_millis(250)
-                    })
-            }) {
+            let receiver = self.peers.get_mut(&to).unwrap();
+            let pending = receiver.pending_media.entry(route.ssrc).or_default();
+            let pending_count = pending.len();
+            let overloaded = video
+                && media_queue_overloaded(pending, receiver.bwe, receiver.stats.rtt_ms, self.now);
+            if overloaded {
                 self.peers.get_mut(&to).unwrap().stats.queue_dropped_packets +=
-                    queued.unwrap().0 as u64 + 1;
+                    pending_count as u64 + 1;
                 // Discard the stale queue/cache and restart on an IDR with a
                 // fresh SSRC, rather than building latency indefinitely.
                 self.subscribe(
@@ -1781,6 +1782,12 @@ impl Sfu {
                 ..Default::default()
             };
             if let Some(stream) = peer.rtc.direct_api().stream_tx(&route.ssrc) {
+                if video {
+                    peer.pending_media
+                        .entry(route.ssrc)
+                        .or_default()
+                        .push_back((sequence as u16, self.now, packet.payload.len()));
+                }
                 stream.write_rtp(
                     RtpWrite::new(
                         param.pt(),
@@ -2365,6 +2372,24 @@ fn starts_keyframe(codec: Codec, p: &[u8]) -> bool {
     }
 }
 
+/// Bound originals by bitrate times a two-RTT recovery horizon (100..250ms).
+/// Permit a bounded IDR burst even when the estimate has just fallen. Padding
+/// and RTX must not enter this accounting; they do not add new decoder work.
+fn media_queue_overloaded(
+    pending: &VecDeque<(u16, Instant, usize)>,
+    bps: u64,
+    rtt_ms: Option<u32>,
+    now: Instant,
+) -> bool {
+    let horizon_ms = (u64::from(rtt_ms.unwrap_or(50)) * 2 + 100).clamp(100, 250);
+    let bytes = (bps.saturating_mul(horizon_ms) / 8000).clamp(256 * 1024, 2 * 1024 * 1024);
+    pending.len() >= 2048
+        || pending.iter().map(|p| p.2 as u64).sum::<u64>() >= bytes
+        || pending
+            .front()
+            .is_some_and(|p| now.saturating_duration_since(p.1) > Duration::from_millis(250))
+}
+
 #[cfg(test)]
 mod policy_queue_tests {
     use super::*;
@@ -2376,6 +2401,42 @@ mod policy_queue_tests {
         fn generation(&self) -> u64 {
             self.0.load(std::sync::atomic::Ordering::Acquire)
         }
+    }
+    #[test]
+    fn original_media_queue_is_bounded_by_rate_rtt_and_age_not_probe_padding() {
+        let now = Instant::now();
+        let mut pending = VecDeque::new();
+        // Healthy 1440p IDR: much larger than a packet, but not a stale queue.
+        for seq in 0..200 {
+            pending.push_back((seq, now, 1200));
+        }
+        assert!(!media_queue_overloaded(&pending, 12_000_000, Some(1), now));
+        assert!(media_queue_overloaded(
+            &pending,
+            12_000_000,
+            Some(1),
+            now + Duration::from_millis(251)
+        ));
+        for seq in 200..300 {
+            pending.push_back((seq, now, 1200));
+        }
+        assert!(media_queue_overloaded(&pending, 12_000_000, Some(1), now));
+        assert!(!media_queue_overloaded(
+            &pending,
+            12_000_000,
+            Some(100),
+            now
+        ));
+        pending.clear();
+        for seq in 0..2048 {
+            pending.push_back((seq, now, 1));
+        }
+        assert!(media_queue_overloaded(
+            &pending,
+            100_000_000,
+            Some(100),
+            now
+        ));
     }
     #[test]
     fn policy_generation_discards_pre_revocation_encrypted_datagrams() {
