@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use sticktalk::{
-    backend::{self, Data, Handle, HistoryAnchor, Http, Request},
+    backend::{self, AccountAction, Data, Handle, HistoryAnchor, Http, Request},
     model::Model,
 };
 use sticktalk_proto::*;
@@ -32,6 +32,24 @@ async fn post_retry<T: serde::de::DeserializeOwned>(
 ) -> Result<T, String> {
     loop {
         match http.post(path, body).await {
+            Err(error) if error.starts_with("RateLimited") => {
+                tokio::time::sleep(Duration::from_secs(6)).await
+            }
+            result => return result,
+        }
+    }
+}
+async fn account_retry(
+    http: &Http,
+    action: AccountAction,
+    proof: &str,
+) -> Result<AccountUpdateResponse, String> {
+    loop {
+        match http
+            .core()
+            .account_authorized(action.clone(), Some(proof))
+            .await
+        {
             Err(error) if error.starts_with("RateLimited") => {
                 tokio::time::sleep(Duration::from_secs(6)).await
             }
@@ -274,14 +292,63 @@ impl Fixture {
                 .await
                 .is_err()
         );
-        let result: GoogleAuthResponse =
-            post_retry(&http, "/auth/google", &GoogleAuthRequest { id_token })
-                .await
-                .unwrap();
+        // A sign-in nonce is single-use, including after signup completion.
+        assert!(post_retry::<GoogleAuthResponse>(
+            &http,
+            "/auth/google",
+            &GoogleAuthRequest { id_token }
+        )
+        .await
+        .unwrap_err()
+        .starts_with("InvalidCredentials"));
+        let fresh = self.google_token(&http, AccountOperation::SignIn).await;
+        let result: GoogleAuthResponse = post_retry(
+            &http,
+            "/auth/google",
+            &GoogleAuthRequest { id_token: fresh },
+        )
+        .await
+        .unwrap();
         assert!(
             matches!(result, GoogleAuthResponse::Session(ref a) if a.user.user.id == auth.user.user.id)
         );
         auth
+    }
+    async fn google_token(&self, http: &Http, operation: AccountOperation) -> String {
+        let challenge: GoogleChallengeResponse = post_retry(
+            http,
+            "/auth/google/challenge",
+            &GoogleChallengeRequest { operation },
+        )
+        .await
+        .unwrap();
+        *self.mock.nonce.lock().unwrap() = challenge.nonce;
+        self.mock
+            .token(CLIENT_ID, sticktalk::mock::now() / 1000 + 3600, true)
+    }
+    async fn reauth(
+        &self,
+        http: &Http,
+        operation: AccountOperation,
+        password: Option<&str>,
+    ) -> String {
+        let id_token = if password.is_none() {
+            Some(self.google_token(http, operation).await)
+        } else {
+            None
+        };
+        let response: ReauthResponse = post_retry(
+            http,
+            "/auth/reauth",
+            &ReauthRequest {
+                operation,
+                current_password: password.map(str::to_owned),
+                id_token,
+            },
+        )
+        .await
+        .unwrap();
+        response.proof
     }
 }
 
@@ -795,50 +862,64 @@ async fn phase_one() {
     gifs(&mut alice, &bob).await;
     let methods: AuthMethodsResponse = carol.http.json("/auth/methods").await.unwrap();
     assert!(!methods.has_password && methods.google_linked);
-    assert!(post_retry::<AuthMethodsResponse>(
-        &carol.http,
-        "/auth/google/unlink",
-        &GoogleUnlinkRequest {}
-    )
-    .await
-    .unwrap_err()
-    .contains("only sign-in method"));
+    let proof = fixture
+        .reauth(&carol.http, AccountOperation::Unlink, None)
+        .await;
+    assert!(account_retry(&carol.http, AccountAction::Unlink, &proof)
+        .await
+        .err()
+        .unwrap()
+        .contains("only sign-in method"));
+    let proof = fixture
+        .reauth(&alice.http, AccountOperation::Link, Some(PASSWORD))
+        .await;
     let token = fixture
-        .mock
-        .token(CLIENT_ID, sticktalk::mock::now() / 1000 + 3600, true);
-    assert!(post_retry::<AuthMethodsResponse>(
-        &alice.http,
-        "/auth/google/link",
-        &GoogleLinkRequest {
-            id_token: token.clone()
-        }
-    )
-    .await
-    .unwrap_err()
-    .starts_with("IdentityAlreadyLinked"));
-    let _: AuthMethodsResponse = post_retry(
-        &carol.http,
-        "/auth/password",
-        &SetPasswordRequest {
-            current_password: None,
-            new_password: PASSWORD.into(),
-        },
-    )
-    .await
-    .unwrap();
-    let methods: AuthMethodsResponse =
-        post_retry(&carol.http, "/auth/google/unlink", &GoogleUnlinkRequest {})
+        .google_token(&alice.http, AccountOperation::Link)
+        .await;
+    assert!(
+        account_retry(&alice.http, AccountAction::Link(token), &proof)
             .await
-            .unwrap();
-    assert!(methods.has_password && !methods.google_linked);
-    let methods: AuthMethodsResponse = post_retry(
+            .err()
+            .unwrap()
+            .starts_with("IdentityAlreadyLinked")
+    );
+    let proof = fixture
+        .reauth(&carol.http, AccountOperation::Password, None)
+        .await;
+    let updated = account_retry(
         &carol.http,
-        "/auth/google/link",
-        &GoogleLinkRequest { id_token: token },
+        AccountAction::Password {
+            current: None,
+            new: PASSWORD.into(),
+        },
+        &proof,
     )
     .await
     .unwrap();
-    assert!(methods.google_linked);
+    assert!(updated.methods.has_password);
+    let rotated = updated
+        .session
+        .expect("password change rotates/revokes sessions");
+    assert!(carol.http.json::<Snapshot<SelfUser>>("/me").await.is_err());
+    drop(carol);
+    carol = Peer::connect(&fixture.url, &rotated).await;
+    let proof = fixture
+        .reauth(&carol.http, AccountOperation::Unlink, Some(PASSWORD))
+        .await;
+    let updated = account_retry(&carol.http, AccountAction::Unlink, &proof)
+        .await
+        .unwrap();
+    assert!(updated.methods.has_password && !updated.methods.google_linked);
+    let proof = fixture
+        .reauth(&carol.http, AccountOperation::Link, Some(PASSWORD))
+        .await;
+    let token = fixture
+        .google_token(&carol.http, AccountOperation::Link)
+        .await;
+    let updated = account_retry(&carol.http, AccountAction::Link(token), &proof)
+        .await
+        .unwrap();
+    assert!(updated.methods.google_linked);
 
     // Server-side socket disappearance: receive the real client's Backoff, send
     // during disconnection, then verify production resume/replay (not fresh Ready).
