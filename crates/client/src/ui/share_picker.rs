@@ -21,6 +21,25 @@ fn choice(label: String, selected: bool, action: Action) -> Element<'static, Msg
     .style(t::navigation(selected))
     .into()
 }
+fn source_tab(label: &'static str, selected: bool, action: Action) -> Element<'static, Msg> {
+    button(column![
+        container(txt(label).font(t::semibold()).color(if selected {
+            t::TEXT_PRIMARY
+        } else {
+            t::TEXT_SECONDARY
+        }))
+        .center_x(Fill)
+        .padding([t::S8, t::S16]),
+        container(space().height(t::FOCUS))
+            .width(Fill)
+            .style(move |_| t::surface(if selected { t::ACCENT } else { t::TRANSPARENT })),
+    ])
+    .on_press(Msg::Call(action))
+    .width(Fill)
+    .padding(0)
+    .style(t::navigation(false))
+    .into()
+}
 pub(super) fn view(app: &App) -> Element<'_, Msg> {
     let mut sources = column![].spacing(t::S8);
     let filtered: Vec<_> = app
@@ -172,13 +191,13 @@ pub(super) fn view(app: &App) -> Element<'_, Msg> {
                 ]
                 .align_y(Center),
                 row![
-                    choice(
-                        "Screens".into(),
+                    source_tab(
+                        "Screens",
                         !app.calls.picker_windows,
                         Action::PickerTab(false)
                     ),
-                    choice(
-                        "Applications".into(),
+                    source_tab(
+                        "Applications",
                         app.calls.picker_windows,
                         Action::PickerTab(true)
                     ),

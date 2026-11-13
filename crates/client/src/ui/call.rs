@@ -10,6 +10,12 @@ pub(super) fn participant<'a>(
     p: &VoiceParticipant,
     compact: bool,
 ) -> Element<'a, Msg> {
+    let tile_height = if app.calls.call.participants.len() > 6 {
+        ((app.height - t::HEADER - t::S32 - 2. * t::S24 - t::GUILD_ICON - 2. * t::S12) / 3.)
+            .clamp(t::SOURCE_PREVIEW_H, t::CALL_TILE_HEIGHT)
+    } else {
+        t::CALL_TILE_HEIGHT
+    };
     let has_stream = p.tracks.iter().any(|t| t.kind == TrackKind::Screen);
     let watch = || {
         action(
@@ -46,7 +52,7 @@ pub(super) fn participant<'a>(
         flags = flags.push(icon("mic-off", t::INLINE_ICON, t::TEXT_MUTED));
     }
     if p.deafened {
-        flags = flags.push(icon("headphones", t::INLINE_ICON, t::TEXT_MUTED));
+        flags = flags.push(icon("headphone-off", t::INLINE_ICON, t::DANGER));
     }
     if p.tracks.iter().any(|t| t.kind == TrackKind::Screen) {
         flags = flags.push(
@@ -105,39 +111,146 @@ pub(super) fn participant<'a>(
                     app,
                     p.session,
                     TrackKind::Camera,
-                    t::CALL_TILE_HEIGHT - t::BUTTON - 2. * t::S4
+                    tile_height - t::BUTTON - 2. * t::S4
                 ),
                 container(footer).padding([t::S4, t::S8])
             ]
             .width(Fill)
             .into()
         } else {
-            body.width(Fill).height(t::CALL_TILE_HEIGHT).into()
+            body.width(Fill).height(tile_height).into()
         }
     };
-    mouse_area(
-        container(body)
-            .width(Fill)
-            .style(if compact { t::bare } else { t::elevated }),
-    )
+    mouse_area(container(body).width(Fill).style(move |theme| {
+        let mut style = if compact {
+            t::bare(theme)
+        } else {
+            t::elevated(theme)
+        };
+        if speaking && !compact {
+            style.border.color = t::ACCENT;
+            style.border.width = t::FOCUS;
+        }
+        style
+    }))
     .on_right_press(Msg::Open(Dialog::MemberMenu(p.session.user_id)))
+    .into()
+}
+/// Call-only controls: native focus behavior, round hit targets and explicit
+/// active/danger states, with no animation or redraw subscription.
+fn control_button(
+    name: &'static str,
+    label: &'static str,
+    action: Action,
+    active: bool,
+    danger: bool,
+) -> Element<'static, Msg> {
+    let warning = matches!(name, "mic-off" | "headphone-off");
+    let active_color = if warning { t::DANGER } else { t::ACCENT };
+    let color = if danger {
+        t::TEXT_PRIMARY
+    } else if active {
+        active_color
+    } else {
+        t::TEXT_PRIMARY
+    };
+    tooltip(
+        button(
+            container(icon(name, t::ICON, color))
+                .center_x(Fill)
+                .center_y(Fill),
+        )
+        .on_press(msg(action))
+        .centered()
+        .width(t::GUILD_ICON)
+        .height(t::GUILD_ICON)
+        .padding(t::S12)
+        .style(move |theme, status| {
+            let mut style = if danger {
+                t::danger(theme, status)
+            } else {
+                t::secondary(theme, status)
+            };
+            style.border.radius = t::ROUND.into();
+            if active && !danger {
+                style.background = Some(
+                    t::alpha(
+                        active_color,
+                        if matches!(
+                            status,
+                            widget::button::Status::Hovered | widget::button::Status::Pressed
+                        ) {
+                            0.24
+                        } else {
+                            0.12
+                        },
+                    )
+                    .into(),
+                );
+            }
+            style
+        }),
+        hint(label),
+        tooltip::Position::Top,
+    )
+    .style(t::tooltip)
     .into()
 }
 pub(super) fn controls(app: &App) -> Element<'_, Msg> {
     row![
-        icon_button(
+        control_button(
             if app.calls.call.muted {
                 "mic-off"
             } else {
                 "mic"
             },
-            "Toggle mute",
-            msg(Action::Mute)
+            if app.calls.call.muted {
+                "Unmute (Ctrl+Shift+M)"
+            } else {
+                "Mute (Ctrl+Shift+M)"
+            },
+            Action::Mute,
+            app.calls.call.muted,
+            false
         ),
-        icon_button("headphones", "Toggle deafen", msg(Action::Deafen)),
-        icon_button("video", "Camera", msg(Action::ToggleCamera)),
-        icon_button("monitor-up", "Share Screen", msg(Action::Picker)),
-        icon_button("phone-off", "Disconnect", msg(Action::Leave)),
+        control_button(
+            if app.calls.call.deafened {
+                "headphone-off"
+            } else {
+                "headphones"
+            },
+            if app.calls.call.deafened {
+                "Undeafen (Ctrl+Shift+D)"
+            } else {
+                "Deafen (Ctrl+Shift+D)"
+            },
+            Action::Deafen,
+            app.calls.call.deafened,
+            false
+        ),
+        control_button(
+            "video",
+            if app.calls.camera {
+                "Turn off camera"
+            } else {
+                "Turn on camera"
+            },
+            Action::ToggleCamera,
+            app.calls.camera,
+            false
+        ),
+        control_button(
+            "monitor-up",
+            if app.calls.sharing {
+                "Stream quality"
+            } else {
+                "Share screen"
+            },
+            Action::Picker,
+            app.calls.sharing,
+            false
+        ),
+        control_button("phone-off", "Disconnect", Action::Leave, false, true),
     ]
     .spacing(t::S12)
     .align_y(Center)
@@ -171,10 +284,9 @@ pub(super) fn connected(app: &App) -> Element<'_, Msg> {
     let mut body = column![
         row![
             icon("signal", t::INLINE_ICON, t::ACCENT),
-            txt(label)
-                .size(14)
-                .font(t::semibold())
-                .color(t::ACCENT)
+            button(txt(label).size(14).font(t::semibold()).color(t::ACCENT))
+                .on_press(msg(Action::Stats))
+                .style(t::link)
                 .width(Fill),
             icon_button("phone-off", "Disconnect", msg(Action::Leave))
         ]
@@ -190,6 +302,28 @@ pub(super) fn connected(app: &App) -> Element<'_, Msg> {
         .spacing(t::S8)
     ]
     .spacing(t::S4);
+    if app.calls.stats {
+        let stats = app.calls.call.stats.as_ref();
+        body = body.push(
+            container(
+                column![
+                    section("CONNECTION QUALITY"),
+                    hint(
+                        stats
+                            .and_then(|s| s.rtt_ms)
+                            .map_or("Measuring ping…".into(), |ms| format!("{ms} ms ping"))
+                    ),
+                    hint(stats.and_then(|s| s.loss_per_million).map_or(
+                        "Measuring packet loss…".into(),
+                        |loss| format!("{:.2}% packet loss", f64::from(loss) / 10_000.)
+                    )),
+                ]
+                .spacing(t::S4),
+            )
+            .padding(t::S8)
+            .style(t::elevated),
+        );
+    }
     if app.calls.sharing {
         body = body.push(
             row![
@@ -226,6 +360,27 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
             .map(|s| &s.participant)
             .collect()
     };
+    if participants.is_empty() {
+        grid = grid.push(
+            container(
+                column![
+                    icon("headphones", t::CALL_AVATAR, t::TEXT_MUTED),
+                    title("No one is in voice"),
+                    hint("Join the call to get started."),
+                ]
+                .spacing(t::S16)
+                .align_x(Center),
+            )
+            .center_x(Fill)
+            .padding(t::S32),
+        );
+    } else if participants.len() == 1 {
+        grid = grid.push(
+            container(hint("You're the only one here. Invite someone to join."))
+                .center_x(Fill)
+                .padding(t::S8),
+        );
+    }
     for chunk in participants.chunks(3) {
         let mut tiles = row![].spacing(t::S12);
         for p in chunk {
@@ -299,7 +454,7 @@ pub(super) fn consent(app: &App) -> Element<'_, Msg> {
     )
     .padding(t::S24)
     .max_width(480)
-    .style(t::elevated)
+    .style(t::modal)
     .into()
 }
 pub(super) fn user_audio(app: &App, id: Id) -> Element<'_, Msg> {

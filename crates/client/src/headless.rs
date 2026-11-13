@@ -25,6 +25,12 @@ pub const SCREENS: &[&str] = &[
     "camera-tiles",
     "camera-chooser",
     "voice-call",
+    "call-empty",
+    "call-solo",
+    "call-nine",
+    "call-muted",
+    "call-streaming",
+    "voice-quality",
     "share-picker",
     "voice-consent",
     "voice-settings",
@@ -578,6 +584,29 @@ mod tests {
             m,
             Msg::Settings(crate::settings_controller::Action::Server(_))
         )));
+    }
+    #[test]
+    fn request_pending_and_sharer_consent_are_distinct_from_focused_stream() {
+        load_fonts();
+        let dir =
+            std::env::temp_dir().join(format!("sticktalk-call-states-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut rasters = Vec::new();
+        for screen in ["focused-stream", "request-control", "voice-consent"] {
+            let path = dir.join(format!("{screen}.png"));
+            render(screen, 1280, 800, &path).unwrap();
+            rasters.push(image::open(&path).unwrap().into_rgba8());
+            std::fs::remove_file(path).unwrap();
+        }
+        assert_ne!(
+            rasters[0], rasters[1],
+            "viewer request must visibly acknowledge pending consent"
+        );
+        assert_ne!(
+            rasters[0], rasters[2],
+            "sharer consent must render above the call"
+        );
+        std::fs::remove_dir(dir).unwrap();
     }
     #[test]
     fn offscreen_png_has_exact_size_and_neutral_rgba_tokens() {

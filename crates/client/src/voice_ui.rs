@@ -52,6 +52,7 @@ pub enum Action {
     UserVolume(Id, u16),
     UserMute(Id, bool),
     RequestControl(VoiceSession),
+    ControlRequestTimeout(VoiceSession, u64),
     DecideControl(bool),
     ConsentTimeout(u64),
     Revoke,
@@ -105,6 +106,7 @@ pub struct State {
     pub focus: Option<VoiceSession>,
     pub stats: bool,
     pub input_sequence: u64,
+    pub control_request: Option<(VoiceSession, u64)>,
     pub mock_video: Option<iced::widget::image::Handle>,
     pub mock_playback: bool,
     pub preview_only: bool,
@@ -142,6 +144,12 @@ impl App {
         if !matches!(
             screen,
             "voice-call"
+                | "call-empty"
+                | "call-solo"
+                | "call-nine"
+                | "call-muted"
+                | "call-streaming"
+                | "voice-quality"
                 | "share-picker"
                 | "voice-consent"
                 | "voice-settings"
@@ -288,6 +296,9 @@ impl App {
                 connection_id: Id(902),
             });
         }
+        if screen == "request-control" {
+            self.calls.control_request = self.calls.focus.map(|s| (s, 1));
+        }
         if screen == "stream-stats" {
             self.calls.stats = true;
             self.calls.call.stats = Some(VoiceStats {
@@ -327,7 +338,7 @@ impl App {
                 },
             ];
         }
-        if screen == "controlling-banner" {
+        if matches!(screen, "controlling-banner" | "voice-consent") {
             let own = self.calls.call.own.unwrap();
             let track = self
                 .calls
@@ -345,14 +356,18 @@ impl App {
             }
             self.calls.sharing = true;
             self.calls.focus = Some(own);
-            self.calls.call.control.granted(
-                self.calls.call.own.unwrap(),
-                VoiceSession {
+            if screen == "controlling-banner" {
+                let controller = VoiceSession {
                     user_id: Id(2),
                     connection_id: Id(902),
-                },
-                42,
-            );
+                };
+                self.calls
+                    .call
+                    .control
+                    .request(controller, crate::mock::now(), 30_000);
+                self.calls.call.control.decide(crate::mock::now(), true);
+                self.calls.call.control.granted(own, controller, 42);
+            }
         }
         if screen == "voice-consent" {
             self.calls.call.control.request(
@@ -390,6 +405,95 @@ impl App {
 
             self.dialog = crate::app::Dialog::UserSettings;
             self.user_tab = crate::settings_controller::UserPage::Voice.index();
+        }
+        if screen == "call-empty" {
+            self.calls.call.participants.clear();
+            self.calls.call.guild_states.clear();
+        }
+        if screen == "call-solo" {
+            self.calls
+                .call
+                .participants
+                .retain(|session, _| Some(*session) == self.calls.call.own);
+            self.calls
+                .call
+                .guild_states
+                .retain(|session, _| Some(*session) == self.calls.call.own);
+        }
+        if screen == "call-nine" {
+            for (index, name) in [
+                "Jordan",
+                "Alexandra Chen",
+                "Morgan",
+                "Casey",
+                "Sam",
+                "Taylor",
+            ]
+            .iter()
+            .enumerate()
+            {
+                let uid = 4 + index as u64;
+                self.state.model.users.insert(
+                    Id(uid),
+                    crate::mock::user(uid, &format!("guest{uid}"), name),
+                );
+                let session = VoiceSession {
+                    user_id: Id(uid),
+                    connection_id: Id(900 + uid),
+                };
+                self.calls.call.participants.insert(
+                    session,
+                    VoiceParticipant {
+                        session,
+                        muted: uid % 3 == 0,
+                        deafened: uid == 8,
+                        tracks: vec![PublishedTrack {
+                            mid: "camera".into(),
+                            kind: TrackKind::Camera,
+                            codec: Some(VideoCodec::H264),
+                            layers: vec![],
+                            surface: None,
+                        }],
+                    },
+                );
+            }
+            self.calls.call.speaking.insert(VoiceSession {
+                user_id: Id(5),
+                connection_id: Id(905),
+            });
+        }
+        if screen == "call-muted" {
+            self.calls.call.muted = true;
+            self.calls.call.deafened = true;
+            self.calls.call.speaking.clear();
+        }
+        if screen == "call-streaming" {
+            let own = self.calls.call.own.unwrap();
+            let participant = self.calls.call.participants.get_mut(&own).unwrap();
+            participant.tracks.push(PublishedTrack {
+                mid: "screen".into(),
+                kind: TrackKind::Screen,
+                codec: Some(VideoCodec::H264),
+                layers: vec![],
+                surface: Some(ShareSurface::Monitor),
+            });
+            self.calls.sharing = true;
+            self.calls.focus = Some(own);
+        }
+        if screen == "voice-quality" {
+            self.calls.stats = true;
+            self.calls.call.stats = Some(VoiceStats {
+                tx_bps: 64_000,
+                rx_bps: 128_000,
+                tx_fps_milli: 0,
+                rx_fps_milli: 0,
+                loss_per_million: Some(0),
+                rtt_ms: Some(12),
+                path: MediaPath::Direct,
+                cap_dropped_packets: 0,
+                queue_dropped_packets: 0,
+                mtu_dropped_packets: 0,
+            });
         }
         // The modular sidebar and call pane must use the same fixture roster.
         self.state
@@ -440,6 +544,7 @@ impl App {
                     }
                 }
                 Effect::StopTransport => {
+                    self.calls.control_request = None;
                     if let Some(handle) = self.calls.handle.take() {
                         let _ = handle.send(MediaCommand::Stop);
                     }
@@ -505,6 +610,15 @@ impl App {
             Data::Frame(ServerMsg::Voice(payload)) => {
                 match sticktalk_client_core::voice::decode(payload) {
                     Ok(event) => {
+                        if matches!(
+                            event,
+                            VoiceEvent::ControlGranted { .. }
+                                | VoiceEvent::ControlDenied { .. }
+                                | VoiceEvent::Error { .. }
+                                | VoiceEvent::Left { .. }
+                        ) {
+                            self.calls.control_request = None;
+                        }
                         let me = self.me().unwrap_or(Id(0));
                         let effects =
                             self.calls
@@ -1046,12 +1160,34 @@ impl App {
                     self.call_apply_settings();
                 }
             }
+            Action::ControlRequestTimeout(sharer, request) => {
+                if self.calls.control_request == Some((sharer, request)) {
+                    self.calls.control_request = None;
+                    self.notice = "Control request expired. You can request again.".into();
+                }
+            }
             Action::RequestControl(sharer) => {
+                if self.calls.control_request.is_some() || self.calls.call.control.grant.is_some() {
+                    return Task::none();
+                }
+                let request = backend::nonce();
+                self.calls.control_request = Some((sharer, request));
                 self.call_signal(VoiceSignal::RequestControl { sharer });
-                // Request-control must not leave Enter/Space focused on its button.
-                return iced_runtime::task::effect(iced_runtime::Action::widget(
-                    iced::advanced::widget::operation::focusable::unfocus::<()>(),
-                ));
+                // Unfocus the button so Enter/Space cannot send it again.
+                return Task::batch([
+                    iced_runtime::task::effect(iced_runtime::Action::widget(
+                        iced::advanced::widget::operation::focusable::unfocus::<()>(),
+                    )),
+                    Task::perform(
+                        async move {
+                            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                            (sharer, request)
+                        },
+                        |(sharer, request)| {
+                            Msg::Call(Action::ControlRequestTimeout(sharer, request))
+                        },
+                    ),
+                ]);
             }
             Action::DecideControl(allow) => {
                 if let Some((requester, allow)) =
@@ -1099,6 +1235,7 @@ impl App {
                 }
             }
             Action::Revoke => {
+                self.calls.control_request = None;
                 self.calls.call.control.clear();
                 self.call_command(MediaCommand::ControlState(
                     self.calls.call.control.clone(),
@@ -1224,6 +1361,35 @@ impl std::hash::Hash for Visible {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn viewer_request_has_distinct_pending_state_and_stale_timeout_cannot_clear_new_request() {
+        let mut app = App::headless("focused-stream", iced::Size::new(1280., 800.));
+        let sharer = app.calls.focus.unwrap();
+        assert!(app.calls.control_request.is_none());
+        let _unpolled = app.call_update(Action::RequestControl(sharer));
+        let pending = app.calls.control_request.unwrap();
+        let _unpolled = app.call_update(Action::RequestControl(sharer));
+        assert_eq!(app.calls.control_request, Some(pending));
+        let _unpolled = app.call_update(Action::ControlRequestTimeout(
+            sharer,
+            pending.1.wrapping_add(1),
+        ));
+        assert_eq!(app.calls.control_request, Some(pending));
+        let _unpolled = app.call_update(Action::ControlRequestTimeout(sharer, pending.1));
+        assert!(app.calls.control_request.is_none());
+        assert!(
+            App::headless("request-control", iced::Size::new(1280., 800.))
+                .calls
+                .control_request
+                .is_some()
+        );
+        assert!(App::headless("voice-consent", iced::Size::new(1280., 800.))
+            .calls
+            .call
+            .control
+            .pending
+            .is_some());
+    }
     #[test]
     fn popout_and_close_clear_fullscreen_ownership_without_polling_os_tasks() {
         let mut app = App::headless("focused-stream", iced::Size::new(1280., 800.));
