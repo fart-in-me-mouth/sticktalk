@@ -219,7 +219,7 @@ pub async fn chunk(
     }
     require(received == len, ErrorCode::InvalidRequest)?;
     file.sync_all().await?;
-    let _gate = app.0.core.lock().await;
+    let gate = app.0.core.lock().await;
     access(&app, &headers, &key).await?; // Reauthorize after network I/O.
     sqlx::query("UPDATE partial_uploads SET received=?,expires_at=? WHERE id=?")
         .bind((offset + len) as i64)
@@ -228,7 +228,12 @@ pub async fn chunk(
         .execute(&app.0.pool)
         .await?;
     let (_, row) = access(&app, &headers, &key).await?;
-    Ok(Json(projection(&app, &row).await?))
+    let result = projection(&app, &row).await?;
+    drop(gate);
+    // The local fsynced prefix remains the outage journal until publication.
+    let storage = row.get::<String, _>("storage_key");
+    let _ = crate::tier::mirror(&app, &storage, offset + len, false).await;
+    Ok(Json(result))
 }
 pub(crate) async fn file_hash(path: &std::path::Path) -> Result<String> {
     let mut file = tokio::fs::File::open(path).await?;
@@ -289,7 +294,7 @@ pub async fn finish(
     let mut tx = c.begin().await?;
     let a = core.id().await?;
     let expires = now() + 3_600_000;
-    sqlx::query("INSERT INTO uploads(id,owner_id,purpose,channel_id,filename,content_type,byte_size,storage_key,width,height,thumbnail_key,thumbnail_width,thumbnail_height,thumbnail_size,thumbnail_type,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id(a)?).bind(id(u)?).bind(enum_str(purpose)).bind(row.get::<Option<i64>,_>("channel_id")).bind(row.get::<String,_>("filename")).bind(media.mime).bind(size).bind(storage).bind(media.width.map(i64::from)).bind(media.height.map(i64::from)).bind(media.thumb.map(|_|&thumb)).bind(media.thumb.map(|t|i64::from(t.0))).bind(media.thumb.map(|t|i64::from(t.1))).bind(media.thumb.map(|t|i64::from(t.2))).bind(media.thumb.map(|_|"image/jpeg")).bind(now() as i64).bind(expires as i64).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO uploads(id,owner_id,purpose,channel_id,filename,content_type,byte_size,storage_key,width,height,thumbnail_key,thumbnail_width,thumbnail_height,thumbnail_size,thumbnail_type,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id(a)?).bind(id(u)?).bind(enum_str(purpose)).bind(row.get::<Option<i64>,_>("channel_id")).bind(row.get::<String,_>("filename")).bind(media.mime).bind(size).bind(&storage).bind(media.width.map(i64::from)).bind(media.height.map(i64::from)).bind(media.thumb.map(|_|&thumb)).bind(media.thumb.map(|t|i64::from(t.0))).bind(media.thumb.map(|t|i64::from(t.1))).bind(media.thumb.map(|t|i64::from(t.2))).bind(media.thumb.map(|_|"image/jpeg")).bind(now() as i64).bind(expires as i64).execute(&mut *tx).await?;
     sqlx::query("UPDATE partial_uploads SET attachment_id=? WHERE id=?")
         .bind(id(a)?)
         .bind(&key)
@@ -301,6 +306,9 @@ pub async fn finish(
         .await?;
     core.persist_id(&mut tx).await?;
     tx.commit().await?;
+    drop(c);
+    drop(core);
+    crate::tier::published(&app, &storage, media.thumb.map(|_| thumb.as_str())).await;
     Ok(Json(UploadResponse {
         attachment: attachment_row(&row),
         expires_at: expires,
@@ -331,6 +339,7 @@ pub async fn cancel(
         )
         .await;
     }
+    app.0.tier.wake.notify_one();
     Ok(StatusCode::NO_CONTENT)
 }
 pub async fn usage(
@@ -368,6 +377,9 @@ pub(crate) async fn gc(app: &App) -> Result<()> {
     };
     let _gate = app.0.core.lock().await;
     let rows=sqlx::query("SELECT id,storage_key,thumbnail_key,attachment_id FROM partial_uploads WHERE expires_at<=? LIMIT 100").bind(now() as i64).fetch_all(&app.0.pool).await?;
+    if !rows.is_empty() {
+        app.0.tier.wake.notify_one();
+    }
     for r in rows {
         sqlx::query("DELETE FROM partial_uploads WHERE id=?")
             .bind(r.get::<String, _>("id"))

@@ -507,7 +507,7 @@ pub(crate) async fn execute(
         if voice_acl_changed { crate::voice::reconcile(app, core, &mut c).await?; }
         if let Some(v)=block_pair {core.invalidate(&[u,v]);}
         if let Some(v)=role_target {core.invalidate(&[v]);}
-        if needs_file_gc || !orphaned.is_empty() {let app=app.clone();tokio::spawn(async move{let _=app.collect_orphan_files().await;});}
+        if needs_file_gc || !orphaned.is_empty() {app.0.tier.wake.notify_one();let app=app.clone();tokio::spawn(async move{let _=app.collect_orphan_files().await;});}
         // Access revocation invalidates old body-bearing replay before admitting removal events.
         for (users,e) in &out {if matches!(e,Event::GuildRemoved{..}|Event::ChannelRemoved{..}|Event::RelationshipRemoved{..}|Event::MessageDeleted{..}) {core.invalidate(users);}}
         for (users,e) in out {

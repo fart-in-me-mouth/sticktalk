@@ -20,7 +20,7 @@ use std::{
     },
 };
 use sticktalk_proto::*;
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 struct UploadGuard {
     app: App,
     key: String,
@@ -385,6 +385,7 @@ pub async fn upload(
     guard.complete = true;
     drop(c);
     drop(core);
+    crate::tier::published(&app, &final_key, media.thumb.map(|_| thumb_key.as_str())).await;
     Ok((
         StatusCode::CREATED,
         axum::Json(UploadResponse {
@@ -559,19 +560,14 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
     builder = builder
         .header("content-type", mime)
         .header("content-length", length);
-    let path = app.0.config.data_dir.join("files").join(key);
     drop(c);
     drop(core);
-    let mut file = tokio::fs::File::open(path)
-        .await
-        .map_err(|_| Error::new(ErrorCode::NotFound))?;
-    file.seek(std::io::SeekFrom::Start(start)).await?;
-    let body = Body::from_stream(tokio_util::io::ReaderStream::new(file.take(length)));
+    let body = app.0.tier.get(&app, &key, start, length).await?;
     builder
         .body(body)
         .map_err(|_| Error::new(ErrorCode::Internal))
 }
-fn byte_range(s: &str, size: u64) -> std::result::Result<(u64, u64), bool> {
+pub(crate) fn byte_range(s: &str, size: u64) -> std::result::Result<(u64, u64), bool> {
     let s = s.strip_prefix("bytes=").ok_or(false)?;
     if s.contains(',') {
         return Err(false);

@@ -89,6 +89,7 @@ pub fn encode(msg: &ServerMsg) -> Result<Bytes> {
 #[derive(Clone)]
 pub struct App(pub(crate) Arc<Inner>);
 pub(crate) struct Inner {
+    pub tier: crate::tier::Tier,
     pub config: Config,
     pub voice: crate::voice::Voice,
     pub notifications: tokio::sync::broadcast::Sender<crate::mentions::Notification>,
@@ -438,7 +439,9 @@ impl App {
         let voice = crate::voice::Voice::new(&config.voice, config.bind)?;
         let browser = crate::browser::Browser::new(&config)?;
         let push = crate::push::Push::new(&config).await?;
+        let tier = crate::tier::Tier::new(&config)?;
         let app = Self(Arc::new(Inner {
+            tier,
             browser,
             push,
             voice,
@@ -550,6 +553,9 @@ impl App {
         core.trim();
         drop(conn);
         drop(core);
+        if !paths.is_empty() {
+            self.0.tier.wake.notify_one();
+        }
         for key in paths {
             let _ = tokio::fs::remove_file(self.0.config.data_dir.join("files").join(key)).await;
         }
@@ -594,6 +600,8 @@ impl App {
                 tokio::select! { _=app.0.shutdown.cancelled()=>break, _=tick.tick()=> { if app.housekeeping().await.is_err() || app.collect_orphan_files().await.is_err() { tracing::warn!("housekeeping failed"); } } }
             }
         });
+        let storage = self.clone();
+        let storage_task = tokio::spawn(crate::tier::background(storage));
         let stop = self.clone();
         let result = axum::serve(
             listener,
@@ -611,6 +619,8 @@ impl App {
         .await;
         self.shutdown();
         let _ = maintenance.await;
+        storage_task.abort();
+        let _ = storage_task.await;
         // Axum does not track HTTP-upgraded WebSockets in its graceful drain.
         // Keep the runtime alive until their close writers/disconnects finish.
         if tokio::time::timeout(

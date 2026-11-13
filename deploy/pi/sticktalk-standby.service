@@ -1,0 +1,23 @@
+[Unit]
+Description=StickTalk cold standby (manual failover only)
+After=network-online.target tailscaled.service
+RequiresMountsFor=/srv/sticktalk
+ConditionPathIsMountPoint=/srv/sticktalk
+Conflicts=sticktalk-storage.service
+
+[Service]
+User=sticktalk
+Group=sticktalk
+WorkingDirectory=/srv/sticktalk/node
+EnvironmentFile=/etc/sticktalk/standby.env
+ExecStart=/usr/local/bin/sticktalk-server
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/sticktalk/node
+MemoryHigh=768M
+MemoryMax=1G

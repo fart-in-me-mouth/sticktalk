@@ -16,6 +16,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .map_err(|e| format!("admin command failed: {:?}", e.0.code).into());
     }
+    if let Some(sticktalk_server::admin::Operation::Storage(ref command)) =
+        config.operations.command
+    {
+        return sticktalk_server::storage_node::run(
+            command,
+            config
+                .operations
+                .storage
+                .storage_secret
+                .as_deref()
+                .unwrap_or_default(),
+        )
+        .await
+        .map_err(|e| format!("storage node failed: {:?}", e.0.code).into());
+    }
     let bind = config.bind;
     let app = App::open(config)
         .await

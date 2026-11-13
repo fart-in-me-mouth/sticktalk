@@ -1,6 +1,12 @@
 # StickTalk: Oracle Always Free, ARM64 Ubuntu 24.04
 
-One native Rust process, SQLite/files on local disk, Caddy for HTTPS. Commands
+> Use this guide for the public main server, then follow
+> [steps 9–10: private Pi storage and nightly backups](HYBRID.md).
+> Do not use the old Pi-only installer for this topology.
+
+Oracle hosts the public API, WebSocket, SFU, SQLite and web app. The private Pi
+stores bulk files, backups and a cold standby over Tailscale. Friends connect
+directly to Oracle without Tailscale. One Rust process plus Caddy for HTTPS. Commands
 below run in the VM's SSH terminal unless labelled **Windows**. Keep SSH open
 while changing networking. Keep off-VM backups and install OS updates.
 
@@ -9,11 +15,10 @@ while changing networking. Keep off-VM backups and install OS updates.
 1. Create an Oracle Cloud account. In your **home region**, open Compute →
    Instances → Create instance. Choose an **Always Free eligible Ubuntu 24.04
    ARM64** image and **VM.Standard.A1.Flex**, not an AMD/paid shape.
-2. Choose **1 OCPU, 6 GB memory**, default ~50 GB boot volume, public subnet and
-   public IPv4. November 2026 documentation lists **2 OCPUs / 12 GB total** A1
-   allowance for Always Free tenancies, not the 4/24 in old tutorials. Combined
-   boot/block storage allowance is 200 GB in the home region. Verify your own
-   current limits and final estimate before clicking Create.
+2. For this deployment choose **4 OCPU / 24 GB RAM**, about **200 GB total disk**,
+   public subnet and public IPv4 on A1 ARM. The intended free egress budget is
+   **10 TB/month**. Verify your account's Always Free eligibility and the final
+   console cost estimate before clicking Create; do not accept paid resources.
 3. Save the SSH private key privately; note the public IP. Avoid paid images,
    load balancers, additional disks/backups and paid monitoring. Set a billing
    budget alert (an alert does **not** cap charges). Don't upgrade to a paid
@@ -379,6 +384,10 @@ details: [PROTOCOL.md](../docs/PROTOCOL.md#optional-gif-discovery-and-account-fa
 
 ## 6. Backups: SQLite `.backup` PLUS files
 
+**Hybrid deployment:** skip this local-only backup recipe. Oracle's `files/`
+is only a spool/cache and is not a complete backup. Use the shipped online
+[nightly Oracle → Pi timer](HYBRID.md#10-backups-and-oracle-reclamation).
+
 Copying only the live SQLite main file loses WAL contents. `.backup` produces
 a coherent database, but its files must match. For a simple reliable backup,
 stop the app briefly (leave Caddy running):
@@ -453,13 +462,33 @@ Configure `STICKTALK_VOICE_BIND_IP`, `STICKTALK_VOICE_ADVERTISED_IP`,
 `STICKTALK_VOICE_MAX_DATAGRAM_BYTES=1232`. The server uses one multiplexed UDP
 socket in that range. Caddy proxies signaling, **not media UDP**.
 
-Primary deployment is [Pi plus Tailscale](pi/README.md#voice-video-screen-share-and-remote-control):
-allow UDP 50000–50100 through Tailscale and any host firewall on `tailscale0`.
-No router forwarding or TURN is needed on that reachable private path. If the
-Oracle fallback is used outside Tailscale, pin its reachable advertised IP and
-allow matching UDP rules in BOTH Oracle NSGs/security lists and Ubuntu's
-firewall; private-client reachability/NAT/TURN is a separate deployment concern.
-No automatic TURN service is bundled. Never open all UDP ports.
+Oracle is the primary SFU, not Pi. Pin its **public** advertised IP explicitly:
+joining Tailscale for storage must not make clients receive a private ICE address.
+In `/etc/sticktalk.env` set these values from Oracle's instance console:
+
+```text
+STICKTALK_VOICE_BIND_IP=YOUR_ORACLE_PRIVATE_NIC_IP
+STICKTALK_VOICE_ADVERTISED_IP=YOUR_ORACLE_PUBLIC_IP
+STICKTALK_VOICE_UDP_PORT_START=50000
+STICKTALK_VOICE_UDP_PORT_END=50100
+STICKTALK_VOICE_EGRESS_BPS=32000000
+STICKTALK_VOICE_MAX_DATAGRAM_BYTES=1232
+```
+
+The bind address is the VM's assigned private NIC address, not its NAT public IP.
+Add a stateful **UDP destination 50000–50100** ingress rule from `0.0.0.0/0` in
+Oracle's security list/NSG. On Ubuntu run:
+
+```bash
+sudo iptables -C INPUT -p udp --dport 50000:50100 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 1 -p udp --dport 50000:50100 -j ACCEPT
+sudo netfilter-persistent save
+sudo systemctl restart sticktalk
+```
+
+No automatic TURN service is bundled; restrictive client networks may still
+need TURN. Never open all UDP ports. The SFU forwards voice/video/4K screen-share
+packets without transcoding; quality is still limited by client encoders and
+actual bandwidth. All Pi ↔ Oracle storage/backup traffic stays inside Tailscale.
 
 
 Browser/PWA hosting, cookie auth, Google web credentials and VAPID deployment:

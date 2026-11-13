@@ -1,0 +1,17 @@
+[Unit]
+Description=StickTalk nightly online backup to Pi
+After=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+TimeoutStartSec=infinity
+User=sticktalk
+Group=sticktalk
+EnvironmentFile=/etc/sticktalk.env
+ExecStart=/usr/local/bin/sticktalk-server --data-dir /var/lib/sticktalk admin backup
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sticktalk

@@ -2,6 +2,8 @@
 pub mod admin;
 #[cfg(test)]
 mod audit_tests;
+pub mod backup;
+pub mod blob;
 pub mod browser;
 mod commands;
 mod db;
@@ -14,6 +16,10 @@ mod http;
 mod launch;
 mod legacy;
 mod mentions;
+pub mod storage_node;
+#[cfg(test)]
+mod storage_tests;
+mod tier;
 pub use mentions::Notification;
 #[cfg(test)]
 mod operations_tests;
