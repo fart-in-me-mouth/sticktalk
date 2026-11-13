@@ -26,6 +26,12 @@ try {
     if (!$SkipBuild) {
         if (!$env:STICKTALK_UPDATE_PUBLIC_KEY) { throw 'Set STICKTALK_UPDATE_PUBLIC_KEY before building. See deploy/RELEASING.md.' }
         if (!$env:STICKTALK_DEFAULT_SERVER) { throw 'Set STICKTALK_DEFAULT_SERVER before building.' }
+        if (!$env:STICKTALK_UPDATE_ORIGIN) { $env:STICKTALK_UPDATE_ORIGIN = $env:STICKTALK_DEFAULT_SERVER }
+        foreach ($value in @($env:STICKTALK_DEFAULT_SERVER,$env:STICKTALK_UPDATE_ORIGIN)) {
+            $uri = $null
+            if (![Uri]::TryCreate($value,[UriKind]::Absolute,[ref]$uri) -or $uri.AbsolutePath -ne '/' -or $uri.Query -or $uri.Fragment -or $uri.UserInfo) { throw 'Server/update origin must be an absolute origin, without path, credentials, query or fragment.' }
+            if ($uri.Scheme -ne 'https' -and !($TestFixture -and $uri.Scheme -eq 'http' -and $uri.IsLoopback)) { throw 'Production release origins require HTTPS. Loopback HTTP requires -TestFixture.' }
+        }
         & cargo build --release -p sticktalk --bin sticktalk -p sticktalk-desktop-platform --bin sticktalk-maintenance --bin sticktalk-package
         CheckExit 'Release build'
     }

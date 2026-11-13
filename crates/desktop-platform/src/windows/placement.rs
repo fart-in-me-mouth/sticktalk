@@ -87,6 +87,30 @@ fn restore_inner(hwnd: HWND, root: &Path, background: bool) -> bool {
     }
     unsafe { SetWindowPlacement(hwnd, &placement) }.is_ok()
 }
+/// Restoring an already-visible maximized window must not unmaximize it. Hidden
+/// windows retain their last explicit maximized preference in the saved file.
+pub fn show_saved(hwnd: HWND) {
+    let root = std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("StickTalk");
+    let maximized = std::fs::read(path(&root))
+        .ok()
+        .filter(|v| v.len() < 1024)
+        .and_then(|v| serde_json::from_slice::<Placement>(&v).ok())
+        .is_some_and(|p| p.maximized);
+    let _ = unsafe {
+        ShowWindow(
+            hwnd,
+            if maximized {
+                SW_SHOWMAXIMIZED
+            } else {
+                SW_RESTORE
+            },
+        )
+    };
+}
+
 impl Placement {
     fn clamp_to(
         &self,

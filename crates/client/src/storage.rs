@@ -38,9 +38,9 @@ pub fn forget(server: &str) {
 }
 
 /// Releases pin updates independently of the user's selected chat server.
-pub fn update_origin(server: &str) -> String {
+pub fn update_origin() -> String {
     option_env!("STICKTALK_UPDATE_ORIGIN")
-        .unwrap_or(server)
+        .unwrap_or(DEFAULT_SERVER)
         .to_string()
 }
 

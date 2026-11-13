@@ -155,11 +155,9 @@ impl Updater {
         // A current/older release is a normal no-update result, but authenticate first.
         match self.verify(envelope) {
             Ok(v) => {
-                let failed = tokio::fs::read(self.staging.join("failed-update.json"))
+                let failed = read_envelope(&self.staging.join("failed-update.json"))
                     .await
                     .ok()
-                    .filter(|b| b.len() <= MAX_MANIFEST * 2)
-                    .and_then(|b| serde_json::from_slice::<SignedUpdateManifest>(&b).ok())
                     .and_then(|e| self.verify(e).ok());
                 if failed.is_some_and(|f| {
                     f.manifest.version == v.manifest.version
@@ -386,4 +384,16 @@ async fn verify_file(path: &Path, manifest: &UpdateManifest) -> Result<()> {
         return Err(Error::Invalid("installer SHA-256"));
     }
     Ok(())
+}
+
+async fn read_envelope(path: &Path) -> Result<SignedUpdateManifest> {
+    let file = tokio::fs::File::open(path).await?;
+    let mut bytes = Vec::new();
+    file.take((MAX_MANIFEST * 2 + 1) as u64)
+        .read_to_end(&mut bytes)
+        .await?;
+    if bytes.len() > MAX_MANIFEST * 2 {
+        return Err(Error::Invalid("manifest file size"));
+    }
+    Ok(serde_json::from_slice(&bytes)?)
 }

@@ -137,7 +137,7 @@ pub fn subscription(app: &App) -> Subscription<Msg> {
     }
     if !app.mock_mode && option_env!("STICKTALK_UPDATE_PUBLIC_KEY").is_some() {
         subs.push(
-            Subscription::run_with(crate::storage::update_origin(&app.server), |s| {
+            Subscription::run_with(crate::storage::update_origin(), |s| {
                 crate::platform_glue::updates(s.as_str())
             })
             .map(|v| Msg::feature(Event::Update(v))),
@@ -235,7 +235,7 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             if app.features.confirm_update {
                 app.features.confirm_update = false;
                 if !app.mock_mode {
-                    let origin = crate::storage::update_origin(&app.server);
+                    let origin = crate::storage::update_origin();
                     return emit(async move {
                         Event::Restarted(crate::platform_glue::restart(origin).await)
                     });
@@ -919,7 +919,7 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             if a == Activation::Open {
                 return focus;
             }
-            if app.me().is_none() {
+            if app.state.session.is_none() || app.me().is_none() {
                 app.features.desktop.pending_activation = Some(a);
                 return focus;
             } else {

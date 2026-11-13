@@ -53,13 +53,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &exe,
                 &PathBuf::from(&args[2]),
             )? {
-                Command::new(exe)
+                let previous = Command::new(exe)
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())
                     .env("STICKTALK_UPDATE_ROLLED_BACK", "1")
                     .creation_flags(0x08000000)
                     .spawn()?;
+                std::fs::write(
+                    PathBuf::from(&args[2]).join("last-update.pid"),
+                    previous.id().to_string(),
+                )?;
             }
         }
         _ => return Err(

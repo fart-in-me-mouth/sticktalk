@@ -6,6 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--key', required=True)
 parser.add_argument('--target', required=True)
 parser.add_argument('--nsis', required=True)
+parser.add_argument('--real-client', action='store_true')
 a = parser.parse_args()
 repo = pathlib.Path(__file__).resolve().parents[2]
 target = pathlib.Path(a.target).resolve()
@@ -53,6 +54,7 @@ for version, fail in [('0.0.1', False), ('0.0.2', False), ('0.0.3', True)]:
     # Subsystem attribute must precede items.
     source.write_text('#![windows_subsystem = "windows"]\n'+source.read_text(), encoding='utf-8')
     run(['rustc', source, '-O', '-C', 'debuginfo=0', '-o', folder/'sticktalk.exe'])
+    if a.real_client and version == '0.0.2': shutil.copy2(release/'sticktalk.exe',folder/'sticktalk.exe')
     shutil.copy2(release/'sticktalk-maintenance.exe', folder/'sticktalk-maintenance.exe')
     setup = folder/f'StickTalk-Setup-{version}.exe'
     run([a.nsis, f'/DCLIENT={folder / "sticktalk.exe"}', f'/DMAINTENANCE={folder / "sticktalk-maintenance.exe"}', f'/DOUTPUT={setup}', f'/DVERSION={version}', repo/'tools/release/installer.nsi'])
@@ -96,9 +98,18 @@ stage.mkdir(exist_ok=True)
 install = pathlib.Path(tempfile.mkdtemp(prefix='StickTalk update test '))
 env = os.environ.copy()
 env['STICKTALK_FIXTURE_LOG'] = str(work)
+# Isolate preferences/logs/IPC from the owner's existing profile. The actual
+# healthy client initializes its real UI/renderer/tray, but starts hidden.
+if a.real_client:
+    profile = work/'fresh-profile'
+    (profile/'StickTalk').mkdir(parents=True,exist_ok=True)
+    (profile/'StickTalk'/'desktop.json').write_text('true')
+    env['LOCALAPPDATA'] = str(profile)
+    env.pop('STICKTALK_AGENT_WINDOW',None)
+
 runner = work/'update-runner.exe'
 shutil.copy2(release/'sticktalk-maintenance.exe', runner)
-report = {'origin':'loopback only', 'fixture_versions':['0.0.1','0.0.2','0.0.3'], 'checks':[]}
+report = {'healthy_payload':'real StickTalk client' if a.real_client else 'headless process fixture', 'origin':'loopback only', 'fixture_versions':['0.0.1','0.0.2','0.0.3'], 'checks':[]}
 
 def publish(version):
     setup = payload[version][1]
@@ -121,8 +132,9 @@ def stop_fixtures():
     kernel.QueryFullProcessImageNameW.argtypes = [ctypes.c_void_p,ctypes.c_uint32,ctypes.c_wchar_p,ctypes.POINTER(ctypes.c_uint32)]
     kernel.TerminateProcess.argtypes = [ctypes.c_void_p,ctypes.c_uint32]
     kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p,ctypes.c_uint32]
-    for marker in work.glob('run-*.txt'):
-        pid = int(marker.stem.removeprefix('run-'))
+    markers = [(m,int(m.stem.removeprefix('run-'))) for m in work.glob('run-*.txt')]
+    if (stage/'last-update.pid').exists(): markers.append((stage/'last-update.pid',int((stage/'last-update.pid').read_text())))
+    for marker,pid in markers:
         h = kernel.OpenProcess(0x1000|0x0001|0x00100000,False,pid)
         if h:
             buffer = ctypes.create_unicode_buffer(32768)
@@ -145,11 +157,14 @@ try:
     run([release/'sticktalk-package.exe','stage',origin,'0.0.1',stage])
     assert state['ranges'] == [f'bytes={offset}-']
     report['checks'].append('signed manifest + HTTP Range resume + reverified staged hash')
+    # A power loss during backup preparation must never restore partial bytes.
+    (stage/'rollback').mkdir(exist_ok=True)
+    (stage/'rollback'/'sticktalk.exe').write_bytes(b'incomplete backup')
     run([runner,'apply',origin,'0.0.1',stage,'0',install/'sticktalk.exe','--confirmed'],env=env,timeout=90)
     assert installed_version() == '0.0.2'
     assert hashlib.sha256((install/'sticktalk.exe').read_bytes()).digest() == hashlib.sha256((payload['0.0.2'][0]/'sticktalk.exe').read_bytes()).digest()
     assert not (stage/'pending.json').exists() and not (stage/'rollback').exists()
-    report['checks'].append('0.0.1 -> 0.0.2 real NSIS apply + health acknowledgment + 15s alive')
+    report['checks'].append('0.0.1 -> 0.0.2 real NSIS apply + health acknowledgment + 15s alive; incomplete backup safely discarded')
     stop_fixtures()
     publish('0.0.3')
     run([release/'sticktalk-package.exe','stage',origin,'0.0.2',stage])

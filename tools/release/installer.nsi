@@ -117,14 +117,14 @@ FunctionEnd
 Section "Uninstall"
   SetRegView 64
   SetShellVarContext current
-  Delete "$SMPROGRAMS\StickTalk.lnk"
-  Delete "$DESKTOP\StickTalk.lnk"
   ClearErrors
   Delete "$INSTDIR\sticktalk.exe"
   Delete "$INSTDIR\sticktalk-maintenance.exe"
   IfErrors 0 +3
   SetErrorLevel 1
   Abort "Close StickTalk before uninstalling."
+  Delete "$SMPROGRAMS\StickTalk.lnk"
+  Delete "$DESKTOP\StickTalk.lnk"
   Delete "$INSTDIR\concrt140.dll"
   Delete "$INSTDIR\msvcp140_1.dll"
   Delete "$INSTDIR\msvcp140_2.dll"

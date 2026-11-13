@@ -63,6 +63,11 @@ mod tests {
         let old = std::panic::take_hook();
         let session = initialize(root.path());
         assert!(root.path().join("Logs/running.flag").exists());
+        let panic = std::panic::catch_unwind(|| panic!("sensitive-payload-must-not-be-recorded"));
+        assert!(panic.is_err());
+        let log = std::fs::read_to_string(root.path().join("Logs/crash.log")).unwrap();
+        assert!(log.contains("Location:"));
+        assert!(!log.contains("sensitive-payload-must-not-be-recorded"));
         drop(session);
         assert!(!root.path().join("Logs/running.flag").exists());
         record_failure(root.path(), "Window initialization failed");

@@ -238,7 +238,9 @@ pub fn flash_mention(hwnd: HWND, do_not_disturb: bool) {
 /// Only call after an explicit user activation (tray, second launch or deep link).
 pub fn focus_window(hwnd: HWND) {
     unsafe {
-        let _ = ShowWindow(hwnd, SW_RESTORE);
+        if !IsWindowVisible(hwnd).as_bool() || IsIconic(hwnd).as_bool() {
+            placement::show_saved(hwnd);
+        }
         let _ = SetForegroundWindow(hwnd);
     }
 }

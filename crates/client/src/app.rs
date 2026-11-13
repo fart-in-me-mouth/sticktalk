@@ -33,7 +33,6 @@ pub enum Msg {
     Password(String),
     Display(String),
     ToggleRegister,
-    ChangeServer,
     RefreshMeta,
     Meta(String, Result<MetaResponse, String>),
     GoogleStart(bool),
@@ -191,7 +190,6 @@ pub struct App {
     pub password: String,
     pub display: String,
     pub register: bool,
-    pub change_server: bool,
     pub meta_loading: bool,
     pub meta_error: String,
     pub google_id: Option<String>,
@@ -304,7 +302,6 @@ impl App {
             password: String::new(),
             display: String::new(),
             register: initial_screen == "register",
-            change_server: false,
             meta_loading: !mock,
             meta_error: String::new(),
             google_id: mock.then(|| "mock-desktop".into()),
@@ -748,15 +745,6 @@ impl App {
             Msg::HoverClear(serial) => {
                 if self.hover_serial == serial {
                     self.hovered = None;
-                }
-            }
-            Msg::ChangeServer => {
-                if self.busy {
-                    return Task::none();
-                }
-                self.change_server = !self.change_server;
-                if !self.change_server {
-                    return self.update(Msg::RefreshMeta);
                 }
             }
             Msg::RefreshMeta => {
@@ -4327,7 +4315,6 @@ impl App {
             "message-hover-grouped" => app.hovered = Some(Id(2273)),
             "change-server" => {
                 app.state.session = None;
-                app.change_server = true;
             }
             "channel-top" => {
                 app.state.at_present = false;
