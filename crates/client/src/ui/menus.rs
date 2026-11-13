@@ -246,8 +246,8 @@ pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {
                 ))
                 .push(controls::toggle(
                     "Developer Mode",
-                    app.main.developer,
-                    mm(Main::Developer(!app.main.developer)),
+                    app.settings.preferences.developer_mode,
+                    mm(Main::Developer(!app.settings.preferences.developer_mode)),
                 ));
             None
         }
@@ -263,7 +263,7 @@ pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {
             None
         }
     };
-    if app.main.developer {
+    if app.settings.preferences.developer_mode {
         if let Some(id) = id {
             list = list.push(separator()).push(item(
                 "Copy ID",

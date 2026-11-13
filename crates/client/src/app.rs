@@ -4352,7 +4352,7 @@ impl App {
         }
         use crate::main_window::{Entity, Popover};
         if screen.starts_with("main-") {
-            app.main.developer = true;
+            app.settings.preferences.developer_mode = true;
             app.main.pointer = iced::Point::new(size.width - crate::theme::MEMBERS + 40., 160.);
             app.main.position = app.main.pointer;
             app.main.popover = match screen {

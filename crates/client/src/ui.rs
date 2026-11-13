@@ -1018,7 +1018,7 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         return container(
             container(
                 row![
-                    icon("lock", t::ICON, t::TEXT_MUTED),
+                    icon("lock-keyhole", t::ICON, t::TEXT_MUTED),
                     hint("You don't have permission to send messages in this channel.")
                 ]
                 .spacing(t::S12)
@@ -2045,7 +2045,7 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
                             false,
                         ));
                     }
-                    if app.main.developer {
+                    if app.settings.preferences.developer_mode {
                         items = items.push(controls::item(
                             "Copy ID",
                             "copy",

@@ -58,7 +58,6 @@ pub struct State {
     pub split_hover: Option<bool>,
     pub muted: bool,
     pub deafened: bool,
-    pub developer: bool,
     pub dropping: bool,
     pub search: String,
     pub quick: String,
@@ -399,7 +398,12 @@ impl App {
                     }));
                 }
             }
-            Message::Developer(v) => self.main.developer = v,
+            Message::Developer(v) => {
+                return self.settings_update(crate::settings_controller::Action::Toggle(
+                    crate::settings_controller::Toggle::Developer,
+                    v,
+                ))
+            }
         }
         Task::none()
     }
@@ -728,5 +732,26 @@ mod tests {
         let _ = app.main_update(Message::Deafen);
         assert!(app.main.deafened);
         assert!(app.tx.is_none()); // headless fixture has no network or audio tasks
+    }
+}
+
+#[cfg(test)]
+mod qa_developer_setting {
+    use super::*;
+    #[test]
+    fn context_switch_updates_the_persisted_developer_setting() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.settings.preferences.developer_mode = false;
+        let _ = app.main_update(Message::Developer(true));
+        assert!(
+            app.settings.preferences.developer_mode,
+            "context and Settings must not use separate flags"
+        );
+        let saved = serde_json::to_vec(&app.settings.preferences).unwrap();
+        let restored: sticktalk_client_core::settings::Preferences =
+            serde_json::from_slice(&saved).unwrap();
+        assert!(restored.developer_mode);
+        let _ = app.main_update(Message::Developer(false));
+        assert!(!app.settings.preferences.developer_mode);
     }
 }
