@@ -70,7 +70,7 @@ try {
   checks.push('operation-bound Google reauthentication returns to Delete Account and erases account');
   assert.deepEqual(errors,[]);
   assert.deepEqual(external,[]);
-  await writeFile(`${output}/oauth-results.json`,JSON.stringify({checks,screenshots,errors,externalRequests:external.length},null,2));
+  await writeFile(`${output}/oauth-results.json`,JSON.stringify({revision:h.revision,checks,screenshots,errors,externalRequests:external.length},null,2));
   console.log(JSON.stringify({checks,errors}));
 } catch(e) {
   await writeFile(`${output}/oauth-failure.json`,JSON.stringify({error:String(e),checks,errors,body:await page?.locator('body').innerText().catch(()=>'' )},null,2));throw e;

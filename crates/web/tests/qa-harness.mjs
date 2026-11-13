@@ -33,6 +33,8 @@ export async function harness(extra = [], {tls=false,dist}={}) {
   const data = await mkdtemp(join(target, 'qa-data-'));
   const port = await freePort(), publicPort=tls?await freePort():port;
   const origin = `${tls?'https':'http'}://127.0.0.1:${publicPort}`;
+  const webRoot=dist??process.env.STICKTALK_WEB_DIST??join(target,'web-dist');
+  const revision=JSON.parse(await readFile(join(webRoot,'sizes.json'),'utf8')).revision;
   let proxy;
   const sockets=new Set();
   if(tls) {
@@ -60,7 +62,7 @@ export async function harness(extra = [], {tls=false,dist}={}) {
   }
   const server = spawn(process.env.STICKTALK_SERVER_EXE ?? join(target, 'debug/sticktalk-server.exe'), [
     '--bind', `127.0.0.1:${port}`, '--public-url', origin, '--data-dir', data,
-    '--web-root', dist ?? process.env.STICKTALK_WEB_DIST ?? join(target, 'web-dist'),
+    '--web-root', webRoot,
     '--min-free-disk-gb', '0', '--voice-bind-ip', '127.0.0.1',
     '--voice-advertised-ip', '127.0.0.1', ...extra,
   ], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -84,7 +86,7 @@ export async function harness(extra = [], {tls=false,dist}={}) {
       ...(tls?['--ignore-certificate-errors']:[]),
     ] });
     const contexts = [];
-    return { origin, data, browser, log: () => log,
+    return { origin, data, browser, revision, log: () => log,
       async phone(width = 390, height = 844) {
         const context = await browser.newContext({ viewport: { width, height },
           hasTouch: width < 1000, isMobile: width < 768, deviceScaleFactor: 1,

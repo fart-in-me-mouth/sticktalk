@@ -171,7 +171,7 @@ try {
   await act(bob,'media:leave');
   checks.push('injected denied-microphone browser edge explains recovery and releases media; grant and real SFU rejoin succeeds');
   assert.deepEqual(errors,[]);
-  await writeFile(`${output}/phone-media-results.json`,JSON.stringify({checks,screenshots,errors},null,2));
+  await writeFile(`${output}/phone-media-results.json`,JSON.stringify({revision:h.revision,checks,screenshots,errors},null,2));
   console.log(JSON.stringify({checks,screenshots:screenshots.length,errors}));
 } catch(e) {
   await writeFile(`${output}/phone-media-failure.json`,JSON.stringify({error:String(e),checks,errors,body:await alice?.locator('body').innerText().catch(()=>'' ),publisherBody:await publisher?.locator('body').innerText().catch(()=>'' )},null,2));

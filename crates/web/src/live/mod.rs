@@ -236,9 +236,12 @@ impl App {
         self.send(ClientMsg::Command(CommandRequest { nonce: n, command }));
     }
     fn voice(&mut self, signal: VoiceSignal) {
+        self.voice_request(signal, nonce(&Browser));
+    }
+    fn voice_request(&mut self, signal: VoiceSignal, request_nonce: u64) {
         if let Ok(payload) = rmp_serde::to_vec_named(&signal) {
             self.send(ClientMsg::Voice(VoicePayload {
-                nonce: nonce(&Browser),
+                nonce: request_nonce,
                 version: VOICE_VERSION,
                 kind: "signal".into(),
                 payload,
@@ -856,6 +859,7 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
     if let Ok(event) = rmp_serde::from_slice::<VoiceEvent>(&payload.payload) {
         let mut v = serde_json::to_value(event).unwrap_or_default();
         stringify_ids(&mut v);
+        v["request_nonce"] = payload.nonce.to_string().into();
         media_event(&v.to_string());
     }
 }

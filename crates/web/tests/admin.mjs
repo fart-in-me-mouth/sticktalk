@@ -75,7 +75,7 @@ try {
   await act(owner,'dialog:roles');assert.equal(await owner.locator('[data-live^="role:"]:has-text("Forged Role")').count(),0);
   checks.push('ordinary-member controls disabled; forged mutation denied by real server');
   assert.deepEqual(errors,[]);
-  await writeFile(`${output}/admin-results.json`,JSON.stringify({checks,screenshots,errors},null,2));
+  await writeFile(`${output}/admin-results.json`,JSON.stringify({revision:h.revision,checks,screenshots,errors},null,2));
   console.log(JSON.stringify({checks,errors}));
 } catch(e) {
   await writeFile(`${output}/admin-failure.json`,JSON.stringify({error:String(e),checks,errors,body:await owner?.locator('body').innerText().catch(()=>'' )},null,2));throw e;

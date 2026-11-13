@@ -29,6 +29,18 @@ let publications = new Map(),
   status = "Disconnected";
 const trace = [];
 let wantCall=false;
+const requests=new Map();
+let nextRequest=crypto.getRandomValues(new Uint32Array(1))[0]||1;
+function requestSignal(type,data) {
+  if(requests.size>=32)return Promise.reject(new Error('Too many pending media operations.'));
+  while(requests.has(String(nextRequest)))nextRequest=(nextRequest+1)>>>0||1;
+  const id=String(nextRequest);nextRequest=(nextRequest+1)>>>0||1;
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{requests.delete(id);reject(new Error('Media subscription timed out.'));},5000);
+    requests.set(id,{resolve:()=>{clearTimeout(timer);requests.delete(id);resolve();},reject:error=>{clearTimeout(timer);requests.delete(id);reject(error);}});
+    emit(`signal-request:${id}:${JSON.stringify({type,data})}`);
+  });
+}
 const speaking = new Set();
 export function retainSpeaking(states, sessionKey, active) {
   if (!active) states.delete(sessionKey);
@@ -78,7 +90,7 @@ function preferOpus(transceiver) {
   if(!codecs.length)throw Error('This browser does not support Opus audio.');
   transceiver.setCodecPreferences(codecs);
 }
-async function negotiate() {
+async function negotiate(beforeRemote) {
   const current = pc;
   if (!current || !joined) return;
   const offer = await current.createOffer();
@@ -130,6 +142,10 @@ async function negotiate() {
     }));
   signal("offer", { sdp: normalizeOffer(current.localDescription.sdp), tracks });
   const sdp = await answer;
+  if (current !== pc) return;
+  // Subscribe before enabling a new receiver. Otherwise the SFU's temporary
+  // answer stream can bind Chromium to an SSRC which Subscribe discards.
+  await beforeRemote?.();
   if (current !== pc) return;
   // The SFU allocates a fresh forwarding SSRC *after* answering Subscribe.
   // Do not pin Chromium's video receiver to the answer's discarded default SSRC.
@@ -352,21 +368,21 @@ async function updateParticipant(participant) {
     }
   }
   if (added.length) {
-    await negotiate();
-    for (const s of added) {
-      signal("subscribe", {
+    await negotiate(()=>Promise.all(added.map(s=>requestSignal("subscribe", {
         publisher: participant.session,
         source_mid: s.source_mid,
         receiver_mid: s.transceiver.mid,
         rid: null,
-      });
-    }
+      }))));
   }
   mount();
 }
 export function event(event) {
   const data = event.data;
   record("event", event.type === "answer" ? { type: "answer" } : event);
+  const request=requests.get(String(event.request_nonce));
+  if(request&&event.type==='ack'){request.resolve();return;}
+  if(request&&event.type==='error'){request.reject(new Error(data.message??'Media subscription failed.'));return;}
   switch (event.type) {
     case "joined":
       if(wantCall)enqueue(() => start(data));
@@ -570,6 +586,7 @@ function showShareOptions() {
 function stop(notify) {
   if(notify)wantCall=false;
   ++epoch;
+  for(const request of [...requests.values()])request.reject(new Error('Call ended.'));
   clearTimeout(levelsTimer);
   levelsTimer = null;
   pendingAnswer?.reject(new Error('Call ended.'));
@@ -781,6 +798,7 @@ export async function diagnostics() {
     : [];
   return {
     joined,
+    pendingRequests:requests.size,
     trace,
     localSdp: pc?.localDescription?.sdp,
     remoteSdp: pc?.remoteDescription?.sdp,

@@ -153,7 +153,9 @@ pub(super) fn action(app: Shared, raw: &str) {
                     .await;
                 match result {
                     Ok(r) if (200..300).contains(&r.status) => {
-                        media_action("leave");
+                        // The authenticated logout already revoked server media.
+                        // Do not send a late Leave after clearing this session.
+                        media_action("transport-lost");
                         media_action("purge");
                         let mut a = app.borrow_mut();
                         a.clear_account();
@@ -487,7 +489,7 @@ pub(super) fn action(app: Shared, raw: &str) {
                 load_members(app, g, after);
             }
         }
-        "signal" | "voice" => {
+        "signal" | "signal-request" | "voice" => {
             let epoch = app.borrow().epoch;
             let kind = kind.to_owned();
             let arg = arg.to_owned();
@@ -1900,16 +1902,34 @@ fn voice_action(app: Shared, kind: String, arg: String, epoch: u64) {
     }
     let arg = arg.as_str();
     match kind.as_str() {
-        "signal" => match decode_signal(arg) {
-            Ok(signal) => {
-                let mut a = app.borrow_mut();
-                if matches!(signal, VoiceSignal::Leave) {
-                    a.voice_channel = None;
+        "signal" | "signal-request" => {
+            let (request_nonce, raw) = if kind == "signal-request" {
+                let Some((id, raw)) = arg.split_once(':') else {
+                    return;
+                };
+                let Ok(id) = id.parse::<u64>() else { return };
+                if !(1..=9_007_199_254_740_991).contains(&id) {
+                    return;
                 }
-                a.voice(signal);
+                (Some(id), raw)
+            } else {
+                (None, arg)
+            };
+            match decode_signal(raw) {
+                Ok(signal) => {
+                    let mut a = app.borrow_mut();
+                    if matches!(signal, VoiceSignal::Leave) {
+                        a.voice_channel = None;
+                    }
+                    if let Some(nonce) = request_nonce {
+                        a.voice_request(signal, nonce);
+                    } else {
+                        a.voice(signal);
+                    }
+                }
+                Err(e) => fail(&app, e),
             }
-            Err(e) => fail(&app, e),
-        },
+        }
         "voice" => {
             if let Some(c) = id(arg) {
                 let mut a = app.borrow_mut();

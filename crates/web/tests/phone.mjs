@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { harness, register, login, form, act, shot, wait, until, output, target } from './qa-harness.mjs';
 
 let h;
-const checks = [], screenshots = [], errors = [], csp = [], layout = [];
+const checks = [], screenshots = [], errors = [], csp = [], layout = [], transients=[];
 let page;
 try {
   for (const [width, height] of [[390,844],[412,915],[820,1180],[1440,900]]) {
@@ -246,19 +246,48 @@ try {
     await act(page,'dialog:settings');
     await page.getByRole('button',{name:'Log Out',exact:true}).click();
     await page.waitForSelector('#auth-username');
+    await wait(200);assert.equal(await page.locator('.live-error').count(),0,'logout has no late media error');
     await login(page,`qa_phone_${width}`,password);
+    const deletingUser=await page.locator('[data-self-id]').getAttribute('data-self-id');
     await act(page,'dialog:delete-account');
-    await page.locator('#f-name').fill(password);
-    await page.locator('#f-value').fill('DELETE');
-    await page.locator('[type=submit]').click();
+    for(let attempt=1;attempt<=3;attempt++) {
+      if(await page.locator('#auth-username').count())break;
+      await act(page,'dismiss-error');
+      await page.waitForFunction(()=>!document.querySelector('.live-error'));
+      await page.locator('#f-name').fill(password);
+      await page.locator('#f-value').fill('DELETE');
+      const start=Date.now();
+      await page.locator('[type=submit]').click();
+      const outcome=await page.waitForFunction(()=>{
+        if(document.querySelector('#auth-username'))return{auth:true};
+        const error=document.querySelector('.live-error')?.textContent;
+        return error?{error}:false;
+      },null,{timeout:45000});
+      const state=await outcome.jsonValue();await outcome.dispose();
+      if(state.auth)break;
+      // Revocation can render an error just before the successful HTTP reload.
+      await wait(500);if(await page.locator('#auth-username').count())break;
+      const error=state.error;
+      if(error.includes('session ended')){await page.waitForSelector('#auth-username');break;}
+      if(!/Unavailable|RateLimited/.test(error))throw Error(`Account deletion: ${error}`);
+      transients.push({width,operation:'delete-account',attempt,error,durationMs:Date.now()-start});
+      await wait(Math.max(2,Number(error.match(/in (\d+)s/)?.[1])||0)*1000);
+    }
     await page.waitForSelector('#auth-username');
+    const database=(await readdir(h.data)).find(f=>/\.(sqlite3|sqlite|db)$/.test(f));
+    const erased=new DatabaseSync(join(h.data,database));
+    try {
+      erased.exec('PRAGMA busy_timeout=10000');
+      assert.equal(erased.prepare('SELECT COUNT(*) AS n FROM deleted_accounts WHERE user_id=?').get(BigInt(deletingUser)).n,1);
+      assert.equal(erased.prepare("SELECT COUNT(*) AS n FROM messages WHERE author_id=? AND (content<>'' OR deleted_at IS NULL)").get(BigInt(deletingUser)).n,0);
+    }finally{erased.close();}
     checks.push(`${width}: logout, password login, confirmed account erasure`);
     csp.push(...await page.evaluate(()=>window.__qaCsp??[]));
     await page.context().close();
     await h.close();h=undefined;
   }
   assert.deepEqual(errors,[]); assert.deepEqual(csp,[]);
-  await writeFile(`${output}/phone-results.json`,JSON.stringify({checks,screenshots,layout,errors,csp,
+  await writeFile(`${output}/phone-results.json`,JSON.stringify({checks,screenshots,layout,errors,csp,transients,
     revision:JSON.parse(await readFile(join(target,'web-dist/sizes.json'),'utf8')).revision},null,2));
   console.log(JSON.stringify({checks,screenshots:screenshots.length,errors,csp}));
 } catch(e) {
