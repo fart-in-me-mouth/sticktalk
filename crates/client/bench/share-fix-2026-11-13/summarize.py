@@ -56,7 +56,7 @@ for name, content in sorted(logs.items()):
             values = dict(re.findall(r"(\w+)=(\S+)", fields))
             record = peers.setdefault(peer, {"bwe_min_after_10s": None, "bwe_max_after_10s": None})
             record["last"] = {key: float(value) for key, value in values.items()}
-            if path.stem.startswith("qualified-"):
+            if path.stem.startswith(("qualified-", "final-", "failed-", "experimental-")):
                 series.append({"case": path.stem, "peer": peer, "seconds": seconds, **values})
             if float(seconds) > 10:
                 bwe = int(values["bwe"])
@@ -87,7 +87,7 @@ result = {
 (root / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
 if series:
     fields = sorted({key for row in series for key in row})
-    with (root / "qualified-bwe.csv").open("w", newline="", encoding="utf-8") as output:
+    with (root / "bwe-series.csv").open("w", newline="", encoding="utf-8") as output:
         writer = csv.DictWriter(output, fieldnames=fields)
         writer.writeheader()
         writer.writerows(series)

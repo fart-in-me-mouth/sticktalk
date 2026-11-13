@@ -1,0 +1,16 @@
+{
+  "binary": "voice-f31c3035531e617d.exe",
+  "sha256": "6aba5ceb5baf51c5bc914bbb0a917aa3ac0c628df941f48762a70b229cc2da98",
+  "profile": "server (workspace optimized + unwind)",
+  "security_master": "a9c0f13",
+  "source_commit_before_burst_fix": "20b4555",
+  "duration_warmup_seconds": 8,
+  "viewers": 2,
+  "capture_primary_size": "2560x1440",
+  "gpu": "NVIDIA GeForce RTX 3060 Ti",
+  "encoder": "NVIDIA H.264 Encoder MFT",
+  "transport": "real loopback HTTP/WS/DTLS/SRTP + str0m SFU",
+  "display": "decode-only; no OS windows; no saved captured pixels",
+  "source_commit": "68484bd",
+  "status": "earlier candidate only; not final qualification"
+}
