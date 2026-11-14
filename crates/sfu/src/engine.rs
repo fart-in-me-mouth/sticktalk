@@ -1253,17 +1253,31 @@ impl Sfu {
             .peers
             .iter()
             .map(|(key, p)| {
+                let videos = p.routes.values().filter(|r| r.video).count() as u64;
+                let room_routes = self
+                    .peers
+                    .values()
+                    .filter(|other| other.channel == p.channel)
+                    .flat_map(|other| other.routes.values())
+                    .filter(|r| r.video)
+                    .count() as u64;
                 (
                     *key,
-                    (share * p.routes.values().filter(|r| r.video).count() as u64)
-                        .min(self.config.peer_video_egress_bps)
-                        .min(self.config.room_video_egress_bps),
+                    (share.min(self.config.room_video_egress_bps / room_routes.max(1)) * videos)
+                        .min(self.config.peer_video_egress_bps),
                 )
             })
             .collect();
         for (key, desired) in targets {
             let p = self.peers.get_mut(&key).unwrap();
             let video_active = p.routes.values().any(|r| r.video);
+            if video_active {
+                // The configured peer ceiling is NOT an allocation. Otherwise
+                // one viewer's over-estimated probes can spend the entire
+                // global/room bucket before the next viewer gets a turn.
+                p.video_budget
+                    .set_rate(desired, self.config.max_datagram_bytes, self.now);
+            }
             let starting = video_active && !p.video_active;
             p.video_active = video_active;
             if p.bwe_target != desired || starting {
@@ -1286,7 +1300,9 @@ impl Sfu {
         for p in self.peers.values() {
             let videos = p.routes.values().filter(|r| r.video).count() as u64;
             for r in p.routes.values().filter(|r| r.video) {
-                // Encoder payload must leave headroom for SRTP/RTP/RTX.
+                // Payload is not wire rate. Leave 25% for RTP/SRTP headers,
+                // repair/probes and IDR bursts. Two 1440p60 viewers receive
+                // 12 Mbps payload each within the unchanged 32 Mbps wire cap.
                 let room_routes = self
                     .peers
                     .values()
@@ -1297,8 +1313,8 @@ impl Sfu {
                 let bps = share
                     .min(p.bwe.min(self.config.peer_video_egress_bps) / videos.max(1))
                     .min(self.config.room_video_egress_bps / room_routes.max(1))
-                    .saturating_mul(9)
-                    / 10;
+                    .saturating_mul(3)
+                    / 4;
                 limits
                     .entry((r.publisher, r.source.to_string()))
                     .and_modify(|b| *b = (*b).min(bps))
@@ -1760,6 +1776,12 @@ impl Sfu {
             let overloaded = video
                 && media_queue_overloaded(pending, receiver.bwe, receiver.stats.rtt_ms, self.now);
             if overloaded {
+                if self.video_trace {
+                    eprintln!("VIDEO_TRACE original_queue_reset peer={to:?} packets={pending_count} bytes={} age_ms={:.3} bwe={} rtt_ms={:?}",
+                        pending.iter().map(|p| p.2).sum::<usize>(),
+                        pending.front().map_or(0., |p| self.now.saturating_duration_since(p.1).as_secs_f64() * 1000.),
+                        receiver.bwe, receiver.stats.rtt_ms);
+                }
                 self.peers.get_mut(&to).unwrap().stats.queue_dropped_packets +=
                     pending_count as u64 + 1;
                 // Discard the stale queue/cache and restart on an IDR with a

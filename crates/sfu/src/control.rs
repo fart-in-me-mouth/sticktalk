@@ -82,6 +82,16 @@ impl Budget {
         self.tokens -= bytes as f64;
         true
     }
+    /// Reallocate a viewer's fair wire share without resetting/minting tokens.
+    pub fn set_rate(&mut self, bps: u64, max_datagram_bytes: u16, now: Instant) {
+        let tokens = (self.tokens
+            + now.saturating_duration_since(self.last).as_secs_f64() * self.bps as f64 / 8.0)
+            .min(self.capacity);
+        self.bps = bps;
+        self.capacity = ((bps as f64 / 8.0) * 0.1).max(f64::from(max_datagram_bytes));
+        self.tokens = tokens.min(self.capacity);
+        self.last = now;
+    }
     /// Earliest admission for original media. Used BEFORE polling str0m, so
     /// an encrypted original is never popped and thrown away at our own cap.
     /// The existing bounded RTC queue retains it; a one-shot deadline resumes
@@ -116,6 +126,21 @@ impl Budget {
 #[cfg(test)]
 mod budget_tests {
     use super::*;
+
+    #[test]
+    fn fair_share_reallocation_cannot_refill_a_depleted_bucket() {
+        let now = Instant::now();
+        let mut b = Budget::new(32_000_000, 1232, now);
+        assert!(b.take(400_000, now));
+        for _ in 0..100 {
+            b.set_rate(16_000_000, 1232, now);
+            assert!(!b.available(1, false, now));
+        }
+        assert!(b.take(200_000, now + Duration::from_millis(100)));
+        assert!(!b.take(1, now + Duration::from_millis(100)));
+        b.set_rate(32_000_000, 1232, now + Duration::from_millis(100));
+        assert!(!b.take(1, now + Duration::from_millis(100)));
+    }
 
     #[test]
     fn depleted_wire_cap_yields_a_precise_admission_deadline_without_spending() {
