@@ -213,7 +213,6 @@ pub fn inline<'a>(
     size: f32,
 ) -> Option<Element<'a, Msg>> {
     use sticktalk_client_core::features3::{parts, Part};
-    use unicode_segmentation::UnicodeSegmentation;
     if !values
         .iter()
         .any(|v| !v.style.code && parts(&v.text).iter().any(|p| matches!(p, Part::Emoji(..))))
@@ -229,13 +228,7 @@ pub fn inline<'a>(
             .flatten()
             .any(|e| e.id == id)
     };
-    let emoji_only = m.attachments.is_empty()
-        && parts(&m.content).iter().all(|p| match p {
-            Part::Emoji(id, _) => known(*id),
-            Part::Text(t) => t
-                .graphemes(true)
-                .all(|g| g.trim().is_empty() || emoji_picker::has_artwork(g)),
-        });
+    let picture_size = super::emoji_size(app, m, size);
     let mut flow = Row::new().spacing(0).align_y(Center);
     for v in values {
         let hidden = v
@@ -247,17 +240,7 @@ pub fn inline<'a>(
         }
         for p in parts(&v.text) {
             match p {
-                Part::Emoji(id, _) if known(id) => {
-                    flow = flow.push(glyph(
-                        app,
-                        id,
-                        if emoji_only {
-                            t::AVATAR + t::S8
-                        } else {
-                            size * app.settings.preferences.chat_font_scale
-                        },
-                    ))
-                }
+                Part::Emoji(id, _) if known(id) => flow = flow.push(glyph(app, id, picture_size)),
                 Part::Emoji(_, s) => {
                     let mut v = v.clone();
                     v.text = format!(
@@ -272,12 +255,7 @@ pub fn inline<'a>(
                 Part::Text(s) => {
                     let mut v = v.clone();
                     v.text = s.into();
-                    flow = flow.push(super::inline_content(
-                        app,
-                        m,
-                        &[v],
-                        if emoji_only { t::AVATAR + t::S8 } else { size },
-                    ));
+                    flow = flow.push(super::inline_content(app, m, &[v], size));
                 }
             }
         }

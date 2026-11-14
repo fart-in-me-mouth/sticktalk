@@ -174,7 +174,7 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                     ..t::surface(if hover { t::BG_HOVER } else { t::TRANSPARENT })
                 }))
                 .on_enter(mm(Main::MemberHover(Some(id))))
-                .on_exit(mm(Main::MemberHover(None)))
+                .on_exit(mm(Main::MemberLeave(id)))
                 .on_right_press(mm(Main::Open(Popover::Context(Entity::User(id))))),
             ));
         }

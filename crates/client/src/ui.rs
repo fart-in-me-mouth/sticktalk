@@ -1,5 +1,6 @@
 pub(crate) mod audit;
 mod avatar_mask;
+mod composer_art;
 mod controls;
 mod elided;
 pub mod emoji_picker;
@@ -1011,7 +1012,7 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
                 crate::main_window::Message::MemberHover(Some(id)),
             ))
             .on_exit(crate::main_window::mm(
-                crate::main_window::Message::MemberHover(None),
+                crate::main_window::Message::MemberLeave(id),
             )),
         );
     }
@@ -1213,7 +1214,6 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
     if let Some(completion) = emoji_picker::autocomplete(app) {
         body = body.push(completion);
     }
-    let raw = app.editor.text();
     // Nonce-keyed optimistic previews disappear only when the correlated
     // response arrives; real message IDs are never fabricated or duplicated.
     let pending: Vec<_> = app
@@ -1364,18 +1364,10 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
             },
             app.state.model.channel_name(channel)
         );
-        let wrap =
-            ((app.viewport_w - t::MESSAGE_GUTTER - t::S32) / t::GLYPH_WIDTH).max(1.) as usize;
-        let lines = raw
-            .lines()
-            .map(|line| line.chars().count().max(1).div_ceil(wrap))
-            .sum::<usize>()
-            .max(1);
-        // History height shrinks as the composer grows. Basing this limit on
-        // that feedback signal eventually inverted clamp's bounds at 940×600.
+        // Native shaped bounds include wrapping, color emoji advances and explicit
+        // newlines; a character-count estimate clips emoji-heavy drafts.
         let max_height = ((app.height - t::HEADER - t::TYPING - t::S32) * 0.5).max(t::COMPOSER_MIN);
-        let height = (lines as f32 * t::BODY * t::LINE + t::S24).clamp(t::COMPOSER_MIN, max_height);
-        let editor = compose_editor(app, placeholder, height, !candidates.is_empty());
+        let editor = compose_editor(app, placeholder, max_height, !candidates.is_empty());
         body = body.push(
             container(
                 row![
@@ -1668,8 +1660,8 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
                 button(
                     row![
                         custom_emoji_id(&r.emoji).map_or_else(
-                            || emoji(&r.emoji, t::INLINE_ICON),
-                            |id| features3::glyph(app, id, t::INLINE_ICON)
+                            || emoji(&r.emoji, t::EMOJI_REACTION),
+                            |id| features3::glyph(app, id, t::EMOJI_REACTION)
                         ),
                         hint(r.count.to_string()).color(if r.me {
                             t::ACCENT
@@ -1864,6 +1856,10 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
             .id(format!("message-{}", id.0))
             .width(Fill),
     )
+    // Every built overscan row contributes its actual height to the scrollable,
+    // even offscreen. Measure that same bounded set (including taller emoji)
+    // instead of leaving its estimate in the history extent until it is visible.
+    .anticipate(f32::INFINITY)
     .key((id, generation, width, seq, editing))
     .on_show(move |size| Msg::Measured {
         message: id,
@@ -1907,6 +1903,54 @@ enum RichLink {
     Spoiler(Id, usize),
     Profile(Id),
 }
+fn jumbo_emoji(app: &App, m: &Message) -> bool {
+    use sticktalk_client_core::features3::{parts, Part};
+    use unicode_segmentation::UnicodeSegmentation;
+    if !m.attachments.is_empty() {
+        return false;
+    }
+    let mut count = 0;
+    for part in parts(&m.content) {
+        match part {
+            Part::Emoji(id, _) => {
+                if !app
+                    .state
+                    .model
+                    .launch
+                    .emoji
+                    .values()
+                    .flatten()
+                    .any(|e| e.id == id)
+                {
+                    return false;
+                }
+                count += 1;
+            }
+            Part::Text(text) => {
+                for g in text.graphemes(true) {
+                    if g.chars().all(char::is_whitespace) {
+                        continue;
+                    }
+                    if !emoji_picker::has_artwork(g) {
+                        return false;
+                    }
+                    count += 1;
+                }
+            }
+        }
+        if count > 27 {
+            return false;
+        }
+    }
+    (1..=27).contains(&count)
+}
+fn emoji_size(app: &App, m: &Message, text_size: f32) -> f32 {
+    (if jumbo_emoji(app, m) {
+        t::EMOJI_JUMBO
+    } else {
+        t::EMOJI_INLINE * text_size / t::BODY
+    }) * app.settings.preferences.chat_font_scale
+}
 fn inline_content<'a>(
     app: &App,
     m: &Message,
@@ -1926,10 +1970,7 @@ fn inline_content_edited<'a>(
         return view;
     }
     use unicode_segmentation::UnicodeSegmentation;
-    let is_emoji = |g: &str| {
-        g.chars().next().is_some_and(|c| c as u32 >= 0x2300)
-            && (emoji_picker::has_artwork(g) || sticktalk_emoji::emoji_to_shortcode(g).is_some())
-    };
+    let is_emoji = |g: &str| emoji_picker::has_artwork(g);
     if !values
         .iter()
         .any(|v| !v.style.code && v.text.graphemes(true).any(is_emoji))
@@ -1938,6 +1979,7 @@ fn inline_content_edited<'a>(
     }
     // Keep styled words and artwork in the same wrapping flow. Text-only
     // messages retain the original single cached rich paragraph.
+    let picture_size = emoji_size(app, m, size);
     let mut flow = Row::new().spacing(0).align_y(Center);
     for value in values {
         let mut buffer = String::new();
@@ -1956,10 +1998,7 @@ fn inline_content_edited<'a>(
                     flow = flow.push(inline_text(app, m, &[piece], size));
                 }
                 if picture && emoji_picker::has_artwork(grapheme) {
-                    flow = flow.push(emoji_picker::glyph(
-                        grapheme,
-                        size * app.settings.preferences.chat_font_scale,
-                    ));
+                    flow = flow.push(emoji_picker::glyph(grapheme, picture_size));
                 }
             } else {
                 buffer.push_str(grapheme);
@@ -3064,6 +3103,7 @@ fn compose_editor<'a>(
         .keybinds
         .get("Quick Switcher")
         .map_or("Ctrl+K", String::as_str);
+    let custom = composer_art::pictures(app);
     let editor = text_editor(&app.editor)
         // URLs, hashes, and pasted tokens must remain editable inside the same
         // viewport that the composer's wrapped-height estimate reserves.
@@ -3081,14 +3121,22 @@ fn compose_editor<'a>(
         })
         .font(t::regular())
         .size(t::BODY)
-        .line_height(t::LINE)
-        .height(height)
+        .line_height(iced::advanced::text::LineHeight::Absolute(
+            t::COMPOSER_LINE.into(),
+        ))
+        .height(Length::Shrink)
+        .min_height(t::COMPOSER_MIN - t::S8)
+        .max_height((height - t::S8).max(t::COMPOSER_MIN - t::S8))
         .padding(t::S4)
-        .style(t::editor);
+        .highlight_with::<crate::composer_emoji::EmojiHighlighter>(
+            custom.iter().map(|p| p.token.clone()).collect(),
+            crate::composer_emoji::format,
+        )
+        .style(t::composer_editor);
     if matches!(app.dialog, Dialog::None) {
-        editor.on_action(Msg::Editor).into()
+        composer_art::wrap(editor.on_action(Msg::Editor).into(), &app.editor, custom)
     } else {
-        editor.into()
+        composer_art::wrap(editor.into(), &app.editor, custom)
     }
 }
 
@@ -3122,6 +3170,89 @@ mod integration_layout_tests {
 #[cfg(test)]
 mod qa_long_composer {
     use super::*;
+    #[test]
+    fn jumbo_emoji_counts_whole_messages_including_custom_tokens() {
+        let app = App::headless("custom-emoji-inline", iced::Size::new(1280., 800.));
+        let mut message = app.state.model.messages[&Id(12)]
+            .values()
+            .next_back()
+            .unwrap()
+            .clone();
+        message.attachments.clear();
+        for (text, jumbo) in [
+            ("😄 🎉 👍".to_string(), true),
+            ("😄".repeat(27), true),
+            ("😄".repeat(28), false),
+            ("nice 😄".to_string(), false),
+            ("1️⃣ ❤️‍🔥 👋🏽".to_string(), true),
+            ("<:ship_it:803> 😄".to_string(), true),
+            ("<:unknown:999999>".to_string(), false),
+            ("   ".to_string(), false),
+            ("`😄`".to_string(), false),
+        ] {
+            message.content = text.clone();
+            assert_eq!(jumbo_emoji(&app, &message), jumbo, "{text}");
+            assert_eq!(
+                emoji_size(&app, &message, t::BODY),
+                if jumbo { 48. } else { 22. }
+            );
+        }
+    }
+    #[test]
+    fn composer_shaped_height_grows_for_emoji_lines_and_caps_without_clipping() {
+        use iced::advanced::widget::{self, Operation};
+        #[derive(Default)]
+        struct Bounds(iced::Rectangle);
+        impl Operation for Bounds {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn container(&mut self, id: Option<&widget::Id>, bounds: iced::Rectangle) {
+                if id == Some(&widget::Id::new("editor-bounds")) {
+                    self.0 = bounds;
+                }
+            }
+        }
+        crate::headless::load_fonts();
+        let mut app = App::headless("rowfix-custom-composer", iced::Size::new(1280., 800.));
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            t::regular(),
+            iced::Pixels(t::BODY),
+        ));
+        let mut heights = Vec::new();
+        for draft in [
+            "😄".into(),
+            "😄\n👍\n🎉".into(),
+            "<:stick_wave:800> 😄 ".repeat(40),
+        ] {
+            app.editor = text_editor::Content::with_text(&draft);
+            let mut ui = iced_runtime::user_interface::UserInterface::build(
+                container(compose_editor(&app, "Message #general".into(), 160., false))
+                    .id("editor-bounds"),
+                iced::Size::new(240., 200.),
+                iced_runtime::user_interface::Cache::new(),
+                &mut renderer,
+            );
+            let mut bounds = Bounds::default();
+            ui.operate(&renderer, &mut bounds);
+            ui.draw(
+                &mut renderer,
+                &t::theme(&app),
+                &iced::advanced::renderer::Style {
+                    text_color: t::TEXT_PRIMARY,
+                },
+                iced::mouse::Cursor::Unavailable,
+            );
+            assert!(bounds.0.height <= 160., "{:?}", bounds.0);
+            heights.push(bounds.0.height);
+        }
+        assert!(heights[1] >= 3. * t::COMPOSER_LINE + t::S8);
+        assert!(heights[1] > heights[0]);
+        assert!(heights[2] >= 144.);
+    }
     #[test]
     fn long_unbroken_drafts_paint_wrapped_rows_not_one_clipped_line() {
         crate::headless::load_fonts();

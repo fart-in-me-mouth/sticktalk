@@ -184,6 +184,7 @@ pub enum Action {
     DragEnd,
     ChannelTab(bool),
     ChannelHover(Option<Id>),
+    ChannelLeave(Id),
     CategoryCollapse(Id),
     OverwriteTarget(OverwriteKind, Id),
     AddOverwrite(OverwriteKind, Id),
@@ -930,7 +931,12 @@ impl App {
                 self.settings.search.clear();
                 self.settings.member_filter = None;
             }
-            A::ChannelHover(id) => self.settings.hovered_channel = id,
+            A::ChannelHover(id) => self.settings.hovered_channel = id.filter(|_| self.focused),
+            A::ChannelLeave(id) => {
+                if self.settings.hovered_channel == Some(id) {
+                    self.settings.hovered_channel = None;
+                }
+            }
             A::CategoryCollapse(id) => {
                 self.settings.collapsed_categories.retain(|id| {
                     self.state

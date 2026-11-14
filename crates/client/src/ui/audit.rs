@@ -3,6 +3,13 @@ use super::*;
 use crate::{features::Picker, main_window::Popover};
 
 pub(crate) const SCREENS: &[&str] = &[
+    "rowfix-selected",
+    "rowfix-hover",
+    "rowfix-unread",
+    "rowfix-muted",
+    "rowfix-selected-hover",
+    "rowfix-emoji",
+    "rowfix-custom-composer",
     "audit-long-names",
     "audit-long-message",
     "audit-many-servers",
@@ -53,6 +60,60 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
     use crate::main_window::{mm, Message as Main};
     let long = "WWWW Wide names with a very long descriptive suffix";
     match screen {
+        "rowfix-selected"
+        | "rowfix-hover"
+        | "rowfix-unread"
+        | "rowfix-muted"
+        | "rowfix-selected-hover" => {
+            app.main.hovered_channel = match screen {
+                "rowfix-hover" => Some(Id(13)),
+                "rowfix-selected-hover" => Some(Id(14)),
+                _ => None,
+            };
+            if screen == "rowfix-muted" {
+                let mut setting = app.state.model.launch.settings(Some(Id(10)), Some(Id(17)));
+                setting.muted = true;
+                app.state
+                    .model
+                    .launch
+                    .notifications
+                    .insert((Some(Id(10)), Some(Id(17))), setting);
+            }
+        }
+        "rowfix-custom-composer" => {
+            crate::features3::fixture(app, "custom-emoji-inline");
+            app.editor = text_editor::Content::with_text("Hello <:stick_wave:800> custom <:party_stick:801> emoji\nSecond <:cozy:802> line 😄");
+        }
+        "rowfix-emoji" => {
+            app.editor = text_editor::Content::with_text(
+                "Hello 😄 inline 🎉 emoji\nSecond line 👍 with text",
+            );
+            if let Some(messages) = app.state.model.messages.get_mut(&Id(12)) {
+                let mut last = messages.values().next_back().unwrap().clone();
+                messages.clear();
+                last.content = "Inline 😄 emoji in the middle 🎉 of a sentence.".into();
+                last.attachments.clear();
+                last.reactions = vec![
+                    ReactionSummary {
+                        emoji: "👍".into(),
+                        count: 4,
+                        me: true,
+                    },
+                    ReactionSummary {
+                        emoji: "🎉".into(),
+                        count: 2,
+                        me: false,
+                    },
+                ];
+                last.reply_to = None;
+                last.edited_at = None;
+                messages.insert(last.id, last.clone());
+                last.id = Id(last.id.0 + 1);
+                last.content = "😄 🎉 👍".into();
+                messages.insert(last.id, last);
+            }
+        }
+
         "audit-invite-error" => {
             let _ = app.update(Msg::Open(Dialog::Invite));
             app.form.code.clear();

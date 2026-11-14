@@ -96,15 +96,24 @@ fn cell<'a>(app: &App, id: Option<Id>, name: &str) -> Element<'a, Msg> {
     .padding(0)
     .style(move |theme, status| {
         let mut s = t::icon(theme, status);
+        let focused = matches!(
+            status,
+            widget::button::Status::Hovered | widget::button::Status::Pressed
+        );
         s.background = Some(
-            if selected {
+            if selected || focused {
                 t::BG_SELECTED
             } else {
                 t::BG_ELEVATED
             }
             .into(),
         );
-        s.border.radius = radius.into();
+        s.border.radius = if selected || hovered || focused {
+            t::GUILD_RADIUS
+        } else {
+            t::ROUND
+        }
+        .into();
         s
     });
     let mut unread = false;
@@ -188,7 +197,7 @@ fn cell<'a>(app: &App, id: Option<Id>, name: &str) -> Element<'a, Msg> {
         observe::anchor(
             mouse_area(stack(layers))
                 .on_enter(Msg::GuildHover(Some(id)))
-                .on_exit(Msg::GuildHover(None))
+                .on_exit(mm(Main::RailLeave(id)))
                 .on_right_press(mm(Main::Open(Popover::Context(
                     id.map_or(Entity::Rail, Entity::Guild),
                 )))),

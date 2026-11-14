@@ -522,6 +522,11 @@ pub fn reconcile(app: &mut App) -> Task<Msg> {
             wanted.extend(m.reactions.iter().filter_map(|r| custom_emoji_id(&r.emoji)));
         }
     }
+    for part in sticktalk_client_core::features3::parts(&app.editor.text()) {
+        if let sticktalk_client_core::features3::Part::Emoji(id, _) = part {
+            wanted.insert(id);
+        }
+    }
     wanted.extend(candidates(app).iter().map(|e| e.id));
     let known: BTreeMap<_, _> = entries(app).iter().map(|e| (e.id, e.animated)).collect();
     wanted.retain(|id| known.contains_key(id));

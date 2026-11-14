@@ -77,6 +77,11 @@ pub const SMALL_AVATAR: f32 = 32.;
 pub const TINY_AVATAR: f32 = 16.;
 pub const TITLE: f32 = 20.;
 pub const BODY: f32 = 15.;
+pub const EMOJI_INLINE: f32 = 22.;
+pub const EMOJI_DESCENT: f32 = 5.;
+pub const EMOJI_JUMBO: f32 = 48.;
+pub const EMOJI_REACTION: f32 = 18.;
+pub const COMPOSER_LINE: f32 = 24.;
 pub const HINT: f32 = 12.;
 pub const USER_NAME: f32 = 14.;
 pub const LINE: f32 = 1.375;
@@ -221,7 +226,17 @@ pub fn danger(_: &Theme, status: button_widget::Status) -> button_widget::Style 
 }
 pub fn link(_: &Theme, status: button_widget::Status) -> button_widget::Style {
     let mut s = button_variant(status, TRANSPARENT, ACCENT);
-    s.background = Some(TRANSPARENT.into());
+    s.background = Some(
+        if matches!(
+            status,
+            button_widget::Status::Hovered | button_widget::Status::Pressed
+        ) {
+            BG_HOVER
+        } else {
+            TRANSPARENT
+        }
+        .into(),
+    );
     s
 }
 pub fn danger_link(_: &Theme, status: button_widget::Status) -> button_widget::Style {
@@ -247,7 +262,7 @@ fn button_variant(status: button_widget::Status, bg: Color, fg: Color) -> button
                 ACCENT_HOVER
             } else if (hover || pressed) && bg == DANGER_BUTTON {
                 DANGER_BUTTON_HOVER
-            } else if hover {
+            } else if hover || pressed {
                 BG_SELECTED
             } else {
                 bg
@@ -256,8 +271,8 @@ fn button_variant(status: button_widget::Status, bg: Color, fg: Color) -> button
         ),
         text_color: if disabled { alpha(fg, 0.4) } else { fg },
         border: Border {
-            color: if pressed { ACCENT } else { TRANSPARENT },
-            width: if pressed { FOCUS } else { 0. },
+            color: TRANSPARENT,
+            width: 0.,
             radius: S8.into(),
         },
         shadow: Shadow::default(),
@@ -318,26 +333,27 @@ pub fn input(_: &Theme, status: text_input::Status) -> text_input::Style {
         selection: alpha(ACCENT, 0.3),
     }
 }
-pub fn editor(_: &Theme, status: text_editor::Status) -> text_editor::Style {
+/// Discord-style composer: focus is the caret, never an accent box.
+pub fn composer_editor(_: &Theme, _: text_editor::Status) -> text_editor::Style {
     text_editor::Style {
         background: TRANSPARENT.into(),
         border: Border {
-            color: if matches!(status, text_editor::Status::Focused { .. }) {
-                ACCENT
-            } else {
-                TRANSPARENT
-            },
-            width: if matches!(status, text_editor::Status::Focused { .. }) {
-                FOCUS
-            } else {
-                0.
-            },
             radius: S8.into(),
+            ..Default::default()
         },
         placeholder: TEXT_MUTED,
         value: TEXT_PRIMARY,
         selection: alpha(ACCENT, 0.3),
     }
+}
+/// Other text areas retain the input focus cue.
+pub fn editor(theme: &Theme, status: text_editor::Status) -> text_editor::Style {
+    let mut style = composer_editor(theme, status);
+    if matches!(status, text_editor::Status::Focused { .. }) {
+        style.border.color = ACCENT;
+        style.border.width = FOCUS;
+    }
+    style
 }
 pub fn divider(_: &Theme) -> rule::Style {
     rule::Style {
@@ -432,9 +448,8 @@ pub fn input_container(_: &Theme) -> container::Style {
 pub fn close_circle(theme: &Theme, status: button_widget::Status) -> button_widget::Style {
     let mut s = icon(theme, status);
     s.border = Border {
-        color: TEXT_MUTED,
-        width: HAIRLINE,
         radius: ROUND.into(),
+        ..Default::default()
     };
     s
 }
@@ -451,9 +466,8 @@ pub fn google_mark(_: &Theme) -> container::Style {
 pub fn google_button(theme: &Theme, status: button_widget::Status) -> button_widget::Style {
     let mut s = button(theme, status);
     s.border = Border {
-        color: TEXT_MUTED,
-        width: HAIRLINE,
         radius: S8.into(),
+        ..Default::default()
     };
     s
 }
@@ -647,6 +661,60 @@ mod audit_style_tests {
         assert_eq!(
             icon(&Theme::Dark, button_widget::Status::Disabled).background,
             Some(TRANSPARENT.into())
+        );
+    }
+}
+
+#[cfg(test)]
+mod row_style_tests {
+    use super::*;
+    #[test]
+    fn shared_buttons_use_fills_never_pressed_outlines() {
+        for status in [
+            button_widget::Status::Active,
+            button_widget::Status::Hovered,
+            button_widget::Status::Pressed,
+            button_widget::Status::Disabled,
+        ] {
+            for style in [
+                button(&Theme::Dark, status),
+                primary(&Theme::Dark, status),
+                danger(&Theme::Dark, status),
+                icon(&Theme::Dark, status),
+                navigation(true)(&Theme::Dark, status),
+                navigation(false)(&Theme::Dark, status),
+                secondary(&Theme::Dark, status),
+                google_button(&Theme::Dark, status),
+                close_circle(&Theme::Dark, status),
+            ] {
+                assert_eq!(style.border.width, 0.);
+            }
+        }
+        assert_eq!(
+            navigation(true)(&Theme::Dark, button_widget::Status::Hovered).background,
+            Some(BG_SELECTED.into())
+        );
+        assert_eq!(
+            icon(&Theme::Dark, button_widget::Status::Hovered).background,
+            Some(BG_HOVER.into())
+        );
+        assert_eq!(
+            composer_editor(
+                &Theme::Dark,
+                text_editor::Status::Focused { is_hovered: false }
+            )
+            .border
+            .width,
+            0.
+        );
+        assert_eq!(
+            input(
+                &Theme::Dark,
+                text_input::Status::Focused { is_hovered: false }
+            )
+            .border
+            .width,
+            FOCUS
         );
     }
 }
