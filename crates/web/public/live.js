@@ -745,7 +745,9 @@ export function installPlatform() {
         .register("/sw.js", { scope: "/" })
         .then(registration => {
           const offer = () => {
-            if (!registration.waiting || registration.waiting.state!=='installed' || !navigator.serviceWorker.controller || $('#app-update')) return;
+            if (!registration.waiting || registration.waiting.state!=='installed' || !registration.active ||
+                registration.active.state!=='activated' || registration.waiting===registration.active ||
+                registration.waiting===navigator.serviceWorker.controller || !navigator.serviceWorker.controller || $('#app-update')) return;
             const toast = document.createElement('div'); toast.id = 'app-update'; toast.className = 'update-toast';
             const text = document.createElement('span'); text.textContent = 'Update ready.';
             const reload = document.createElement('button'); reload.className = 'button secondary'; reload.textContent = 'Reload';

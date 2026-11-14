@@ -5,12 +5,13 @@ import { createServer, connect } from 'node:net';
 import { createServer as createHttpsServer } from 'node:https';
 import { request as httpRequest } from 'node:http';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const target = resolve(process.env.CARGO_TARGET_DIR ?? fileURLToPath(new URL('../../../target/', import.meta.url)));
 export const output = process.env.STICKTALK_QA_DIR ?? 'screenshots/qa';
+const screenshotPolicyEvents=[];
 export const act = (page, action) => page.evaluate(action =>
   window.dispatchEvent(new CustomEvent('sticktalk-live', { detail: action })), action);
 export const wait = ms => new Promise(done => setTimeout(done, ms));
@@ -109,9 +110,24 @@ export async function harness(extra = [], {tls=engine === 'webkit',dist,beforeRe
         contexts.push(context);
         const page = await context.newPage();
         await page.addInitScript(() => {
-          window.__qaErrors = []; window.__qaCsp = [];
+          window.__qaErrors = []; window.__qaCsp = []; window.__qaScreenshotCsp=[];
+          let screenshotStyle=false;
+          new MutationObserver(records=>{
+            for(const record of records)for(const node of record.addedNodes)
+              if(window.__qaScreenshotActive&&node.nodeName==='STYLE'&&node.textContent==='body {}')screenshotStyle=true;
+          }).observe(document,{childList:true,subtree:true});
           addEventListener('error', e => window.__qaErrors.push(e.message));
-          document.addEventListener('securitypolicyviolation', e => window.__qaCsp.push(e.effectiveDirective));
+          document.addEventListener('securitypolicyviolation', e => {
+            const entry={directive:e.effectiveDirective,blocked:e.blockedURI,source:e.sourceFile,line:e.lineNumber,sample:e.sample};
+            // Playwright WebKit screenshotter injects exactly `body {}` to sync
+            // animations, even with animations allowed/caret initial. Our real
+            // CSP correctly blocks it. Keep these separately, NEVER bypass CSP
+            // or suppress any other policy violation.
+            if(window.__qaScreenshotActive&&screenshotStyle&&entry.directive==='style-src-elem'&&entry.blocked==='inline'&&entry.source===''&&entry.line===5)
+              window.__qaScreenshotCsp.push({...entry,stylesheet:'body {}',tool:'Playwright WebKit screenshot animation sync'});
+            else window.__qaCsp.push(entry);
+            screenshotStyle=false;
+          });
         });
         return page;
       },
@@ -171,7 +187,16 @@ export async function shot(page, screen) {
   await wait(100);
   const { width, height } = page.viewportSize();
   const path = `${output}/${screen}-${width}x${height}.png`;
-  await page.screenshot({ path });
+  await page.evaluate(()=>window.__qaScreenshotActive=true);
+  try { await page.screenshot({ path, caret:'initial' }); }
+  finally {
+    const events=await page.evaluate(async()=>{
+      await new Promise(done=>setTimeout(done,0));window.__qaScreenshotActive=false;
+      return window.__qaScreenshotCsp?.splice(0)??[];
+    }).catch(()=>[]);
+    for(const event of events)screenshotPolicyEvents.push({screen,...event});
+    if(events.length)await writeFile(`${output}/screenshot-tooling-csp.json`,JSON.stringify(screenshotPolicyEvents,null,2));
+  }
   return path;
 }
 // Capture transient flows at the same three review sizes without repeating
