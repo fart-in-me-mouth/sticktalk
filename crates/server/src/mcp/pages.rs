@@ -157,13 +157,17 @@ pub(crate) fn consent(c: Consent) -> Response {
         name = esc(c.client_name),
         dest = esc(&redirect_label(c.redirect_uri)),
     );
-    html(
+    page(
         StatusCode::OK,
         &format!(
             "{BASE_CSP}; form-action 'self' {}",
             redirect_source(c.redirect_uri)
         ),
         &format!("Connect {} to StickTalk", c.client_name),
+        // The server-wide no-referrer policy makes browsers send `Origin: null` on
+        // form POSTs, which the same-origin approval check must reject. Cross-origin
+        // requests (the redirect back to the app) still carry no referrer.
+        "<meta name=\"referrer\" content=\"same-origin\">",
         &body,
     )
 }

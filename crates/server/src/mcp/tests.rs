@@ -119,6 +119,8 @@ async fn approve(
         "{csp}"
     );
     let page = text(r).await;
+    // Without this, real browsers send `Origin: null` and the POST is refused.
+    assert!(page.contains(r#"<meta name="referrer" content="same-origin">"#));
     assert!(
         page.contains("Test Agent") && page.contains("Signed in as"),
         "{page}"
