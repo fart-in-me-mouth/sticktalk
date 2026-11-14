@@ -9,10 +9,14 @@ allow it, send messages as you.
 ## Your connector URL
 
 ```
-https://YOUR-NAME.duckdns.org/mcp
+https://your-pc.your-tailnet.ts.net/mcp
 ```
 
-It is your server's public URL (`STICKTALK_PUBLIC_URL`) followed by `/mcp`.
+It is your server's public URL (`STICKTALK_PUBLIC_URL`) followed by `/mcp`. A
+self-hosted server's setup script ([deploy/SELF_HOST.md](../deploy/SELF_HOST.md))
+prints it at the end, for example
+`https://desktop-b09gtso.humpback-salak.ts.net:10000/mcp` when Tailscale's port 443
+is used by something else on that machine.
 Everyone on a server uses the same URL: **who** the assistant acts as is decided
 when you sign in, so the URL holds no secret and is safe to share. Open it in a
 browser to see these instructions with the exact URL filled in.
@@ -26,10 +30,10 @@ browser to see these instructions with the exact URL filled in.
 1. Add the connector:
    - **Claude** (claude.ai / Desktop): Settings › Connectors › *Add custom connector*.
      Paste the URL and select *Add*, then *Connect*.
-   - **Claude Code**: `claude mcp add --transport http sticktalk https://YOUR-NAME.duckdns.org/mcp`,
+   - **Claude Code**: `claude mcp add --transport http sticktalk https://your-pc.your-tailnet.ts.net/mcp`,
      then run `/mcp` and choose *Authenticate*.
    - **Cursor** (`~/.cursor/mcp.json`) and **VS Code** (`.vscode/mcp.json`):
-     `{"mcpServers": {"sticktalk": {"url": "https://YOUR-NAME.duckdns.org/mcp"}}}`
+     `{"mcpServers": {"sticktalk": {"url": "https://your-pc.your-tailnet.ts.net/mcp"}}}`
      (VS Code uses `"servers"` with `"type": "http"`).
    - **ChatGPT**: Settings › Connectors (developer mode) › *Create*, with OAuth.
    - **Others**: any MCP client with Streamable HTTP and OAuth support.
@@ -161,10 +165,14 @@ account settings are deliberately not exposed.
 ## Deployment
 
 Nothing extra to configure:
-- The existing `deploy/Caddyfile` proxies `/mcp`, `/oauth/*` and `/.well-known/*`
-  with everything else.
-- `STICKTALK_PUBLIC_URL` must be the exact public HTTPS origin, because it
-  becomes the OAuth issuer and resource.
+- Self-hosting with Tailscale Funnel: `deploy/self-host/setup-*.{ps1,sh}` sets
+  `STICKTALK_PUBLIC_URL` to the Funnel address (including a non-443 port) and
+  Funnel forwards every path. Funnel reaches the server over loopback, so OAuth
+  redirects back to the AI app, cookies and CORS behave exactly as behind Caddy.
+- The `deploy/Caddyfile` (optional own-domain setup) also proxies `/mcp`,
+  `/oauth/*` and `/.well-known/*` with everything else.
+- `STICKTALK_PUBLIC_URL` must be the exact public HTTPS origin, port included,
+  because it becomes the OAuth issuer and resource.
 - Changing the public URL invalidates existing connections' discovery. Reconnect
   them.
 - The HMAC key for client IDs is generated on first use and stored in the

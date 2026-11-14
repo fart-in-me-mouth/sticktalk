@@ -1,4 +1,8 @@
-# Private Pi storage and cold standby
+# Private Pi storage and cold standby (optional)
+
+> This page covers the Pi as **private storage behind an Oracle primary**
+> ([HYBRID.md](../HYBRID.md)). To run StickTalk **on** a Pi as your own public
+> server, use [SELF_HOST.md](../SELF_HOST.md) with `deploy/self-host/setup-linux.sh`.
 
 Oracle is the public main server. Pi 4 (2 GB+, 64-bit Bookworm, wired Ethernet,
 powered ~5 TB USB HDD) is private storage, backup target and standby. Friends

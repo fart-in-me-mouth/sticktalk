@@ -30,15 +30,12 @@ It must stay **100% free** to host.
 | `crates/emoji` | Emoji tables and atlas. |
 | `crates/web` | Leptos CSR PWA for phones. |
 
-## Hosting plan (decided; not deployed yet)
-- **Oracle Cloud Always Free A1 VM:** main public server (API, SFU, DB, web PWA), behind Caddy with a DuckDNS domain.
-- **Friend's Raspberry Pi 4** (5 TB HDD, LUKS-encrypted, reached over Tailscale):
-  - bulk file storage node (`sticktalk-server storage --listen <tailscale-ip>`, HMAC-signed requests)
-  - nightly age-encrypted backups with 14-day retention
-  - cold standby
+## Hosting plan (decided 2026-11-14: self-hosted; not yet running for real users)
+- **Self-hosted on the owner's own machine** (Windows PC first; Linux/Pi also supported), published with **Tailscale Funnel** at `https://<machine>.<tailnet>.ts.net` (port 443, 8443 or 10000, whichever is free). One command: `deploy/self-host/setup-windows.ps1` (per-user startup task, no admin) or `deploy/self-host/setup-linux.sh` (systemd). Guide: `deploy/SELF_HOST.md`.
+- Calls need UDP, which Funnel can't carry: they work between tailnet devices by default, or for everyone with router UDP forwarding (`-Voice Public`).
+- Optional alternatives, no longer the plan: Oracle Always Free VM with Caddy + DuckDNS (`deploy/ORACLE.md`), plus a private Pi for storage/backups/standby (`deploy/HYBRID.md`).
 - The server is built with `--profile server` (`panic = "unwind"`, so the SFU contains per-peer panics).
-- Step-by-step guides: `HANDOFF.md`, `deploy/README.md`, `deploy/pi/README.md`, `deploy/RELEASING.md`, `deploy/windows/`.
-
+- Step-by-step guides: `deploy/SELF_HOST.md`, `HANDOFF.md`, `deploy/README.md` (index), `deploy/RELEASING.md`, `deploy/windows/`.
 ## Where it is now: feature-complete apart from deployment
 Done, merged into `master`, and tested (608 workspace tests, 0 failures; clippy `-D warnings` clean; fmt clean):
 - **Accounts:** register/login, Google sign-in (nonce + reauth), sessions, password change revokes other sessions, account deletion (fast; other devices land on login).
@@ -57,9 +54,7 @@ Done, merged into `master`, and tested (608 workspace tests, 0 failures; clippy 
 - **UI:** a full audit against Discord (190 states). Latest owner fixes: one selected channel row with Discord-style fills (no outline boxes), hover subtler than selected, 22px inline / 48px jumbo emoji, borderless composer.
 
 ## Open items / next steps
-1. **Deploy:**
-   - Oracle VM + DuckDNS + Caddy
-   - Pi: storage node, LUKS, backups, Tailscale; then rehearse a failover
+1. **Deploy:** run `deploy/self-host/setup-windows.ps1` on the owner's PC for real, register the owner account, then share the address
 2. **Create the real secrets** on the deploying machine. Never commit them. Their locations are in `HANDOFF.md`:
    - KLIPY API key
    - Google OAuth client

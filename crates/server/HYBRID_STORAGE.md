@@ -50,7 +50,7 @@ older than a day are eligible for bounded cleanup. Snapshot files live in a
 separate `backups/` directory, outside the full server's orphan-file cleanup.
 
 The shipped nightly systemd timer and fenced, one-command Pi failover are
-documented in `deploy/README.md`, `deploy/HYBRID.md` and `deploy/pi/README.md`.
+documented in `deploy/ORACLE.md`, `deploy/HYBRID.md` and `deploy/pi/README.md`.
 Failover remains private and requires Oracle to be stopped/fenced first.
 There are no CPU-burning keepalives or automatic split-brain failover.
 

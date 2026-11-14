@@ -43,5 +43,5 @@ sudo systemctl daemon-reload
 sudo systemctl enable sticktalk
 printf '\nInstalled. Existing server was NOT restarted. Next:\n'
 printf '  1. Set your hostname in /etc/sticktalk.env and deploy/Caddyfile.\n'
-printf '  2. Follow deploy/README.md for BOTH firewalls, DuckDNS, and HTTPS.\n'
+printf '  2. Follow deploy/ORACLE.md for BOTH firewalls, DuckDNS, and HTTPS.\n'
 printf '  3. sudo systemctl restart sticktalk\n'
