@@ -8,7 +8,7 @@ $env:CARGO_TARGET_DIR = [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
 $env:CARGO_INCREMENTAL = '0'
 $tools = Join-Path $env:CARGO_TARGET_DIR 'tools/python'
 if ($InstallTools) {
-    & python -m pip install --disable-pip-version-check --target $tools cmake==3.31.6 meson==1.7.2 ninja==1.13.0 libclang==18.1.1
+    & python -m pip install --disable-pip-version-check --upgrade --target $tools cmake==3.31.6 meson==1.7.2 ninja==1.13.0 libclang==18.1.1
     if ($LASTEXITCODE -ne 0) { throw 'Python tool installation failed. Install Python 3.11+ with pip first.' }
 }
 if (!(Test-Path -LiteralPath "$tools/bin/meson.exe")) { throw 'Run . ./deploy/dev-env.ps1 -InstallTools first (Windows x64).' }

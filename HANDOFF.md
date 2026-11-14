@@ -4,6 +4,8 @@ This guide is for the friend taking over the **whole repository**, not just an
 installer. Commands start at the repository root unless a step says otherwise.
 No source edits are needed to build. Real deployment requires your own addresses
 and credentials in private environment files, not changes committed to Git.
+The first build needs Internet access for toolchains, Rust/npm dependencies and
+portable tools; the source bundle is not an offline compiler/dependency mirror.
 
 ## 1. Understand the five pieces
 
@@ -265,18 +267,36 @@ CLI tools, and install Binaryen for Linux. With `CARGO_TARGET_DIR` set to your
 absolute target path, run from `crates/web`:
 
 ```sh
+# First, at repository root:
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$PWD/target}"
+rustup target add wasm32-unknown-unknown
+cargo install wasm_split_cli_support --version 0.2.5 --locked --features build-binary --root "$CARGO_TARGET_DIR/tools"
+cargo install wasm-bindgen-cli --version 0.2.130 --locked --root "$CARGO_TARGET_DIR/tools"
+export PATH="$CARGO_TARGET_DIR/tools/bin:$PATH"
+# Put the official host Binaryen 131 bin directory on PATH, or set WASM_OPT.
+cd crates/web
 npm ci
 cargo build --locked -p sticktalk-web --target wasm32-unknown-unknown --profile web-release
 export TRUNK_STAGING_DIR="$CARGO_TARGET_DIR/web-dist"
 mkdir -p "$TRUNK_STAGING_DIR"
 node scripts/assemble.mjs
+cd ../..
 ```
 
 Build from `crates/web` so its WASM relocation configuration is loaded. Preserve
 the same WASM tool versions as Windows. For Pi cross-build on Linux/macOS use
-a Python virtualenv with `pip install ziglang==0.13.0 cargo-zigbuild==0.24.1`,
-`rustup target add aarch64-unknown-linux-gnu`, then
-`cargo zigbuild --locked --profile server -p sticktalk-server --bin sticktalk-server --target aarch64-unknown-linux-gnu.2.36`.
+a Python virtualenv (from the repository root):
+
+```sh
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$PWD/target}"
+python3 -m venv "$CARGO_TARGET_DIR/tools/zig-venv"
+. "$CARGO_TARGET_DIR/tools/zig-venv/bin/activate"
+pip install ziglang==0.13.0 cargo-zigbuild==0.24.1
+rustup target add aarch64-unknown-linux-gnu
+cargo zigbuild --locked --profile server -p sticktalk-server --bin sticktalk-server --target aarch64-unknown-linux-gnu.2.36
+deactivate
+```
+
 Native ARM64 Bookworm build on a sufficiently large machine is another option;
 the 2 GB Pi is not the recommended build host.
 

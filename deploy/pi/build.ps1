@@ -5,8 +5,8 @@ if (!$env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = [IO.Path]::GetFullPath((Jo
 $env:CARGO_INCREMENTAL = '0'
 # A Windows CMake generator must not leak into Linux-target native builds.
 $env:CMAKE_GENERATOR = 'Ninja'
-$env:ZIG_GLOBAL_CACHE_DIR="$env:USERPROFILE/.cache/sticktalk-zig"
-$env:ZIG_LOCAL_CACHE_DIR="$env:USERPROFILE/.cache/sticktalk-zig-local"
+$env:ZIG_GLOBAL_CACHE_DIR=Join-Path $env:CARGO_TARGET_DIR 'zig-cache/global'
+$env:ZIG_LOCAL_CACHE_DIR=Join-Path $env:CARGO_TARGET_DIR 'zig-cache/local'
 if ($InstallTools) {
     & python -m pip install --user ziglang==0.13.0 cargo-zigbuild==0.24.1
     if ($LASTEXITCODE -ne 0) { throw 'Tool installation failed.' }
