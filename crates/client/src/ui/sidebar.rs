@@ -9,16 +9,10 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         .map_or("Direct messages".into(), |g| g.guild.name.clone());
     let mut header = row![button(
         row![
-            widget::responsive(move |size| {
-                txt(fit_header(&name, size.width))
-                    .font(t::semibold())
-                    .size(t::CHANNEL_NAME)
-                    .shaping(iced::advanced::text::Shaping::Advanced)
-                    .wrapping(iced::advanced::text::Wrapping::None)
-                    .width(Fill)
-                    .into()
-            })
-            .height(t::S24),
+            elided::label(name)
+                .font(t::semibold())
+                .size(t::CHANNEL_NAME)
+                .width(Fill),
             icon(
                 if app.main.popover == Some(Popover::Server) {
                     "chevron-up"
@@ -92,7 +86,9 @@ pub fn view(app: &App) -> Element<'_, Msg> {
                             t::TEXT_MUTED
                         }
                     ),
-                    section(app.state.model.channel_name(c))
+                    elided::label(app.state.model.channel_name(c))
+                        .size(t::HINT)
+                        .font(t::semibold())
                         .color(if hover {
                             t::TEXT_PRIMARY
                         } else {
@@ -227,14 +223,11 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
     let label = button(
         row![
             leading,
-            txt(ellipsis(
-                &app.state.model.channel_name(c),
-                if active { 12 } else { 22 }
-            ))
-            .size(t::CHANNEL_NAME)
-            .font(if unread { t::semibold() } else { t::medium() })
-            .color(color)
-            .width(Fill)
+            elided::label(app.state.model.channel_name(c))
+                .size(t::CHANNEL_NAME)
+                .font(if unread { t::semibold() } else { t::medium() })
+                .color(color)
+                .width(Fill)
         ]
         .spacing(t::S8)
         .align_y(Center),
@@ -270,15 +263,19 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
         }
     } else if let Some(r) = read.filter(|r| r.mention_count > 0) {
         actions = actions.push(
-            container(hint(r.mention_count.to_string()).color(t::TEXT_PRIMARY))
-                .padding([0., t::S4])
-                .style(|_| container::Style {
-                    border: Border {
-                        radius: t::ROUND.into(),
-                        ..Default::default()
-                    },
-                    ..t::surface(t::DANGER)
-                }),
+            container(
+                hint(super::rail::mention_label(r.mention_count))
+                    .font(t::semibold())
+                    .color(t::BADGE_TEXT),
+            )
+            .padding([0., t::S8])
+            .style(|_| container::Style {
+                border: Border {
+                    radius: t::ROUND.into(),
+                    ..Default::default()
+                },
+                ..t::surface(t::DANGER_BUTTON)
+            }),
         );
     }
     let row = container(actions)
@@ -612,106 +609,4 @@ fn user_panel(app: &App) -> Element<'_, Msg> {
     )
     .padding(t::S8)
     .into()
-}
-
-/// Fit the actual shaped pixels, not a character-count estimate (WWW and iii
-/// differ dramatically). Stable header labels hit this bounded cache on edits.
-fn fit_header(value: &str, width: f32) -> String {
-    use std::{
-        collections::BTreeMap,
-        sync::{Mutex, OnceLock},
-    };
-    use unicode_segmentation::UnicodeSegmentation;
-    type Cache = BTreeMap<(String, u32), String>;
-    static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
-    let value: String = value
-        .chars()
-        .map(|c| {
-            if c.is_control() || matches!(c, '\u{2028}' | '\u{2029}') {
-                ' '
-            } else {
-                c
-            }
-        })
-        .collect();
-    let width = width.max(0.).floor();
-    let key = (value.clone(), width as u32);
-    if let Ok(cache) = CACHE.get_or_init(Default::default).lock() {
-        if let Some(label) = cache.get(&key) {
-            return label.clone();
-        }
-    }
-    let fitted = if header_width(&value) <= width {
-        value.clone()
-    } else if header_width("…") > width {
-        String::new()
-    } else {
-        let indices: Vec<_> = value.grapheme_indices(true).map(|(i, _)| i).collect();
-        let (mut low, mut high) = (0, indices.len());
-        while low < high {
-            let middle = (low + high).div_ceil(2);
-            let candidate = format!(
-                "{}…",
-                &value[..indices.get(middle).copied().unwrap_or(value.len())]
-            );
-            if header_width(&candidate) <= width {
-                low = middle;
-            } else {
-                high = middle - 1;
-            }
-        }
-        format!(
-            "{}…",
-            &value[..indices.get(low).copied().unwrap_or(value.len())]
-        )
-    };
-    if let Ok(mut cache) = CACHE.get_or_init(Default::default).lock() {
-        if cache.len() >= 64 {
-            cache.pop_first();
-        }
-        cache.insert(key, fitted.clone());
-    }
-    fitted
-}
-fn header_width(value: &str) -> f32 {
-    use iced::advanced::text::{self, Paragraph};
-    <<iced::Renderer as text::Renderer>::Paragraph as Paragraph>::with_text(text::Text {
-        content: value,
-        bounds: iced::Size::new(f32::INFINITY, f32::INFINITY),
-        size: iced::Pixels(t::CHANNEL_NAME),
-        line_height: text::LineHeight::Relative(t::LINE),
-        font: t::semibold(),
-        align_x: text::Alignment::Left,
-        align_y: iced::alignment::Vertical::Top,
-        shaping: text::Shaping::Advanced,
-        wrapping: text::Wrapping::None,
-    })
-    .min_width()
-}
-#[cfg(test)]
-mod qa_header_tests {
-    use super::*;
-    #[test]
-    fn long_server_names_fit_one_line_without_splitting_graphemes() {
-        crate::headless::load_fonts();
-        for value in [
-            "Real-data launch QA with a long server name",
-            "WWWWWWWWWWWWWWWWWWWWWWWW",
-            "iiiiiiiiiiiiiiiiiiiiiiiiiiii",
-            "e\u{301}e\u{301}e\u{301}e\u{301}e\u{301}e\u{301}e\u{301}e\u{301}",
-            "First line\nSecond line",
-        ] {
-            for width in [0., 32., 96., 144., 168.] {
-                let fitted = fit_header(value, width);
-                assert!(
-                    header_width(&fitted) <= width + 0.01,
-                    "{value:?} -> {fitted:?} exceeds {width}"
-                );
-                assert!(!fitted.contains('\n'));
-                if value.contains('\u{301}') && fitted.ends_with('…') {
-                    assert!(!fitted[..fitted.len() - '…'.len_utf8()].ends_with('e'));
-                }
-            }
-        }
-    }
 }

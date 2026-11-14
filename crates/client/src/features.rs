@@ -230,7 +230,17 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             }
             app.features.start_minimized = enabled;
         }
-        Event::ConfirmUpdate => app.features.confirm_update = !app.features.confirm_update,
+        Event::ConfirmUpdate => {
+            if app.settings_dirty() {
+                return app.settings_attention();
+            }
+            app.features.confirm_update = !app.features.confirm_update;
+            return if app.features.confirm_update {
+                crate::focus_button::focus_dialog()
+            } else {
+                operation::focus("composer-editor")
+            };
+        }
         Event::ApplyUpdate => {
             if app.features.confirm_update {
                 app.features.confirm_update = false;
@@ -321,6 +331,9 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             }
         }
         Event::Picker(p) => {
+            if app.settings_dirty() {
+                return app.settings_attention();
+            }
             app.features.picker = if app.features.picker == p {
                 Picker::None
             } else {
@@ -542,7 +555,7 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
                 thumbnail: None,
             }];
             app.features.picker = Picker::None;
-            return load_viewer(app);
+            return Task::batch([load_viewer(app), crate::focus_button::focus_dialog()]);
         }
         Event::ViewerOpen(a) => {
             let mut items: Vec<_> = if let Screen::Channel(c) = app.state.screen {
@@ -567,7 +580,7 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             app.features.viewer.items = items;
             app.features.viewer.index = index;
             app.features.picker = Picker::None;
-            return load_viewer(app);
+            return Task::batch([load_viewer(app), crate::focus_button::focus_dialog()]);
         }
         Event::ViewerLoaded(serial, result) => {
             let s = &mut app.features.viewer;
@@ -587,10 +600,17 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
                 }
             }
         }
-        Event::ViewerClose => app.features.viewer.close(),
-        Event::ViewerMore => app.features.viewer.more = !app.features.viewer.more,
+        Event::ViewerClose => {
+            app.features.viewer.close();
+            return operation::focus("composer-editor");
+        }
+        Event::ViewerMore => {
+            app.features.viewer.more = !app.features.viewer.more;
+            return crate::focus_button::focus_dialog();
+        }
         Event::ViewerForwardMenu => {
-            app.features.viewer.forwarding = !app.features.viewer.forwarding
+            app.features.viewer.forwarding = !app.features.viewer.forwarding;
+            return crate::focus_button::focus_dialog();
         }
         Event::ViewerZoom(factor) => {
             let fit = app.features.viewer.fit(app);
@@ -1183,8 +1203,13 @@ pub fn overlay(app: &App) -> Option<iced::Element<'_, Msg>> {
                     iced::widget::column![
                         super::ui::title("Restart to update?"),
                         super::ui::hint("StickTalk will close and install the verified update."),
-                        super::ui::action("Cancel", Msg::feature(Event::ConfirmUpdate)),
-                        super::ui::primary("Restart", Msg::feature(Event::ApplyUpdate))
+                        iced::widget::row![
+                            space().width(Fill),
+                            super::ui::action("Cancel", Msg::feature(Event::ConfirmUpdate)),
+                            super::ui::primary("Restart", Msg::feature(Event::ApplyUpdate))
+                        ]
+                        .spacing(t::S8)
+                        .align_y(iced::Center)
                     ]
                     .spacing(t::S16),
                 )
@@ -1192,6 +1217,7 @@ pub fn overlay(app: &App) -> Option<iced::Element<'_, Msg>> {
                 .width(t::LOGIN_W)
                 .style(t::modal),
             ))
+            .id("dialog-scope")
             .center_x(Fill)
             .center_y(Fill)
             .style(t::dim)
@@ -1199,7 +1225,17 @@ pub fn overlay(app: &App) -> Option<iced::Element<'_, Msg>> {
         );
     }
     if app.features.viewer.current().is_some() {
-        return Some(viewer::view(app));
+        return Some(
+            container(viewer::view(app))
+                .id(
+                    if app.features.viewer.forwarding || app.features.viewer.more {
+                        "viewer-underlay"
+                    } else {
+                        "dialog-scope"
+                    },
+                )
+                .into(),
+        );
     }
     let picker = match app.features.picker {
         Picker::None => return None,
@@ -1211,6 +1247,7 @@ pub fn overlay(app: &App) -> Option<iced::Element<'_, Msg>> {
             mouse_area(container(space()).width(Fill).height(Fill))
                 .on_press(Msg::feature(Event::Picker(Picker::None))),
             container(opaque(picker))
+                .id("dialog-scope")
                 .align_right(Fill)
                 .align_bottom(Fill)
                 .padding(Padding {

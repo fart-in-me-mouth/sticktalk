@@ -1,0 +1,7 @@
+{
+  "mode": "real wgpu mock window; secondary; no interaction",
+  "sample_seconds": 60.0231021,
+  "cpu_percent_one_core": 0.07809493071835086,
+  "working_set_bytes": 147623936,
+  "private_bytes": 173690880
+}

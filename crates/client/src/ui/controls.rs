@@ -45,12 +45,8 @@ pub fn menu_style(
             status,
             widget::button::Status::Hovered | widget::button::Status::Pressed
         ) {
-            s.background = Some(if danger { t::DANGER } else { t::ACCENT }.into());
-            s.text_color = if danger {
-                t::TEXT_PRIMARY
-            } else {
-                t::ACCENT_TEXT
-            };
+            s.background = Some(if danger { t::DANGER_BUTTON } else { t::ACCENT }.into());
+            s.text_color = if danger { Color::WHITE } else { t::ACCENT_TEXT };
         }
         s
     }
@@ -119,11 +115,19 @@ pub fn tip<'a>(
     )
 }
 pub fn icon_button<'a>(glyph: &str, label: &str, message: Msg, active: bool) -> Element<'a, Msg> {
+    icon_button_maybe(glyph, label, Some(message), active)
+}
+pub fn icon_button_maybe<'a>(
+    glyph: &str,
+    label: &str,
+    message: Option<Msg>,
+    active: bool,
+) -> Element<'a, Msg> {
     let danger = glyph == "phone-off";
     let member = glyph == "users";
     tip(
         button(crate::icons::inherited(glyph, t::ICON))
-            .on_press(message)
+            .on_press_maybe(message)
             .width(t::S32)
             .height(t::S32)
             .padding(t::TOOL_ICON_PADDING)
@@ -151,7 +155,7 @@ pub fn icon_button<'a>(glyph: &str, label: &str, message: Msg, active: bool) -> 
 }
 pub fn toggle<'a>(label: impl Into<String>, on: bool, message: Msg) -> Element<'a, Msg> {
     let glyph: Element<'a, Msg> = if on {
-        icon("check", t::S12, t::ACCENT).into()
+        icon("check", t::S12, t::ACCENT_TEXT).into()
     } else {
         space().into()
     };
