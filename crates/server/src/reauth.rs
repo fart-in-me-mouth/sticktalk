@@ -219,12 +219,19 @@ pub async fn disconnect(
     c: &mut SqliteConnection,
     keys: &[Vec<u8>],
 ) -> Result<()> {
+    // The credential mutation has committed. Revoke every socket before any
+    // fallible media notifications; a full outgoing queue must not strand a
+    // deleted/rotated session or turn a successful mutation into an HTTP error.
     for key in keys {
-        crate::voice::disconnect(app, core, c, key, None).await?;
         if let Some(stream) = core.streams.remove(key) {
             if let Some(connection) = stream.connection {
                 let _ = connection.close.send(Some(4001));
             }
+        }
+    }
+    for key in keys {
+        if let Err(error) = crate::voice::disconnect(app, core, c, key, None).await {
+            tracing::warn!(?error, "revoked session media cleanup failed");
         }
     }
     Ok(())

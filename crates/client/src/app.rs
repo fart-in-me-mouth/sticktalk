@@ -210,6 +210,7 @@ pub struct App {
     pub markdown: crate::markdown::Cache,
     auth_serial: u64,
     auth_task: Option<iced::task::Handle>,
+    password_rotation: Option<u64>,
     mock_account: backend::MockAccount,
     hover_serial: u64,
     pub busy: bool,
@@ -350,6 +351,7 @@ impl App {
             markdown: crate::markdown::Cache::default(),
             auth_serial: 0,
             auth_task: None,
+            password_rotation: None,
             mock_account: std::sync::Arc::new(std::sync::Mutex::new(
                 crate::mock::MockAuth::default(),
             )),
@@ -1048,6 +1050,9 @@ impl App {
                     self.error.clear();
                     let generation = session.config.generation;
                     let password = matches!(action, backend::AccountAction::Password { .. });
+                    if password {
+                        self.password_rotation = Some(generation);
+                    }
                     return Task::perform(
                         backend::account(
                             session.config.clone(),
@@ -1066,10 +1071,21 @@ impl App {
                     .session
                     .as_ref()
                     .is_none_or(|s| s.config.generation != generation)
+                    && self.password_rotation != Some(generation)
                 {
+                    if let Ok(backend::AccountResult {
+                        session: Some(session),
+                        ..
+                    }) = result
+                    {
+                        return Task::perform(backend::discard_session(session), |_| {
+                            Msg::LoggedOut
+                        });
+                    }
                     return Task::none();
                 }
                 self.busy = false;
+                self.password_rotation = None;
                 match result {
                     Ok(result) => {
                         self.methods = Some(result.methods);
@@ -1118,7 +1134,12 @@ impl App {
             Msg::AccountDeleted(result) => {
                 self.busy = false;
                 match result {
-                    Ok(()) => return self.update(Msg::Logout),
+                    Ok(()) => {
+                        let task = self.update(Msg::Logout);
+                        self.error.clear();
+                        self.notice = "Your account was deleted.".into();
+                        return task;
+                    }
                     Err(e) => self.error = e,
                 }
             }
@@ -1361,6 +1382,9 @@ impl App {
                 self.busy = false;
                 match v {
                     Ok(s) => {
+                        self.error.clear();
+                        self.notice.clear();
+                        self.password_rotation = None;
                         self.server = s.config.server.clone();
                         self.state.session = Some(s);
                         self.password.clear();
@@ -1376,7 +1400,16 @@ impl App {
                     self.state.connection = ConnectionState::Connecting;
                 }
             }
-            Msg::Net(delivery) => return self.network((*delivery.data).clone()),
+            Msg::Net(delivery) => {
+                if self
+                    .state
+                    .session
+                    .as_ref()
+                    .is_some_and(|s| s.config.generation == delivery.generation)
+                {
+                    return self.network((*delivery.data).clone());
+                }
+            }
             Msg::Guild(g) => {
                 self.main.popover = None;
                 self.state.model.active_guild = g;
@@ -2213,12 +2246,23 @@ impl App {
                 self.send(Command::SetPresence { status });
             }
             Msg::Logout => {
+                self.notice.clear();
+                self.password_rotation = None;
+                self.error.clear();
+                self.password.clear();
+                self.signup = None;
+                self.register = false;
                 let effects = self.calls.call.leave();
                 self.call_effects(effects, None);
+                let close_stream = self.call_update(crate::voice_ui::Action::Focus(None));
+                self.calls.mock_video = None;
+                self.calls.mock_playback = false;
                 self.main = crate::main_window::State::default();
                 self.extent = crate::history_extent::Window::default();
                 crate::ui::purge_main_assets();
                 self.features = Default::default();
+                self.text_features = Default::default();
+                self.calls.call.guild_states.clear();
                 if let Some(s) = self.state.session.take() {
                     let config = s.config.clone();
                     if !config.mock {
@@ -2237,6 +2281,9 @@ impl App {
                     self.history_slots.borrow_mut().clear();
                     self.layout_cache.borrow_mut().take();
                     self.state.model = Model::default();
+                    self.state.generation = self.state.generation.wrapping_add(1);
+                    self.state.guild = None;
+                    self.form_revision = self.form_revision.wrapping_add(1);
                     self.settings = crate::settings_controller::State {
                         preferences: self.settings.preferences.clone(),
                         preference_task: self.settings.preference_task.take(),
@@ -2266,28 +2313,35 @@ impl App {
                     replace_editor(&mut self.editor, "");
                     self.dialog = Dialog::None;
                     self.state.connection = ConnectionState::Offline;
-                    return Task::perform(
-                        async move {
-                            if !s.config.mock {
-                                if let Ok(http) =
-                                    backend::Http::new(&s.config.server, &s.config.token)
-                                {
-                                    http.logout().await;
+                    return Task::batch([
+                        close_stream,
+                        Task::perform(
+                            async move {
+                                let config = s.config.clone();
+                                let _ = tokio::task::spawn_blocking(move || {
+                                    if !config.mock {
+                                        storage::forget_if(&config.server, &config.token);
+                                    }
+                                    if let Some(id) = account {
+                                        media::purge(&config, id);
+                                    }
+                                })
+                                .await;
+                                if !s.config.mock {
+                                    if let Ok(http) =
+                                        backend::Http::new(&s.config.server, &s.config.token)
+                                    {
+                                        http.logout().await;
+                                    }
                                 }
-                            }
-                            let _ = tokio::task::spawn_blocking(move || {
-                                storage::forget(&s.config.server);
-                                if let Some(id) = account {
-                                    media::purge(&s.config, id);
-                                }
-                            })
-                            .await;
-                        },
-                        |_| Msg::LoggedOut,
-                    );
+                            },
+                            |_| Msg::LoggedOut,
+                        ),
+                    ]);
                 }
+                return close_stream;
             }
-            Msg::LoggedOut => self.notice.clear(),
+            Msg::LoggedOut => {}
             Msg::Resize(size) => {
                 if self.members_open.is_none()
                     && (self.width >= crate::theme::MEMBER_BREAKPOINT)
@@ -2425,8 +2479,13 @@ impl App {
             }
 
             Data::State(state) => {
-                if matches!(&state,ConnectionState::Stopped(v)if v.starts_with("Session expired")) {
+                if state == ConnectionState::SessionRevoked {
+                    let rotation = self.password_rotation;
                     let task = self.update(Msg::Logout);
+                    // Rotation revokes the old socket before its HTTP response
+                    // can arrive. Accept only that in-flight replacement; an
+                    // explicit logout clears the marker and cannot be undone.
+                    self.password_rotation = rotation;
                     self.error = "Your session expired. Sign in again.".into();
                     return task;
                 }
@@ -4937,6 +4996,89 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn revoked_session_purges_private_state_and_ignores_late_socket_delivery() {
+        use futures_util::StreamExt;
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        let config = app.state.session.as_ref().unwrap().config.clone();
+        let stream = backend::subscription(&config);
+        futures_util::pin_mut!(stream);
+        let connected = stream.next().await.unwrap();
+        let late_ready = stream.next().await.unwrap();
+        app.state.drafts.insert(Id(12), "private draft".into());
+        let _ = app.update(Msg::Net(connected));
+        let _ = app.network(Data::State(ConnectionState::SessionRevoked));
+        assert!(app.state.session.is_none());
+        assert!(app.state.model.me.is_none());
+        assert!(app.state.model.cursor.is_none());
+        assert!(app.state.model.messages.is_empty());
+        assert!(app.state.drafts.is_empty());
+        assert!(app.state.pending.is_empty());
+        assert!(app.tx.is_none());
+        let _ = app.update(Msg::Net(late_ready));
+        assert!(app.state.model.me.is_none());
+        let _ = app.update(Msg::AccountDeleted(Ok(())));
+        assert_eq!(app.notice, "Your account was deleted.");
+        let _ = app.update(Msg::LoggedOut);
+        assert_eq!(app.notice, "Your account was deleted.");
+    }
+
+    #[tokio::test]
+    async fn password_rotation_can_finish_after_old_socket_revocation_but_not_explicit_logout() {
+        for explicit_logout in [false, true] {
+            let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+            let mut config = app.state.session.as_ref().unwrap().config.clone();
+            let old_generation = config.generation;
+            app.password_rotation = Some(old_generation);
+            let _ = app.network(Data::State(ConnectionState::SessionRevoked));
+            assert!(app.state.session.is_none());
+            if explicit_logout {
+                let _ = app.update(Msg::Logout);
+            }
+            config.generation = old_generation.wrapping_add(1);
+            let _ = app.update(Msg::Methods(
+                old_generation,
+                true,
+                Ok(backend::AccountResult {
+                    methods: AuthMethodsResponse {
+                        has_password: true,
+                        google_linked: false,
+                    },
+                    session: Some(Session { config }),
+                }),
+            ));
+            assert_eq!(app.state.session.is_some(), !explicit_logout);
+        }
+    }
+    #[tokio::test]
+    async fn a_new_login_supersedes_an_inflight_password_rotation() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        let mut config = app.state.session.as_ref().unwrap().config.clone();
+        let old_generation = config.generation;
+        app.password_rotation = Some(old_generation);
+        let _ = app.network(Data::State(ConnectionState::SessionRevoked));
+        config.generation = old_generation.wrapping_add(1);
+        let _ = app.update(Msg::Auth(Ok(Session {
+            config: config.clone(),
+        })));
+        let new_generation = config.generation;
+        config.generation = config.generation.wrapping_add(1);
+        let _ = app.update(Msg::Methods(
+            old_generation,
+            true,
+            Ok(backend::AccountResult {
+                methods: AuthMethodsResponse {
+                    has_password: true,
+                    google_linked: false,
+                },
+                session: Some(Session { config }),
+            }),
+        ));
+        assert_eq!(
+            app.state.session.as_ref().unwrap().config.generation,
+            new_generation
+        );
+    }
     fn key(key: Named, modifiers: keyboard::Modifiers) -> text_editor::KeyPress {
         text_editor::KeyPress {
             key: keyboard::Key::Named(key),

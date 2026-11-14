@@ -299,14 +299,105 @@ fn injected_driver_correlates_heartbeats_retries_applied_cursor_and_expires_rece
         .any(|(index, msg)| *index == 2 && matches!(msg, ClientMsg::Command(_))));
     peers[2].try_send(Ok(Frame::Close(Some(4001)))).unwrap();
     assert!(poll(driver.as_mut()).is_ready());
-    assert!(events
-        .0
-        .lock()
-        .unwrap()
-        .iter()
-        .any(|data| matches!(data, Data::State(crate::model::ConnectionState::Stopped(_)))));
+    assert!(events.0.lock().unwrap().iter().any(|data| matches!(
+        data,
+        Data::State(crate::model::ConnectionState::SessionRevoked)
+    )));
 }
 type HttpLog = Vec<(String, String, Vec<(String, String)>, Vec<u8>)>;
+
+#[test]
+fn revocation_is_terminal_for_close_error_and_failed_upgrade() {
+    // All revocation sources (deletion, password rotation, admin disable) share
+    // this driver. A second connect panics, so these also prove no backoff/retry.
+    for code in [
+        None,
+        Some(ErrorCode::Unauthenticated),
+        Some(ErrorCode::SessionExpired),
+    ] {
+        let clock = ManualClock::default();
+        let (mut peer, incoming) = mpsc::channel(32);
+        server(&mut peer, hello());
+        if let Some(code) = code {
+            server(
+                &mut peer,
+                ServerMsg::Error(ApiError {
+                    code,
+                    message: "revoked".into(),
+                    field: None,
+                    retry_after_ms: None,
+                }),
+            );
+        } else {
+            peer.try_send(Ok(Frame::Close(Some(4001)))).unwrap();
+        }
+        let outgoing = futures_util::sink::unfold((), |(), _| async { Ok::<_, String>(()) });
+        let wire = Wire(Mutex::new(VecDeque::from([(
+            Box::pin(outgoing) as Outgoing,
+            Box::pin(incoming) as Incoming,
+        )])));
+        let config = Config {
+            server: "https://example.com".into(),
+            token: "secret".into(),
+            mock: false,
+            generation: 1,
+            scenario: String::new(),
+        };
+        let (_tx, rx) = mpsc::channel::<Request>(32);
+        let mut events = Events::default();
+        complete(protocol::run(
+            &config,
+            &wire,
+            &clock,
+            &Inline,
+            Inline,
+            rx.map(|request| (request, ())),
+            &mut events,
+        ));
+        assert!(events.0.lock().unwrap().iter().any(|event| matches!(
+            event,
+            Data::State(crate::model::ConnectionState::SessionRevoked)
+        )));
+    }
+    struct Revoked;
+    impl Transport for Revoked {
+        fn connect(&self, _: String) -> Task<'_, Result<(Outgoing, Incoming), ConnectError>> {
+            Box::pin(async { Err(ConnectError::SessionRevoked) })
+        }
+    }
+    let config = Config {
+        server: "https://example.com".into(),
+        token: "secret".into(),
+        mock: false,
+        generation: 1,
+        scenario: String::new(),
+    };
+    let (_tx, rx) = mpsc::channel::<Request>(32);
+    let mut events = Events::default();
+    complete(protocol::run(
+        &config,
+        &Revoked,
+        &ManualClock::default(),
+        &Inline,
+        Inline,
+        rx.map(|request| (request, ())),
+        &mut events,
+    ));
+    assert!(matches!(
+        events.0.lock().unwrap().last(),
+        Some(Data::State(crate::model::ConnectionState::SessionRevoked))
+    ));
+
+    let mut recovery = crate::model::Recovery::default();
+    recovery.fresh(crate::mock::Mock::new().ready().cursor);
+    assert_eq!(recovery.disconnected(Some(4001)), None);
+    assert!(recovery.cursor.is_none());
+    assert_eq!(
+        recovery.disconnected(None),
+        None,
+        "late socket errors cannot restart revoked sessions"
+    );
+}
 #[derive(Clone)]
 struct ScriptedHttp {
     responses: Arc<Mutex<VecDeque<HttpResponse>>>,

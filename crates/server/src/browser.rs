@@ -271,11 +271,16 @@ pub(crate) async fn boundary(
         }
         let logout = r.uri().path().ends_with("/auth/logout")
             || r.uri().path().ends_with("/auth/account/delete");
+        let session_probe = matches!(r.uri().path(), "/api/v1/browser/session" | "/api/v1/ws")
+            && session_cookie(r.headers())?.is_some();
         let mut response = next.run(r).await;
         if cookie_auth && consumes_proof && response.status().is_success() {
             set_cookie(&mut response, "__Host-sticktalk_reauth", "", 0, true, false);
         }
-        if cookie_auth && logout && response.status().is_success() {
+        if cookie_auth
+            && ((logout && response.status().is_success())
+                || (session_probe && response.status() == StatusCode::UNAUTHORIZED))
+        {
             set_cookie(&mut response, SESSION, "", 0, true, false);
             set_cookie(&mut response, CSRF, "", 0, false, false);
         }

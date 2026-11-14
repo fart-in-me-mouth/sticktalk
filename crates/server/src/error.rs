@@ -23,7 +23,8 @@ impl Error {
     }
 }
 impl From<sqlx::Error> for Error {
-    fn from(_: sqlx::Error) -> Self {
+    fn from(error: sqlx::Error) -> Self {
+        tracing::warn!(%error, "database operation failed");
         Self::new(ErrorCode::Internal)
     }
 }

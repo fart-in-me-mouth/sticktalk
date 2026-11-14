@@ -555,6 +555,8 @@ pub enum ConnectionState {
     Connecting,
     Ready,
     Backoff(u32),
+    /// Credentials are no longer valid. Hosts must purge account state, not retry.
+    SessionRevoked,
     Stopped(String),
 }
 
@@ -566,13 +568,14 @@ pub struct Recovery {
 }
 impl Recovery {
     pub fn disconnected(&mut self, close: Option<u16>) -> Option<u64> {
-        if matches!(
-            close,
-            Some(1000 | 1002 | 1003 | 1008 | 1009 | 4001 | 4002 | 4009)
-        ) {
+        if self.state == ConnectionState::SessionRevoked || close == Some(4001) {
+            self.cursor = None;
+            self.state = ConnectionState::SessionRevoked;
+            return None;
+        }
+        if matches!(close, Some(1000 | 1002 | 1003 | 1008 | 1009 | 4002 | 4009)) {
             self.state = ConnectionState::Stopped(
                 match close {
-                    Some(4001) => "Session expired. Sign in again.",
                     Some(4009) => "This session opened elsewhere. Reconnect explicitly.",
                     _ => "Connection stopped. Check server and client version.",
                 }

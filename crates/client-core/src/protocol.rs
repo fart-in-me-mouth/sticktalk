@@ -31,6 +31,7 @@ pub type Outgoing = Pin<Box<dyn Sink<Frame, Error = String>>>;
 #[derive(Debug)]
 pub enum ConnectError {
     Retry(String),
+    SessionRevoked,
     Stop(String),
 }
 impl From<String> for ConnectError {
@@ -87,6 +88,12 @@ pub async fn run<R: MaybeSend + 'static, H: MaybeSend + 'static, Lease>(
         };
         let ws = match ws {
             Some(Ok(socket)) => Some(socket),
+            Some(Err(ConnectError::SessionRevoked)) => {
+                output
+                    .emit(Data::State(ConnectionState::SessionRevoked))
+                    .await;
+                return;
+            }
             Some(Err(ConnectError::Stop(reason))) => {
                 output.emit(Data::Error(reason)).await;
                 return;
@@ -367,6 +374,9 @@ pub async fn run<R: MaybeSend + 'static, H: MaybeSend + 'static, Lease>(
             }
             // Dropping task handles cancels REST work, matching native JoinSet teardown.
             drop(jobs);
+        }
+        if close == Some(4001) {
+            pending.clear();
         }
         let delay = recovery.disconnected(close);
         if !output.emit(Data::State(recovery.state.clone())).await {

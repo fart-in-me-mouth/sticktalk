@@ -1016,7 +1016,7 @@ async fn phase_one() {
     bob.until(|d| {
         matches!(
             d,
-            Data::State(sticktalk::model::ConnectionState::Stopped(_))
+            Data::State(sticktalk::model::ConnectionState::SessionRevoked)
         )
     })
     .await;
@@ -2478,7 +2478,7 @@ async fn accounts_profiles_presence_rotation_and_erasure_real_clients() {
         .until(|d| {
             matches!(
                 d,
-                Data::State(sticktalk::model::ConnectionState::Stopped(_))
+                Data::State(sticktalk::model::ConnectionState::SessionRevoked)
             )
         })
         .await;
@@ -2526,7 +2526,7 @@ async fn accounts_profiles_presence_rotation_and_erasure_real_clients() {
         .until(|d| {
             matches!(
                 d,
-                Data::State(sticktalk::model::ConnectionState::Stopped(_))
+                Data::State(sticktalk::model::ConnectionState::SessionRevoked)
             )
         })
         .await;

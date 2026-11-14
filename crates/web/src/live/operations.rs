@@ -41,6 +41,13 @@ impl Submission {
 pub(super) fn action(app: Shared, raw: &str) {
     let (kind, arg) = raw.split_once(':').unwrap_or((raw, ""));
     match kind {
+        "dismiss-notice" => {
+            let mut a = app.borrow_mut();
+            if a.status.starts_with("Your ") {
+                a.status.clear();
+            }
+            a.touch();
+        }
         "recover" => {
             if app.borrow().model.me.is_none() {
                 let http = app.borrow().http();
@@ -191,12 +198,7 @@ pub(super) fn action(app: Shared, raw: &str) {
                     Ok(r) if (200..300).contains(&r.status) => {
                         // The authenticated logout already revoked server media.
                         // Do not send a late Leave after clearing this session.
-                        media_action("transport-lost");
-                        media_action("purge");
-                        let mut a = app.borrow_mut();
-                        a.clear_account();
-                        a.error.clear();
-                        a.touch();
+                        end_session(&app, "");
                     }
                     _ => fail(&app, "Could not log out. Try again.".into()),
                 }
@@ -1388,6 +1390,9 @@ fn submit(app: Shared, form: String, submission: Submission) {
         "password" => {
             let http = a.http();
             drop(a);
+            // The current socket is revoked before the rotated-cookie HTTP
+            // response arrives. Do not let an old-cookie cleanup race it.
+            media_action("password-changing");
             spawn_local(async move {
                 match http
                     .post::<serde_json::Value>(
@@ -1402,7 +1407,10 @@ fn submit(app: Shared, form: String, submission: Submission) {
                     Ok(_) => {
                         let _ = window().location().reload();
                     }
-                    Err(e) => fail(&app, e),
+                    Err(e) => {
+                        media_action("password-finished");
+                        fail(&app, e);
+                    }
                 }
             });
             return;
@@ -1455,7 +1463,7 @@ fn submit(app: Shared, form: String, submission: Submission) {
                 };
                 match result {
                     Ok(()) => {
-                        let _ = window().location().set_href("/");
+                        end_session(&app, "Your account was deleted.");
                     }
                     Err(e) => fail(&app, e),
                 }

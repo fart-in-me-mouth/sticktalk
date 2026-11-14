@@ -40,10 +40,10 @@ try {
   assert.deepEqual(await owner.locator('[data-role-position]').evaluateAll(selects=>selects.map(s=>s.value)),['1','2','3']);
 
   screenshots.push(await shot(owner,'roles-reordered'));
-  await act(owner,'dialog:member-role');await owner.locator('#f-name').selectOption(guestId);
+  await act(owner,'dialog:member-role');await owner.locator('[data-live-form=member-role] #f-name').selectOption(guestId);
   await owner.locator(`[data-member-role="${alpha}"]`).check();await owner.locator('[type=submit]').click();
   await owner.waitForFunction(()=>!document.querySelector('.live-modal'));
-  await act(owner,'dialog:member-role');await owner.locator('#f-name').selectOption(guestId);
+  await act(owner,'dialog:member-role');await owner.locator('[data-live-form=member-role] #f-name').selectOption(guestId);
   assert(await owner.locator(`[data-member-role="${alpha}"]`).isChecked());
   screenshots.push(await shot(owner,'member-roles-saved'));
   checks.push('role create/reorder, member assignment and selected-member role hydration');
@@ -54,9 +54,12 @@ try {
   await act(owner,`role:${alpha}`);
   for(const label of['Manage Server','Ban Members'])await owner.getByLabel(label,{exact:true}).uncheck();
   await owner.locator('[type=submit]').click();
+  // Observe the owner's command response too: the guest's purge event can
+  // arrive first, while the owner's role-save response still restores Roles.
+  await owner.waitForSelector('[data-live-form=role-create]');
   await guest.waitForFunction(()=>!document.querySelector('.live-modal code'));
   checks.push('permission downgrade immediately purges other creators’ cached invite codes');
-  await act(owner,'dialog:ban');await owner.locator('#f-name').selectOption(guestId);
+  await act(owner,'dialog:ban');await owner.locator('[data-live-form=ban] #f-name').selectOption(guestId);
   await owner.locator('#f-value').fill('Synthetic QA moderation');await owner.locator('[type=submit]').click();
   await guest.waitForFunction(()=>!document.querySelector('.server-icon.selected'));
   await act(owner,'dialog:server-bans');await owner.waitForSelector('[data-live^="dialog:unban:"]');

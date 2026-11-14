@@ -198,6 +198,15 @@ async fn s6_password_change_rotates_and_revokes_sockets_and_voice() {
         .await
         .unwrap();
         assert_eq!(core.voice.len(), 1);
+        // A congested signaling queue must not prevent committed revocation.
+        let budget = core.streams[&other_key]
+            .connection
+            .as_ref()
+            .unwrap()
+            .budget
+            .clone();
+        let available = budget.available_permits() as u32;
+        budget.try_acquire_many_owned(available).unwrap().forget();
     }
     let r=call(&app,req(&token,"/api/auth/password",json!({"current_password":"unused dummy credential","new_password":"a brand new long password"}))).await;
     assert_eq!(r.status(), 200);
@@ -304,6 +313,130 @@ async fn account_deletion_requires_proof_erases_files_and_holds_name_30_days() {
         .await
         .unwrap()
         .is_empty());
+}
+
+#[tokio::test]
+async fn large_account_erasure_finishes_before_http_deadline_and_revokes_every_device() {
+    let (_dir, app, token) = setup().await;
+    let other = state::token();
+    let keys = [state::hash(token.as_bytes()), state::hash(other.as_bytes())];
+    sqlx::query("INSERT INTO sessions VALUES(?,1,0,9999999999999,0)")
+        .bind(&keys[1])
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    // The phone QA fixture: a sole-owned guild and 10,000 messages. Cascading
+    // deletion used to scan messages.reply_to 10,000 times and time out/rollback.
+    sqlx::raw_sql("DELETE FROM guild_members WHERE user_id=2; WITH RECURSIVE n(x) AS (SELECT 100 UNION ALL SELECT x+1 FROM n WHERE x<10099) INSERT INTO messages(id,channel_id,author_id,content,created_at) SELECT x,11,1,'private history',0 FROM n;")
+        .execute(&app.0.pool).await.unwrap();
+    let plan = sqlx::query("EXPLAIN QUERY PLAN SELECT rowid FROM messages WHERE reply_to=100")
+        .fetch_all(&app.0.pool)
+        .await
+        .unwrap();
+    assert!(
+        plan.iter()
+            .any(|r| r.get::<String, _>("detail").contains("message_reply")),
+        "the cascading child-key lookup must use the migration's index"
+    );
+    let mut watches = vec![];
+    let mut packets = vec![];
+    {
+        let mut core = app.0.core.lock().await;
+        for key in &keys {
+            core.cursor(key, Id(1));
+            let (tx, rx) = tokio::sync::mpsc::channel(128);
+            packets.push(rx);
+            let (close, watch) = tokio::sync::watch::channel(None);
+            watches.push(watch);
+            core.streams.get_mut(key).unwrap().connection = Some(state::Connection {
+                id: "device".into(),
+                focused: false,
+                alive: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+                tx,
+                budget: Arc::new(tokio::sync::Semaphore::new(2 * 1024 * 1024)),
+                close,
+            });
+        }
+    }
+    let proof = value(
+        call(
+            &app,
+            req(
+                &token,
+                "/api/v1/auth/reauth",
+                json!({
+                    "operation":"delete_account", "current_password":"unused dummy credential"
+                }),
+            ),
+        )
+        .await,
+    )
+    .await;
+    let mut request = req(&token, "/api/v1/auth/account/delete", json!({}));
+    request.headers_mut().insert(
+        "x-sticktalk-reauth",
+        proof["proof"].as_str().unwrap().parse().unwrap(),
+    );
+    let started = std::time::Instant::now();
+    assert_eq!(call(&app, request).await.status(), 204);
+    assert!(started.elapsed() < std::time::Duration::from_secs(15));
+    for watch in watches {
+        assert_eq!(*watch.borrow(), Some(4001));
+    }
+    let mut c = app.0.pool.acquire().await.unwrap();
+    for token in [&token, &other] {
+        assert!(db::auth(&mut c, token).await.is_err());
+    }
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages")
+            .fetch_one(&mut *c)
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM deleted_accounts WHERE user_id=1")
+            .fetch_one(&mut *c)
+            .await
+            .unwrap(),
+        1
+    );
+    drop(c);
+    app.housekeeping().await.unwrap();
+}
+
+#[tokio::test]
+async fn admin_disable_revokes_all_live_sessions_and_rejects_reauthentication() {
+    let (_dir, app, token) = setup().await;
+    let key = state::hash(token.as_bytes());
+    let (tx, _packets) = tokio::sync::mpsc::channel(128);
+    let (close, watch) = tokio::sync::watch::channel(None);
+    {
+        let mut core = app.0.core.lock().await;
+        core.cursor(&key, Id(1));
+        core.streams.get_mut(&key).unwrap().connection = Some(state::Connection {
+            id: "disabled-device".into(),
+            focused: false,
+            alive: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            tx,
+            budget: Arc::new(tokio::sync::Semaphore::new(2 * 1024 * 1024)),
+            close,
+        });
+    }
+    crate::admin::run(
+        &app.0.config,
+        &crate::admin::AdminCommand::DisableUser {
+            username: "user1".into(),
+        },
+    )
+    .await
+    .unwrap();
+    app.housekeeping().await.unwrap();
+    assert_eq!(*watch.borrow(), Some(4001));
+    assert!(!app.0.core.lock().await.streams.contains_key(&key));
+    assert!(db::auth(&mut app.0.pool.acquire().await.unwrap(), &token)
+        .await
+        .is_err());
 }
 
 #[tokio::test]
