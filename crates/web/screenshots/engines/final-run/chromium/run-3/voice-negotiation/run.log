@@ -1,0 +1,3 @@
+(node:17592) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"rounds":[{"round":1,"decodedDelta":[158,11],"states":["connected","connected"],"remoteWidths":[320,960]},{"round":2,"decodedDelta":[32,11],"states":["connected","connected"],"remoteWidths":[1280,1280]},{"round":3,"decodedDelta":[12,109],"states":["connected","connected"],"remoteWidths":[1280,1280]}],"cleanup":true}

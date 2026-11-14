@@ -1,0 +1,76 @@
+{
+  "checks": [
+    "393: touch drawer dismissal and browser Back",
+    "393: injected 47px/34px safe-area layout",
+    "393: settings/admin screens, responsive layout, local appearance preferences",
+    "profile pronouns/about/banner save and hydrate from the real server",
+    "notification form roundtrip/hydration",
+    "server rename, channel rename/topic/delete",
+    "phone emoji insertion and GIF picker layout (provider disabled)",
+    "offline banner and live reconnect",
+    "adjacent keyset windows reach rows between sparse extent anchors",
+    "10000-row real history extent/seek, bounded 50 DOM rows, rAF scroll measurement",
+    "session-specific and all-other-device logout invalidate a second live browser",
+    "password change with current-password proof and cookie-session reload",
+    "393: logout, password login, confirmed account erasure"
+  ],
+  "screenshots": [
+    "screenshots/engines/final-run/webkit/run-1/phone/login-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/login-keyboard-resize-393x440.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/register-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/friends-empty-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/chat-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/channels-drawer-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/members-drawer-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/safe-area-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/keyboard-resize-393x440.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/settings-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/account-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/profile-edit-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/about-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/appearance-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/privacy-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/notifications-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/devices-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/media-settings-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/delete-account-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/password-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/server-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/server-overview-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/server-channels-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/roles-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/member-role-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/invite-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/server-bans-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/server-emoji-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/emoji-picker-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/gif-picker-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/offline-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/history-10000-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/sessions-multiple-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/phone/account-deleted-login-393x659.png"
+  ],
+  "layout": [
+    {
+      "width": 393,
+      "height": 659,
+      "composer": {
+        "input": {
+          "left": 64,
+          "right": 233,
+          "bottom": 631,
+          "width": 169
+        },
+        "main": {
+          "left": 0,
+          "right": 393
+        },
+        "viewport": 393,
+        "height": 659
+      }
+    }
+  ],
+  "errors": [],
+  "csp": [],
+  "revision": "dc638f7a1017f6121ef8"
+}

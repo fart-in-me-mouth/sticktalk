@@ -1,0 +1,3 @@
+(node:11680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"checks":["17 MiB upload pauses at 16 MiB, file reselection resumes server offset, downloaded bytes match"],"errors":[]}

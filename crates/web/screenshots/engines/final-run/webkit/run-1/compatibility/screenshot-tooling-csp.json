@@ -1,0 +1,32 @@
+[
+  {
+    "screen": "visual-viewport-panned",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "media-capabilities",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "media-unavailable",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  }
+]

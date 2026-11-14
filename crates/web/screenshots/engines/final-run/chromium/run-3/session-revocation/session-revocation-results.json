@@ -1,0 +1,7 @@
+{
+  "checks": [
+    "delete: live and offline devices return to login, clear cookies/private caches/drafts and stop reconnecting",
+    "password: live and offline devices return to login, clear cookies/private caches/drafts and stop reconnecting",
+    "admin-disable: live and offline devices return to login, clear cookies/private caches/drafts and stop reconnecting"
+  ]
+}

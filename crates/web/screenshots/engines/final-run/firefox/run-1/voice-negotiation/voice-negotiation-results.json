@@ -1,0 +1,53 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "realServer": true,
+  "independentBrowserProcesses": 2,
+  "remoteAnswerDelayMs": 7500,
+  "rounds": [
+    {
+      "round": 1,
+      "decodedDelta": [
+        154,
+        10
+      ],
+      "states": [
+        "connected",
+        "connected"
+      ],
+      "remoteWidths": [
+        320,
+        1280
+      ]
+    },
+    {
+      "round": 2,
+      "decodedDelta": [
+        12,
+        36
+      ],
+      "states": [
+        "connected",
+        "connected"
+      ],
+      "remoteWidths": [
+        1280,
+        1280
+      ]
+    },
+    {
+      "round": 3,
+      "decodedDelta": [
+        12,
+        56
+      ],
+      "states": [
+        "connected",
+        "connected"
+      ],
+      "remoteWidths": [
+        1280,
+        1280
+      ]
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "checks": [
+    "412: touch drawer dismissal and browser Back",
+    "412: injected 47px/34px safe-area layout",
+    "412: settings/admin screens, responsive layout, local appearance preferences",
+    "profile pronouns/about/banner save and hydrate from the real server",
+    "notification form roundtrip/hydration",
+    "server rename, channel rename/topic/delete",
+    "phone emoji insertion and GIF picker layout (provider disabled)",
+    "offline banner and live reconnect",
+    "adjacent keyset windows reach rows between sparse extent anchors",
+    "10000-row real history extent/seek, bounded 50 DOM rows, rAF scroll measurement",
+    "session-specific and all-other-device logout invalidate a second live browser",
+    "password change with current-password proof and cookie-session reload",
+    "412: logout, password login, confirmed account erasure"
+  ],
+  "screenshots": [
+    "screenshots/engines/final-run/firefox/run-3/phone/login-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/login-keyboard-resize-412x440.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/register-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/friends-empty-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/chat-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/channels-drawer-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/members-drawer-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/safe-area-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/keyboard-resize-412x440.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/settings-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/account-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/profile-edit-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/about-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/appearance-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/privacy-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/notifications-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/devices-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/media-settings-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/delete-account-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/password-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/server-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/server-overview-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/server-channels-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/roles-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/member-role-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/invite-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/server-bans-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/server-emoji-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/emoji-picker-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/gif-picker-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/offline-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/history-10000-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/sessions-multiple-412x839.png",
+    "screenshots/engines/final-run/firefox/run-3/phone/account-deleted-login-412x839.png"
+  ],
+  "layout": [
+    {
+      "width": 412,
+      "height": 839,
+      "composer": {
+        "input": {
+          "left": 64,
+          "right": 252,
+          "bottom": 811,
+          "width": 188
+        },
+        "main": {
+          "left": 0,
+          "right": 412
+        },
+        "viewport": 412,
+        "height": 839
+      }
+    }
+  ],
+  "errors": [],
+  "csp": [],
+  "revision": "dc638f7a1017f6121ef8"
+}

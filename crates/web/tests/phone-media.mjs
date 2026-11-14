@@ -1,3 +1,4 @@
+import {gesture} from './gestures.mjs';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -21,14 +22,12 @@ async function actions(page,id) {
     while((node=walk.nextNode()))if(node.textContent.trim()&&!node.parentElement.closest('button,a'))last=node;
     const range=document.createRange();range.selectNodeContents(last);
     const r=[...range.getClientRects()].at(-1);return{x:r.x+r.width/2,y:r.y+r.height/2};
-  }),cdp=await page.context().newCDPSession(page);
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...point,id:1}]});
-  await wait(550);
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  });
+  await gesture(page,[{type:'touchStart',points:[{...point,id:1}],delay:550},{type:'touchEnd'}]);
   await page.waitForSelector('#live-message-menu');
 }
 try {
-  alice=await h.phone(390,844);bob=await h.phone(412,915);
+  alice=await h.phone();bob=await h.phone();
   for(const p of[alice,bob])p.on('pageerror',e=>errors.push(String(e)));
   await register(alice,h.origin,'qa_mobile_alice');await register(bob,h.origin,'qa_mobile_bob');
   await form(alice,'create',{'f-name':'Mobile Test Server'});await alice.waitForSelector('#live-input');
@@ -88,12 +87,17 @@ try {
   await alice.waitForSelector('#live-viewer img');
   screenshots.push(await shot(alice,'photo-viewer'));
   const beforeZoom=await alice.locator('[data-zoom]').textContent();
-  const cdp=await alice.context().newCDPSession(alice);
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:160,y:380,id:1},{x:230,y:430,id:2}]});
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:100,y:330,id:1},{x:290,y:480,id:2}]});
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  const center=await alice.locator('#live-viewer img').boundingBox();
+  const x=center.x+center.width/2,y=center.y+center.height/2;
+  await gesture(alice,[
+    {type:'touchStart',points:[{x:x-20,y:y-10,id:1},{x:x+20,y:y+10,id:2}]},
+    {type:'touchMove',points:[{x:x-60,y:y-30,id:1},{x:x+60,y:y+30,id:2}]},
+    {type:'touchEnd'},
+  ]);
   await alice.waitForFunction(before=>document.querySelector('[data-zoom]')?.textContent!==before,beforeZoom);
   await alice.keyboard.press('Escape');
+  checks.push('image upload and two-pointer image zoom handler');
+  if(process.env.STICKTALK_QA_MEDIA_MODE!=='ui') {
   const video=await alice.evaluate(async()=>{
     const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;
     canvas.getContext('2d').fillRect(0,0,320,180);
@@ -106,10 +110,10 @@ try {
   await alice.waitForSelector('.live-upload:has-text("phone-video.webm")');await message(alice,'Inline video');
   await alice.waitForSelector('.attachment-video video');
   const inline=alice.locator('.attachment-video video').first();
-  assert(await inline.evaluate(e=>e.playsInline));
+  assert(await inline.evaluate(e=>e.hasAttribute('playsinline')));
   await inline.evaluate(e=>e.play());await alice.waitForFunction(()=>document.querySelector('.attachment-video video')?.videoWidth>0);
   screenshots.push(await shot(alice,'inline-video'));
-  checks.push('image/video file picker upload, genuine touch pinch gesture, inline playsinline decoding');
+  checks.push('image/video file picker upload, two-pointer pinch gesture, inline playsinline decoding');
 
   // The publisher is a second Chromium process; only display acquisition is fake.
   desktop=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--allow-loopback-in-peer-connection','--disable-features=WebRtcHideLocalIpsWithMdns','--mute-audio','--disable-notifications','--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost']});
@@ -133,10 +137,27 @@ try {
   await act(publisher,'media:share');await publisher.locator('.live-share-options button').first().click();
   await alice.waitForFunction(()=>[...document.querySelectorAll('[data-kind=screen] video')].some(v=>v.videoWidth>0&&v.readyState>=2),null,{timeout:45000});
   await until(async()=>(await diagnostic(alice)).stats.some(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>=10),45000);
+  const remoteVideo=alice.locator('[data-kind=screen] video').first();
+  assert(await remoteVideo.evaluate(v=>v.playsInline&&v.muted&&v.autoplay));
+  await alice.locator('[data-kind=screen]').first().tap();
+  await alice.waitForSelector('.participant-grid.has-focus [data-kind=screen].is-focused');
+  const screenBounds=await remoteVideo.boundingBox(),sx=screenBounds.x+screenBounds.width/2,sy=screenBounds.y+screenBounds.height/2;
+  await gesture(alice,[
+    {type:'touchStart',points:[{x:sx-20,y:sy-10,id:1},{x:sx+20,y:sy+10,id:2}]},
+    {type:'touchMove',points:[{x:sx-50,y:sy-25,id:1},{x:sx+50,y:sy+25,id:2}]},
+    {type:'touchEnd'},
+  ]);
+  assert(await remoteVideo.evaluate(v=>Number(v.dataset.zoom)>1));
+  screenshots.push(await shot(alice,'screen-share-zoom'));
+  checks.push('H.264 screen video is muted/autoplay/playsinline, focuses in-app fullscreen and pinch-zooms');
   screenshots.push(await shot(alice,'screen-share-phone'));
   const stats=await diagnostic(alice);
   assert(stats.stats.some(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>=10));
-  await writeFile(`${output}/phone-share-stats.json`,JSON.stringify({state:stats.state,tracks:stats.tracks,inbound:stats.stats.filter(r=>r.type==='inbound-rtp')},null,2));
+  const videoReport=stats.stats.find(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>=10);
+  const negotiatedCodec=stats.stats.find(r=>r.type==='codec'&&r.id===videoReport.codecId);
+  assert.match(negotiatedCodec?.mimeType??'',/video\/h264/i,'actual receiver must decode H.264, not VP8');
+  await until(async()=>(await diagnostic(alice)).stats.some(r=>r.type==='inbound-rtp'&&r.kind==='audio'&&r.packetsReceived>0));
+  await writeFile(`${output}/phone-share-stats.json`,JSON.stringify({state:stats.state,tracks:stats.tracks,negotiatedCodec,inbound:stats.stats.filter(r=>r.type==='inbound-rtp')},null,2));
   await alice.getByRole('button',{name:'Mute',exact:true}).last().tap();
   await alice.getByRole('button',{name:'Deafen',exact:true}).last().tap();
   await alice.getByRole('button',{name:'Leave Call',exact:true}).tap();await act(publisher,'media:leave');
@@ -145,32 +166,22 @@ try {
   assert.equal(await alice.locator('.live-error').count(),0,'no stale signaling error after Leave');
   assert.equal(await publisher.locator('.live-error').count(),0,'publisher leaves cleanly');
   checks.push('phone joins real SFU, watches decoded synthetic screen share from second process, mute/deafen/leave releases media');
-  const permissionCdp=await bob.context().newCDPSession(bob);
-  const {targetInfo}=await permissionCdp.send('Target.getTargetInfo');
-  const microphone=setting=>permissionCdp.send('Browser.setPermission',{
-    permission:{name:'microphone'},setting,origin:h.origin,browserContextId:targetInfo.browserContextId,
-  });
-  await microphone('denied');
-  // This Chromium's fake-ui flag bypasses denied capture permissions. Without
-  // it the bundled fake audio device returns NotSupportedError. Inject only
-  // that browser failure edge; positive calls still use actual fake-device RTP.
+  // Inject only the negative capture edge. Browser permission automation is
+  // engine-specific; positive capture below still uses real fake-device tracks.
   await bob.evaluate(()=>{
-    const capture=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-    navigator.mediaDevices.getUserMedia=async constraints=>{
-      if(constraints.audio&&(await navigator.permissions.query({name:'microphone'})).state==='denied')
-        throw new DOMException('Permission denied','NotAllowedError');
-      return capture(constraints);
-    };
+    window.__qaCapture=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Permission denied','NotAllowedError');};
   });
   await act(bob,voice);
   await bob.waitForSelector('.live-error:has-text("Microphone access was denied")');
   screenshots.push(await shot(bob,'microphone-denied'));
   const denied=await diagnostic(bob);assert.equal(denied.joined,false);assert.equal(denied.publications,0);
-  await microphone('granted');
+  await bob.evaluate(()=>navigator.mediaDevices.getUserMedia=window.__qaCapture);
   await act(bob,'dismiss-error');await act(bob,voice);
   await until(async()=>(await diagnostic(bob)).state==='connected',45000);
   await act(bob,'media:leave');
   checks.push('injected denied-microphone browser edge explains recovery and releases media; grant and real SFU rejoin succeeds');
+  }
   assert.deepEqual(errors,[]);
   await writeFile(`${output}/phone-media-results.json`,JSON.stringify({revision:h.revision,checks,screenshots,errors},null,2));
   console.log(JSON.stringify({checks,screenshots:screenshots.length,errors}));

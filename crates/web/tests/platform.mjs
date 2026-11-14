@@ -79,6 +79,9 @@ const browserOffer='v=0\r\na=fingerprint:sha-256 KEEP\r\na=candidate:udp 1 udp 1
 assert(normalizeOffer(browserOffer).includes('a=candidate:udp'));
 assert(!normalizeOffer(browserOffer).includes('a=candidate:tcp'));
 assert(normalizeOffer(browserOffer).includes('a=fingerprint:sha-256 KEEP'));
+const firefoxOffer=browserOffer+'a=candidate:rtcp 2 UDP 121 127.0.0.1 5001 typ host\r\n';
+assert(!normalizeOffer(firefoxOffer).includes('a=candidate:rtcp'));
+assert(normalizeOffer(firefoxOffer).includes('a=candidate:udp'));
 const answer =
   "v=0\r\na=msid-semantic: WMS old\r\na=fingerprint:sha-256 KEEP\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=mid:3\r\na=ssrc:42 cname:obsolete\r\na=ssrc-group:FID 42 43\r\n";
 const normalized = normalizeAnswer(answer);

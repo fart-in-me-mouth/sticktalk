@@ -11,9 +11,11 @@
     "test:mock": "node tests/browser.mjs",
     "test:idle": "node tests/idle.mjs",
     "test:polish": "node tests/polish.mjs",
-    "test:qa": "node tests/polish.mjs && node tests/platform.mjs && node tests/loading.mjs && node tests/phone.mjs && node tests/session-revocation.mjs && node tests/admin.mjs && node tests/oauth.mjs && node tests/pwa.mjs && node tests/phone-media.mjs && node tests/voice-negotiation.mjs"
+    "test:qa": "node tests/polish.mjs && node tests/platform.mjs && node tests/loading.mjs && node tests/phone.mjs && node tests/session-revocation.mjs && node tests/admin.mjs && node tests/oauth.mjs && node tests/pwa.mjs && node tests/phone-media.mjs && node tests/voice-negotiation.mjs",
+    "test:engines": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "lighthouse": "^13.6.0",
     "playwright": "^1.65.0"
   }

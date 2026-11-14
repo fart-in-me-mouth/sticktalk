@@ -1,0 +1,163 @@
+{
+  "stats": {
+    "startTime": "2026-11-14T19:32:09.590Z",
+    "duration": 1905361.991,
+    "expected": 102,
+    "skipped": 6,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "codeHead": "0a437a23a8453dcfb27fdfa83a162f08f6cc2930",
+  "revision": "dc638f7a1017f6121ef8",
+  "retries": 0,
+  "repeats": 3,
+  "perRepeat": {
+    "webkit": {
+      "passed": 10,
+      "blocked": 2
+    },
+    "chromium": {
+      "passed": 12,
+      "blocked": 0
+    },
+    "firefox": {
+      "passed": 12,
+      "blocked": 0
+    }
+  },
+  "screenshotsPerRun": {
+    "webkit": [
+      92,
+      92,
+      92
+    ],
+    "chromium": [
+      101,
+      101,
+      101
+    ],
+    "firefox": [
+      101,
+      101,
+      101
+    ]
+  },
+  "reviewedWebKitFirstRunScreenshots": 92,
+  "screenReceive": {
+    "chromium/1": {
+      "codec": "video/H264",
+      "framesDecoded": 21
+    },
+    "chromium/2": {
+      "codec": "video/H264",
+      "framesDecoded": 21
+    },
+    "chromium/3": {
+      "codec": "video/H264",
+      "framesDecoded": 22
+    },
+    "firefox/1": {
+      "codec": "video/H264",
+      "framesDecoded": 18
+    },
+    "firefox/2": {
+      "codec": "video/H264",
+      "framesDecoded": 17
+    },
+    "firefox/3": {
+      "codec": "video/H264",
+      "framesDecoded": 18
+    }
+  },
+  "cameraDecodedDeltas": {
+    "chromium/1": [
+      [
+        156,
+        10
+      ],
+      [
+        33,
+        11
+      ],
+      [
+        11,
+        104
+      ]
+    ],
+    "chromium/2": [
+      [
+        156,
+        10
+      ],
+      [
+        33,
+        10
+      ],
+      [
+        11,
+        105
+      ]
+    ],
+    "chromium/3": [
+      [
+        158,
+        11
+      ],
+      [
+        32,
+        11
+      ],
+      [
+        12,
+        109
+      ]
+    ],
+    "firefox/1": [
+      [
+        154,
+        10
+      ],
+      [
+        12,
+        36
+      ],
+      [
+        12,
+        56
+      ]
+    ],
+    "firefox/2": [
+      [
+        155,
+        13
+      ],
+      [
+        10,
+        37
+      ],
+      [
+        12,
+        58
+      ]
+    ],
+    "firefox/3": [
+      [
+        154,
+        11
+      ],
+      [
+        10,
+        37
+      ],
+      [
+        11,
+        52
+      ]
+    ]
+  },
+  "unitTestsPassed": 12,
+  "coreWasmBrotliBytes": 449760,
+  "lazyWasmChunks": 31,
+  "targetGiBBeforeCleanup": 5.271,
+  "cleanup": "Blocked by execution policy: exact user-requested native Remove-Item rejected before execution; target remains 5.271 GiB. No alternate deletion or elevation attempted."
+}

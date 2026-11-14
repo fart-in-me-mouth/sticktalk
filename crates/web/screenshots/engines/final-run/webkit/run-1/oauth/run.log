@@ -1,0 +1,3 @@
+(node:21052) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"checks":["mock Google authorization + PKCE/token + RSA JWKS, signup and username collision","existing Google identity login after logout","operation-bound Google reauthentication returns to Delete Account and erases account"],"errors":[]}

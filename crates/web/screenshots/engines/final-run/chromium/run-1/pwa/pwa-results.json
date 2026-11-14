@@ -1,0 +1,56 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "checks": [
+    "standalone manifest, 192/512 PNGs, maskable icon, apple-touch install metadata",
+    "first lazy media import remains pinned when a deployment replaces stable JS aliases",
+    "real service-worker offline reload boots cached shell/core; private messages and API excluded",
+    "online recovery restores cookie session, websocket and authenticated history",
+    "waiting update never auto-activates; draft in another channel blocks Reload",
+    "explicit Reload activates new worker, reloads app, removes obsolete shell cache"
+  ],
+  "screenshots": [
+    "screenshots/engines/final-run/chromium/run-1/pwa/offline-shell-412x839.png",
+    "screenshots/engines/final-run/chromium/run-1/pwa/update-ready-412x839.png"
+  ],
+  "errors": [],
+  "manifest": {
+    "id": "/",
+    "name": "StickTalk",
+    "short_name": "StickTalk",
+    "description": "Messages, friends and voice calls.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "display_override": [
+      "standalone",
+      "minimal-ui"
+    ],
+    "orientation": "any",
+    "background_color": "#111113",
+    "theme_color": "#111113",
+    "categories": [
+      "social"
+    ],
+    "icons": [
+      {
+        "src": "icons/icon-192.png",
+        "sizes": "192x192",
+        "type": "image/png",
+        "purpose": "any"
+      },
+      {
+        "src": "icons/icon-512.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "any"
+      },
+      {
+        "src": "icons/maskable-512.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "maskable"
+      }
+    ]
+  },
+  "cachedAssets": 47
+}

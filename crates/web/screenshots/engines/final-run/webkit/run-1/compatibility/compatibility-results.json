@@ -1,0 +1,30 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "engine": "webkit",
+  "browser": "27.2",
+  "capabilities": {
+    "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Mobile/15E148 Safari/604.1",
+    "secure": true,
+    "width": 393,
+    "viewport": {
+      "width": 393,
+      "height": 659
+    },
+    "touch": 0,
+    "rtc": "undefined",
+    "audioContext": "undefined",
+    "getUserMedia": "undefined",
+    "mp4": "probably"
+  },
+  "checks": [
+    "blocked localStorage/sessionStorage/IndexedDB: account, preferences and messaging remain usable",
+    "visualViewport resize AND offsetTop pan keep composer above simulated keyboard",
+    "missing WebRTC: actionable error, no peer/publications retained; NOT a media playback pass"
+  ],
+  "screenshots": [
+    "screenshots/engines/final-run/webkit/run-1/compatibility/visual-viewport-panned-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/compatibility/media-capabilities-393x659.png",
+    "screenshots/engines/final-run/webkit/run-1/compatibility/media-unavailable-393x659.png"
+  ],
+  "errors": []
+}

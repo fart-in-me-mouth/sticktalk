@@ -1,0 +1,140 @@
+{
+  "state": "connected",
+  "tracks": [
+    {
+      "kind": "audio",
+      "own": true,
+      "paused": true,
+      "readyState": 0,
+      "videoWidth": 0
+    },
+    {
+      "kind": "audio",
+      "own": false,
+      "paused": false,
+      "streamTracks": [
+        {
+          "id": "f8ee43c2-8226-4ceb-b262-7763b92cbbb6",
+          "kind": "audio",
+          "muted": false,
+          "readyState": "live"
+        }
+      ],
+      "readyState": 4,
+      "videoWidth": 0
+    },
+    {
+      "kind": "screen",
+      "own": false,
+      "paused": false,
+      "streamTracks": [
+        {
+          "id": "b16958ee-33b5-4346-b040-9d12bcfc8ba7",
+          "kind": "video",
+          "muted": false,
+          "readyState": "live"
+        }
+      ],
+      "readyState": 4,
+      "videoWidth": 320
+    }
+  ],
+  "negotiatedCodec": {
+    "id": "CIT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+    "timestamp": 1794685592744.268,
+    "type": "codec",
+    "clockRate": 90000,
+    "mimeType": "video/H264",
+    "payloadType": 102,
+    "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+    "transportId": "T01"
+  },
+  "inbound": [
+    {
+      "id": "IT01A1928821009",
+      "timestamp": 1794685592744.268,
+      "type": "inbound-rtp",
+      "codecId": "CIT01_111_minptime=10;useinbandfec=1",
+      "kind": "audio",
+      "mediaType": "audio",
+      "ssrc": 1928821009,
+      "transportId": "T01",
+      "jitter": 0,
+      "packetsLost": 0,
+      "packetsReceived": 63,
+      "packetsReceivedWithCe": 0,
+      "packetsReceivedWithEct1": 0,
+      "audioLevel": 1,
+      "bytesReceived": 3370,
+      "concealedSamples": 0,
+      "concealmentEvents": 0,
+      "fecPacketsDiscarded": 0,
+      "fecPacketsReceived": 0,
+      "headerBytesReceived": 1764,
+      "insertedSamplesForDeceleration": 3151,
+      "jitterBufferDelay": 2707.2,
+      "jitterBufferEmittedCount": 57600,
+      "jitterBufferMinimumDelay": 2592,
+      "jitterBufferTargetDelay": 2592,
+      "lastPacketReceivedTimestamp": 1794685592739.183,
+      "mid": "1",
+      "packetsDiscarded": 0,
+      "playoutId": "AP",
+      "removedSamplesForAcceleration": 1249,
+      "silentConcealedSamples": 0,
+      "totalAudioEnergy": 0.3846105463170945,
+      "totalProcessingDelay": 2556.43104,
+      "totalSamplesDuration": 1.2400000000000009,
+      "totalSamplesReceived": 58560,
+      "trackIdentifier": "f8ee43c2-8226-4ceb-b262-7763b92cbbb6"
+    },
+    {
+      "id": "IT01V546231778",
+      "timestamp": 1794685592744.268,
+      "type": "inbound-rtp",
+      "codecId": "CIT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+      "kind": "video",
+      "mediaType": "video",
+      "ssrc": 546231778,
+      "transportId": "T01",
+      "jitter": 0,
+      "packetsLost": 0,
+      "packetsReceived": 21,
+      "packetsReceivedWithCe": 0,
+      "packetsReceivedWithEct1": 0,
+      "bytesReceived": 12237,
+      "decoderImplementation": "FFmpeg",
+      "firCount": 0,
+      "frameHeight": 180,
+      "frameWidth": 320,
+      "framesAssembledFromMultiplePackets": 0,
+      "framesDecoded": 21,
+      "framesDropped": 0,
+      "framesPerSecond": 20,
+      "framesReceived": 21,
+      "freezeCount": 0,
+      "headerBytesReceived": 588,
+      "jitterBufferDelay": 0.134034,
+      "jitterBufferEmittedCount": 21,
+      "jitterBufferMinimumDelay": 0.23129999999999998,
+      "jitterBufferTargetDelay": 0.23129999999999998,
+      "keyFramesDecoded": 1,
+      "lastPacketReceivedTimestamp": 1794685592706.498,
+      "mid": "2",
+      "nackCount": 0,
+      "pauseCount": 0,
+      "pliCount": 0,
+      "powerEfficientDecoder": false,
+      "qpSum": 331,
+      "remoteId": "ROV546231778",
+      "totalAssemblyTime": 0,
+      "totalDecodeTime": 0.002807,
+      "totalFreezesDuration": 0,
+      "totalInterFrameDelay": 0.969,
+      "totalPausesDuration": 0,
+      "totalProcessingDelay": 0.137622,
+      "totalSquaredInterFrameDelay": 0.04842300000000001,
+      "trackIdentifier": "b16958ee-33b5-4346-b040-9d12bcfc8ba7"
+    }
+  ]
+}

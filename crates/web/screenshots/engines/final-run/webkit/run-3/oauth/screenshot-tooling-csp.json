@@ -1,0 +1,52 @@
+[
+  {
+    "screen": "login-google",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "register-google",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "google-username",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "google-delete-reauth",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "google-account-deleted-login",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  }
+]

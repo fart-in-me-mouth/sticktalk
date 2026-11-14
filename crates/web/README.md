@@ -143,6 +143,14 @@ The TLS fixture uses Git for Windows' openssl (override STICKTALK_QA_OPENSSL).
 Evidence and limitations: [QA report](../../docs/QA_WEB_REPORT.md),
 [screenshot contact sheet](screenshots/qa/contact-phone.png).
 
+### Cross-engine phone QA
+
+`npm run test:engines` runs the real-server phone suites three times without
+retries on iPhone 15 WebKit, Pixel 7 Chromium and a Firefox touch viewport.
+See [engine matrix, setup and physical-device gates](../../docs/QA_WEB_ENGINES.md).
+Windows Playwright WebKit lacks WebRTC and usable MP4 decoding: its media gates
+are explicitly blocked, never substituted with Chromium or mocked frame counts.
+
 ## Known remaining launch work
 
 - The original two-browser camera regression remains intermittent after subscription

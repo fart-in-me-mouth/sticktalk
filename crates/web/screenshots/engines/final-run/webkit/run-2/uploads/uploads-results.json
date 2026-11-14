@@ -1,0 +1,11 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "checks": [
+    "17 MiB upload pauses at 16 MiB, file reselection resumes server offset, downloaded bytes match"
+  ],
+  "errors": [],
+  "screenshots": [
+    "screenshots/engines/final-run/webkit/run-2/uploads/upload-paused-393x659.png",
+    "screenshots/engines/final-run/webkit/run-2/uploads/upload-complete-393x659.png"
+  ]
+}

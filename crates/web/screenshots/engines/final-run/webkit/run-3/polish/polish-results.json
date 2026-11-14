@@ -1,0 +1,48 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "revisions": [
+    "dc638f7a1017f6121ef8"
+  ],
+  "checks": [
+    "393: 16px inputs, 48px primary button, safe logout, danger zone, live profile preview/reset/save/hydration",
+    "393: grouped role permissions, reorder mode, six quick reactions persist to server, no dead notification controls"
+  ],
+  "screenshots": [
+    "screenshots/engines/final-run/webkit/run-3/polish/login-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/notifications-empty-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/settings-bottom-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/account-danger-zone-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/profile-empty-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/profile-edit-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/profile-populated-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/profile-dirty-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/role-editor-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/roles-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/roles-reorder-mode-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/message-actions-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/notifications-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/settings-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/account-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/about-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/appearance-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/privacy-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/devices-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/media-settings-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/password-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/server-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/server-overview-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/server-channels-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/member-role-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/invite-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/server-bans-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/create-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/join-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/friend-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/group-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/channel-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/pins-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/gif-393x659.png",
+    "screenshots/engines/final-run/webkit/run-3/polish/emoji-393x659.png"
+  ],
+  "errors": []
+}

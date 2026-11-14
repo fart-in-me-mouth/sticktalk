@@ -1,0 +1,22 @@
+[
+  {
+    "screen": "offline-shell",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "update-ready",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  }
+]

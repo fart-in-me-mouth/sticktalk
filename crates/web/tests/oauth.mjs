@@ -46,7 +46,13 @@ try {
     const response=await route.fetch({maxRedirects:0});
     const authorization=new URL(response.headers().location);
     assert.equal(authorization.hostname,'accounts.google.com');
-    return route.fulfill({response,headers:{...response.headers(),location:`${mockOrigin}/authorize${authorization.search}`}});
+    // WebKit's interception API cannot fulfill redirect statuses. Navigate a
+    // tiny loopback-only mock-provider page instead, retaining Set-Cookie from
+    // the real start response. The actual callback/token/JWKS flow stays real.
+    const location=`${mockOrigin}/authorize${authorization.search}`;
+    return route.fulfill({response,status:200,headers:{...response.headers(),
+      location:'', 'content-type':'text/html', 'content-security-policy':"default-src 'none'"},
+      body:`<!doctype html><meta http-equiv="refresh" content="0;url=${location.replaceAll('&','&amp;')}">`});
   });
   await page.goto(h.origin);await page.getByRole('link',{name:'Continue with Google'}).waitFor();
   screenshots.push(await shot(page,'login-google'));
@@ -71,6 +77,7 @@ try {
   await page.locator('#f-value').fill('DELETE');await page.locator('[type=submit]').click();
   await page.waitForSelector('#auth-username');
   checks.push('operation-bound Google reauthentication returns to Delete Account and erases account');
+  screenshots.push(await shot(page,'google-account-deleted-login'));
   assert.deepEqual(errors,[]);
   assert.deepEqual(external,[]);
   await writeFile(`${output}/oauth-results.json`,JSON.stringify({revision:h.revision,checks,screenshots,errors,externalRequests:external.length},null,2));

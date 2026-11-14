@@ -664,7 +664,14 @@ export function installPlatform() {
     },
     true,
   );
-  const focus = () => emit(`focus:${!document.hidden && document.hasFocus()}`);
+  const focus = () => {
+    // Mobile documents may be frozen while connectivity changes. Reconcile on
+    // foreground/pageshow too, without an idle polling loop.
+    const wasOffline=document.documentElement.dataset.offline==='true';
+    network();
+    if(wasOffline&&navigator.onLine)emit('recover');
+    emit(`focus:${!document.hidden && document.hasFocus()}`);
+  };
   const network = () => {
     document.documentElement.dataset.offline=String(!navigator.onLine);
     let banner=$('#offline-banner');
@@ -675,11 +682,15 @@ export function installPlatform() {
   };
   addEventListener('online',network);addEventListener('offline',network);network();
   window.addEventListener("online", () => emit("recover"));
+  window.addEventListener('pageshow',focus);
   window.addEventListener("focus", focus);
   window.addEventListener("blur", focus);
   document.addEventListener("visibilitychange", focus);
   window.addEventListener("pagehide", () => {
-    media?.action("leave");
+    // The closing WebSocket already releases the SFU session. Do not signal
+    // Leave here: it can start a lazy WASM fetch during document teardown,
+    // which WebKit rejects with an unhandled access-control error.
+    media?.action("transport-lost");
     emit("focus:false");
   });
   const viewport = () => {
@@ -734,7 +745,9 @@ export function installPlatform() {
         .register("/sw.js", { scope: "/" })
         .then(registration => {
           const offer = () => {
-            if (!registration.waiting || !navigator.serviceWorker.controller || $('#app-update')) return;
+            if (!registration.waiting || registration.waiting.state!=='installed' || !registration.active ||
+                registration.active.state!=='activated' || registration.waiting===registration.active ||
+                registration.waiting===navigator.serviceWorker.controller || !navigator.serviceWorker.controller || $('#app-update')) return;
             const toast = document.createElement('div'); toast.id = 'app-update'; toast.className = 'update-toast';
             const text = document.createElement('span'); text.textContent = 'Update ready.';
             const reload = document.createElement('button'); reload.className = 'button secondary'; reload.textContent = 'Reload';

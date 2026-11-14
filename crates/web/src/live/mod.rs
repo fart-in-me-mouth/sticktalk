@@ -789,6 +789,12 @@ async fn socket(app: Shared, epoch: u64) {
                                 operations::response(app.clone(), *response)
                             }
                             ServerMsg::Voice(payload) => {
+                                // Guild voice-state broadcasts also reach text-only peers.
+                                // Do not load the lazy media decoder for those peers, in
+                                // particular while a reconnecting device is offline.
+                                if app.borrow().voice_channel.is_none() {
+                                    continue;
+                                }
                                 if payload.version == VOICE_VERSION && payload.kind == "event" {
                                     forward_voice(app.clone(), epoch, payload).await;
                                 }

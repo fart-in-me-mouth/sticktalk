@@ -1,0 +1,34 @@
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+    Finished `web-release` profile [optimized] target(s) in 1.40s
+warning: unknown name subsection with id 3 at 8266
+warning: unknown name subsection with id 3 at 2023
+warning: unknown name subsection with id 3 at 122242
+warning: unknown name subsection with id 3 at 1439
+warning: unknown name subsection with id 3 at 772
+warning: unknown name subsection with id 3 at 2217
+warning: unknown name subsection with id 3 at 1417
+warning: unknown name subsection with id 3 at 27530
+warning: unknown name subsection with id 3 at 1112
+warning: unknown name subsection with id 3 at 902
+warning: unknown name subsection with id 3 at 804
+warning: unknown name subsection with id 3 at 2511
+warning: unknown name subsection with id 3 at 1226
+warning: unknown name subsection with id 3 at 3653
+warning: unknown name subsection with id 3 at 1120
+warning: unknown name subsection with id 3 at 1320
+warning: unknown name subsection with id 3 at 10253
+warning: unknown name subsection with id 3 at 757
+warning: unknown name subsection with id 3 at 6969
+warning: unknown name subsection with id 3 at 130848
+warning: unknown name subsection with id 3 at 3986
+warning: unknown name subsection with id 3 at 555146
+warning: unknown name subsection with id 3 at 39963
+warning: unknown name subsection with id 3 at 18716
+warning: unknown name subsection with id 3 at 698358
+warning: unknown name subsection with id 3 at 42603
+warning: unknown name subsection with id 3 at 14785
+warning: unknown name subsection with id 3 at 6831
+warning: unknown name subsection with id 3 at 39458
+warning: unknown name subsection with id 3 at 50514
+warning: unknown name subsection with id 3 at 213458
+{"revision":"dc638f7a1017f6121ef8","raw":3214480,"compressed":865326,"firstLoadBytes":619153,"wasm":[{"file":"pkg/4ef0b922232ae66112f5/chunk_14.wasm","bytes":5390,"brotli":3179},{"file":"pkg/4ef0b922232ae66112f5/chunk_15.wasm","bytes":1154,"brotli":724},{"file":"pkg/4ef0b922232ae66112f5/chunk_16.wasm","bytes":119614,"brotli":32937},{"file":"pkg/4ef0b922232ae66112f5/chunk_17.wasm","bytes":433,"brotli":312},{"file":"pkg/4ef0b922232ae66112f5/chunk_18.wasm","bytes":274,"brotli":182},{"file":"pkg/4ef0b922232ae66112f5/chunk_19.wasm","bytes":735,"brotli":483},{"file":"pkg/4ef0b922232ae66112f5/chunk_20.wasm","bytes":623,"brotli":424},{"file":"pkg/4ef0b922232ae66112f5/chunk_21.wasm","bytes":11864,"brotli":4764},{"file":"pkg/4ef0b922232ae66112f5/chunk_22.wasm","bytes":394,"brotli":266},{"file":"pkg/4ef0b922232ae66112f5/chunk_23.wasm","bytes":404,"brotli":261},{"file":"pkg/4ef0b922232ae66112f5/chunk_24.wasm","bytes":306,"brotli":193},{"file":"pkg/4ef0b922232ae66112f5/chunk_25.wasm","bytes":1267,"brotli":829},{"file":"pkg/4ef0b922232ae66112f5/chunk_26.wasm","bytes":641,"brotli":427},{"file":"pkg/4ef0b922232ae66112f5/chunk_27.wasm","bytes":1159,"brotli":732},{"file":"pkg/4ef0b922232ae66112f5/chunk_28.wasm","bytes":399,"brotli":291},{"file":"pkg/4ef0b922232ae66112f5/chunk_29.wasm","bytes":557,"brotli":359},{"file":"pkg/4ef0b922232ae66112f5/chunk_30.wasm","bytes":4433,"brotli":2201},{"file":"pkg/4ef0b922232ae66112f5/chunk_31.wasm","bytes":259,"brotli":181},{"file":"pkg/4ef0b922232ae66112f5/split_completion_rows_13294626028908716306.wasm","bytes":2534,"brotli":1298},{"file":"pkg/4ef0b922232ae66112f5/split_dialog_data_12524356949440466629.wasm","bytes":67757,"brotli":19720},{"file":"pkg/4ef0b922232ae66112f5/split_expand_shortcodes_16192166041872063925.wasm","bytes":1719,"brotli":1015},{"file":"pkg/4ef0b922232ae66112f5/split_forward_voice_8719104469274925492.wasm","bytes":287069,"brotli":43727},{"file":"pkg/4ef0b922232ae66112f5/split_gif_search_12278313011594759030.wasm","bytes":18150,"brotli":5377},{"file":"pkg/4ef0b922232ae66112f5/split_load_call_9356238192695981583.wasm","bytes":4578,"brotli":2334},{"file":"pkg/4ef0b922232ae66112f5/split_load_dialog_4524596250009857420.wasm","bytes":219541,"brotli":70060},{"file":"pkg/4ef0b922232ae66112f5/split_load_message_encoder_11154512396779695914.wasm","bytes":26296,"brotli":4656},{"file":"pkg/4ef0b922232ae66112f5/split_move_role_12027117459904980262.wasm","bytes":6286,"brotli":2931},{"file":"pkg/4ef0b922232ae66112f5/split_profile_request_4138965245773052345.wasm","bytes":1840,"brotli":1038},{"file":"pkg/4ef0b922232ae66112f5/split_submit_16740275127398408723.wasm","bytes":18159,"brotli":8006},{"file":"pkg/4ef0b922232ae66112f5/split_upload_16166457729826968220.wasm","bytes":23286,"brotli":9805},{"file":"pkg/4ef0b922232ae66112f5/split_voice_action_1829393018797000336.wasm","bytes":95651,"brotli":23654},{"file":"pkg/4ef0b922232ae66112f5/sticktalk-web-e20ff2d8128dfb2a2cc4_bg.wasm","bytes":1934877,"brotli":449760}]}

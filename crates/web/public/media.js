@@ -162,10 +162,14 @@ async function negotiate(beforeRemote) {
   bindRemote();
 }
 export function normalizeOffer(sdp) {
-  // Chromium also gathers TCP host candidates. StickTalk's SFU is UDP-only
-  // and correctly rejects those at ingress. Advertise only usable candidates;
-  // leave the browser's local description and its DTLS/codec fields unchanged.
-  return sdp.split(/\r?\n/).filter(line=>!line.startsWith('a=candidate:')||line.split(/\s+/)[2]?.toLowerCase()==='udp').join('\r\n');
+  // Chromium gathers TCP; Firefox also gathers component 2 (separate RTCP),
+  // even with rtcp-mux required. The SFU is UDP + RTCP-mux only. Keep component
+  // 1 UDP candidates; leave local SDP, fingerprints and codec fields unchanged.
+  return sdp.split(/\r?\n/).filter(line=>{
+    if(!line.startsWith('a=candidate:'))return true;
+    const fields=line.split(/\s+/);
+    return fields[1]==='1'&&fields[2]?.toLowerCase()==='udp';
+  }).join('\r\n');
 }
 export function normalizeAnswer(sdp) {
   return sdp
@@ -209,6 +213,11 @@ async function publish(track, kind, stream) {
 }
 async function start(data) {
   stop(false);
+  if (!globalThis.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) {
+    signal('leave');
+    wantCall = false;
+    throw Error('Voice and video are unavailable in this browser. Use Safari, Chrome or Firefox with media support.');
+  }
   joined = true;
   const generation = ++epoch;
   participants = new Map(data.participants.map((p) => [key(p.session), p]));
@@ -296,7 +305,9 @@ function createTile(id, p, kind) {
   tile.className = "participant-tile";
   tile.tabIndex = 0;
   tile.setAttribute('role', 'button');
+  let zoomGestureUntil = 0;
   const focus = () => {
+    if (performance.now() < zoomGestureUntil) return;
     focusedTile = focusedTile === id ? null : id;
     mount();
   };
@@ -320,6 +331,12 @@ function createTile(id, p, kind) {
   );
   media.autoplay = true;
   media.playsInline = true;
+  // Set these before attaching a stream: iOS requires inline, muted video for
+  // gesture-free remote video playback (audio remains a separate media track).
+  if (media.tagName === 'VIDEO') {
+    media.setAttribute('playsinline', '');
+    media.muted = true;
+  }
   if (media.tagName === "VIDEO") media.className = "call-video";
   else {
     const placeholder = document.createElement("span");
@@ -327,8 +344,44 @@ function createTile(id, p, kind) {
     placeholder.textContent = user.slice(0, 2);
     tile.append(placeholder);
   }
+  if (kind === 'screen') bindScreenZoom(tile, media, () => { zoomGestureUntil = performance.now() + 500; });
   tile.append(media, label);
   return { tile, label, media };
+}
+// In-app fullscreen preserves playsinline on iPhone. Pinch/pan only intercepts
+// the focused screen tile; ordinary call scrolling and controls stay native.
+export function bindScreenZoom(tile, video, onGesture = () => {}) {
+  const points = new Map();
+  let scale = 1, x = 0, y = 0, start;
+  const snapshot = () => {
+    const p = [...points.values()];
+    return { scale, x, y, cx: p.reduce((n, v) => n + v.x, 0) / p.length,
+      cy: p.reduce((n, v) => n + v.y, 0) / p.length,
+      distance: p.length === 2 ? Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) : 0 };
+  };
+  video.addEventListener('pointerdown', e => {
+    if (!tile.classList.contains('is-focused') || e.pointerType !== 'touch' || points.size >= 2) return;
+    video.setPointerCapture(e.pointerId);
+    points.set(e.pointerId, { x: e.clientX, y: e.clientY }); start = snapshot();
+  });
+  video.addEventListener('pointermove', e => {
+    if (!points.has(e.pointerId)) return;
+    points.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const next = snapshot();
+    if (points.size === 2 && start.distance) {
+      scale = Math.max(1, Math.min(4, start.scale * next.distance / start.distance));
+      x = start.x + next.cx - start.cx; y = start.y + next.cy - start.cy;
+      onGesture();
+    } else if (scale > 1) { x = start.x + next.cx - start.cx; y = start.y + next.cy - start.cy; onGesture(); }
+    const bounds = video.getBoundingClientRect();
+    x = Math.max(-bounds.width / 2, Math.min(bounds.width / 2, x));
+    y = Math.max(-bounds.height / 2, Math.min(bounds.height / 2, y));
+    video.style.transform = `translate(${x}px,${y}px) scale(${scale})`;
+    video.dataset.zoom = String(scale);
+  });
+  const release = e => { points.delete(e.pointerId); start = points.size ? snapshot() : undefined; };
+  for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) video.addEventListener(event, release);
+  tile.resetZoom = () => { points.clear(); start = undefined; scale = 1; x = y = 0; video.style.transform = ''; delete video.dataset.zoom; };
 }
 async function updateParticipant(participant) {
   if (!pc || participant.session.user_id === self()) return;
@@ -435,15 +488,19 @@ export function event(event) {
           entry.tile.classList.toggle("is-speaking", data.speaking);
       break;
     case "bitrate": {
-      const p = [...publications.values()].find(
-        (p) => p.transceiver.mid === data.mid,
-      );
-      if (p) {
+      // setLocal/RemoteDescription invalidates sender parameter transactions in
+      // Chromium and Firefox. Serialize with negotiation, and acquire a fresh
+      // transaction only after its answer is applied (never during renegotiation).
+      enqueue(async () => {
+        const p = [...publications.values()].find(
+          (p) => p.transceiver.mid === data.mid,
+        );
+        if (!p) return;
         const params = p.transceiver.sender.getParameters();
-        params.encodings ??= [{}];
+        if (!params.encodings?.length) return;
         for (const e of params.encodings) e.maxBitrate = Number(data.bps);
-        p.transceiver.sender.setParameters(params).catch(report);
-      }
+        await p.transceiver.sender.setParameters(params);
+      });
       break;
     }
     case "error":
@@ -662,9 +719,10 @@ export function mount() {
       voiceView.dataset.gesture = 'true';
       let start;
       voiceView.addEventListener('touchstart', e => {
-        if (e.touches.length === 1 && !e.target.closest('.call-controls'))
-          start = {x:e.touches[0].clientX,y:e.touches[0].clientY};
+        start = e.touches.length === 1 && !e.target.closest('.call-controls')
+          ? {x:e.touches[0].clientX,y:e.touches[0].clientY} : undefined;
       }, {passive:true});
+      voiceView.addEventListener('touchcancel', () => { start = undefined; }, {passive:true});
       voiceView.addEventListener('touchend', e => {
         const end = e.changedTouches[0];
         if (start && end.clientY-start.y>96 && Math.abs(end.clientX-start.x)<64) action('minimize');
@@ -699,6 +757,7 @@ export function mount() {
       );
       e.tile.hidden = audio && hasCamera;
       e.tile.classList.toggle('is-focused', e.tile === elements.get(focusedTile)?.tile);
+      if (!e.tile.classList.contains('is-focused')) e.tile.resetZoom?.();
       e.tile.setAttribute('aria-pressed', String(e.tile.classList.contains('is-focused')));
       if (e.tile.parentElement !== stage) stage.append(e.tile);
     }
@@ -723,6 +782,14 @@ export function mount() {
 async function devices() {
   const root = $("#live-device-settings");
   if (!root) return;
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    const note = document.createElement('p');
+    note.dataset.mediaUnavailable = '';
+    note.setAttribute('role', 'status');
+    note.textContent = 'Voice and video are unavailable in this browser. Device settings require browser media support and a secure connection.';
+    root.replaceChildren(note);
+    return;
+  }
   const all = await navigator.mediaDevices.enumerateDevices();
   root.replaceChildren();
   for (const [kind, label, current, change] of [

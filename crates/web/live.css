@@ -1222,6 +1222,17 @@ h3 {
 .live-viewer footer a { color: var(--text-muted); text-decoration: underline; }
 .live-viewer img { cursor: grab; user-select: none; }
 .live-viewer img:active { cursor: grabbing; }
+.participant-tile[data-kind=screen].is-focused { overflow: hidden; }
+.participant-tile[data-kind=screen].is-focused video { touch-action: none; }
+/* Keep iOS selection/callout from stealing the phone message long-press. Copy
+   remains available in Message Actions; desktop text selection is unchanged. */
+@media (pointer: coarse) {
+  .message .markdown, .message .markdown *, .attachment-image, .live-viewer img {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
 @media(max-width:1100px) {
   .settings-nav { width: 240px; }
   .profile-editor { grid-template-columns: minmax(0,1fr); }
