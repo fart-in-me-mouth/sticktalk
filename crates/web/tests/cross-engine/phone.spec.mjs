@@ -1,18 +1,20 @@
 import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, writeFile, readdir, unlink } from 'node:fs/promises';
+import { resolve, join, relative } from 'node:path';
 
 // Keep the real-server suites runnable directly, while reporting every engine,
 // feature and repetition independently. No retries or mock REST/WS transport.
 for (const suite of ['compatibility', 'uploads', 'inline-video', 'polish', 'phone', 'session-revocation', 'admin', 'oauth', 'pwa', 'phone-messaging', 'phone-media', 'voice-negotiation']) {
   test(suite, async ({}, info) => {
     test.skip(process.platform === 'win32' && info.project.name === 'webkit' && ['phone-media','voice-negotiation'].includes(suite), 'Windows Playwright WebKit has no WebRTC/mediaDevices; run on macOS/iPhone for real H.264/voice.');
-    const output = resolve('screenshots/engines', info.project.name, `run-${info.repeatEachIndex + 1}`, suite);
+    const output = resolve(process.env.STICKTALK_ENGINE_EVIDENCE_ROOT ?? 'screenshots/engines/latest', info.project.name, `run-${info.repeatEachIndex + 1}`, suite);
     await mkdir(output, { recursive: true });
+    // A failure must never leave an earlier green summary looking current.
+    for(const name of await readdir(output))if(/-(results|failure)\.json$|^run\.log$/.test(name))await unlink(join(output,name));
     const child = spawn(process.execPath, [`tests/${suite === 'phone-messaging' ? 'phone-media' : suite}.mjs`], {
       windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, STICKTALK_QA_ENGINE: info.project.name, STICKTALK_QA_MEDIA_MODE: suite === 'phone-messaging' ? 'ui' : 'full', STICKTALK_QA_DIR: output },
+      env: { ...process.env, STICKTALK_QA_ENGINE: info.project.name, STICKTALK_QA_MEDIA_MODE: suite === 'phone-messaging' ? 'ui' : 'full', STICKTALK_QA_DIR: relative(process.cwd(),output).replaceAll('\\','/') },
     });
     let log = '';
     child.stdout.on('data', data => { log += data; });

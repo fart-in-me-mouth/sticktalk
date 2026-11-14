@@ -70,6 +70,7 @@ try {
     await act(page,'close');
     checks.push(`${width}: 16px inputs, 48px primary button, safe logout, danger zone, live profile preview/reset/save/hydration`);
     await form(page,'create',{'f-name':'After Hours'});await page.waitForSelector('#live-input');
+    assert.equal(await page.locator('#app-update').count(),0,'first worker activation is not an app update');
     await act(page,'dialog:roles');await page.waitForSelector('[data-live-form=role-create]');
     await page.locator('#f-name').fill('Design');await page.locator('[type=submit]').click();
     await page.waitForSelector('.role-editor-link:has-text("Design")');

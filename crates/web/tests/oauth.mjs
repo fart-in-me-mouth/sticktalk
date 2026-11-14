@@ -77,6 +77,7 @@ try {
   await page.locator('#f-value').fill('DELETE');await page.locator('[type=submit]').click();
   await page.waitForSelector('#auth-username');
   checks.push('operation-bound Google reauthentication returns to Delete Account and erases account');
+  screenshots.push(await shot(page,'google-account-deleted-login'));
   assert.deepEqual(errors,[]);
   assert.deepEqual(external,[]);
   await writeFile(`${output}/oauth-results.json`,JSON.stringify({revision:h.revision,checks,screenshots,errors,externalRequests:external.length},null,2));

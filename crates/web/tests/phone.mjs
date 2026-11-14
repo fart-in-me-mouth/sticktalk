@@ -265,6 +265,7 @@ try {
     assert.equal(deletion.status(),204,`Account deletion must commit on the first attempt: ${await deletion.text()}`);
     await page.waitForSelector('#auth-username');
     await page.getByRole('status').filter({hasText:'Your account was deleted.'}).waitFor();
+    screenshots.push(await shot(page,'account-deleted-login'));
     assert(Date.now()-started<15000,'erasure must finish within the API deadline');
     assert(!(await page.context().cookies()).some(c=>c.name==='__Host-sticktalk_session'));
     assert.equal(await page.locator('.connection-banner,.live-modal').count(),0);
