@@ -127,7 +127,7 @@ See `deploy/windows/VALIDATION.md` for the actual run and remaining limits.
 Generate a separate random publishing token (32+ characters), set
 `STICKTALK_RELEASE_TOKEN` in your release shell and on the server, and keep it
 out of scripts/git. This token authorizes uploading; it cannot forge signatures.
-Server configuration and HTTPS reverse-proxy setup are in `deploy/README.md`.
+Server hosting is in `deploy/SELF_HOST.md` (configuration reference: `deploy/ORACLE.md`).
 
 ```powershell
 ./tools/release/release.ps1 -Version 0.1.1 -Server 'https://chat.your-domain.example'

@@ -11,13 +11,18 @@ portable tools; the source bundle is not an offline compiler/dependency mirror.
 account deletion and did not return to login. Investigate/retest before a broad
 production rollout; see [validation and evidence](docs/HANDOFF_VALIDATION.md).
 
-## 1. Understand the five pieces
+## 1. Understand the pieces
 
 1. StickTalk is a Rust chat app with a native Windows client and a browser PWA.
-2. The **Oracle ARM64 VM** runs the main Rust server: API, chat, SQLite and SFU.
-3. Caddy serves HTTPS on Oracle; the SFU forwards voice/video over separate UDP.
-4. Your **Raspberry Pi** is private file storage over Tailscale, not the public API.
-5. Pi also holds nightly encrypted database backups and a **manual cold standby**.
+2. **You host the server yourself** on a PC, Linux box or Raspberry Pi you own: API,
+   chat, SQLite, web app and the voice/video SFU, in one Rust process listening on
+   `127.0.0.1` ([deploy/SELF_HOST.md](deploy/SELF_HOST.md)).
+3. **Tailscale Funnel** gives it a public `https://<machine>.<tailnet>.ts.net` address
+   with no domain, router changes or certificates. Calls use UDP, which Funnel can't
+   carry: they work over your tailnet, or for everyone with router UDP forwarding.
+4. Optional instead of self-hosting: an Oracle cloud VM behind Caddy + DuckDNS
+   ([deploy/ORACLE.md](deploy/ORACLE.md)), optionally with a private Pi for bulk
+   storage, encrypted backups and a cold standby ([deploy/HYBRID.md](deploy/HYBRID.md)).
 
 Read [architecture](docs/ARCHITECTURE.md), [protocol](docs/PROTOCOL.md), and the
 [feature/QA caveats](docs/QA_WEB_REPORT.md). Old benchmark reports are historical;
@@ -332,11 +337,19 @@ repository does not supply a Linux/macOS-to-MSVC release pipeline. Keep the
 private update-signing key on a trusted release machine, never on the chat server
 or an untrusted/shared runner.
 
-## 7. Deploy Oracle, then your Pi
+## 7. Host it
 
-Use the full procedures, not a guessed combination of old Pi-primary scripts:
+**Recommended: self-host.** Follow [deploy/SELF_HOST.md](deploy/SELF_HOST.md). On
+Windows, `powershell -ExecutionPolicy Bypass -File deploy/self-host/setup-windows.ps1`
+builds, installs a hidden per-user startup task, configures Tailscale Funnel and
+prints your web, desktop and MCP addresses. On Linux or a Pi use
+`deploy/self-host/setup-linux.sh`. Skip the rest of this section unless you
+choose the optional cloud topology below.
 
-1. **[Oracle guide](deploy/README.md):** create the intended ARM64 Ubuntu VM,
+**Optional: Oracle VM, then your Pi.** Use the full procedures, not a guessed
+combination of old Pi-primary scripts:
+
+1. **[Oracle guide](deploy/ORACLE.md):** create the intended ARM64 Ubuntu VM,
    verify its *current* free-tier/cost estimate yourself, transfer source and run
    `bash deploy/install.sh` on the VM. Root/systemd/firewall changes are for your
    remote Linux server, not your Windows development PC. Review scripts first.
@@ -429,7 +442,7 @@ update key and real HTTPS server/update origin, then run:
 
 ```powershell
 $env:STICKTALK_UPDATE_PUBLIC_KEY = '<your base64 public key>'
-$env:STICKTALK_DEFAULT_SERVER = 'https://YOUR-NAME.duckdns.org'
+$env:STICKTALK_DEFAULT_SERVER = 'https://your-pc.your-tailnet.ts.net'   # your server's public address
 $env:STICKTALK_UPDATE_ORIGIN = $env:STICKTALK_DEFAULT_SERVER
 ./deploy/windows/build-installer.ps1 -Output "$HOME/sticktalk-releases"
 ```
@@ -439,7 +452,7 @@ no runtime installer/admin access is needed by recipients. Test it in an isolate
 user/test PC and keep the previous good installer. Unsigned Windows downloads
 may still show SmartScreen: update signing is **not Authenticode**.
 Set the private publishing token in the shell (not in scripts/history) and use
-`tools/release/release.ps1 -Version VERSION -Server https://YOUR-NAME.duckdns.org`
+`tools/release/release.ps1 -Version VERSION -Server https://your-pc.your-tailnet.ts.net`
 with the signing key outside the repo. It signs the exact installer/manifest and
 publishes over HTTPS. Never edit a signed manifest. Existing clients verify the
 pinned key/hash and offer restart; failing startup rolls back. Server/PWA deploys
@@ -469,7 +482,9 @@ downgrades require the matching backup. Keep OS/Caddy and app-local DLLs patched
   flags. Keep all hashed chunks together. Node/npm install is not the WASM build.
 - **Pi ELF won't start:** verify `uname -m` is aarch64, OS is 64-bit Bookworm or
   newer, and use the `.2.36` cross-build instead of a newer Ubuntu executable.
-- **HTTPS fails:** check DuckDNS A record, Oracle and Ubuntu TCP rules, Caddy
+- **HTTPS fails (self-hosted):** check `tailscale funnel status`, that HTTPS
+  certificates and Funnel are enabled for your tailnet, and the server log.
+- **HTTPS fails (Oracle):** check DuckDNS A record, Oracle and Ubuntu TCP rules, Caddy
   logs and system clock. Never disable certificate validation. Do not expose 8080.
 - **Calls connect but have no media:** check advertised public IP and both UDP
   firewalls; Caddy does not forward media. Restrictive networks may need TURN.

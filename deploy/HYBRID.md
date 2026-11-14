@@ -1,4 +1,7 @@
-# Oracle main + private Pi storage
+# Optional: Oracle main + private Pi storage
+
+> Optional cloud topology. Most people should self-host instead; see
+> [SELF_HOST.md](SELF_HOST.md).
 
 ## 9. Connect storage
 
