@@ -1358,6 +1358,12 @@ async fn live_calls2_worker(role: &str) {
             0,
             "encoder format reconfiguration thrash"
         );
+        if std::env::var("STICKTALK_CALLS2_SOURCE").is_ok_and(|source| source == "wgc-motion") {
+            assert!(
+                share.stats().captured as f64 >= count as f64 * 58. / 60.,
+                "moving WGC stimulus was mostly repeated rather than freshly acquired"
+            );
+        }
     }
     drop(share);
     drop(decoder);
