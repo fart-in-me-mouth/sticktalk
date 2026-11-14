@@ -453,7 +453,7 @@ impl App {
                     session,
                     VoiceParticipant {
                         session,
-                        muted: uid % 3 == 0,
+                        muted: uid.is_multiple_of(3),
                         deafened: uid == 8,
                         tracks: vec![PublishedTrack {
                             mid: "camera".into(),
