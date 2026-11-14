@@ -65,8 +65,8 @@ Done, merged into `master`, and tested (608 workspace tests, 0 failures; clippy 
    - update-signing key
    - backup encryption key
 3. **Build and publish** the installer with the real server URL and signing key.
-4. **Phone testing:** real-device testing on iPhone and Android hasn't been done; only emulation so far. An agent was running cross-engine tests (WebKit/Firefox) on branch work that may not be merged yet. Check for branches named like `t3/*webkit*` or `t3/*engine*`.
-5. **Idle RAM:** desktop idle RAM is about 140 MiB working set, dominated by the GPU driver and DX12. The target was under 100 MiB. An agent was exploring non-fork options (wgpu backend choice, font database, exe size, trim on minimize); check for a `t3/*ram*` branch. Forking or patching iced/wgpu was declined (maintenance burden).
+4. **Phone testing:** cross-engine QA (Chromium, WebKit/iOS engine, Firefox) is merged; the suite passes 3× on all three (`docs/QA_WEB_ENGINES.md`). Real-device testing on iPhone and Android is still needed, especially calls and streams on iPhone Safari, because Windows WebKit has no WebRTC or H.264.
+5. **Idle RAM:** desktop idle RAM is about 140 MiB working set, dominated by the GPU driver and DX12. The target was under 100 MiB. The non-fork options are unfinished and NOT in this repo: wgpu backend choice, lazy system-font database, exe size/LTO, working-set trim on minimize. Forking or patching iced/wgpu was declined (maintenance burden).
 6. **Claude UI pass:** once everything works end to end, the owner wants Claude to personally rework UI details. Current UI taste notes:
    - Discord-like neutral gray with a mint accent
    - filled rows, no outline boxes
