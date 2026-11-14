@@ -5,6 +5,24 @@ use sticktalk_client_core::voice::Phase;
 fn msg(action: Action) -> Msg {
     Msg::Call(action)
 }
+fn grid_columns(count: usize) -> usize {
+    match count {
+        0 => 1,
+        1..=2 => count,
+        4 => 2,
+        _ => 3,
+    }
+}
+#[cfg(test)]
+mod grid_tests {
+    #[test]
+    fn four_participants_use_balanced_rows_and_larger_calls_use_three_columns() {
+        assert_eq!(
+            (0..=9).map(super::grid_columns).collect::<Vec<_>>(),
+            [1, 1, 2, 3, 2, 3, 3, 3, 3, 3]
+        );
+    }
+}
 pub(super) fn participant<'a>(
     app: &'a App,
     p: &VoiceParticipant,
@@ -402,12 +420,24 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
             .padding(t::S8),
         );
     }
-    for chunk in participants.chunks(3) {
+    let columns = grid_columns(participants.len());
+    for chunk in participants.chunks(columns) {
         let mut tiles = row![].spacing(t::S12);
         for p in chunk {
             tiles = tiles.push(container(participant(app, p, false)).width(Fill));
         }
-        grid = grid.push(tiles);
+        let missing = (columns - chunk.len()) as u16;
+        if missing == 0 {
+            grid = grid.push(tiles);
+        } else {
+            // Keep incomplete rows centered at the same tile scale instead of
+            // stretching one camera across the entire three-column grid.
+            grid = grid.push(row![
+                space().width(Length::FillPortion(missing)),
+                tiles.width(Length::FillPortion(2 * chunk.len() as u16)),
+                space().width(Length::FillPortion(missing)),
+            ]);
+        }
     }
     let mut content = column![
         container(
@@ -429,8 +459,8 @@ pub(super) fn view(app: &App, id: Id) -> Element<'_, Msg> {
         container(if let Some(stream) = app.calls.focus.filter(|_| in_call) {
             super::stream_view::view(app, stream)
         } else {
-            let max_width = participants.len().clamp(1, 3) as f32 * t::CALL_TILE_HEIGHT * 16. / 9.
-                + 2. * t::S12;
+            let max_width = columns as f32 * t::CALL_TILE_HEIGHT * 16. / 9.
+                + columns.saturating_sub(1) as f32 * t::S12;
             let grid = container(grid).max_width(max_width);
             if participants.len() <= 3 {
                 container(grid).center_x(Fill).center_y(Fill).into()

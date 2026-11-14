@@ -177,74 +177,79 @@ pub(super) fn view(app: &App) -> Element<'_, Msg> {
     } else {
         format!("{}p", settings.share_height)
     };
-    container(
-        scroller(
-            column![
-                row![
-                    title(if app.calls.sharing {
-                        "Stream Quality"
-                    } else {
-                        "Share Your Screen"
-                    })
-                    .width(Fill),
-                    icon_button("x", "Close", Msg::Call(Action::ClosePicker))
-                ]
-                .align_y(Center),
-                row![
-                    source_tab(
-                        "Screens",
-                        !app.calls.picker_windows,
-                        Action::PickerTab(false)
-                    ),
-                    source_tab(
-                        "Applications",
-                        app.calls.picker_windows,
-                        Action::PickerTab(true)
-                    ),
-                    icon_button(
-                        "refresh-cw",
-                        "Refresh previews",
-                        Msg::Call(Action::RefreshSources)
-                    )
-                ]
-                .spacing(t::S8),
-                container(scroller(sources)).max_height(if app.calls.quality_menu {
-                    t::SOURCE_PREVIEW_H
-                } else {
-                    t::PICKER_SOURCES_HEIGHT
-                }),
-                widget::checkbox(settings.share_include_audio)
-                    .label("Include application audio")
-                    .on_toggle(|a| Msg::Call(Action::IncludeAudio(a)))
-                    .style(t::checkbox),
-                audio,
-                action(
-                    format!("Stream quality · {resolution} · {} FPS", settings.share_fps),
-                    Msg::Call(Action::QualityMenu)
-                ),
-                quality,
-                row![
-                    space().width(Fill),
-                    action("Cancel", Msg::Call(Action::ClosePicker)),
-                    button(
-                        txt(if app.calls.sharing { "Done" } else { "Go Live" })
-                            .font(t::semibold())
-                            .style(t::inherit_text)
-                    )
-                    .on_press_maybe(if app.calls.sharing {
-                        Some(Msg::Call(Action::ClosePicker))
-                    } else {
-                        app.calls.source.map(|_| Msg::Call(Action::StartShare))
-                    })
-                    .padding([t::S8, t::S16])
-                    .height(t::BUTTON)
-                    .style(t::primary)
-                ]
-                .spacing(t::S8)
-            ]
-            .spacing(t::S12),
+    let body = column![
+        row![
+            title(if app.calls.sharing {
+                "Stream Quality"
+            } else {
+                "Share Your Screen"
+            })
+            .width(Fill),
+            icon_button("x", "Close", Msg::Call(Action::ClosePicker))
+        ]
+        .align_y(Center),
+        row![
+            source_tab(
+                "Screens",
+                !app.calls.picker_windows,
+                Action::PickerTab(false)
+            ),
+            source_tab(
+                "Applications",
+                app.calls.picker_windows,
+                Action::PickerTab(true)
+            ),
+            icon_button(
+                "refresh-cw",
+                "Refresh previews",
+                Msg::Call(Action::RefreshSources)
+            )
+        ]
+        .spacing(t::S8),
+        container(scroller(sources)).max_height(if app.calls.quality_menu {
+            t::SOURCE_PREVIEW_H
+        } else {
+            t::PICKER_SOURCES_HEIGHT
+        }),
+        widget::checkbox(settings.share_include_audio)
+            .label("Include application audio")
+            .on_toggle(|a| Msg::Call(Action::IncludeAudio(a)))
+            .style(t::checkbox),
+        audio,
+        action(
+            format!("Stream quality · {resolution} · {} FPS", settings.share_fps),
+            Msg::Call(Action::QualityMenu)
+        ),
+        quality,
+    ]
+    .spacing(t::S12);
+    let footer = row![
+        space().width(Fill),
+        action("Cancel", Msg::Call(Action::ClosePicker)),
+        button(
+            txt(if app.calls.sharing { "Done" } else { "Go Live" })
+                .font(t::semibold())
+                .style(t::inherit_text)
         )
-        .height(Length::Shrink),
+        .on_press_maybe(if app.calls.sharing {
+            Some(Msg::Call(Action::ClosePicker))
+        } else {
+            app.calls.source.map(|_| Msg::Call(Action::StartShare))
+        })
+        .padding([t::S8, t::S16])
+        .height(t::BUTTON)
+        .style(t::primary)
+    ]
+    .spacing(t::S8);
+    // At the supported 940×600 minimum, a quality menu is taller than the
+    // viewport. Only the body scrolls; Go Live/Done and Cancel stay reachable.
+    let body_height = (app.height - 4. * t::S24 - t::BUTTON - t::S12).max(t::HEADER);
+    container(
+        column![
+            container(scroller(body).height(Length::Shrink)).max_height(body_height),
+            footer,
+        ]
+        .spacing(t::S12),
     )
     .max_height((app.height - 2. * t::S24).max(t::HEADER))
     .padding(t::S24)

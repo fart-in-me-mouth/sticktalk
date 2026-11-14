@@ -624,6 +624,25 @@ mod tests {
         std::fs::remove_dir(dir).unwrap();
     }
     #[test]
+    fn minimum_share_quality_keeps_primary_action_visible_without_scrolling() {
+        load_fonts();
+        let path =
+            std::env::temp_dir().join(format!("sticktalk-share-footer-{}.png", std::process::id()));
+        render("share-quality", 940, 600, &path).unwrap();
+        let png = image::open(&path).unwrap().into_rgba8();
+        let mut primary = 0;
+        for y in 500..576 {
+            for x in 600..780 {
+                let [r, g, b, _] = png.get_pixel(x, y).0;
+                if r < 100 && g > 150 && b > 80 {
+                    primary += 1;
+                }
+            }
+        }
+        assert!(primary > 500, "Go Live must remain visible at minimum size");
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
     fn offscreen_png_has_exact_size_and_neutral_rgba_tokens() {
         load_fonts();
         let path =
