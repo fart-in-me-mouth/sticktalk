@@ -553,6 +553,7 @@ async fn slow_initial_replay_has_one_deadline() {
     );
     ws.send(Frame::Binary(
         rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+            text_features: false,
             launch_features: false,
             version: 1,
             token,
@@ -985,6 +986,7 @@ async fn failed_ready_detaches_stream_and_is_not_an_auth_failure() {
     let _hello = ws.next().await.unwrap().unwrap();
     ws.send(Frame::Binary(
         rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+            text_features: false,
             launch_features: true,
             version: 1,
             token,

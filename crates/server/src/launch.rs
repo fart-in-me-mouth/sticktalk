@@ -45,6 +45,7 @@ pub(crate) async fn mutate(
 ) -> Result<CommandResult> {
     use LaunchCommand::*;
     match cmd {
+        SetServerFolders(folders) => crate::folders::set(c, u, folders, out).await,
         SetSlowmode {
             channel_id,
             seconds,

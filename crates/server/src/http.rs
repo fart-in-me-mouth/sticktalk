@@ -23,6 +23,10 @@ pub fn router(app: App) -> axum::Router {
         .merge(crate::browser::routes())
         .merge(crate::custom_emoji::routes())
         .route(
+            "/api/v1/users/@me/server-folders",
+            get(crate::folders::endpoint),
+        )
+        .route(
             "/api/v1/channels/{id}/slowmode",
             get(crate::slowmode::endpoint),
         )

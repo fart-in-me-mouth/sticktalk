@@ -199,8 +199,8 @@ async fn run(app: App, mut socket: WebSocket, cookie_token: Option<String>) {
         let mut reason=if let Some(cursor)=&identify.resume {if cursor.stream_id!=s.id {Some(ResyncReason::StreamExpired)}else if cursor.seq>s.seq{Some(ResyncReason::CursorAhead)}else if cursor.seq<s.floor||s.ring.front().is_some_and(|e|state::now().saturating_sub(e.1)>600_000){Some(ResyncReason::CursorTooOld)}else{None}}else{None};
         // Decoder capability changes need a fresh projection: a legacy decoder
         // cannot replay launch variants, and an upgrade missed suppressed events.
-        if identify.launch_features != s.launch_features {s.clear_replay();if identify.resume.is_some() {reason=Some(ResyncReason::CursorTooOld);}}
-        s.launch_features=identify.launch_features;
+        if identify.launch_features != s.launch_features || identify.text_features != s.text_features {s.clear_replay();if identify.resume.is_some() {reason=Some(ResyncReason::CursorTooOld);}}
+        s.launch_features=identify.launch_features;s.text_features=identify.text_features;
         let mut initial=vec![];
         let resume_ok=identify.resume.is_some()&&reason.is_none();
         if resume_ok {let cursor=identify.resume.as_ref().expect("checked");let mut count=0;for (seq,_,b) in &s.ring{if *seq>cursor.seq{let decoded:ServerMsg=rmp_serde::from_slice(b).map_err(|_|Error::new(ErrorCode::Internal))?;if matches!(decoded,ServerMsg::Event(ref e) if matches!(e.event,Event::Typing{expires_at,..} if expires_at<state::now())){continue;}initial.push(b.clone());count+=1;}}initial.push(encode(&ServerMsg::Resumed(Resumed{cursor:s.cursor(),replayed:count}))?);}else{if let Some(reason)=reason{initial.push(encode(&ServerMsg::ResyncRequired(ResyncRequired{reason}))?);}s.guild=None;s.interests.clear();}

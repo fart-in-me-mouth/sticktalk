@@ -1872,3 +1872,31 @@ until expiry, showing a seconds countdown. The host uses a monotonic local
 clock mapped from the server snapshot, not local wall time. Countdown timers
 exist only while a restricted channel is focused and the cooldown is nonzero;
 no slowmode timer exists when disabled, exempt, expired, or offscreen.
+
+## Additive text features: device notifications and server folders
+
+`Identify.text_features` is an independent optional decoder capability,
+defaulting to false and omitted when false. **All new emoji, slowmode, and
+folder event variants require this flag**, including for older peers that
+already opted into `launch_features`. Capability changes invalidate replay and
+force a fresh Ready. The desktop/shared native protocol opts in; the current
+web host opts out until its separately-owned UI adopts these events.
+
+`LaunchCommand::SetServerFolders(Vec<ServerFolder>)` replaces only the caller's
+private folders. Maximum ten folders, ten total member servers, positive
+account-local folder IDs, unique server placement, 1–32 character names without
+controls, RGB color 0..0xffffff. Order and collapsed state persist per account.
+`GET /api/v1/users/@me/server-folders` returns the caller's cursor-bearing
+snapshot. `ServerFoldersUpdated` reaches only that account's opted-in sessions.
+Membership foreign keys remove departed/deleted servers from folder contents.
+
+Desktop rail context menus expose Add to Folder/Remove from Folder; folder
+right-click opens name/color settings and Ungroup Folder. Collapse/expand is
+optimistic, synced to other devices, and rolls back by snapshot on rejection.
+No drag-and-drop implementation is claimed.
+
+The local `Preferences.desktop_notifications` master switch defaults true for
+existing settings files and persists through the existing settings store.
+Disabling it prevents desktop toasts, message sounds, and mention flashes even
+when a server/channel override says All; unread counts and badges are unchanged.
+It is intentionally device-local, not an account/server notification level.

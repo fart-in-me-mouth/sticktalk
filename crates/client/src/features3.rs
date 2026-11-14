@@ -9,8 +9,17 @@ use std::{
     sync::Arc,
 };
 use sticktalk_proto::*;
+#[derive(Debug, Clone, Copy)]
+pub enum FolderDialog {
+    Add(Id),
+    Edit(u32),
+}
 #[derive(Default)]
 pub struct State {
+    pub folder_dialog: Option<FolderDialog>,
+    pub folder_name: String,
+    pub folder_color: u32,
+    folders_requested: Option<u64>,
     pub cooldowns: BTreeMap<Id, sticktalk_client_core::features3::Cooldown>,
     slow_requested: Option<(Id, u64)>,
     pub search: sticktalk_client_core::features3::SearchState,
@@ -34,6 +43,17 @@ pub struct Asset {
 }
 #[derive(Debug, Clone)]
 pub enum Event {
+    FolderAdd(Id),
+    FolderEdit(u32),
+    FolderClose,
+    FolderName(String),
+    FolderColor(u32),
+    FolderChoose(Id, u32),
+    FolderCreate(Id),
+    FolderSave(u32),
+    FolderUngroup(u32),
+    FolderRemove(Id),
+    FolderToggle(u32),
     Slowmode(u32),
     SlowTick,
     SearchSubmit,
@@ -73,6 +93,87 @@ pub fn candidates(app: &App) -> Vec<&GuildEmoji> {
 }
 pub fn update(app: &mut App, e: Event) -> Task<Msg> {
     match e {
+        Event::FolderAdd(g) => {
+            app.main.popover = None;
+            app.text_features.folder_dialog = Some(FolderDialog::Add(g));
+            app.text_features.folder_name = "Servers".into();
+            app.text_features.folder_color = color_value(crate::theme::ACCENT);
+            return iced::widget::operation::focus("folder-name");
+        }
+        Event::FolderEdit(id) => {
+            if let Some(f) = app
+                .state
+                .model
+                .launch
+                .server_folders
+                .iter()
+                .find(|f| f.id == id)
+            {
+                app.text_features.folder_name = f.name.clone();
+                app.text_features.folder_color = f.color;
+                app.text_features.folder_dialog = Some(FolderDialog::Edit(id));
+                app.main.popover = None;
+                return iced::widget::operation::focus("folder-name");
+            }
+        }
+        Event::FolderClose => app.text_features.folder_dialog = None,
+        Event::FolderName(s) => app.text_features.folder_name = s.chars().take(32).collect(),
+        Event::FolderColor(color) => app.text_features.folder_color = color,
+        Event::FolderChoose(g, id) => {
+            let mut f = app.state.model.launch.server_folders.clone();
+            if sticktalk_client_core::features3::move_server(&mut f, g, Some(id)) {
+                save_folders(app, f);
+            }
+        }
+        Event::FolderCreate(g) => {
+            if !valid_folder_name(&app.text_features.folder_name) {
+                return Task::none();
+            }
+            let mut f = app.state.model.launch.server_folders.clone();
+            if f.len() >= 10 {
+                return Task::none();
+            }
+            let id = (1..=11)
+                .find(|id| !f.iter().any(|f| f.id == *id))
+                .unwrap_or(1);
+            f.push(ServerFolder {
+                id,
+                name: app.text_features.folder_name.trim().into(),
+                color: app.text_features.folder_color,
+                collapsed: false,
+                guild_ids: vec![],
+            });
+            sticktalk_client_core::features3::move_server(&mut f, g, Some(id));
+            save_folders(app, f);
+        }
+        Event::FolderSave(id) => {
+            let mut f = app.state.model.launch.server_folders.clone();
+            if valid_folder_name(&app.text_features.folder_name) {
+                if let Some(f) = f.iter_mut().find(|f| f.id == id) {
+                    f.name = app.text_features.folder_name.trim().into();
+                    f.color = app.text_features.folder_color;
+                }
+                save_folders(app, f);
+            }
+        }
+        Event::FolderUngroup(id) => {
+            let mut f = app.state.model.launch.server_folders.clone();
+            f.retain(|f| f.id != id);
+            save_folders(app, f);
+        }
+        Event::FolderRemove(g) => {
+            let mut f = app.state.model.launch.server_folders.clone();
+            sticktalk_client_core::features3::move_server(&mut f, g, None);
+            save_folders(app, f);
+            app.main.popover = None;
+        }
+        Event::FolderToggle(id) => {
+            let mut f = app.state.model.launch.server_folders.clone();
+            if let Some(f) = f.iter_mut().find(|f| f.id == id) {
+                f.collapsed = !f.collapsed;
+            }
+            save_folders(app, f);
+        }
         Event::SlowTick => {}
         Event::Slowmode(seconds) => {
             if let Dialog::ChannelSettings(channel_id) = app.dialog {
@@ -331,6 +432,13 @@ pub fn reconcile(app: &mut App) -> Task<Msg> {
             });
         }
     }
+    if app.text_features.folders_requested != Some(app.state.generation) {
+        app.text_features.folders_requested = Some(app.state.generation);
+        app.request(Request::Launch {
+            read: sticktalk_client_core::launch::Read::Folders,
+            generation: app.state.generation,
+        });
+    }
     let current = match app.dialog {
         Dialog::ChannelSettings(id) => Some(id),
         _ => {
@@ -486,6 +594,33 @@ pub fn subscription(app: &App) -> Subscription<Msg> {
     Subscription::batch(subscriptions)
 }
 pub fn fixture(app: &mut App, screen: &str) {
+    if screen == "notifications-disabled" {
+        app.dialog = Dialog::UserSettings;
+        app.user_tab = crate::settings_controller::UserPage::Notifications.index();
+        app.settings.preferences.desktop_notifications = false;
+        return;
+    }
+    if screen.starts_with("server-folder") {
+        let guilds: Vec<_> = app.state.model.guilds.keys().copied().take(2).collect();
+        app.state.model.launch.server_folders = vec![ServerFolder {
+            id: 1,
+            name: "Friends".into(),
+            color: color_value(crate::theme::ACCENT),
+            collapsed: screen == "server-folders",
+            guild_ids: guilds,
+        }];
+        if screen == "server-folder-edit" {
+            app.text_features.folder_dialog = Some(FolderDialog::Edit(1));
+            app.text_features.folder_name = "Friends".into();
+            app.text_features.folder_color = color_value(crate::theme::ACCENT);
+        }
+        if screen == "server-folder-add" {
+            app.text_features.folder_dialog = Some(FolderDialog::Add(Id(10)));
+            app.text_features.folder_name = "Work".into();
+            app.text_features.folder_color = color_value(crate::theme::WARNING);
+        }
+        return;
+    }
     if screen == "channel-slowmode" || screen == "slowmode-countdown" {
         let status = SlowmodeStatus {
             channel_id: Id(12),
@@ -725,5 +860,71 @@ pub fn rejected(app: &mut App, id: Id, retry_ms: u32) {
         c.rejected(retry_ms, time());
     } else {
         app.text_features.slow_requested = None;
+    }
+}
+fn save_folders(app: &mut App, folders: Vec<ServerFolder>) {
+    if app.send(Command::Launch(LaunchCommand::SetServerFolders(
+        folders.clone(),
+    ))) {
+        app.state.model.launch.server_folders = folders;
+        app.text_features.folder_dialog = None;
+    }
+}
+pub fn color_value(c: iced::Color) -> u32 {
+    ((c.r * 255.).round() as u32) << 16
+        | ((c.g * 255.).round() as u32) << 8
+        | (c.b * 255.).round() as u32
+}
+pub fn ready(app: &mut App) {
+    app.text_features.requested = None;
+    app.text_features.slow_requested = None;
+    app.text_features.folders_requested = None;
+    app.text_features.cooldowns.clear();
+    app.text_features.search.close();
+    app.text_features.search_task = None;
+}
+pub fn command_failed(app: &mut App, command: Option<&Command>) {
+    if matches!(
+        command,
+        Some(Command::Launch(LaunchCommand::SetServerFolders(_)))
+    ) {
+        app.text_features.folders_requested = None;
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn fixtures_keep_real_feature_state_and_timers_stop_when_inactive() {
+        let size = iced::Size::new(1280., 800.);
+        let mut app = App::headless("server-search", size);
+        assert_eq!(
+            app.text_features.search.page.as_ref().unwrap().items.len(),
+            3
+        );
+        let _ = reconcile(&mut app);
+        assert!(app.text_features.search.open);
+        let app = App::headless("custom-emoji-message", size);
+        assert!(app.state.model.messages[&Id(12)]
+            .values()
+            .any(|m| m.content.contains("<:stick_wave:")));
+        assert_eq!(app.text_features.assets.len(), 6);
+        assert_eq!(subscription(&app).units(), 0);
+        let mut app = App::headless("slowmode-countdown", size);
+        app.focused = true;
+        assert_eq!(subscription(&app).units(), 1);
+        app.focused = false;
+        assert_eq!(subscription(&app).units(), 0);
+        app.focused = true;
+        app.text_features
+            .cooldowns
+            .get_mut(&Id(12))
+            .unwrap()
+            .bypassed = true;
+        assert_eq!(subscription(&app).units(), 0);
+        let mut app = App::headless("server-folder-edit", size);
+        assert!(app.text_features.folder_dialog.is_some());
+        let _ = app.update(Msg::Escape);
+        assert!(app.text_features.folder_dialog.is_none());
     }
 }

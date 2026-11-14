@@ -126,6 +126,8 @@ pub(super) fn content(app: &App, page: UserPage) -> Element<'_, Msg> {
         UserPage::Notifications => {
             let mut c = column![
                 title("Notifications"),
+                toggle("Enable Desktop Notifications","Turn off desktop alerts and message sounds, regardless of server or channel overrides.",p.desktop_notifications,A::Toggle(T::DesktopNotifications,!p.desktop_notifications),true),
+                line(),
                 title("Global Defaults"),
                 small(
                     "Defaults for notifications on this device. Server overrides take precedence."

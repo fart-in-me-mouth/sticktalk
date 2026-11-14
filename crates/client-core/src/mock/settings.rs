@@ -116,6 +116,10 @@ pub(super) fn command(
 ) -> Result<CommandResult, ApiError> {
     let me = mock.model.me.as_ref().unwrap().user.id;
     match cmd {
+        LaunchCommand::SetServerFolders(folders) => {
+            events.push(Event::ServerFoldersUpdated(folders));
+            Ok(CommandResult::Ack)
+        }
         LaunchCommand::SetSlowmode {
             channel_id,
             seconds,

@@ -8,8 +8,20 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     ]
     .spacing(t::S8)
     .align_x(Center);
+    for f in &app.state.model.launch.server_folders {
+        list = list.push(folder(app, f));
+    }
     for g in app.state.model.guilds.values() {
-        list = list.push(cell(app, Some(g.guild.id), &g.guild.name));
+        if !app
+            .state
+            .model
+            .launch
+            .server_folders
+            .iter()
+            .any(|f| f.guild_ids.contains(&g.guild.id))
+        {
+            list = list.push(cell(app, Some(g.guild.id), &g.guild.name));
+        }
     }
     list = list.push(controls::tip(
         button(icon("plus", t::ICON, t::ACCENT))
@@ -192,4 +204,100 @@ mod tests {
             assert_eq!(super::mention_label(n), label);
         }
     }
+}
+fn folder<'a>(app: &App, f: &ServerFolder) -> Element<'a, Msg> {
+    use crate::features3::{msg, Event};
+    let id = f.id;
+    let color = controls::rgb(f.color);
+    let mut mentions = 0u32;
+    let mut unread = false;
+    for c in app
+        .state
+        .model
+        .channels
+        .values()
+        .filter(|c| c.guild_id.is_some_and(|g| f.guild_ids.contains(&g)))
+    {
+        if let Some(r) = app.state.model.reads.get(&c.id) {
+            mentions = mentions.saturating_add(r.mention_count);
+            unread |= r.unread_count > 0;
+        }
+    }
+    let selected = f.collapsed && app.state.guild.is_some_and(|g| f.guild_ids.contains(&g));
+    let mut layers = vec![container(
+        button(icon(
+            if f.collapsed { "folder" } else { "folder-open" },
+            t::S24,
+            color,
+        ))
+        .on_press(msg(Event::FolderToggle(id)))
+        .width(t::GUILD_ICON)
+        .height(t::GUILD_ICON)
+        .padding(t::S12)
+        .style(move |theme, status| {
+            let mut s = t::icon(theme, status);
+            s.background = Some(t::alpha(color, 0.16).into());
+            s.border.radius = t::GUILD_RADIUS.into();
+            s
+        }),
+    )
+    .center_x(t::RAIL)
+    .into()];
+    if f.collapsed && (selected || unread) {
+        layers.push(
+            container(
+                container(space())
+                    .width(t::S4)
+                    .height(if selected { t::INPUT } else { t::S8 })
+                    .style(|_| t::surface(t::TEXT_PRIMARY)),
+            )
+            .center_y(t::GUILD_ICON)
+            .into(),
+        );
+    }
+    if f.collapsed && mentions > 0 {
+        layers.push(
+            container(
+                container(
+                    hint(mention_label(mentions))
+                        .font(t::bold())
+                        .color(t::BADGE_TEXT),
+                )
+                .padding([0., t::S4])
+                .style(|_| container::Style {
+                    border: Border {
+                        radius: t::ROUND.into(),
+                        ..Default::default()
+                    },
+                    ..t::surface(t::DANGER)
+                }),
+            )
+            .align_right(t::RAIL - t::S8)
+            .align_bottom(t::GUILD_ICON)
+            .into(),
+        );
+    }
+    let header = controls::tip(
+        mouse_area(stack(layers)).on_right_press(msg(Event::FolderEdit(id))),
+        format!("{} — {} servers", f.name, f.guild_ids.len()),
+        tooltip::Position::Right,
+    );
+    let mut list = column![header].spacing(t::S8);
+    if !f.collapsed {
+        for id in &f.guild_ids {
+            if let Some(g) = app.state.model.guilds.get(id) {
+                list = list.push(cell(app, Some(*id), &g.guild.name));
+            }
+        }
+    }
+    container(list)
+        .width(t::RAIL)
+        .style(move |_| container::Style {
+            border: Border {
+                radius: t::GUILD_RADIUS.into(),
+                ..Default::default()
+            },
+            ..t::surface(t::alpha(color, 0.05))
+        })
+        .into()
 }

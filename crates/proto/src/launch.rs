@@ -95,6 +95,7 @@ pub struct DeviceSession {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum LaunchCommand {
+    SetServerFolders(Vec<ServerFolder>),
     SetSlowmode {
         channel_id: ChannelId,
         seconds: u32,

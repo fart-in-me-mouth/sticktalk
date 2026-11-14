@@ -339,3 +339,90 @@ mod slowmode_tests {
         assert_eq!(c.remaining(8000), 0);
     }
 }
+
+/// Move one server atomically between folders, dropping groups emptied by the move.
+pub fn move_server(folders: &mut Vec<ServerFolder>, guild: Id, destination: Option<u32>) -> bool {
+    if destination.is_some_and(|id| !folders.iter().any(|f| f.id == id)) {
+        return false;
+    }
+    for f in folders.iter_mut() {
+        f.guild_ids.retain(|g| *g != guild);
+    }
+    if let Some(id) = destination {
+        if let Some(f) = folders.iter_mut().find(|f| f.id == id) {
+            f.guild_ids.push(guild);
+        }
+    }
+    folders.retain(|f| !f.guild_ids.is_empty());
+    true
+}
+#[cfg(test)]
+mod folder_notification_tests {
+    use super::*;
+    #[test]
+    fn moves_are_unique_folders_are_purged_on_leave_and_master_switch_survives_restart() {
+        let mut f = vec![
+            ServerFolder {
+                id: 1,
+                name: "Work".into(),
+                color: 1,
+                collapsed: true,
+                guild_ids: vec![Id(10), Id(20)],
+            },
+            ServerFolder {
+                id: 2,
+                name: "Friends".into(),
+                color: 2,
+                collapsed: false,
+                guild_ids: vec![Id(30)],
+            },
+        ];
+        assert!(move_server(&mut f, Id(10), Some(2)));
+        assert_eq!(f[0].guild_ids, vec![Id(20)]);
+        assert_eq!(f[1].guild_ids, vec![Id(30), Id(10)]);
+        assert!(!move_server(&mut f, Id(20), Some(99)));
+        assert!(move_server(&mut f, Id(20), None));
+        assert_eq!(f.len(), 1);
+        let mut p = crate::launch::Projection::default();
+        p.event(&Event::ServerFoldersUpdated(f));
+        p.event(&Event::GuildRemoved {
+            guild_id: Id(10),
+            reason: RemovalReason::Left,
+        });
+        assert_eq!(p.server_folders[0].guild_ids, vec![Id(30)]);
+        let mut prefs = crate::settings::Preferences::default();
+        assert!(prefs.desktop_notifications);
+        prefs.desktop_notifications = false;
+        let saved = serde_json::to_vec(&prefs).unwrap();
+        let restored: crate::settings::Preferences = serde_json::from_slice(&saved).unwrap();
+        assert!(!restored.desktop_notifications);
+        let old: crate::settings::Preferences = serde_json::from_str("{}").unwrap();
+        assert!(old.desktop_notifications);
+        let c = crate::notifications::Context {
+            direct: true,
+            mentioned: true,
+            ..Default::default()
+        };
+        let override_all = NotificationSettings {
+            guild_id: None,
+            channel_id: Some(Id(1)),
+            level: NotificationLevel::All,
+            muted: false,
+            mute_until: None,
+            suppress_everyone: false,
+            hide_muted_channels: false,
+        };
+        assert!(!crate::notifications::permits_on_device(
+            std::slice::from_ref(&override_all),
+            c,
+            Some(NotificationLevel::All),
+            false
+        ));
+        assert!(crate::notifications::permits_on_device(
+            &[override_all],
+            c,
+            Some(NotificationLevel::All),
+            true
+        ));
+    }
+}

@@ -221,6 +221,27 @@ pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {
             Some(*id)
         }
         Entity::Guild(id) => {
+            list = list.push(item(
+                "Add to Folder",
+                "folder",
+                crate::features3::msg(crate::features3::Event::FolderAdd(*id)),
+                false,
+            ));
+            if app
+                .state
+                .model
+                .launch
+                .server_folders
+                .iter()
+                .any(|f| f.guild_ids.contains(id))
+            {
+                list = list.push(item(
+                    "Remove from Folder",
+                    "folder",
+                    crate::features3::msg(crate::features3::Event::FolderRemove(*id)),
+                    false,
+                ));
+            }
             list = list
                 .push(item(
                     "Open Server",

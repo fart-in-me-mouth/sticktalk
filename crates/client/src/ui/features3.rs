@@ -458,3 +458,124 @@ pub fn slowmode_composer(app: &App, id: Id) -> Option<Element<'_, Msg>> {
         .into(),
     )
 }
+pub fn folder_overlay(app: &App) -> Option<Element<'_, Msg>> {
+    use crate::features3::FolderDialog;
+    let dialog = app.text_features.folder_dialog?;
+    let mut content = column![row![
+        title(match dialog {
+            FolderDialog::Add(_) => "Add to Folder",
+            FolderDialog::Edit(_) => "Folder Settings",
+        }),
+        space().width(Fill),
+        icon_button("x", "Close", f::msg(E::FolderClose))
+    ]
+    .align_y(Center)]
+    .spacing(t::S16);
+    if let FolderDialog::Add(g) = dialog {
+        if !app.state.model.launch.server_folders.is_empty() {
+            content = content.push(section("EXISTING FOLDERS"));
+        }
+        for folder in &app.state.model.launch.server_folders {
+            content = content.push(
+                button(
+                    row![
+                        icon("folder", t::ICON, controls::rgb(folder.color)),
+                        txt(&folder.name),
+                        space().width(Fill),
+                        hint(format!("{} servers", folder.guild_ids.len()))
+                    ]
+                    .spacing(t::S12)
+                    .align_y(Center),
+                )
+                .on_press_maybe(
+                    (!folder.guild_ids.contains(&g))
+                        .then_some(f::msg(E::FolderChoose(g, folder.id))),
+                )
+                .width(Fill)
+                .padding(t::S12)
+                .style(t::secondary),
+            );
+        }
+        content = content.push(line()).push(section("NEW FOLDER"));
+    }
+    content = content
+        .push(section("FOLDER NAME"))
+        .push(
+            text_input("Folder name", &app.text_features.folder_name)
+                .id("folder-name")
+                .on_input(|s| f::msg(E::FolderName(s)))
+                .padding(t::S12)
+                .size(t::BODY)
+                .font(t::regular())
+                .style(t::input),
+        )
+        .push(section("FOLDER COLOR"));
+    let mut palette = Row::new().spacing(t::S8);
+    for color in [
+        t::ACCENT,
+        t::WARNING,
+        t::DANGER,
+        t::TEXT_SECONDARY,
+        t::avatar_color(0),
+        t::avatar_color(1),
+        t::avatar_color(2),
+        t::avatar_color(3),
+    ] {
+        let value = f::color_value(color);
+        let selected = app.text_features.folder_color == value;
+        palette = palette.push(
+            button(if selected {
+                icon("check", t::ICON, t::BG_RAIL)
+            } else {
+                icon("folder", t::ICON, color)
+            })
+            .on_press(f::msg(E::FolderColor(value)))
+            .width(t::S32)
+            .height(t::S32)
+            .padding(t::S4)
+            .style(move |_, _| widget::button::Style {
+                background: Some(color.into()),
+                border: Border {
+                    radius: t::S8.into(),
+                    width: if selected { t::FOCUS } else { 0. },
+                    color: t::TEXT_PRIMARY,
+                },
+                ..Default::default()
+            }),
+        );
+    }
+    content = content.push(palette);
+    let valid = valid_folder_name(&app.text_features.folder_name);
+    let (label, save) = match dialog {
+        FolderDialog::Add(g) => ("Create Folder", E::FolderCreate(g)),
+        FolderDialog::Edit(id) => ("Save Changes", E::FolderSave(id)),
+    };
+    content = content.push(
+        row![
+            action("Cancel", f::msg(E::FolderClose)),
+            space().width(Fill),
+            primary(label, f::msg(save.clone())).on_press_maybe(valid.then_some(f::msg(save)))
+        ]
+        .spacing(t::S8)
+        .align_y(Center),
+    );
+    if let FolderDialog::Edit(id) = dialog {
+        content = content
+            .push(line())
+            .push(action("Ungroup Folder", f::msg(E::FolderUngroup(id))).style(t::danger_link))
+            .push(hint("Your servers will stay in the rail."));
+    }
+    let modal = container(scroller(content).height(Length::Shrink))
+        .width(t::MODAL_W)
+        .max_height((app.height - t::MODAL_INSET).max(t::SIDEBAR))
+        .padding(t::S24)
+        .style(t::modal);
+    Some(
+        stack![
+            mouse_area(container(space()).width(Fill).height(Fill).style(t::dim))
+                .on_press(f::msg(E::FolderClose)),
+            container(opaque(modal)).center_x(Fill).center_y(Fill)
+        ]
+        .into(),
+    )
+}

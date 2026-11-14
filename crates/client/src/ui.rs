@@ -535,6 +535,9 @@ fn content_view(app: &App) -> Element<'_, Msg> {
     if let Some(overlay) = main_window::overlay(app) {
         layers.push(overlay);
     }
+    if let Some(overlay) = features3::folder_overlay(app) {
+        layers.push(overlay);
+    }
     if app.main.dropping {
         layers.push(main_window::drop_overlay());
     }

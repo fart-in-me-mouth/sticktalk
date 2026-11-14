@@ -16,6 +16,10 @@ pub const AUDIO_SCREENS: &[&str] = &[
     "audio-processing",
 ];
 pub const SCREENS: &[&str] = &[
+    "server-folders",
+    "server-folder-edit",
+    "server-folder-add",
+    "notifications-disabled",
     "channel-slowmode",
     "slowmode-countdown",
     "server-search",

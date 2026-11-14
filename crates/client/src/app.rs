@@ -664,6 +664,9 @@ impl App {
         }
     }
     fn update_main(&mut self, message: Msg) -> Task<Msg> {
+        if matches!(message, Msg::Escape) && self.text_features.folder_dialog.take().is_some() {
+            return Task::none();
+        }
         if matches!(message, Msg::Escape) && self.calls.recording_key {
             self.calls.recording_key = false;
             self.call_command(sticktalk::voice::Command::Configure(
@@ -2329,6 +2332,7 @@ impl App {
             }
             Data::Frame(frame) => match frame {
                 ServerMsg::Ready(ready) => {
+                    crate::features3::ready(self);
                     self.features.desktop.settings = ready.notification_settings.clone();
                     let old = self.state.screen;
                     self.main.popover = None;
@@ -2527,6 +2531,8 @@ impl App {
                         self.features.desktop.observe(&envelope.event);
                         if let Event::MessageCreated { message, .. } = &envelope.event {
                             crate::features::committed(self, message);
+                            self.features.desktop.disabled =
+                                !self.settings.preferences.desktop_notifications;
                             self.features.desktop.default_level =
                                 Some(self.settings.preferences.notification_level);
                             if let Some(toast) = self.features.desktop.notification(
@@ -2671,6 +2677,7 @@ impl App {
                         .unwrap_or_default();
                     match response.outcome {
                         CommandOutcome::Err(e) => {
+                            crate::features3::command_failed(self, command.as_ref());
                             if e.field.as_deref() == Some("slowmode") {
                                 if let Some(Command::SendMessage(d)) = &command {
                                     crate::features3::rejected(
@@ -5245,6 +5252,49 @@ mod qa_notification_defaults {
         let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
             seq: seq + 1,
             event: Event::MessageCreated { message, author },
+        }))));
+        assert!(app.features.desktop.last_toast.is_some());
+    }
+}
+#[cfg(test)]
+mod features3_notification_tests {
+    use super::*;
+    #[tokio::test]
+    async fn master_switch_blocks_real_message_toast_path_without_changing_unreads() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.focused = false;
+        app.features.desktop.dry_run = true;
+        app.settings.preferences.notification_level = NotificationLevel::All;
+        app.settings.preferences.desktop_notifications = false;
+        let mut message = app.state.model.messages[&Id(12)]
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        message.id = Id(9_900_000);
+        message.author_id = Id(2);
+        message.content = "A notification test".into();
+        message.attachments.clear();
+        message.reactions.clear();
+        message.mention_ids.clear();
+        let cursor = app.state.model.cursor.as_ref().unwrap().seq;
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq: cursor + 1,
+            event: Event::MessageCreated {
+                message: message.clone(),
+                author: app.state.model.users[&Id(2)].clone(),
+            },
+        }))));
+        assert!(app.features.desktop.last_toast.is_none());
+        assert!(app.state.model.messages[&Id(12)].contains_key(&message.id));
+        app.settings.preferences.desktop_notifications = true;
+        message.id = Id(9_900_001);
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq: cursor + 2,
+            event: Event::MessageCreated {
+                message,
+                author: app.state.model.users[&Id(2)].clone(),
+            },
         }))));
         assert!(app.features.desktop.last_toast.is_some());
     }

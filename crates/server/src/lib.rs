@@ -11,6 +11,7 @@ mod custom_emoji;
 mod db;
 mod error;
 mod files;
+mod folders;
 pub mod gifs;
 mod google;
 mod history;

@@ -220,6 +220,9 @@ impl<A: HttpTransport> Http<A> {
             Request::Launch { read, generation } => {
                 use crate::launch::{Read, SnapshotData};
                 let data = match read {
+                    Read::Folders => {
+                        SnapshotData::Folders(self.json("/users/@me/server-folders").await?)
+                    }
                     Read::Slowmode(id) => SnapshotData::Slowmode(
                         self.json(&format!("/channels/{}/slowmode", id.0)).await?,
                     ),

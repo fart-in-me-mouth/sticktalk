@@ -478,6 +478,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 if send(
                                     &mut outgoing,
                                     &ClientMsg::Identify(Identify {
+                                        text_features: false,
                                         version: PROTOCOL_VERSION,
                                         token: String::new(),
                                         resume,

@@ -4,6 +4,7 @@ use sticktalk_proto::*;
 
 #[derive(Debug, Clone)]
 pub enum Read {
+    Folders,
     Profile(Id),
     Pins(Id),
     Overwrites(Id),
@@ -14,6 +15,7 @@ pub enum Read {
 }
 #[derive(Debug, Clone)]
 pub enum SnapshotData {
+    Folders(Snapshot<Vec<ServerFolder>>),
     Profile(Snapshot<ProfileDetail>),
     Pins(Id, Snapshot<Vec<Message>>),
     Overwrites(Id, Snapshot<Vec<PermissionOverwrite>>),
@@ -25,6 +27,7 @@ pub enum SnapshotData {
 impl SnapshotData {
     pub fn cursor(&self) -> &ResumeCursor {
         match self {
+            Self::Folders(v) => &v.cursor,
             Self::Profile(v) => &v.cursor,
             Self::Pins(_, v) => &v.cursor,
             Self::Overwrites(_, v) => &v.cursor,
@@ -37,6 +40,7 @@ impl SnapshotData {
 }
 #[derive(Default)]
 pub struct Projection {
+    pub server_folders: Vec<ServerFolder>,
     pub slowmode: BTreeMap<Id, SlowmodeStatus>,
     pub emoji: BTreeMap<Id, Vec<GuildEmoji>>,
     pub roles: BTreeMap<Id, Vec<Role>>,
@@ -76,6 +80,7 @@ impl Projection {
     }
     pub fn event(&mut self, e: &Event) {
         match e {
+            Event::ServerFoldersUpdated(folders) => self.server_folders = folders.clone(),
             Event::SlowmodeUpdated {
                 channel_id,
                 seconds,
@@ -141,6 +146,10 @@ impl Projection {
                 }
             }
             Event::GuildRemoved { guild_id, .. } => {
+                for folder in &mut self.server_folders {
+                    folder.guild_ids.retain(|g| g != guild_id);
+                }
+                self.server_folders.retain(|f| !f.guild_ids.is_empty());
                 self.emoji.remove(guild_id);
                 self.roles.remove(guild_id);
                 self.memberships.retain(|(g, _), _| g != guild_id);
@@ -204,6 +213,7 @@ impl Projection {
     }
     pub fn snapshot(&mut self, data: SnapshotData) {
         match data {
+            SnapshotData::Folders(v) => self.server_folders = v.data,
             SnapshotData::Slowmode(v) => {
                 bounded_insert(&mut self.slowmode, v.data.channel_id, v.data, 320)
             }

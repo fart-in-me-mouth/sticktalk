@@ -107,6 +107,7 @@ impl Peer {
         assert!(matches!(read(&mut ws).await, ServerMsg::Hello(_)));
         ws.send(Frame::Binary(
             rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+                text_features: false,
                 launch_features: true,
                 version: 1,
                 token: auth.token.clone(),
@@ -997,6 +998,7 @@ async fn handshake_control_and_replacement() {
     assert!(matches!(read(&mut bad).await, ServerMsg::Hello(_)));
     bad.send(Frame::Binary(
         rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+            text_features: false,
             launch_features: true,
             version: 2,
             token: a.token.clone(),

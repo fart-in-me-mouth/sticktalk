@@ -206,6 +206,10 @@ pub fn seed(model: &mut Model, now: u64) {
 pub fn read(model: &Model, read: Read) -> Option<SnapshotData> {
     let cursor = model.cursor.clone()?;
     Some(match read {
+        Read::Folders => SnapshotData::Folders(Snapshot {
+            data: model.launch.server_folders.clone(),
+            cursor,
+        }),
         Read::Slowmode(id) => SnapshotData::Slowmode(Snapshot {
             data: model
                 .launch

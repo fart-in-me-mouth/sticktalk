@@ -56,3 +56,24 @@ pub struct SlowmodeStatus {
     pub retry_after_ms: u32,
     pub server_time: UnixMillis,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServerFolder {
+    /// Account-local, positive folder key (not a global entity Snowflake).
+    pub id: u32,
+    pub name: String,
+    /// RGB 0xRRGGBB.
+    pub color: u32,
+    pub collapsed: bool,
+    pub guild_ids: Vec<GuildId>,
+}
+pub fn valid_folder_name(name: &str) -> bool {
+    if name.chars().any(char::is_control) {
+        return false;
+    }
+    let name = name.trim();
+    !name.is_empty()
+        && name.chars().count() <= 32
+        && name.len() <= 128
+        && !name.chars().any(char::is_control)
+}
