@@ -1,17 +1,19 @@
+import { fileURLToPath } from "node:url";
 // Read-only 60-second idle browser benchmark. No OS window, sounds or hardware.
 import { chromium } from "playwright";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createServer } from "node:net";
 import { once } from "node:events";
-import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 import assert from "node:assert/strict";
 const output = process.env.STICKTALK_QA_DIR ?? "screenshots/live";
 const target = resolve(
   process.env.CARGO_TARGET_DIR ??
-    "C:/Users/dwhee/.cargo-target/sticktalk-web-live",
+    fileURLToPath(new URL("../../../target/", import.meta.url)),
 );
+await mkdir(target, { recursive: true });
 const data = await mkdtemp(join(target, "idle-web-"));
 const reserve = createServer();
 reserve.listen(0, "127.0.0.1");
@@ -21,7 +23,7 @@ await new Promise((r) => reserve.close(r));
 const origin = `http://127.0.0.1:${port}`;
 const server = spawn(
   process.env.STICKTALK_SERVER_EXE ??
-    join(target, "debug/sticktalk-server.exe"),
+    join(target, `debug/sticktalk-server${process.platform === "win32" ? ".exe" : ""}`),
   [
     "--bind",
     `127.0.0.1:${port}`,

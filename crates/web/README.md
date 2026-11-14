@@ -63,18 +63,21 @@ a content-versioned `pkg/<digest>/` path; do not flatten these directories.
 
 ## Build and validate (PowerShell)
 
+For a fresh PC, start with [HANDOFF.md](../../HANDOFF.md). It includes the portable
+Windows build-shell and `scripts/install-tools.ps1` setup (matching/pinned WASM
+tools, no dependency on another developer's Trunk cache). Trunk is optional for
+the normal `scripts/build.ps1` build.
+
 Use one task target outside OneDrive, cap it at 10 GB, keep incremental off,
 never retain debug and release trees together, and delete it after QA.
 wasm-bindgen matching Cargo.lock, wasm-opt, Rust's wasm32 target, Node and
 headless Playwright Chromium must be available per-user; no admin install needed.
 
 ```powershell
-$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-web2'
+$env:CARGO_TARGET_DIR = "$env:USERPROFILE/.cargo-target/sticktalk-web2"
 $env:TRUNK_BUILD_DIST = Join-Path $env:CARGO_TARGET_DIR 'web-dist'
 $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $env:CARGO_TARGET_DIR 'browsers'
 $env:CARGO_INCREMENTAL = '0'
-$env:CARGO_PROFILE_DEV_DEBUG = '0'
-$env:CARGO_PROFILE_TEST_DEBUG = '0'
 cd crates/web
 npm ci
 cargo install wasm_split_cli_support --version 0.2.5 --locked --features build-binary --root "$env:CARGO_TARGET_DIR/tools"

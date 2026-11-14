@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory)][string]$Installer,
     [Parameter(Mandatory)][string]$Client,
     [string]$InstallDir = "$env:TEMP/StickTalk-InstallerTest-$PID",
-    [string]$Scratch = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng/installer-test"
+    [string]$Scratch = (Join-Path $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PSScriptRoot '../../target' }) 'installer-test')
 )
 $ErrorActionPreference = 'Stop'
 function Assert([bool]$Condition, [string]$Message) { if (!$Condition) { throw $Message } }

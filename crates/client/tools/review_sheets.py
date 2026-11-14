@@ -1,6 +1,7 @@
+import os
 from pathlib import Path
 from PIL import Image,ImageDraw,ImageFont
-root=Path('crates/client/screenshots');out=Path('C:/Users/dwhee/.cargo-target/sticktalk-client/review');out.mkdir(parents=True,exist_ok=True)
+root=Path(__file__).resolve().parents[1] / 'screenshots';out=(Path(os.environ.get('CARGO_TARGET_DIR', Path(__file__).resolve().parents[3] / 'target')) / 'review');out.mkdir(parents=True,exist_ok=True)
 scenes=sorted({f.stem.rsplit('-',1)[0] for f in root.glob('*.png')})
 font=ImageFont.truetype('C:/Windows/Fonts/segoeui.ttf',18)
 for index in range(0,len(scenes),2):

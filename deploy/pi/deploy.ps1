@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param([Parameter(Mandatory)][ValidatePattern('^[a-z_][a-z0-9_-]*@[a-z0-9.-]+$')][string]$Destination)
 $ErrorActionPreference='Stop'
-$binary='C:/Users/dwhee/.cargo-target/sticktalk-server/aarch64-unknown-linux-gnu/server/sticktalk-server'
+$target = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PSScriptRoot '../../target' }
+$binary = Join-Path $target 'aarch64-unknown-linux-gnu/server/sticktalk-server'
 if (!(Test-Path -LiteralPath $binary)) {throw 'Run deploy/pi/build.ps1 first.'}
 & ssh $Destination 'umask 077; mkdir -p ~/sticktalk-deploy'
 if ($LASTEXITCODE -ne 0) {throw 'SSH failed.'}

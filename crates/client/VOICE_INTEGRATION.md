@@ -136,7 +136,7 @@ used by the automated qualification.
 Use ONE task target outside OneDrive; delete it after final validation:
 
 ```powershell
-$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-client-calls'
+$env:CARGO_TARGET_DIR = "$env:USERPROFILE/.cargo-target/sticktalk-client-calls"
 cargo check -p sticktalk-media
 cargo test -p sticktalk-client-core -p sticktalk-media -p sticktalk
 cargo clippy -p sticktalk-client-core -p sticktalk-media -p sticktalk --all-targets -- -D warnings

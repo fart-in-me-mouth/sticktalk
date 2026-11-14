@@ -1,4 +1,4 @@
-param([string]$Exe = 'C:/Users/dwhee/.cargo-target/sticktalk-client/release/sticktalk.exe')
+param([string]$Exe = (Join-Path $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { (Join-Path $PSScriptRoot '../../../target') }) 'release/sticktalk.exe'))
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 # This process never constructs an OS window. Hidden also suppresses any console host.

@@ -2,7 +2,12 @@
 **/*.rs.bk
 .env
 .env.*
+*.env
 !.env.example
+client_secret*.json
+/credentials.json
+sticktalk-backup-key*.txt
+*luks-header*.img
 /data/
 /uploads/
 *.db
@@ -11,6 +16,13 @@
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.pk8
+*.age
+*.bundle
+/sticktalk-data/
 *.log
 .DS_Store
 Thumbs.db

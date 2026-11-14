@@ -13,8 +13,8 @@ parser.add_argument("output", type=Path)
 parser.add_argument("--demangler", type=Path)
 parser.add_argument("--method", default="DHAT Rust allocations; checkpoint retains App/view-cache/GPU renderer. Native driver allocations and mapped image pages are NOT included. Instrumented process RAM is NOT shipping RAM.")
 args = parser.parse_args()
-profile = json.loads(args.profile.read_text())
-image = json.loads(Path(str(args.profile) + ".image-base.json").read_text())["image_base"]
+profile = json.loads(args.profile.read_text(encoding='utf-8'))
+image = json.loads(Path(str(args.profile) + ".image-base.json").read_text(encoding='utf-8'))["image_base"]
 text = args.map.read_text(errors="replace")
 preferred = int(re.search(r"Preferred load address is\s+([0-9A-Fa-f]+)", text)[1], 16)
 symbols = []

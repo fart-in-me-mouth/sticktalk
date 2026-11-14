@@ -18,7 +18,8 @@ if ! command -v cargo >/dev/null && [[ ! -x $HOME/.cargo/bin/cargo ]]; then
   trap - EXIT
 fi
 export PATH="$HOME/.cargo/bin:$PATH"
-export CARGO_TARGET_DIR="$HOME/.cache/sticktalk-server-target"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$PWD/target}"
+export CARGO_INCREMENTAL=0
 cargo build --locked --profile server -p sticktalk-server
 if ! id sticktalk >/dev/null 2>&1; then sudo useradd --system --user-group --home-dir /var/lib/sticktalk --shell /usr/sbin/nologin sticktalk; fi
 sudo install -d -o sticktalk -g sticktalk -m 0700 /var/lib/sticktalk

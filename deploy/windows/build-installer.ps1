@@ -3,7 +3,7 @@
 param(
     [string]$Version,
     [string]$Output = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng-out",
-    [string]$TargetDir = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng",
+    [string]$TargetDir = $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PSScriptRoot '../../target' }),
     [string]$MakeNsis,
     [string]$RuntimeDir,
     [switch]$SkipBuild,
@@ -34,7 +34,7 @@ try {
             if (![Uri]::TryCreate($value,[UriKind]::Absolute,[ref]$uri) -or $uri.AbsolutePath -ne '/' -or $uri.Query -or $uri.Fragment -or $uri.UserInfo) { throw 'Server/update origin must be an absolute origin, without path, credentials, query or fragment.' }
             if ($uri.Scheme -ne 'https' -and !($TestFixture -and $uri.Scheme -eq 'http' -and $uri.IsLoopback)) { throw 'Production release origins require HTTPS. Loopback HTTP requires -TestFixture.' }
         }
-        & cargo build --release -p sticktalk --bin sticktalk -p sticktalk-desktop-platform --bin sticktalk-maintenance --bin sticktalk-package
+        & cargo build --locked --release -p sticktalk --bin sticktalk -p sticktalk-desktop-platform --bin sticktalk-maintenance --bin sticktalk-package
         CheckExit 'Release build'
     }
     if (!$MakeNsis) {
@@ -47,13 +47,13 @@ try {
             if (!(Test-Path -LiteralPath $MakeNsis)) {
                 New-Item -ItemType Directory -Force -Path $tools | Out-Null
                 $zip = Join-Path $tools 'nsis-3.13.zip'
-                Invoke-WebRequest 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.13/nsis-3.13.zip' -OutFile $zip
+                Invoke-WebRequest -UseBasicParsing 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.13/nsis-3.13.zip' -OutFile $zip
                 # Some SourceForge mirrors return a download HTML interstitial.
                 if ((Get-Item -LiteralPath $zip).Length -lt 1000000) {
                     $html = Get-Content -LiteralPath $zip -Raw
                     $redirect = [regex]::Match($html, 'content="5; url=([^"]+)"').Groups[1].Value.Replace('&amp;', '&')
                     if ($redirect -notmatch '^https://downloads\.sourceforge\.net/project/nsis/') { throw 'Unexpected NSIS download redirect.' }
-                    Invoke-WebRequest $redirect -OutFile $zip
+                    Invoke-WebRequest -UseBasicParsing $redirect -OutFile $zip
                 }
                 # Pin the official portable archive: reviewed separately from each build.
                 $expected = 'BA63DFFC4410EE89193E1CB5A41989991BD77C61068DA17E3156D136B7B0B3D8'
@@ -65,7 +65,7 @@ try {
     if (!$RuntimeDir) {
         $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
         if (!(Test-Path -LiteralPath $vswhere)) { throw 'MSVC redistributable directory required; pass -RuntimeDir.' }
-        $vs = & $vswhere -latest -products '*' -property installationPath
+        $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
         $candidates = Get-ChildItem -LiteralPath "$vs/VC/Redist/MSVC" -Directory | Where-Object Name -Match '^14\.' | Sort-Object Name -Descending
         foreach ($candidate in $candidates) {
             $found = Get-ChildItem -LiteralPath "$($candidate.FullName)/x64" -Directory -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue | Select-Object -First 1

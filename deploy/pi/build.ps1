@@ -1,9 +1,13 @@
 [CmdletBinding()]
 param([switch]$InstallTools)
 $ErrorActionPreference='Stop'
-$env:CARGO_TARGET_DIR='C:/Users/dwhee/.cargo-target/sticktalk-server'
-$env:ZIG_GLOBAL_CACHE_DIR="$env:USERPROFILE/.cache/sticktalk-zig"
-$env:ZIG_LOCAL_CACHE_DIR="$env:USERPROFILE/.cache/sticktalk-zig-local"
+if (!$env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../target')) }
+$env:CARGO_TARGET_DIR = [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
+$env:CARGO_INCREMENTAL = '0'
+# A Windows CMake generator must not leak into Linux-target native builds.
+$env:CMAKE_GENERATOR = 'Ninja'
+$env:ZIG_GLOBAL_CACHE_DIR=Join-Path $env:CARGO_TARGET_DIR 'zig-cache/global'
+$env:ZIG_LOCAL_CACHE_DIR=Join-Path $env:CARGO_TARGET_DIR 'zig-cache/local'
 if ($InstallTools) {
     & python -m pip install --user ziglang==0.13.0 cargo-zigbuild==0.24.1
     if ($LASTEXITCODE -ne 0) { throw 'Tool installation failed.' }
@@ -16,7 +20,7 @@ $env:PATH="$scripts;$zig;$env:PATH"
 if ($LASTEXITCODE -ne 0) { throw 'Target installation failed.' }
 Push-Location "$PSScriptRoot/../.."
 try {
-    & cargo zigbuild --profile server -p sticktalk-server --bin sticktalk-server --target aarch64-unknown-linux-gnu.2.36
+    & cargo zigbuild --locked --profile server -p sticktalk-server --bin sticktalk-server --target aarch64-unknown-linux-gnu.2.36
     if ($LASTEXITCODE -ne 0) { throw 'ARM64 build/link failed.' }
     $binary="$env:CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/server/sticktalk-server"
     $elf=[IO.File]::ReadAllBytes($binary)

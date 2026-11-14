@@ -75,11 +75,14 @@ For private sources use your existing Git authentication; don't put tokens in
 URLs or chat. Alternatively copy the source with `scp` from Windows (exclude
 build artifacts, `.git`, databases and uploads). Runtime data must not be synced.
 
-If the project is only on your Windows computer, open PowerShell **in the project
-folder** and use this instead of Git (replace the key and public IP):
+If the project is only on your Windows computer, commit the reviewed source and
+nonsecret required assets first. Open PowerShell **in the project folder** and
+transfer a tracked-source archive instead of hosting a Git remote (replace the
+key and public IP). Never archive the whole working directory: it can contain
+ignored keys, databases and local configuration.
 
 ```powershell
-tar.exe -czf "$env:TEMP\sticktalk-src.tgz" --exclude=.git --exclude=target --exclude=sticktalk-data --exclude='*.sqlite3*' .
+git archive --format=tar.gz --output="$env:TEMP\sticktalk-src.tgz" HEAD
 scp -i "$HOME\Downloads\ssh-key.key" "$env:TEMP\sticktalk-src.tgz" ubuntu@YOUR_PUBLIC_IP:sticktalk-src.tgz
 ```
 
@@ -106,8 +109,8 @@ export CARGO_TARGET_DIR="$HOME/.cache/sticktalk-server-target"
 cargo build --locked --profile server -p sticktalk-server
 ```
 
-The target-dir override is essential: the repository's default is a Windows
-path. Don't compile the GUI on this VM. Keep persistent data on local disk.
+The target-dir override is optional; Cargo defaults to `./target`. Don't compile
+the GUI on this VM. Keep persistent data on local disk.
 
 ## 4. Free DuckDNS hostname
 
@@ -130,9 +133,9 @@ sudo systemctl restart sticktalk
 sudo systemctl status sticktalk --no-pager
 curl http://127.0.0.1:8080/api/v1/health
 
-nano deploy/Caddyfile
-# Replace YOUR-NAME.duckdns.org, save, then:
 sudo install -m 0644 deploy/Caddyfile /etc/caddy/Caddyfile
+sudoedit /etc/caddy/Caddyfile
+# Replace YOUR-NAME.duckdns.org in this private system copy, not in the repo.
 sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl enable --now caddy
 sudo systemctl reload caddy

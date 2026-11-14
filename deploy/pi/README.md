@@ -10,7 +10,7 @@ On Pi over SSH, run:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y sqlite3 ca-certificates curl
+sudo apt-get install -y sqlite3 ca-certificates curl cryptsetup age rsync
 curl -fsSL https://tailscale.com/install.sh -o /tmp/install-tailscale.sh
 less /tmp/install-tailscale.sh
 sh /tmp/install-tailscale.sh
@@ -47,7 +47,8 @@ not compile on the 2 GB Pi or copy a newer Ubuntu-glibc binary to Bookworm:
 ```powershell
 ./deploy/pi/build.ps1 -InstallTools
 ssh piuser@100.64.0.2 'mkdir -p ~/sticktalk-setup'
-scp C:/Users/dwhee/.cargo-target/sticktalk-server/aarch64-unknown-linux-gnu/server/sticktalk-server piuser@100.64.0.2:sticktalk-setup/
+$target = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PWD 'target' }
+scp "$target/aarch64-unknown-linux-gnu/server/sticktalk-server" piuser@100.64.0.2:sticktalk-setup/
 scp -r ./deploy/pi piuser@100.64.0.2:sticktalk-setup/
 ```
 
@@ -57,10 +58,14 @@ Replace username/IP and verify the SSH fingerprint with the owner. On Pi:
 cd ~/sticktalk-setup
 id sticktalk || sudo useradd --system --user-group --home-dir /srv/sticktalk --shell /usr/sbin/nologin sticktalk
 sudo install -d -m 0700 /etc/sticktalk
+# The encrypted mount root is 0700: the service must be able to traverse it.
+sudo chown sticktalk:sticktalk /srv/sticktalk
 sudo install -d -o sticktalk -g sticktalk -m 0700 /srv/sticktalk/node
 sudo install -m 0755 sticktalk-server /usr/local/bin/sticktalk-server
 sudo install -m 0644 pi/sticktalk-storage.service pi/sticktalk-standby.service /etc/systemd/system/
 sudo install -m 0700 pi/failover.sh /usr/local/sbin/sticktalk-failover
+sudo install -m 0700 pi/backup.sh /usr/local/sbin/sticktalk-backup
+sudo install -m 0644 pi/sticktalk-backup.service pi/sticktalk-backup.timer /etc/systemd/system/
 ```
 
 Do **not** run the old `install.sh`; it installs a Pi-only primary.
@@ -121,10 +126,12 @@ tailnet access and signing settings separately in an encrypted admin backup.
 2. On Pi run:
 
    ```bash
-   sudo /usr/local/sbin/sticktalk-failover --oracle-fenced
+   # First decrypt/review a completed .sqlite3.age on your trusted recovery PC,
+   # then transfer recovery.sqlite3 to /srv/sticktalk/node/backups on LUKS.
+   sudo STICKTALK_RECOVERY_DB=recovery.sqlite3 /usr/local/sbin/sticktalk-failover --oracle-fenced
    ```
 
-   The helper selects the latest completed snapshot using storage metadata,
+   The helper requires that explicitly selected decrypted/reviewed snapshot,
    validates the database and referenced files, stops storage, preserves any old
    standby DB/WAL, restores the snapshot and starts the full server. Resumable
    upload sessions are discarded; re-upload unfinished files. Expect history
@@ -174,7 +181,8 @@ select the Pi boot/root SD partition. This erases the selected partition:
 DATA=/dev/disk/by-id/REPLACE_WITH_EMPTY_SSD_PARTITION
 readlink -f "$DATA"
 lsblk -o NAME,SIZE,MODEL,FSTYPE,MOUNTPOINTS "$DATA"
-sudo systemctl stop sticktalk sticktalk-storage
+# On an existing installation only: stop its storage/standby services first.
+# sudo systemctl stop sticktalk-storage sticktalk-standby
 sudo cryptsetup luksFormat --type luks2 "$DATA"
 # Choose a long unique passphrase; save it in your password manager OFF the Pi.
 sudo cryptsetup open "$DATA" sticktalk-data
@@ -188,7 +196,8 @@ sudo cryptsetup luksUUID "$DATA"
 
 Keep the printed UUID and a copy of the header backup **offline** with the owner;
 the header is not a decryption key, but a damaged header can make data unrecoverable.
-Restore the private node archive into `/srv/sticktalk/node`, and restore the
+For an existing installation, restore the private node archive into
+`/srv/sticktalk/node`, and restore the
 service's ownership (`sudo chown -R sticktalk:sticktalk /srv/sticktalk/node`).
 Older Pi-only servers use `/srv/sticktalk/data` instead. Add to
 `/etc/fstab` (not a second plaintext mount) using `sudoedit /etc/fstab`:
@@ -202,10 +211,15 @@ After every reboot, unlock and start manually (replace the UUID):
 ```sh
 sudo cryptsetup open /dev/disk/by-uuid/REPLACE_WITH_LUKS_UUID sticktalk-data
 sudo mount /srv/sticktalk
-sudo systemctl start sticktalk-storage sticktalk
+sudo systemctl start sticktalk-storage
 findmnt /srv/sticktalk
 sudo cryptsetup status sticktalk-data
 ```
+
+Do not start the old `sticktalk` primary or `sticktalk-standby` during a normal
+storage-node reboot. Standby is only started after fencing Oracle in section 6.
+On a fresh installation continue with section 3 after mounting; the account and
+services do not exist yet.
 
 **Optional unattended plan:** keep the passphrase as recovery and add a root-only
 keyfile on the Pi's SD card. This protects a removed SSD, not the whole stolen Pi:
@@ -245,8 +259,22 @@ BACKUP_KEY=/root/.ssh/sticktalk_backup
 That remote directory must be dedicated to StickTalk: the script mirrors expiry
 with `rsync --delete`. Existing remote plaintext snapshots from older versions are
 **not** secured retroactively: delete them after verifying an encrypted restore.
-Run `sudo /usr/local/sbin/sticktalk-backup` (installed by `deploy/pi/install.sh`),
-then check the destination contains `.tar.age` files only. The script refuses an
+The hybrid setup in step 3 installs the backup helper and timer without running
+the old Pi-primary installer. Create the dedicated destination and a root-only
+SSH key for its backup account, verify the remote host fingerprint out of band,
+and add it to root's known_hosts (StrictHostKeyChecking remains enabled). Set
+`BACKUP_KEY` to that private key's absolute path. Then test and enable the timer:
+
+```sh
+sudo chmod 600 /etc/sticktalk/backup.env
+sudo systemctl daemon-reload
+sudo systemctl start sticktalk-backup.service
+sudo journalctl -u sticktalk-backup -n 50 --no-pager
+sudo systemctl enable --now sticktalk-backup.timer
+systemctl list-timers sticktalk-backup.timer
+```
+
+Check the destination contains `.tar.age` files only. The script refuses an
 unencrypted mount or missing recipient; it never sends a plaintext snapshot.
 
 Test a restore on the owner's trusted computer (not into the live server):

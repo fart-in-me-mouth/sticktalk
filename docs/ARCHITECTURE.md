@@ -1,5 +1,9 @@
 # StickTalk foundation architecture
 
+The opening Phase 1 status below is historical foundation context. For the
+current Oracle/SFU/web + private Pi topology, portable build commands and known
+release gates, start with [HANDOFF.md](../HANDOFF.md).
+
 Status: Phase 1 server implemented, protocol version **1**. The native
 axum/tokio server provides accounts, REST snapshots, WebSocket chat/presence,
 SQLite persistence, media and bounded replay. Google sign-in is optional and
@@ -32,12 +36,11 @@ as part of the initial implementation.
   SDK suffice; successful native linking is the final capability check.
 * `aarch64-unknown-linux-gnu` standard library is installed. This **does not**
   install an ARM GNU linker, Linux sysroot, or cross C compiler. Prefer building
-  the server natively on the Oracle ARM VM (`cargo build --release -p
+  the server natively on the Oracle ARM VM (`cargo build --profile server -p
   sticktalk-server`). SQLite/image dependencies may require native build tools.
-* OneDrive holds sources only: `.cargo/config.toml` forces artifacts into
-  `C:/Users/dwhee/.cargo-target/sticktalk`. On Linux override with
-  `CARGO_TARGET_DIR="$HOME/.cache/sticktalk-target"`; do not use the Windows
-  literal as a relative Linux output path. Never sync databases/uploads/caches.
+* Cargo defaults to the ignored `./target` directory. Keep the checkout outside
+  OneDrive, or set `CARGO_TARGET_DIR` to a local non-synced directory. See
+  `HANDOFF.md` for native build prerequisites. Never sync databases/uploads/caches.
 * `crates/proto`: serde + bitflags only at runtime, no tokio, HTTP, GUI, database,
   or cryptography. `rmp-serde` and JSON are test dependencies here; applications
   should opt into the workspace dependencies when implementing transport.
@@ -47,10 +50,11 @@ as part of the initial implementation.
   Use reactive rendering and the lean `tiny-skia` renderer first, with defaults
   disabled. Enable image codecs/fonts only as actually needed. Benchmark any
   GPU backend before enabling it; software rendering is not always cheaper.
-* Release: optimization 3, fat LTO, one codegen unit, abort-on-panic, stripping.
+* Desktop release: optimization 3, fat LTO, one codegen unit, abort-on-panic, stripping.
   `cargo build -p sticktalk --profile release-small` chooses size optimization
   `s`; compare binary size/idle RAM/startup before choosing distribution builds.
-  Aborting means server tasks must not rely on panic recovery for validation.
+  The server must use `--profile server`, which retains unwinding for the SFU's
+  per-peer panic containment. Validation must never rely on panics.
 
 Sources verified when establishing this contract: [iced release/API](https://docs.rs/iced/0.14.0/iced/),
 [iced reactive rendering FAQ](https://book.iced.rs/faq),

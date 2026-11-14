@@ -1,0 +1,22 @@
+{
+  "context": "Synthetic accounts only; extended phone QA on Windows 11 Home 26200. No product credentials.",
+  "bundle_revision": "123d25836677f8d07f4b",
+  "error": "TimeoutError: page.waitForSelector: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#auth-username') to be visible\u001b[22m\n",
+  "checks": [
+    "390: touch drawer dismissal and browser Back",
+    "390: injected 47px/34px safe-area layout",
+    "390: settings/admin screens, responsive layout, local appearance preferences",
+    "profile pronouns/about/banner save and hydrate from the real server",
+    "notification form roundtrip/hydration",
+    "server rename, channel rename/topic/delete",
+    "phone emoji insertion and GIF picker layout (provider disabled)",
+    "offline banner and live reconnect",
+    "adjacent keyset windows reach rows between sparse extent anchors",
+    "10000-row real history extent/seek, bounded 50 DOM rows, rAF scroll measurement",
+    "session-specific and all-other-device logout invalidate a second live browser",
+    "password change with current-password proof and cookie-session reload"
+  ],
+  "errors": [],
+  "log": "2026-11-14T04:03:03.663026Z  INFO sticktalk_server: StickTalk listening address=127.0.0.1:50741\n2026-11-14T04:04:09.238685Z  WARN sticktalk_server::state: housekeeping failed\n",
+  "body": "QA\nDirect Messages\nFriends\nq\nqa_phone_390\n@qa_phone_390\nFriends\nFriends\nAdd Friend\nJoin a Server\n\nNo friends yet. Add a friend to start a conversation.\n\nHome\nNotifications\nYou\nUnavailable\nDelete Account\nDelete Account Permanently\n\nThis erases your messages and attachments and signs out all devices. Encrypted backups expire after 14 days. Your username is held for 30 days.\n\nCurrent Password\nType DELETE to confirm\nDelete Account"
+}

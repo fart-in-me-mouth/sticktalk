@@ -1,7 +1,8 @@
+import os
 from pathlib import Path
 import hashlib,json
 root=Path(__file__).resolve().parents[1]
-exe=Path('C:/Users/dwhee/.cargo-target/sticktalk-client/release/sticktalk.exe')
+exe=(Path(os.environ.get('CARGO_TARGET_DIR', Path(__file__).resolve().parents[3] / 'target')) / 'release/sticktalk.exe')
 hash=hashlib.sha256(exe.read_bytes()).hexdigest().upper()
 read=lambda name:json.loads((root/name).read_text(encoding='utf-8-sig'))
 mib=lambda n:n/1048576

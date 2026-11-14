@@ -7,8 +7,9 @@ import { request as httpRequest } from 'node:http';
 import { once } from 'node:events';
 import { mkdtemp, mkdir, readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-export const target = resolve(process.env.CARGO_TARGET_DIR);
+export const target = resolve(process.env.CARGO_TARGET_DIR ?? fileURLToPath(new URL('../../../target/', import.meta.url)));
 export const output = process.env.STICKTALK_QA_DIR ?? 'screenshots/qa';
 export const act = (page, action) => page.evaluate(action =>
   window.dispatchEvent(new CustomEvent('sticktalk-live', { detail: action })), action);
@@ -29,6 +30,7 @@ export async function freePort() {
   return port;
 }
 export async function harness(extra = [], {tls=false,dist}={}) {
+  await mkdir(target, { recursive: true });
   await mkdir(output, { recursive: true });
   const data = await mkdtemp(join(target, 'qa-data-'));
   const port = await freePort(), publicPort=tls?await freePort():port;
@@ -40,7 +42,7 @@ export async function harness(extra = [], {tls=false,dist}={}) {
   if(tls) {
     // Ephemeral cert files only: never install a certificate or change an OS store.
     const key=join(data,'key.pem'),cert=join(data,'cert.pem');
-    execFileSync(process.env.STICKTALK_QA_OPENSSL??'C:/Program Files/Git/usr/bin/openssl.exe',[
+    execFileSync(process.env.STICKTALK_QA_OPENSSL ?? 'openssl',[
       'req','-x509','-newkey','rsa:2048','-nodes','-keyout',key,'-out',cert,
       '-subj','/CN=127.0.0.1','-days','1','-addext','subjectAltName=IP:127.0.0.1',
     ],{windowsHide:true,stdio:'ignore'});
@@ -60,7 +62,7 @@ export async function harness(extra = [], {tls=false,dist}={}) {
     });
     proxy.listen(publicPort,'127.0.0.1');await once(proxy,'listening');
   }
-  const server = spawn(process.env.STICKTALK_SERVER_EXE ?? join(target, 'debug/sticktalk-server.exe'), [
+  const server = spawn(process.env.STICKTALK_SERVER_EXE ?? join(target, `debug/sticktalk-server${process.platform === 'win32' ? '.exe' : ''}`), [
     '--bind', `127.0.0.1:${port}`, '--public-url', origin, '--data-dir', data,
     '--web-root', webRoot,
     '--min-free-disk-gb', '0', '--voice-bind-ip', '127.0.0.1',

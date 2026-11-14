@@ -1,7 +1,7 @@
-param([string]$Exe='C:/Users/dwhee/.cargo-target/sticktalk-client/release/sticktalk.exe')
+param([string]$Exe=(Join-Path $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { (Join-Path $PSScriptRoot '../../../target') }) 'release/sticktalk.exe'))
 $ErrorActionPreference='Stop'
 $env:PATH="$env:USERPROFILE/.cargo/bin;$env:PATH"
-$env:CARGO_TARGET_DIR='C:/Users/dwhee/.cargo-target/sticktalk-client'
+$env:CARGO_TARGET_DIR=$(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { (Join-Path $PSScriptRoot '../../../target') })
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $log=Join-Path $root 'VALIDATION.txt'
 "Final client verification $(Get-Date -Format o)" | Set-Content $log

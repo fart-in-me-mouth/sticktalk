@@ -9,7 +9,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
-$env:CARGO_TARGET_DIR = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng"
+if (!$env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = Join-Path $repo 'target' }
 $env:CARGO_INCREMENTAL = '0'
 if (!(Test-Path -LiteralPath $Key)) { throw 'Signing key missing. Follow deploy/RELEASING.md.' }
 $keyPath = (Resolve-Path -LiteralPath $Key).Path
@@ -25,5 +25,5 @@ $manifest = Join-Path (Resolve-Path -LiteralPath $Output).Path "StickTalk-$Versi
 & "$env:CARGO_TARGET_DIR/release/sticktalk-package.exe" sign $keyPath $installer $Version $Server $manifest
 if ($LASTEXITCODE -ne 0) { throw 'Manifest signing failed' }
 $headers = @{Authorization="Bearer $env:STICKTALK_RELEASE_TOKEN"; 'X-StickTalk-Manifest'=[Convert]::ToBase64String([IO.File]::ReadAllBytes($manifest))}
-Invoke-WebRequest -Uri "$($Server.TrimEnd('/'))/api/update/publish" -Method Post -Headers $headers -ContentType 'application/octet-stream' -InFile $installer -TimeoutSec 120 | Out-Null
+Invoke-WebRequest -UseBasicParsing -Uri "$($Server.TrimEnd('/'))/api/update/publish" -Method Post -Headers $headers -ContentType 'application/octet-stream' -InFile $installer -TimeoutSec 120 | Out-Null
 Write-Output "Published $Version. Installer: $installer"

@@ -23,8 +23,9 @@ implicitly. libclang 18 parses bindgen headers only with its documented STL
 version guard override; native C++ is built with supported MSVC. A newer native
 libclang configured via LIBCLANG_PATH is preferred for distribution builds.
 
-Workspace CMAKE_GENERATOR defaults to Visual Studio 17 2022, overridable by the
-caller. This fixes opusic-sys/cmake-rs guessing VS 2026 while the installed CMake
+The Windows `deploy/dev-env.ps1` helper sets CMAKE_GENERATOR to Visual Studio 17
+2022 in its process only; Cargo does not impose it on Linux/macOS. This fixes
+opusic-sys/cmake-rs guessing VS 2026 while the installed CMake
 does not implement that generator. No Opus implementation/codec was replaced.
 
 ## neteq 0.9.1

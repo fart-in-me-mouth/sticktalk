@@ -17,9 +17,8 @@ async function find(dir, name) {
 const exe = process.platform === 'win32' ? '.exe' : '';
 const split = process.env.WASM_SPLIT ?? join(target,'tools','bin',`wasm-split-cli${exe}`);
 const cache = join(process.env.LOCALAPPDATA ?? '', 'trunkrs', 'trunk', 'cache');
-const bindgen = process.env.WASM_BINDGEN ?? await find(cache, `wasm-bindgen${exe}`);
-const opt = process.env.WASM_OPT ?? await find(cache, `wasm-opt${exe}`);
-if (!bindgen || !opt) throw Error('Set WASM_BINDGEN and WASM_OPT to the matching Trunk tools.');
+const bindgen = process.env.WASM_BINDGEN ?? await find(cache, `wasm-bindgen${exe}`) ?? `wasm-bindgen${exe}`;
+const opt = process.env.WASM_OPT ?? await find(cache, `wasm-opt${exe}`) ?? `wasm-opt${exe}`;
 let html = await readFile(join(dist,'index.html'),'utf8');
 const entryPath = html.match(/import init, \* as bindings from ['"]\.\/([^'"]+)\.js['"]/)[1];
 const entry = basename(entryPath);

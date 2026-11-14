@@ -1,8 +1,7 @@
 [build]
 jobs = 4
-target-dir = "C:/Users/dwhee/.cargo-target/sticktalk"
 
-# cmake-rs otherwise guesses VS 2026 from the installed compiler, but the
-# bundled CMake only knows VS 2022. Keep both Opus builds on one installed SDK.
-[env]
-CMAKE_GENERATOR = { value = "Visual Studio 17 2022", force = false }
+# Native dependencies use CMake. On Windows with VS 2022 Build Tools installed,
+# set CMAKE_GENERATOR="Visual Studio 17 2022" in your build shell (HANDOFF.md).
+# Do not set it globally here: Linux/macOS and Linux cross-builds need their own
+# generators. Cargo defaults to ./target; CARGO_TARGET_DIR can override it.
