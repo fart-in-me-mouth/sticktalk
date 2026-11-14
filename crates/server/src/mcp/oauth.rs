@@ -888,7 +888,7 @@ async fn refresh(app: &App, t: &TokenRequest, client_id: &str) -> Reply {
     let Some(row) = row else {
         // A rotated-out refresh token was replayed: assume theft, end the grant.
         let reused: Option<Vec<u8>> =
-            sqlx::query_scalar("SELECT session_hash FROM mcp_grants WHERE previous_refresh_hash=?")
+            sqlx::query_scalar("SELECT session_hash FROM mcp_spent_refresh WHERE refresh_hash=?")
                 .bind(&presented)
                 .fetch_optional(&mut *c)
                 .await
@@ -914,7 +914,7 @@ async fn refresh(app: &App, t: &TokenRequest, client_id: &str) -> Reply {
     let rotated = async {
         let mut tx = c.begin().await?;
         let t = now() as i64;
-        let n = sqlx::query("UPDATE mcp_grants SET previous_refresh_hash=refresh_hash,refresh_hash=? WHERE session_hash=? AND refresh_hash=?")
+        let n = sqlx::query("UPDATE mcp_grants SET refresh_hash=? WHERE session_hash=? AND refresh_hash=?")
             .bind(super::token_hash(&refresh))
             .bind(&session)
             .bind(&presented)
@@ -922,6 +922,12 @@ async fn refresh(app: &App, t: &TokenRequest, client_id: &str) -> Reply {
             .await?
             .rows_affected();
         crate::error::require(n == 1, ErrorCode::Conflict)?;
+        sqlx::query("INSERT INTO mcp_spent_refresh VALUES(?,?,?)")
+            .bind(&presented)
+            .bind(&session)
+            .bind(t)
+            .execute(&mut *tx)
+            .await?;
         // Keep the newest previous access token so in-flight calls finish.
         sqlx::query("DELETE FROM mcp_access_tokens WHERE session_hash=? AND token_hash NOT IN (SELECT token_hash FROM mcp_access_tokens WHERE session_hash=? AND expires_at>? ORDER BY expires_at DESC LIMIT 1)")
             .bind(&session)
@@ -988,7 +994,7 @@ pub(crate) async fn revoke(State(app): State<App>, r: Request<Body>) -> Response
     let h = super::token_hash(&token);
     let done = async {
         let session: Option<Vec<u8>> = sqlx::query_scalar(
-            "SELECT session_hash FROM mcp_grants WHERE refresh_hash=? OR previous_refresh_hash=?",
+            "SELECT session_hash FROM mcp_grants WHERE refresh_hash=? UNION SELECT session_hash FROM mcp_spent_refresh WHERE refresh_hash=?",
         )
         .bind(&h)
         .bind(&h)

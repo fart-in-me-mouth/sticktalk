@@ -24,10 +24,18 @@ CREATE TABLE mcp_grants(
  client_id TEXT NOT NULL,
  scope TEXT NOT NULL,
  refresh_hash BLOB NOT NULL UNIQUE CHECK(length(refresh_hash)=32),
- previous_refresh_hash BLOB UNIQUE,
  created_at INTEGER NOT NULL
 );
 CREATE INDEX mcp_grants_user ON mcp_grants(user_id);
+-- Rotated-out refresh tokens: replaying any of them revokes the grant (theft).
+-- Kept for one grant lifetime of inactivity, then pruned by housekeeping.
+CREATE TABLE mcp_spent_refresh(
+ refresh_hash BLOB PRIMARY KEY CHECK(length(refresh_hash)=32),
+ session_hash BLOB NOT NULL REFERENCES mcp_grants(session_hash) ON DELETE CASCADE,
+ spent_at INTEGER NOT NULL
+);
+CREATE INDEX mcp_spent_refresh_grant ON mcp_spent_refresh(session_hash);
+CREATE INDEX mcp_spent_refresh_age ON mcp_spent_refresh(spent_at);
 CREATE TABLE mcp_access_tokens(
  token_hash BLOB PRIMARY KEY CHECK(length(token_hash)=32),
  session_hash BLOB NOT NULL REFERENCES mcp_grants(session_hash) ON DELETE CASCADE,

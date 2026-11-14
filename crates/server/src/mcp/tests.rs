@@ -527,7 +527,7 @@ async fn full_flow_reads_writes_refreshes_and_detects_reuse() {
         .unwrap()
         .contains("friends"));
 
-    // Refresh rotates; replaying the old refresh token revokes the grant.
+    // Refresh rotates; replaying any spent refresh token revokes the grant.
     let r = token(
         &app,
         &[
@@ -545,6 +545,21 @@ async fn full_flow_reads_writes_refreshes_and_detects_reuse() {
         tool(&app, &access2, "get_me", json!({})).await["structuredContent"]["access"],
         "read_and_send"
     );
+    // Rotate once more, then replay the first (twice-rotated) token.
+    let r = token(
+        &app,
+        &[
+            ("grant_type", "refresh_token"),
+            ("refresh_token", t["refresh_token"].as_str().unwrap()),
+            ("client_id", &client_id),
+        ],
+    )
+    .await;
+    assert_eq!(r.status(), 200);
+    let access2 = json_body(r).await["access_token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let replay = token(
         &app,
         &[
