@@ -1900,3 +1900,16 @@ existing settings files and persists through the existing settings store.
 Disabling it prevents desktop toasts, message sounds, and mention flashes even
 when a server/channel override says All; unread counts and badges are unchanged.
 It is intentionally device-local, not an account/server notification level.
+
+## Additive: MCP connector (AI assistants)
+
+Outside `/api`, the server serves a remote MCP endpoint and the OAuth 2.1
+endpoints that authorize it: `POST /mcp`, `/.well-known/oauth-protected-resource[/mcp]`,
+`/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/authorize`,
+`/oauth/token` and `/oauth/revoke`. [MCP.md](MCP.md) is normative for them. MCP
+tool writes call the same command service as WS `Command`s, as the connection's
+own session, so permissions, receipts and events are unchanged. Each connection
+appears in `DeviceSession` lists with platform `AI connector (MCP)`, and
+`LogoutSession` revokes it. MCP bearer tokens (`stka_…`) are not session tokens
+and are rejected by `/api`; session tokens are rejected by `/mcp`. Connector
+sessions are excluded from the five-session sign-in limit.

@@ -611,7 +611,7 @@ async fn methods(c: &mut SqliteConnection, user: Id) -> Result<AuthMethodsRespon
 async fn session(c: &mut SqliteConnection, user: Id) -> Result<AuthResponse> {
     crate::db::enabled(c, user).await?;
     let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE user_id=? AND expires_at>?")
+        sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE user_id=? AND expires_at>? AND token_hash NOT IN (SELECT session_hash FROM mcp_grants)")
             .bind(id(user)?)
             .bind(state::now() as i64)
             .fetch_one(&mut *c)

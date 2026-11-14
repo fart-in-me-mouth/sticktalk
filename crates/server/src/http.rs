@@ -22,6 +22,7 @@ pub fn router(app: App) -> axum::Router {
     axum::Router::new()
         .merge(crate::browser::routes())
         .merge(crate::custom_emoji::routes())
+        .merge(crate::mcp::routes())
         .route(
             "/api/v1/users/@me/server-folders",
             get(crate::folders::endpoint),
@@ -81,11 +82,12 @@ async fn bounded_requests(
     next: axum::middleware::Next,
 ) -> Response {
     let path = r.uri().path();
-    let transfer = path.contains("/uploads")
-        || path.contains("/files/")
-        || path.contains("/update/artifact")
-        || path.contains("/update/publish")
-        || !path.starts_with("/api/");
+    let transfer = !crate::mcp::is_route(path)
+        && (path.contains("/uploads")
+            || path.contains("/files/")
+            || path.contains("/update/artifact")
+            || path.contains("/update/publish")
+            || !path.starts_with("/api/"));
     let pool = if transfer {
         &app.0.transfers
     } else {
@@ -199,6 +201,10 @@ fn timed_response(
 }
 
 async fn json_framework_errors(r: Request<Body>, next: axum::middleware::Next) -> Response {
+    // OAuth/MCP answer in their own formats (HTML pages, 405 for GET /mcp).
+    if crate::mcp::is_route(r.uri().path()) {
+        return next.run(r).await;
+    }
     let response = next.run(r).await;
     if (response.status().is_client_error() || response.status().is_server_error())
         && !response
@@ -418,7 +424,7 @@ pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiR
         };
         crate::db::enabled(&mut tx, u).await?;
         let n: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE user_id=? AND expires_at>?")
+            sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE user_id=? AND expires_at>? AND token_hash NOT IN (SELECT session_hash FROM mcp_grants)")
                 .bind(id(u)?)
                 .bind(state::now() as i64)
                 .fetch_one(&mut *tx)

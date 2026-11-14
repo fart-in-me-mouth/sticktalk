@@ -19,6 +19,7 @@ mod http;
 mod http_io;
 mod launch;
 mod legacy;
+mod mcp;
 mod mentions;
 mod reauth;
 mod search;

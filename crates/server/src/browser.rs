@@ -291,9 +291,12 @@ pub(crate) async fn boundary(
     }
     .await;
     let mut response = result.unwrap_or_else(IntoResponse::into_response);
-    response
-        .headers_mut()
-        .insert("content-security-policy", app.0.browser.csp.clone());
+    // Connector pages set their own stricter policy (form-action to the client).
+    if !response.headers().contains_key("content-security-policy") {
+        response
+            .headers_mut()
+            .insert("content-security-policy", app.0.browser.csp.clone());
+    }
     response
         .headers_mut()
         .insert("referrer-policy", "no-referrer".parse().unwrap());

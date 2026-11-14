@@ -160,6 +160,11 @@ verification. For failures check `getent ahostsv4 HOSTNAME`, both firewalls,
 `sudo journalctl -u sticktalk -n 50 --no-pager`. Don't share private diagnostic
 data. Native clients do not need CORS.
 
+AI assistants (Claude, Cursor, ChatGPT…) connect at
+`https://my-sticktalk.duckdns.org/mcp`: open it in a browser for instructions.
+It needs no extra configuration beyond the correct `STICKTALK_PUBLIC_URL`; see
+[the MCP connector guide](../docs/MCP.md).
+
 ### Configuration
 
 Flags override env: `--bind` / `STICKTALK_BIND` (127.0.0.1:8080), `--data-dir` /
