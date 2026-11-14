@@ -1,6 +1,6 @@
 # Calls QA — 2026-11-13
 
-Branch: `t3/calls-qa-polish`. **Launch qualification is incomplete; do not read a unit-test pass as physical-device or full desktop-UI acceptance.**
+Branch: `t3/calls-qa-polish`. Master `f91944d` merged at `3ee9ff3`; responsive minimum-width tiles and call-specific changes were retained together. **Launch qualification is incomplete; do not read a unit-test pass as physical-device or full desktop-UI acceptance.**
 
 ## Changes
 
@@ -26,7 +26,7 @@ Branch: `t3/calls-qa-polish`. **Launch qualification is incomplete; do not read 
 | Preview thumbnails / application audio | Bounded preview lifecycle tests pass; process-loopback activation/stop passes, but captured zero packets from a silent owned process. Audible application-stream E2E not qualified. |
 | Stream stats | Headless overlay reviewed; measurement harness records decoded frames, timing, CPU, working set and private bytes. |
 | Viewer count/list | **NOT DONE:** no authoritative per-stream viewer projection in current protocol; roster members were not misrepresented as viewers. |
-| Request → consent on each grant → deny/allow → input → revoke → end-share | PASS through real local server/native peers and actual SendInput into an owned secondary-monitor window. Fresh request/consent/grant IDs and auto-revoke checked. Single control→OS key sample 13.941 ms. |
+| Request → consent on each grant → deny/allow → input → revoke → end-share | PASS through real local server/native peers and actual SendInput into an owned secondary-monitor window. Fresh request/consent/grant IDs and auto-revoke checked. Post-merge single control→OS key sample 13.522 ms (pre-merge 13.941 ms); excludes video. |
 | Emergency hotkey/banner revoke | Dry-run hotkey precedence, immediate hook gate, held-input release and banner UI pass. Full physical hotkey/banner interaction across two real iced clients remains unqualified. |
 | Join/leave sounds | Dry mocked effects only; no sound played on owner’s PC. |
 | Two/three real desktop GUI clients plus web together | **NOT COMPLETED:** native transport/process acceptance and separate web acceptance are not equivalent to this requested mixed-GUI scenario. |
@@ -38,7 +38,7 @@ Branch: `t3/calls-qa-polish`. **Launch qualification is incomplete; do not read 
 | synthetic | 1080p/60 | 600 | 59.999/59 | 60.000/59 | +0.079/+0.074 | 0 | PASS |
 | synthetic | 1440p/60 | 600 | 59.981/56 | 59.898/11 | -1.805/-1.829 | 0 | FAIL |
 
-**1440p FAIL remains a launch blocker.** Viewer C's first measured one-second bin was 11 fps; the remaining 599 bins were ≥56 fps. Original-media cap drops were zero, but original queue guards reset near the start of measurement (about 8–9 s after connection). Do not discard the first bin or extend warmup to turn this into a pass. The interrupted-run exit-code collector was false-green; the summary and runner now independently validate FPS/drift/reconfiguration metrics.
+**1440p FAIL remains a launch blocker.** Viewer C's first measured one-second bin was 11 fps; the remaining 599 bins were ≥56 fps. Original-media cap drops were zero, but original queue guards reset near the start of measurement (about 8–9 s after connection). This is improved steady-state delivery, **not a complete fix** for the reported freeze. A next investigation should stress frame/keyframe burst headroom against the RTT/byte queue guard without increasing unbounded latency or hiding losses with longer warmup. Do not discard the first bin or extend warmup to turn this into a pass. The interrupted-run exit-code collector was false-green; the summary and runner now independently validate FPS/drift/reconfiguration metrics.
 
 Short diagnostics (not acceptance replacements): final SFU synthetic 1440p/60 for 60 s yielded B/C 60.014/60.015 average, minima 59/59, drift +0.074/+0.155 ms; real moving-WGC 1440p/60 for 30 s yielded 60.033/60.033, minima 59/59, drift +0.797/+0.795 ms, zero repeats/reconfigurations.
 
@@ -82,12 +82,35 @@ Two independent headless Chromium processes, fake media devices and a real loopb
 
 ## Visual review
 
-All 72 headless PNGs were inspected in contact sheets, with critical states inspected full-size. That review caught an obscured camera speaking border, a wrapping tile action, a stretched incomplete camera row, and a minimum-size share dialog whose primary action scrolled offscreen. These were corrected; the final PNG hashes are recorded with renderer/binary provenance.
+All 72 headless PNGs were inspected in contact sheets, with critical states inspected full-size. That review caught an obscured camera speaking border, a wrapping tile action, a stretched incomplete camera row, and a minimum-size share dialog whose primary action scrolled offscreen. These were corrected; the final PNG hashes are recorded with renderer/binary provenance. At minimum width the nine-person grid scrolls using master's readable two-column policy; the share-quality body scrolls while Go Live/Cancel stay visible. Minor follow-up: the headless audio-device chooser retains a long right vertical edge. No flawless visual sign-off is claimed.
 
 ## Validation / remaining blockers
 
-<!-- VALIDATION -->
+Post-merge validation completed against the merged Rust sources (recorded commit `1cc2cce`; later commits contain evidence/docs only).
 
-- Full four-crate test command reaches an unrelated server upload reservation assertion in unchanged upload code (`audit_tests::http_admission_and_global_upload_reservation_are_bounded`, line 402, left 1/right 0). Reproduced in two suite runs; isolated rerun passes. Unrelated upload code was not changed to hide this race.
+| Crate / check | Passed | Failed | Ignored |
+|---|---:|---:|---:|
+| client (lib, bin, live, preferences, video, voice) | 167 | 0 | 11 |
+| media | 40 | 0 | 3 |
+| SFU (unit, driver, peers, robustness) | 41 | 0 | 0 |
+| server (unit, binaries, integration, voice) | 136 | **1** | 1 |
+| Extra post-merge real secondary-window control | 1 | 0 | — |
+| Fail-closed metric summary regression tests | 5 | 0 | — |
+
+```powershell
+$env:CARGO_TARGET_DIR='C:/Users/dwhee/.cargo-target/sticktalk-qa-calls'
+$env:CARGO_INCREMENTAL='0'
+$p=@('-p','sticktalk','-p','sticktalk-media','-p','sticktalk-sfu','-p','sticktalk-server')
+cargo test --profile server @p --lib --bins --tests --no-fail-fast -j2 -- --test-threads=1
+# All required client/media/SFU targets pass; overall exit 101 for the server assertion below.
+cargo clippy --profile server @p --all-targets -j2 -- -D warnings # PASS
+cargo fmt --all -- --check # PASS
+python crates/client/bench/qa-calls-2026-11-13/test_summary.py # 5 PASS
+```
+
+The PowerShell `Start-Process -Wait -PassThru` exit-code pattern was separately checked with an intentional exit 37. Full raw validation output is retained in `trace-logs.zip`.
+
+
+- Full four-crate test command reaches an unrelated server upload reservation assertion in unchanged upload code (`audit_tests::http_admission_and_global_upload_reservation_are_bounded`, line 402, left 1/right 0). Reproduced in two pre-merge suites and the post-merge suite. One pre-merge isolated rerun passed, but the post-merge isolated rerun also fails (left 1/right 0); root cause is not established. Unrelated upload code was not changed to hide the failure.
 - Full desktop GUI E2E, physical camera/hotplug, real emergency hotkey exercise, audible application audio, true mouth-to-ear, objective voice quality and viewer count/list remain launch blockers or explicit qualification gaps. The shortened timebox was prioritized for the original SFU freeze and post-merge validation; there is no physical camera, acoustic testing would require audible output, and viewer tracking needs an authoritative protocol projection.
 - All test listeners bind loopback. Owned test windows/processes closed; no browser/OAuth/private data sent outside this PC, no push, no UAC.
