@@ -2,6 +2,7 @@
 pub mod backend;
 pub mod datetime;
 pub mod emoji;
+pub mod features3;
 pub mod gifs;
 pub mod http;
 pub mod io;

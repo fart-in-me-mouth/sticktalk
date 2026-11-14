@@ -54,6 +54,7 @@ pub struct State {
     pub hovered_channel: Option<Id>,
     pub hovered_category: Option<Id>,
     pub hovered_member: Option<Id>,
+    pub members_scroll: f32,
     pub user_hover: bool,
     pub split_hover: Option<bool>,
     pub muted: bool,
@@ -81,6 +82,7 @@ pub enum Message {
     ChannelHover(Option<Id>),
     CategoryHover(Option<Id>),
     MemberHover(Option<Id>),
+    MemberScroll(f32),
     UserHover(bool),
     SplitHover(Option<bool>),
     Search(String),
@@ -105,6 +107,7 @@ pub enum Message {
     SaveNickname(Id),
     Role(Id, Id),
     Developer(bool),
+    EditProfile,
 }
 pub fn key(key: &keyboard::Key, mods: keyboard::Modifiers, quick_binding: &str) -> Option<Message> {
     if chord(key, mods).is_some_and(|chord| chord.eq_ignore_ascii_case(quick_binding.trim())) {
@@ -157,6 +160,9 @@ pub fn chord(key: &keyboard::Key, mods: keyboard::Modifiers) -> Option<String> {
 }
 impl App {
     pub(crate) fn main_open(&mut self, p: Popover) -> Task<Msg> {
+        if self.settings_dirty() {
+            return self.settings_attention();
+        }
         self.dialog = Dialog::None;
         self.main.position = self.main.pointer;
         self.main.anchor = self.main.anchor.filter(|r| r.contains(self.main.pointer));
@@ -198,12 +204,15 @@ impl App {
             _ => None,
         };
         self.main.popover = Some(p);
-        focus.map_or(Task::none(), operation::focus)
+        operation::focus(focus.unwrap_or("closed-composer"))
     }
     pub(crate) fn main_update(&mut self, m: Message) -> Task<Msg> {
         match m {
             Message::Open(p) => return self.main_open(p),
-            Message::Close => self.main.popover = None,
+            Message::Close => {
+                self.main.popover = None;
+                return operation::focus("composer-editor");
+            }
             Message::Pointer(p) => self.main.pointer = p,
             Message::Anchor(r) => self.main.anchor = Some(r),
             Message::PopoverSize(s) => self.main.popover_size = s,
@@ -216,6 +225,7 @@ impl App {
             Message::ChannelHover(id) => self.main.hovered_channel = id,
             Message::CategoryHover(id) => self.main.hovered_category = id,
             Message::MemberHover(id) => self.main.hovered_member = id,
+            Message::MemberScroll(y) => self.main.members_scroll = y,
             Message::UserHover(v) => self.main.user_hover = v,
             Message::SplitHover(v) => self.main.split_hover = v,
             Message::Search(s) => self.main.search = s,
@@ -231,6 +241,15 @@ impl App {
                     } else {
                         (self.main.quick_index + 1) % n
                     };
+                    return operation::scroll_to(
+                        "quick-results",
+                        iced::widget::scrollable::AbsoluteOffset {
+                            x: 0.,
+                            y: (self.main.quick_index as f32 * crate::theme::QUICK_ROW
+                                - quick_results_height(self.height) / 2.)
+                                .max(0.),
+                        },
+                    );
                 }
             }
             Message::QuickChoose => {
@@ -244,6 +263,13 @@ impl App {
                 }
             }
             Message::Switch(delta, unread) => {
+                if !matches!(self.dialog, Dialog::None)
+                    || self.main.popover.is_some()
+                    || self.features.picker != crate::features::Picker::None
+                    || self.features.viewer.current().is_some()
+                {
+                    return Task::none();
+                }
                 let cs: Vec<_> = self
                     .sorted_channels()
                     .into_iter()
@@ -427,6 +453,13 @@ impl App {
                     v,
                 ))
             }
+            Message::EditProfile => {
+                let open = self.update(Msg::Open(Dialog::UserSettings));
+                let profile = self.update(Msg::Settings(crate::settings_controller::Action::User(
+                    crate::settings_controller::UserPage::Profiles,
+                )));
+                return Task::batch([open, profile]);
+            }
         }
         Task::none()
     }
@@ -483,6 +516,7 @@ impl App {
             .collect()
     }
     pub(crate) fn main_channel(&mut self, id: Id) {
+        self.main.members_scroll = 0.;
         self.main.popover = None;
         self.main.focus_voice = None;
         self.main.search.clear();
@@ -632,6 +666,9 @@ impl App {
 pub fn mm(m: Message) -> Msg {
     Msg::Main(m)
 }
+pub fn quick_results_height(height: f32) -> f32 {
+    (height - crate::theme::HEADER - crate::theme::S32 * 6.).max(crate::theme::QUICK_ROW * 2.)
+}
 pub fn muted(app: &App, id: Id) -> bool {
     app.state
         .model
@@ -714,6 +751,52 @@ mod placement_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn navigation_shortcuts_cannot_discard_settings_or_navigate_behind_popups() {
+        let size = iced::Size::new(940., 600.);
+        let mut app = App::headless("user-settings-profile-dirty", size);
+        let _ = app.main_update(Message::Open(Popover::Quick));
+        assert!(matches!(app.dialog, Dialog::UserSettings));
+        assert!(app.main.popover.is_none());
+        assert!(app.settings_dirty());
+        for screen in [
+            "main-user-context",
+            "audit-quick-long",
+            "emoji-picker",
+            "image-viewer",
+        ] {
+            let mut app = App::headless(screen, size);
+            let original = app.state.screen;
+            let _ = app.main_update(Message::Switch(1, false));
+            assert_eq!(app.state.screen, original, "{screen}");
+        }
+    }
+    #[test]
+    fn own_popout_edit_profile_opens_profiles_not_account() {
+        let mut app = App::headless("main-own-profile", iced::Size::new(1280., 800.));
+        let _ = app.main_update(Message::EditProfile);
+        assert!(matches!(app.dialog, Dialog::UserSettings));
+        assert_eq!(
+            app.user_tab,
+            crate::settings_controller::UserPage::Profiles.index()
+        );
+    }
+    #[test]
+    fn escape_dismisses_update_and_only_the_top_viewer_menu() {
+        let size = iced::Size::new(940., 600.);
+        let mut app = App::headless("audit-update-confirm", size);
+        let _ = app.update(Msg::Escape);
+        assert!(!app.features.confirm_update);
+        for screen in ["audit-image-forward", "audit-image-more"] {
+            let mut app = App::headless(screen, size);
+            let _ = app.update(Msg::Escape);
+            assert!(!app.features.viewer.forwarding);
+            assert!(!app.features.viewer.more);
+            assert!(app.features.viewer.current().is_some());
+            let _ = app.update(Msg::Escape);
+            assert!(app.features.viewer.current().is_none());
+        }
+    }
     #[test]
     fn shortcuts_are_independent_of_input_focus() {
         let control = keyboard::Modifiers::CTRL;

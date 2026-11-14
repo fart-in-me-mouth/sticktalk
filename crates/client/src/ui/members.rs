@@ -59,28 +59,63 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         }
     }
     let mut list = column![].spacing(0);
+    // Fixed-height rows keep even the protocol's 1,000-member page cheap.
+    // Overscan covers fast wheel/drag input without shaping offscreen names.
+    let overscan = t::PARITY_MEMBER_ROW * 4.;
+    let header_height = t::S24 + t::HINT * t::LINE + t::S4;
+    let total: f32 = groups
+        .iter()
+        .map(|(_, ids)| header_height + ids.len() as f32 * t::PARITY_MEMBER_ROW)
+        .sum();
+    let viewport = (app.height - t::HEADER - t::S16).max(0.);
+    let offset = app.main.members_scroll.min((total - viewport).max(0.));
+    let start = (offset - overscan).max(0.);
+    let end = offset + viewport + overscan;
+    let mut y = 0.;
+    let mut skipped = 0.;
     for (label, mut ids) in groups {
         ids.sort_by_key(|id| app.state.model.name(*id).to_lowercase());
-        list = list
-            .push(space().height(t::S24))
-            .push(section(format!("{label} — {}", ids.len())))
-            .push(space().height(t::S4));
+        if y + header_height >= start && y <= end {
+            list = list.push(space().height(skipped)).push(
+                container(column![
+                    space().height(t::S24),
+                    elided::label(format!("{label} — {}", ids.len()))
+                        .size(t::HINT)
+                        .font(t::semibold())
+                        .color(t::TEXT_MUTED)
+                        .width(Fill),
+                    space().height(t::S4)
+                ])
+                .height(header_height),
+            );
+            skipped = 0.;
+        } else {
+            skipped += header_height;
+        }
+        y += header_height;
         for id in ids {
+            if y + t::PARITY_MEMBER_ROW < start || y > end {
+                skipped += t::PARITY_MEMBER_ROW;
+                y += t::PARITY_MEMBER_ROW;
+                continue;
+            }
+            list = list.push(space().height(skipped));
+            skipped = 0.;
+            y += t::PARITY_MEMBER_ROW;
             let hover = app.main.hovered_member == Some(id);
             let alpha = if online(&id) || hover { 1. } else { 0.3 };
             let owner = channel
                 .guild_id
                 .and_then(|g| app.state.model.guilds.get(&g))
                 .is_some_and(|g| g.guild.owner_id == id);
-            let mut name = row![txt(ellipsis(
-                &app.state.model.name(id),
-                if hover { 13 } else { 17 }
-            ))
-            .size(t::CHANNEL_NAME)
-            .wrapping(iced::widget::text::Wrapping::None)
-            .font(t::medium())
-            .color(t::alpha(controls::name_color(app, id), alpha))]
+            let mut name = row![elided::label(app.state.model.name(id))
+                .size(t::CHANNEL_NAME)
+                .line_height(iced::Pixels(t::ICON))
+                .width(Fill)
+                .font(t::medium())
+                .color(t::alpha(controls::name_color(app, id), alpha))]
             .spacing(t::S4)
+            .width(Fill)
             .align_y(Center);
             if owner {
                 name = name.push(icon("crown", t::CROWN, t::alpha(t::WARNING, alpha)));
@@ -92,6 +127,16 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                 .get(&id)
                 .and_then(|u| u.status_text.as_deref())
                 .unwrap_or("");
+            let mut copy = column![name].spacing(0).width(Fill);
+            if !sub.is_empty() {
+                copy = copy.push(
+                    elided::label(sub)
+                        .size(t::HINT)
+                        .line_height(iced::Pixels(t::USER_NAME))
+                        .width(Fill)
+                        .color(t::alpha(t::TEXT_MUTED, alpha)),
+                );
+            }
             let body = row![
                 controls::avatar_fade(
                     app,
@@ -101,12 +146,7 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                     false,
                     alpha
                 ),
-                column![
-                    name,
-                    hint(ellipsis(sub, 23)).color(t::alpha(t::TEXT_MUTED, alpha))
-                ]
-                .spacing(0)
-                .width(Fill)
+                copy
             ]
             .spacing(t::S12)
             .align_y(Center);
@@ -139,13 +179,19 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
             ));
         }
     }
+    list = list.push(space().height(skipped));
     if app.state.member_after.is_some() {
         list = list.push(action("More members", Msg::MoreMembers).style(t::link));
     }
-    container(scroller(list).height(Fill))
-        .width(t::MEMBERS)
-        .height(Fill)
-        .padding([t::S8, t::S16])
-        .style(t::sidebar)
-        .into()
+    container(
+        scroller(list)
+            .id("members")
+            .on_scroll(|v| mm(Main::MemberScroll(v.absolute_offset().y)))
+            .height(Fill),
+    )
+    .width(t::MEMBERS)
+    .height(Fill)
+    .padding([t::S8, t::S16])
+    .style(t::sidebar)
+    .into()
 }

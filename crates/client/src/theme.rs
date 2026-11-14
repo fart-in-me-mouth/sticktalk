@@ -21,6 +21,10 @@ pub const ACCENT: Color = Color::from_rgb8(0x3d, 0xdc, 0x97);
 pub const ACCENT_HOVER: Color = Color::from_rgb8(0x5b, 0xe5, 0xaa);
 pub const ACCENT_TEXT: Color = Color::from_rgb8(0x08, 0x17, 0x0f);
 pub const DANGER: Color = Color::from_rgb8(0xf2, 0x5f, 0x5c);
+// The bright danger token is for foregrounds. Filled actions need a darker red
+// to keep their white 14–15px labels above WCAG AA's 4.5:1 contrast threshold.
+pub const DANGER_BUTTON: Color = Color::from_rgb8(0xb9, 0x38, 0x36);
+pub const DANGER_BUTTON_HOVER: Color = Color::from_rgb8(0xc8, 0x3c, 0x38);
 pub const WARNING: Color = Color::from_rgb8(0xf2, 0xb8, 0x4b);
 pub const USER_PANEL: Color = Color::from_rgb8(0x14, 0x14, 0x17);
 pub const INPUT_BG: Color = Color::from_rgb8(0x12, 0x12, 0x15);
@@ -36,6 +40,7 @@ pub const HAIRLINE: f32 = 1.;
 pub const FOCUS: f32 = 2.;
 pub const CONTINUATION: f32 = 2.;
 pub const ROUND: f32 = 999.;
+pub const SEARCH_RESULTS: f32 = 400.;
 pub const RAIL: f32 = 72.;
 pub const SIDEBAR: f32 = 240.;
 pub const MEMBERS: f32 = 240.;
@@ -43,10 +48,10 @@ pub const HEADER: f32 = 48.;
 pub const USER_HEIGHT: f32 = 52.;
 pub const CALL_AVATAR: f32 = 64.;
 pub const CALL_TILE_HEIGHT: f32 = 208.;
+pub const CALL_TILE_MIN_WIDTH: f32 = 240.;
 pub const GUILD_ICON: f32 = 48.;
 pub const GUILD_RADIUS: f32 = 16.;
 pub const ROW: f32 = 32.;
-pub const MEMBER_ROW: f32 = 48.;
 pub const BUTTON: f32 = 38.;
 pub const INPUT: f32 = 40.;
 pub const COMPOSER_MIN: f32 = 44.;
@@ -212,7 +217,7 @@ pub fn primary(_: &Theme, status: button_widget::Status) -> button_widget::Style
     button_variant(status, ACCENT, ACCENT_TEXT)
 }
 pub fn danger(_: &Theme, status: button_widget::Status) -> button_widget::Style {
-    button_variant(status, DANGER, TEXT_PRIMARY)
+    button_variant(status, DANGER_BUTTON, Color::WHITE)
 }
 pub fn link(_: &Theme, status: button_widget::Status) -> button_widget::Style {
     let mut s = button_variant(status, TRANSPARENT, ACCENT);
@@ -222,6 +227,12 @@ pub fn link(_: &Theme, status: button_widget::Status) -> button_widget::Style {
 pub fn danger_link(_: &Theme, status: button_widget::Status) -> button_widget::Style {
     let mut s = icon(&Theme::Dark, status);
     s.text_color = DANGER;
+    if matches!(
+        status,
+        button_widget::Status::Hovered | button_widget::Status::Pressed
+    ) {
+        s.background = Some(alpha(DANGER, 0.12).into());
+    }
     s
 }
 fn button_variant(status: button_widget::Status, bg: Color, fg: Color) -> button_widget::Style {
@@ -231,9 +242,11 @@ fn button_variant(status: button_widget::Status, bg: Color, fg: Color) -> button
     button_widget::Style {
         background: Some(
             if disabled {
-                alpha(bg, 0.4)
-            } else if hover && bg == ACCENT {
+                alpha(bg, bg.a * 0.4)
+            } else if (hover || pressed) && bg == ACCENT {
                 ACCENT_HOVER
+            } else if (hover || pressed) && bg == DANGER_BUTTON {
+                DANGER_BUTTON_HOVER
             } else if hover {
                 BG_SELECTED
             } else {
@@ -511,12 +524,15 @@ pub const ROLE_CHIP: Color = Color::from_rgb8(0x2b, 0x2b, 0x30);
 pub const CROWN: f32 = 14.;
 pub const SEARCH_W: f32 = 240.;
 pub const QUICK_W: f32 = 560.;
+pub const QUICK_ROW: f32 = 56.;
 pub const HISTORY_ROW: f32 = 96.;
 
 pub fn secondary(theme: &Theme, status: button_widget::Status) -> button_widget::Style {
     let mut style = button(theme, status);
     style.background = Some(
-        if matches!(
+        if status == button_widget::Status::Disabled {
+            alpha(SECONDARY_BG, 0.4)
+        } else if matches!(
             status,
             button_widget::Status::Hovered | button_widget::Status::Pressed
         ) {
@@ -533,7 +549,7 @@ pub const PROFILE_ACTION: f32 = 36.;
 
 // Main-window parity geometry shared by rendering and layout observers.
 pub const HISTORY_BOTTOM: f32 = 8.;
-pub const SEARCH_REST: f32 = 160.;
+pub const SEARCH_REST: f32 = 144.;
 pub const STATUS_RING: f32 = 3.;
 pub const BADGE_TEXT: Color = Color::WHITE;
 pub const BADGE_H: f32 = 16.;
@@ -585,3 +601,52 @@ pub const SOURCE_PREVIEW_W: f32 = 160.;
 pub const SOURCE_PREVIEW_H: f32 = 96.;
 
 pub const PICKER_SOURCES_HEIGHT: f32 = 176.;
+
+#[cfg(test)]
+mod audit_style_tests {
+    use super::*;
+    fn luminance(c: Color) -> f32 {
+        fn linear(c: f32) -> f32 {
+            if c <= 0.04045 {
+                c / 12.92
+            } else {
+                ((c + 0.055) / 1.055).powf(2.4)
+            }
+        }
+        0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b)
+    }
+    fn contrast(a: Color, b: Color) -> f32 {
+        let (a, b) = (luminance(a), luminance(b));
+        (a.max(b) + 0.05) / (a.min(b) + 0.05)
+    }
+    #[test]
+    fn enabled_button_labels_and_secondary_copy_meet_aa() {
+        for status in [
+            button_widget::Status::Active,
+            button_widget::Status::Hovered,
+            button_widget::Status::Pressed,
+        ] {
+            for style in [primary(&Theme::Dark, status), danger(&Theme::Dark, status)] {
+                let Some(iced::Background::Color(bg)) = style.background else {
+                    panic!("solid button missing background")
+                };
+                assert!(contrast(style.text_color, bg) >= 4.5);
+            }
+        }
+        assert!(contrast(TEXT_SECONDARY, BG_CHAT) >= 4.5);
+        assert!(contrast(TEXT_SECONDARY, BG_ELEVATED) >= 4.5);
+    }
+    #[test]
+    fn secondary_disabled_background_keeps_40_percent_opacity() {
+        let style = secondary(&Theme::Dark, button_widget::Status::Disabled);
+        let Some(iced::Background::Color(bg)) = style.background else {
+            panic!()
+        };
+        assert_eq!(bg.a, 0.4);
+        assert_eq!(style.text_color.a, 0.4);
+        assert_eq!(
+            icon(&Theme::Dark, button_widget::Status::Disabled).background,
+            Some(TRANSPARENT.into())
+        );
+    }
+}

@@ -134,6 +134,7 @@ pub enum Toggle {
     Developer,
     Startup,
     Sounds,
+    DesktopNotifications,
 }
 #[derive(Debug, Clone, Copy)]
 pub enum Number {
@@ -741,6 +742,7 @@ impl App {
                     Toggle::FriendRequests => p.friend_requests = value,
                     Toggle::UnderlineLinks => p.underline_links = value,
                     Toggle::Developer => p.developer_mode = value,
+                    Toggle::DesktopNotifications => p.desktop_notifications = value,
                     Toggle::Sounds => p.notification_sounds = value,
                     Toggle::Startup => {
                         if let Err(error) = crate::desktop_host::startup(

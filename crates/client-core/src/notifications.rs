@@ -14,6 +14,14 @@ pub struct Context {
     pub blocked: bool,
     pub now: u64,
 }
+pub fn permits_on_device(
+    settings: &[NotificationSettings],
+    c: Context,
+    default: Option<NotificationLevel>,
+    enabled: bool,
+) -> bool {
+    enabled && permits_with_default(settings, c, default)
+}
 pub fn permits(settings: &[NotificationSettings], c: Context) -> bool {
     permits_with_default(settings, c, None)
 }

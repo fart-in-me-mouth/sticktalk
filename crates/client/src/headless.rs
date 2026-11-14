@@ -6,6 +6,21 @@ use crate::{
 use iced::{advanced::widget::operation, mouse, Size};
 use iced_runtime::user_interface::{Cache, UserInterface};
 use std::{path::Path, time::Instant};
+pub const FEATURES3_SCREENS: &[&str] = &[
+    "guild-settings-emoji",
+    "custom-emoji-picker",
+    "custom-emoji-completion",
+    "custom-emoji-inline",
+    "custom-emoji-message",
+    "server-search",
+    "server-search-empty",
+    "channel-slowmode",
+    "slowmode-countdown",
+    "server-folders",
+    "server-folder-edit",
+    "server-folder-add",
+    "notifications-disabled",
+];
 pub const AUDIO_SCREENS: &[&str] = &[
     "audio-default",
     "audio-mic-test",
@@ -16,6 +31,18 @@ pub const AUDIO_SCREENS: &[&str] = &[
     "audio-processing",
 ];
 pub const SCREENS: &[&str] = &[
+    "server-folders",
+    "server-folder-edit",
+    "server-folder-add",
+    "notifications-disabled",
+    "channel-slowmode",
+    "slowmode-countdown",
+    "server-search",
+    "server-search-empty",
+    "custom-emoji-picker",
+    "custom-emoji-completion",
+    "custom-emoji-message",
+    "custom-emoji-inline",
     "focused-stream",
     "stream-stats",
     "share-picker-windows",
@@ -166,6 +193,26 @@ pub const MAIN_SCREENS: &[&str] = &[
     "main-rail-counts",
     "main-avatar-sizes",
 ];
+/// Complete desktop audit, including the screens that otherwise live in separate suites.
+/// Keep call/media-control fixtures out: they have their own review workstream.
+pub fn audit_screens() -> Vec<&'static str> {
+    let mut screens = Vec::new();
+    for screen in SCREENS
+        .iter()
+        .chain(MAIN_SCREENS)
+        .chain(crate::ui::settings::SCREENS)
+        .chain(crate::ui::audit::SCREENS)
+    {
+        if !matches!(
+            *screen,
+            "voice-call" | "share-picker" | "voice-consent" | "main-streaming"
+        ) && !screens.contains(screen)
+        {
+            screens.push(*screen);
+        }
+    }
+    screens
+}
 pub fn run_if_requested() -> Option<Result<(), String>> {
     let args: Vec<_> = std::env::args().collect();
     #[cfg(feature = "wgpu")]
@@ -208,7 +255,7 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
                 .unwrap_or("guild-chat");
             load_fonts();
             let size = crate::window_size();
-            let scale: f64 = args
+            let scale: f32 = args
                 .iter()
                 .position(|v| v == "--scale")
                 .and_then(|i| args.get(i + 1))
@@ -223,8 +270,8 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
                 screen,
                 size.width as u32,
                 size.height as u32,
-                Path::new(path),
                 scale,
+                Path::new(path),
             )
         })());
     }
@@ -240,6 +287,14 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             .and_then(|i| args.get(i + 1))
             .map(String::as_str)
             .unwrap_or("1280x800,1920x1080");
+        let scale: f32 = args
+            .iter()
+            .position(|v| v == "--scale-factor")
+            .and_then(|i| args.get(i + 1))
+            .map_or(Ok(1.), |s| s.parse().map_err(|_| "Invalid scale factor"))?;
+        if !scale.is_finite() || !(1. ..=2.).contains(&scale) {
+            return Err("Scale factor must be between 1 and 2".into());
+        }
         load_fonts();
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         let mut manifest = Vec::new();
@@ -252,7 +307,19 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             if !(940..=3840).contains(&w) || !(600..=2160).contains(&h) {
                 return Err("Screenshot size is out of range".into());
             }
-            let screens = if args.iter().any(|v| v == "--audio-only") {
+            let audit = audit_screens();
+            let selected = args
+                .iter()
+                .position(|v| v == "--screens")
+                .and_then(|i| args.get(i + 1))
+                .map(|s| s.split(',').collect::<Vec<_>>());
+            let screens = if let Some(selected) = selected.as_ref() {
+                selected.as_slice()
+            } else if args.iter().any(|v| v == "--audit-only") {
+                audit.as_slice()
+            } else if args.iter().any(|v| v == "--features3-only") {
+                FEATURES3_SCREENS
+            } else if args.iter().any(|v| v == "--audio-only") {
                 AUDIO_SCREENS
             } else if args.iter().any(|v| v == "--main-only") {
                 MAIN_SCREENS
@@ -265,24 +332,24 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             } else {
                 SCREENS
             };
-
-            let filter = args
-                .iter()
-                .position(|v| v == "--screens")
-                .and_then(|i| args.get(i + 1));
-            for screen in screens
-                .iter()
-                .filter(|s| filter.is_none_or(|f| f.split(',').any(|name| name == **s)))
-            {
-                let name = format!("{screen}-{w}x{h}.png");
+            for screen in screens {
+                let name = if scale == 1. {
+                    format!("{screen}-{w}x{h}.png")
+                } else {
+                    format!("{screen}-{w}x{h}@{}pct.png", (scale * 100.).round())
+                };
                 let path = Path::new(dir).join(&name);
-                render(screen, w, h, &path)?;
+                if scale == 1. {
+                    render(screen, w, h, &path)?;
+                } else {
+                    render_scaled(screen, w, h, scale, &path)?;
+                }
                 use sha2::Digest;
                 let hash = format!(
                     "{:x}",
                     sha2::Sha256::digest(std::fs::read(&path).map_err(|e| e.to_string())?)
                 );
-                manifest.push(serde_json::json!({"file":name,"width":w,"height":h,"sha256":hash}));
+                manifest.push(serde_json::json!({"file":name,"logical_width":w,"logical_height":h,"width":(w as f32 * scale).round() as u32,"height":(h as f32 * scale).round() as u32,"scale_factor":scale,"sha256":hash}));
             }
         }
         let manifest = serde_json::json!({"renderer":"iced-tiny-skia","window_backend":"none","screens":manifest});
@@ -311,11 +378,9 @@ pub(crate) fn load_fonts() {
     }
 }
 pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
-    render_scaled(screen, w, h, path, 1.)
+    render_scaled(screen, w, h, 1., path)
 }
-fn render_scaled(screen: &str, w: u32, h: u32, path: &Path, scale: f64) -> Result<(), String> {
-    let physical_w = (f64::from(w) * scale).round() as u32;
-    let physical_h = (f64::from(h) * scale).round() as u32;
+fn render_scaled(screen: &str, w: u32, h: u32, scale: f32, path: &Path) -> Result<(), String> {
     let size = Size::new(w as f32, h as f32);
     let mut app = App::headless(screen, size);
     let mut cache = Cache::new();
@@ -343,6 +408,16 @@ fn render_scaled(screen: &str, w: u32, h: u32, path: &Path, scale: f64) -> Resul
         app.headless_scroll();
         let y = app.scroll_y;
         let mut ui = UserInterface::build(crate::ui::view(&app), size, cache, &mut renderer);
+        let focus = match screen {
+            "audit-login-focused" => Some("login-username"),
+            "audit-composer-focused" => Some("composer-editor"),
+            "audit-quick-focused" => Some("quick-switcher"),
+            "main-search-focused" => Some("header-search"),
+            _ => None,
+        };
+        if let Some(id) = focus {
+            ui.operate(&renderer, &mut operation::focusable::focus::<()>(id.into()));
+        }
         let mut scroll = operation::scrollable::scroll_to::<()>(
             "messages".into(),
             operation::scrollable::AbsoluteOffset {
@@ -458,8 +533,11 @@ fn render_scaled(screen: &str, w: u32, h: u32, path: &Path, scale: f64) -> Resul
     let rgba = iced_tiny_skia::window::compositor::screenshot(
         &mut renderer,
         &iced_tiny_skia::graphics::Viewport::with_physical_size(
-            Size::new(physical_w, physical_h),
-            scale as f32,
+            Size::new(
+                (w as f32 * scale).round() as u32,
+                (h as f32 * scale).round() as u32,
+            ),
+            scale,
         ),
         t::BG_CHAT,
     );
@@ -472,8 +550,8 @@ fn render_scaled(screen: &str, w: u32, h: u32, path: &Path, scale: f64) -> Resul
     PngEncoder::new_with_quality(file, CompressionType::Fast, FilterType::Sub)
         .write_image(
             &rgba,
-            physical_w,
-            physical_h,
+            (w as f32 * scale).round() as u32,
+            (h as f32 * scale).round() as u32,
             image::ExtendedColorType::Rgba8,
         )
         .map_err(|e| e.to_string())
@@ -581,6 +659,312 @@ fn idle_proof(_: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
+    fn invite_placeholder_cannot_be_copied_and_failure_exposes_only_retry() {
+        use iced::advanced::widget::{operation as op, Operation};
+        #[derive(Default)]
+        struct Controls(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+        impl Operation for Controls {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn focusable(
+                &mut self,
+                _: Option<&iced::advanced::widget::Id>,
+                _: iced::Rectangle,
+                _: &mut dyn op::Focusable,
+            ) {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+        load_fonts();
+        let size = Size::new(940., 600.);
+        for (screen, count) in [("audit-invite-loading", 1), ("audit-invite-error", 2)] {
+            let app = App::headless(screen, size);
+            #[cfg(feature = "wgpu")]
+            let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+                t::regular(),
+                iced::Pixels(t::BODY),
+            ));
+            #[cfg(not(feature = "wgpu"))]
+            let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+            let mut ui =
+                UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+            let controls = Controls::default();
+            let found = controls.0.clone();
+            ui.operate(&renderer, &mut op::scope("dialog-scope".into(), controls));
+            assert_eq!(
+                found.load(std::sync::atomic::Ordering::Relaxed),
+                count,
+                "{screen}"
+            );
+        }
+    }
+    #[test]
+    fn server_configuration_and_connection_status_fixtures_expose_the_server_field() {
+        for screen in ["change-server", "login-error", "login-connecting"] {
+            let app = App::headless(screen, Size::new(940., 600.));
+            assert!(app.state.session.is_none());
+            assert!(app.change_server, "{screen}");
+        }
+    }
+    #[test]
+    fn server_connect_controls_do_not_clip_sign_in_at_the_minimum_window() {
+        use iced::advanced::widget::{self, Operation};
+        #[derive(Default)]
+        struct Bounds {
+            card: iced::Rectangle,
+            submit: iced::Rectangle,
+        }
+        impl Operation for Bounds {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn container(&mut self, id: Option<&widget::Id>, bounds: iced::Rectangle) {
+                if id == Some(&widget::Id::new("login-card")) {
+                    self.card = bounds;
+                } else if id == Some(&widget::Id::new("login-submit")) {
+                    self.submit = bounds;
+                }
+            }
+        }
+        load_fonts();
+        let size = Size::new(940., 600.);
+        for screen in ["change-server", "audit-first-launch"] {
+            let app = App::headless(screen, size);
+            #[cfg(feature = "wgpu")]
+            let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+                t::regular(),
+                iced::Pixels(t::BODY),
+            ));
+            #[cfg(not(feature = "wgpu"))]
+            let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+            let mut ui =
+                UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+            let mut bounds = Bounds::default();
+            ui.operate(&renderer, &mut bounds);
+            assert!(bounds.submit.height >= t::BUTTON);
+            assert!(
+                bounds.submit.y + bounds.submit.height
+                    <= bounds.card.y + bounds.card.height - t::S24,
+                "{screen}: submit clipped by login scroll viewport"
+            );
+        }
+    }
+    #[test]
+    fn first_launch_requires_an_explicit_server_and_keeps_its_field_visible() {
+        let mut app = App::headless("audit-first-launch", Size::new(940., 600.));
+        assert!(app.server.is_empty());
+        assert!(app.change_server);
+        let _ = app.update(Msg::ChangeServer);
+        assert!(app.change_server);
+        app.username = "river".into();
+        app.password = "a sufficiently long password".into();
+        let _ = app.update(Msg::Login);
+        assert!(app.state.session.is_none());
+        assert!(!app.busy);
+        assert!(app.error.contains("server address"));
+    }
+    #[test]
+    fn audit_inventory_covers_each_settings_page_without_duplicates_or_call_surfaces() {
+        let screens = audit_screens();
+        let unique: std::collections::BTreeSet<_> = screens.iter().collect();
+        assert_eq!(screens.len(), unique.len());
+        assert!(screens.len() > 170);
+        assert!(crate::ui::settings::SCREENS
+            .iter()
+            .all(|s| screens.contains(s)));
+        assert!(!screens.contains(&"voice-call"));
+        assert!(!screens.contains(&"share-picker"));
+    }
+    #[test]
+    fn minimum_window_autocomplete_and_wrapping_reactions_keep_the_composer_on_screen() {
+        load_fonts();
+        let size = Size::new(940., 600.);
+        for screen in [
+            "emoji-autocomplete",
+            "mention-autocomplete",
+            "audit-many-reactions",
+            "audit-long-names",
+            "audit-long-message",
+        ] {
+            let mut app = App::headless(screen, size);
+            let (_, geometry) = settle(&mut app, size, Cache::new());
+            assert!(
+                geometry.composer.height > 0.,
+                "{screen}: composer disappeared"
+            );
+            assert!(
+                geometry.composer.y >= t::HEADER,
+                "{screen}: composer crossed the header"
+            );
+            assert!(
+                geometry.composer.y + geometry.composer.height <= size.height + 1.,
+                "{screen}: composer below window: {:?}",
+                geometry.composer
+            );
+            assert!(app.viewport_h > 0., "{screen}: no history viewport");
+        }
+    }
+    #[test]
+    fn scaled_capture_preserves_logical_layout_and_physical_dimensions() {
+        load_fonts();
+        let path =
+            std::env::temp_dir().join(format!("sticktalk-audit-scale-{}.png", std::process::id()));
+        render_scaled("login", 940, 600, 1.5, &path).unwrap();
+        let png = image::open(&path).unwrap().into_rgba8();
+        assert_eq!(png.dimensions(), (1410, 900));
+        assert_eq!(png.get_pixel(0, 0).0, [0x11, 0x11, 0x13, 255]);
+        let _ = std::fs::remove_file(path);
+    }
+    #[test]
+    fn huge_member_list_only_shapes_visible_names_and_overscan() {
+        use iced::advanced::widget::Operation;
+        #[derive(Default)]
+        struct Names(usize);
+        impl Operation for Names {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn text(
+                &mut self,
+                _: Option<&iced::advanced::widget::Id>,
+                _: iced::Rectangle,
+                text: &str,
+            ) {
+                if text.starts_with("Member ") {
+                    self.0 += 1;
+                }
+            }
+        }
+        load_fonts();
+        let size = Size::new(1280., 800.);
+        let mut app = App::headless("audit-many-members", size);
+        assert!(app.state.model.members.len() >= 1000);
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            t::regular(),
+            iced::Pixels(t::BODY),
+        ));
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+        for offset in [0., 20_000., 40_000.] {
+            app.main.members_scroll = offset;
+            let mut ui =
+                UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+            let mut names = Names::default();
+            ui.operate(&renderer, &mut names);
+            assert!(
+                (1..=32).contains(&names.0),
+                "offset {offset}: {} member widgets",
+                names.0
+            );
+        }
+    }
+    #[test]
+    fn muted_notification_modal_keeps_its_footer_inside_the_minimum_window() {
+        use iced::advanced::widget::{self, Operation};
+        #[derive(Default)]
+        struct Footer(iced::Rectangle);
+        impl Operation for Footer {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn container(&mut self, id: Option<&widget::Id>, bounds: iced::Rectangle) {
+                if id == Some(&widget::Id::new("notification-footer")) {
+                    self.0 = bounds;
+                }
+            }
+        }
+        load_fonts();
+        let size = Size::new(940., 600.);
+        let app = App::headless("notification-settings-muted", size);
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            t::regular(),
+            iced::Pixels(t::BODY),
+        ));
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+        let mut ui = UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+        let mut footer = Footer::default();
+        ui.operate(&renderer, &mut footer);
+        assert!(footer.0.height >= t::BUTTON);
+        assert!(
+            footer.0.y + footer.0.height < size.height - t::S8,
+            "footer clipped: {:?}",
+            footer.0
+        );
+    }
+    #[test]
+    fn popup_tab_order_wraps_without_reaching_the_background() {
+        use iced::advanced::widget::{operation as op, Operation};
+        #[derive(Default)]
+        struct Focused(std::sync::Arc<std::sync::Mutex<Vec<iced::Rectangle>>>);
+        impl Operation for Focused {
+            fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+                f(self);
+            }
+            fn focusable(
+                &mut self,
+                _: Option<&iced::advanced::widget::Id>,
+                bounds: iced::Rectangle,
+                state: &mut dyn op::Focusable,
+            ) {
+                if state.is_focused() {
+                    self.0.lock().unwrap().push(bounds);
+                }
+            }
+        }
+        load_fonts();
+        let size = Size::new(940., 600.);
+        for screen in [
+            "audit-quick-long",
+            "main-user-context",
+            "main-server-menu",
+            "emoji-picker",
+            "gif-picker",
+        ] {
+            let app = App::headless(screen, size);
+            #[cfg(feature = "wgpu")]
+            let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+                t::regular(),
+                iced::Pixels(t::BODY),
+            ));
+            #[cfg(not(feature = "wgpu"))]
+            let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+            let mut ui =
+                UserInterface::build(crate::ui::view(&app), size, Cache::new(), &mut renderer);
+            for previous in [false, true] {
+                for _ in 0..20 {
+                    let mut operation: Box<dyn Operation<()>> = Box::new(op::scope(
+                        "dialog-scope".into(),
+                        crate::focus_button::cycle(previous),
+                    ));
+                    loop {
+                        ui.operate(&renderer, operation.as_mut());
+                        match operation.finish() {
+                            op::Outcome::Chain(next) => operation = next,
+                            _ => break,
+                        }
+                    }
+                    let mut all = Focused::default();
+                    ui.operate(&renderer, &mut all);
+                    let focused = Focused::default();
+                    let scoped_count = focused.0.clone();
+                    let mut scoped = op::scope("dialog-scope".into(), focused);
+                    ui.operate(&renderer, &mut scoped);
+                    let all = all.0.lock().unwrap().clone();
+                    assert_eq!(all.len(), 1, "{screen}: missing/duplicate focus: {all:?}");
+                    assert_eq!(
+                        scoped_count.lock().unwrap().len(),
+                        1,
+                        "{screen}: focus escaped the popup"
+                    );
+                }
+            }
+        }
+    }
+    #[test]
     fn delete_confirmation_backdrop_blocks_settings_navigation() {
         load_fonts();
         let size = Size::new(1280., 800.);
@@ -639,7 +1023,7 @@ mod tests {
         );
         for scale in [1., 1.25, 1.5, 2.] {
             let path = dir.path().join(format!("dpi-{scale}.png"));
-            render_scaled("login", 1280, 800, &path, scale).unwrap();
+            render_scaled("login", 1280, 800, scale, &path).unwrap();
             let png = image::open(path).unwrap();
             use image::GenericImageView;
             assert_eq!(

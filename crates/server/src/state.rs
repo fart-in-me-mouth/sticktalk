@@ -147,6 +147,7 @@ pub(crate) struct Stream {
     pub guild: Option<Id>,
     pub interests: Vec<Id>,
     pub launch_features: bool,
+    pub text_features: bool,
 }
 impl Drop for Connection {
     fn drop(&mut self) {
@@ -169,6 +170,7 @@ impl Stream {
             guild: None,
             interests: vec![],
             launch_features: false,
+            text_features: false,
         }
     }
     pub fn cursor(&self) -> ResumeCursor {
@@ -302,6 +304,16 @@ impl Core {
             .values_mut()
             .filter(|s| users.contains(&s.user) && filter(s))
         {
+            if !s.text_features
+                && matches!(
+                    &event,
+                    Event::ServerFoldersUpdated(_)
+                        | Event::SlowmodeUpdated { .. }
+                        | Event::GuildEmojiUpdated { .. }
+                )
+            {
+                continue;
+            }
             if !s.launch_features
                 && matches!(
                     &event,
@@ -429,7 +441,7 @@ impl App {
         let mut migration = pool.acquire().await?;
         db::migrate(&mut migration).await?;
         drop(migration);
-        let row = sqlx::query("SELECT MAX(id) AS id FROM (SELECT id FROM users UNION ALL SELECT id FROM guilds UNION ALL SELECT id FROM channels UNION ALL SELECT id FROM messages UNION ALL SELECT id FROM invites UNION ALL SELECT id FROM uploads UNION ALL SELECT value AS id FROM id_highwater)").fetch_one(&pool).await?;
+        let row = sqlx::query("SELECT MAX(id) AS id FROM (SELECT id FROM users UNION ALL SELECT id FROM guilds UNION ALL SELECT id FROM channels UNION ALL SELECT id FROM messages UNION ALL SELECT id FROM invites UNION ALL SELECT id FROM uploads UNION ALL SELECT id FROM guild_emoji UNION ALL SELECT value AS id FROM id_highwater)").fetch_one(&pool).await?;
         let last_id = row.try_get::<Option<i64>, _>("id")?.unwrap_or(0) as u64;
         let dummy_hash = tokio::task::spawn_blocking(|| {
             crate::http::password_hash("unused dummy credential".into())
@@ -913,5 +925,45 @@ impl Drop for Inner {
     fn drop(&mut self) {
         self.voice.clear();
         self.shutdown.cancel();
+    }
+}
+
+#[cfg(test)]
+mod text_feature_compatibility_tests {
+    use super::*;
+    #[tokio::test]
+    async fn older_launch_peers_never_receive_new_text_variants() {
+        let (_dir, app) = crate::audit_tests::fixture().await;
+        let mut core = app.0.core.lock().await;
+        core.cursor(&[41; 32], Id(1));
+        core.cursor(&[42; 32], Id(1));
+        core.streams.get_mut(&vec![41; 32]).unwrap().launch_features = true;
+        let modern = core.streams.get_mut(&vec![42; 32]).unwrap();
+        modern.launch_features = true;
+        modern.text_features = true;
+        for event in [
+            Event::GuildEmojiUpdated {
+                guild_id: Id(10),
+                emoji: vec![],
+            },
+            Event::SlowmodeUpdated {
+                channel_id: Id(11),
+                seconds: 5,
+            },
+            Event::ServerFoldersUpdated(vec![]),
+        ] {
+            core.emit(&[Id(1)], event).unwrap();
+        }
+        assert!(core.streams[&vec![41; 32]].ring.is_empty());
+        assert_eq!(core.streams[&vec![42; 32]].ring.len(), 3);
+        let old: Identify = serde_json::from_str(
+            r#"{"version":1,"token":"legacy","resume":null,"launch_features":true}"#,
+        )
+        .unwrap();
+        assert!(!old.text_features);
+        assert!(serde_json::to_value(old)
+            .unwrap()
+            .get("text_features")
+            .is_none());
     }
 }

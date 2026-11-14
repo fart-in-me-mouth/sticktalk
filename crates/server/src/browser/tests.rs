@@ -380,6 +380,7 @@ async fn cookie_websocket_origin_auth_identify_and_focus() {
     ));
     ws.send(Frame::Binary(
         rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+            text_features: false,
             version: 1,
             token: String::new(),
             resume: None,

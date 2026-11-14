@@ -4,6 +4,7 @@ mod app;
 mod audio_settings;
 mod desktop_host;
 mod features;
+mod features3;
 mod video;
 use sticktalk::backend;
 use sticktalk::{animated, gifs, platform_glue, uploads};
@@ -128,6 +129,7 @@ fn main() -> iced::Result {
     .executor::<platform_glue::Executor>()
     .title("StickTalk")
     .theme(|app: &app::App, _| theme::theme(app))
+    .scale_factor(|_: &app::App, _| agent_window::scale_factor())
     .subscription(app::App::subscription)
     .default_font(theme::regular())
     .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())

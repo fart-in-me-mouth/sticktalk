@@ -150,6 +150,25 @@ impl<A: HttpTransport> Http<A> {
             })
             .await
     }
+    pub async fn search(
+        &self,
+        guild: Id,
+        query: &MessageSearchQuery,
+    ) -> Result<Snapshot<MessageSearchPage>, String> {
+        let encoded = {
+            let mut q = url::form_urlencoded::Serializer::new(String::new());
+            q.append_pair("q", &query.q);
+            if let Some(id) = query.before {
+                q.append_pair("before", &id.0.to_string());
+            }
+            if let Some(n) = query.limit {
+                q.append_pair("limit", &n.to_string());
+            }
+            q.finish()
+        };
+        self.json(&format!("/guilds/{}/messages/search?{}", guild.0, encoded))
+            .await
+    }
     pub async fn json<T: DeserializeOwned>(&self, path: &str) -> Result<T, String> {
         decode_json(
             self.execute(
@@ -201,6 +220,16 @@ impl<A: HttpTransport> Http<A> {
             Request::Launch { read, generation } => {
                 use crate::launch::{Read, SnapshotData};
                 let data = match read {
+                    Read::Folders => {
+                        SnapshotData::Folders(self.json("/users/@me/server-folders").await?)
+                    }
+                    Read::Slowmode(id) => SnapshotData::Slowmode(
+                        self.json(&format!("/channels/{}/slowmode", id.0)).await?,
+                    ),
+                    Read::Emoji(id) => SnapshotData::Emoji(
+                        id,
+                        self.json(&format!("/guilds/{}/emoji", id.0)).await?,
+                    ),
                     Read::Profile(id) => {
                         SnapshotData::Profile(self.json(&format!("/users/{}/profile", id.0)).await?)
                     }

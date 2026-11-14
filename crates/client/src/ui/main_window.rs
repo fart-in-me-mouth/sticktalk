@@ -13,8 +13,21 @@ pub fn header<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
         .members_open
         .unwrap_or(app.width >= t::MEMBER_BREAKPOINT);
     let narrow = app.width < t::DEFAULT_W;
-    let search = text_input("Search", &app.main.search)
+    let search_width = if narrow && !app.main.search_focused {
+        t::SEARCH_REST
+    } else {
+        t::SEARCH_W
+    };
+    let search_hint = c
+        .guild_id
+        .and_then(|id| app.state.model.guilds.get(&id))
+        .map_or_else(
+            || "Search messages".into(),
+            |g| format!("Search {}", g.guild.name),
+        );
+    let search = text_input(&search_hint, &app.main.search)
         .id("header-search")
+        .on_submit(crate::features3::msg(crate::features3::Event::SearchSubmit))
         .on_input(|s| mm(Main::Search(s)))
         .padding([t::S4, t::S8])
         .font(t::regular())
@@ -35,16 +48,23 @@ pub fn header<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
                 t::ICON,
                 t::TEXT_MUTED
             ),
-            txt(ellipsis(&app.state.model.channel_name(c), 18))
-                .size(t::CHANNEL_NAME)
-                .font(t::semibold()),
+            container(
+                elided::label(app.state.model.channel_name(c))
+                    .size(t::CHANNEL_NAME)
+                    .font(t::semibold())
+            )
+            .max_width(
+                ((app.width - t::RAIL - t::SIDEBAR - search_width - t::S32 * 6.) / 2.)
+                    .clamp(t::S32, t::SEARCH_W)
+            ),
             container(rule::vertical(t::HAIRLINE).style(t::divider)).height(t::S24),
             button(
-                txt(ellipsis(topic, if narrow { 16 } else { 60 }))
+                elided::label(topic)
+                    .width(Fill)
                     .size(t::USER_NAME)
                     .color(t::TEXT_MUTED)
             )
-            .on_press(mm(Main::Open(Popover::Topic(c.id))))
+            .on_press_maybe((!topic.is_empty()).then_some(mm(Main::Open(Popover::Topic(c.id)))))
             .padding(0)
             .width(Fill)
             .style(t::icon),
@@ -69,11 +89,7 @@ pub fn header<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
                 .spacing(t::S4)
                 .align_y(Center)
             )
-            .width(if app.main.search_focused {
-                t::SEARCH_W
-            } else {
-                t::SEARCH_REST
-            })
+            .width(search_width)
             .height(t::VOICE_USER_ROW)
             .padding(Padding {
                 right: t::S8,
@@ -181,6 +197,7 @@ pub fn overlay(app: &App) -> Option<Element<'_, Msg>> {
     // Measure against the whole window before translating. Padding/pin would
     // constrain the card to the remaining height and hide its true extent.
     let overlay = container(observe::popup(opaque(body), desired, avoid))
+        .id("dialog-scope")
         .width(Fill)
         .height(Fill);
     Some(
@@ -219,39 +236,4 @@ pub fn drop_overlay<'a>() -> Element<'a, Msg> {
     .center_y(Fill)
     .style(t::dim)
     .into()
-}
-pub fn local_results(app: &App, id: Id) -> Element<'_, Msg> {
-    let query = app.main.search.to_lowercase();
-    let mut list = column![section("Search results")].spacing(t::S12);
-    for m in app
-        .state
-        .model
-        .messages
-        .get(&id)
-        .into_iter()
-        .flat_map(|ms| ms.values())
-        .filter(|m| app.state.model.content(m).to_lowercase().contains(&query))
-        .take(100)
-    {
-        list = list.push(
-            button(
-                column![
-                    txt(app.state.model.name(m.author_id))
-                        .color(controls::name_color(app, m.author_id))
-                        .font(t::medium()),
-                    txt(ellipsis(&app.state.model.content(m), 200)),
-                    hint(timestamp(m.created_at, false))
-                ]
-                .spacing(t::S4),
-            )
-            .on_press(Msg::JumpTo(m.id))
-            .padding(t::S12)
-            .width(Fill)
-            .style(t::icon),
-        );
-    }
-    container(scroller(list).height(Fill))
-        .padding(t::S16)
-        .height(Fill)
-        .into()
 }
