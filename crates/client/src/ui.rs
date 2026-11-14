@@ -710,6 +710,9 @@ fn login(app: &App) -> Element<'_, Msg> {
     if !app.error.is_empty() {
         form = form.push(hint(&app.error).color(t::DANGER));
     }
+    if !app.notice.is_empty() {
+        form = form.push(hint(&app.notice).color(t::ACCENT));
+    }
     form = form.push(
         container(
             primary(

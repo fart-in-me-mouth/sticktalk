@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { harness, register, login, form, act, shot, wait, until, output, target } from './qa-harness.mjs';
 
 let h;
-const checks = [], screenshots = [], errors = [], csp = [], layout = [], transients=[];
+const checks = [], screenshots = [], errors = [], csp = [], layout = [];
 let page;
 try {
   for (const [width, height] of [[390,844],[412,915],[820,1180],[1440,900]]) {
@@ -250,35 +250,20 @@ try {
     await login(page,`qa_phone_${width}`,password);
     const deletingUser=await page.locator('[data-self-id]').getAttribute('data-self-id');
     await act(page,'dialog:delete-account');
-    for(let attempt=1;attempt<=3;attempt++) {
-      if(await page.locator('#auth-username').count())break;
-      await act(page,'dismiss-error');
-      await page.waitForFunction(()=>!document.querySelector('.live-error'));
-      await page.locator('#f-name').fill(password);
-      await page.locator('#f-value').fill('DELETE');
-      const start=Date.now();
-      await page.locator('[type=submit]').click();
-      const outcome=await page.waitForFunction(()=>{
-        if(document.querySelector('#auth-username'))return{auth:true};
-        const error=document.querySelector('.live-error')?.textContent;
-        return error?{error}:false;
-      },null,{timeout:45000});
-      let state;
-      try{state=await outcome.jsonValue();}
-      catch(e){
-        if(!String(e).includes('Execution context was destroyed'))throw e;
-        await page.waitForSelector('#auth-username');state={auth:true};
-      }finally{await outcome.dispose().catch(()=>{});}
-      if(state.auth)break;
-      // Revocation can render an error just before the successful HTTP reload.
-      await wait(500);if(await page.locator('#auth-username').count())break;
-      const error=state.error;
-      if(error.includes('session ended')){await page.waitForSelector('#auth-username');break;}
-      if(!/Unavailable|RateLimited/.test(error))throw Error(`Account deletion: ${error}`);
-      transients.push({width,operation:'delete-account',attempt,error,durationMs:Date.now()-start});
-      await wait(Math.max(2,Number(error.match(/in (\d+)s/)?.[1])||0)*1000);
-    }
+    await page.locator('#f-name').fill(password);
+    await page.locator('#f-value').fill('DELETE');
+    const started=Date.now();
+    const [deletion]=await Promise.all([
+      page.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/auth/account/delete'),
+      page.locator('[type=submit]').click(),
+    ]);
+    assert.equal(deletion.status(),204,`Account deletion must commit on the first attempt: ${await deletion.text()}`);
     await page.waitForSelector('#auth-username');
+    await page.getByRole('status').filter({hasText:'Your account was deleted.'}).waitFor();
+    assert(Date.now()-started<15000,'erasure must finish within the API deadline');
+    assert(!(await page.context().cookies()).some(c=>c.name==='__Host-sticktalk_session'));
+    assert.equal(await page.locator('.connection-banner,.live-modal').count(),0);
+    assert(!h.log().includes('housekeeping failed'));
     const database=(await readdir(h.data)).find(f=>/\.(sqlite3|sqlite|db)$/.test(f));
     const erased=new DatabaseSync(join(h.data,database));
     try {
@@ -292,7 +277,7 @@ try {
     await h.close();h=undefined;
   }
   assert.deepEqual(errors,[]); assert.deepEqual(csp,[]);
-  await writeFile(`${output}/phone-results.json`,JSON.stringify({checks,screenshots,layout,errors,csp,transients,
+  await writeFile(`${output}/phone-results.json`,JSON.stringify({checks,screenshots,layout,errors,csp,
     revision:JSON.parse(await readFile(join(target,'web-dist/sizes.json'),'utf8')).revision},null,2));
   console.log(JSON.stringify({checks,screenshots:screenshots.length,errors,csp}));
 } catch(e) {

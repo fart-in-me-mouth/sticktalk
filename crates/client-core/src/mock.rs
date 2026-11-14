@@ -1525,7 +1525,7 @@ mod tests {
             attachment_ids: vec![],
             mention_ids: vec![],
         });
-        let nonce = 42;
+        let nonce = test_nonce();
         let req = CommandRequest { nonce, command };
         let frames = mock.command(req.clone());
         let id = match frames.last().unwrap() {

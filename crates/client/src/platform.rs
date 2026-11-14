@@ -80,7 +80,12 @@ impl Transport for Native {
                 false,
             )
             .await
-            .map_err(|_| "Connection failed".to_string())?;
+            .map_err(|error| match error {
+                tungstenite::Error::Http(response) if response.status().as_u16() == 401 => {
+                    ConnectError::SessionRevoked
+                }
+                _ => ConnectError::Retry("Connection failed".into()),
+            })?;
             if response
                 .headers()
                 .get("Sec-WebSocket-Protocol")

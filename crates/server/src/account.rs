@@ -15,7 +15,9 @@ pub async fn api(app: &App, r: Request<Body>) -> Result<http::ApiResponse> {
     let _io = app.0.upload_io.lock().await;
     let mut core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
-    let mut tx = c.begin().await?;
+    // Reserve the writer before reading credentials/proofs; a concurrent local
+    // admin/maintenance write must not strand a deferred read snapshot.
+    let mut tx = c.begin_with("BEGIN IMMEDIATE").await?;
     let (key, user) = auth(&mut tx, &token).await?;
     crate::reauth::consume(&mut tx, &headers, &key, AccountOperation::DeleteAccount).await?;
     let keys: Vec<Vec<u8>> = sqlx::query_scalar("SELECT token_hash FROM sessions WHERE user_id=?")

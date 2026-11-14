@@ -54,9 +54,15 @@ impl Handle {
 #[derive(Debug, Clone)]
 pub struct Delivery {
     pub data: Arc<Data>,
+    pub generation: u64,
     _permit: Arc<OwnedSemaphorePermit>,
 }
-async fn emit(output: &mut mpsc::Sender<Delivery>, budget: &Arc<Semaphore>, data: Data) -> bool {
+async fn emit(
+    output: &mut mpsc::Sender<Delivery>,
+    budget: &Arc<Semaphore>,
+    generation: u64,
+    data: Data,
+) -> bool {
     // Every payload-bearing variant contributes its actual named-map size;
     // small-control estimates must not undercount bulk users or error strings.
     let encoded =
@@ -104,6 +110,7 @@ async fn emit(output: &mut mpsc::Sender<Delivery>, budget: &Arc<Semaphore>, data
     output
         .send(Delivery {
             data: Arc::new(data),
+            generation,
             _permit: Arc::new(permit),
         })
         .await
@@ -117,6 +124,7 @@ pub fn subscription(config: &Config) -> impl Stream<Item = Delivery> {
         if !emit(
             &mut output,
             &budget,
+            config.generation,
             Data::Connected(Handle {
                 sender: tx,
                 budget: Arc::new(Semaphore::new(2 * 1024 * 1024)),
@@ -141,13 +149,14 @@ pub fn subscription(config: &Config) -> impl Stream<Item = Delivery> {
                 }
             }
             for (index, frame) in frames.into_iter().enumerate() {
-                if !emit(&mut output, &budget, Data::Frame(frame)).await {
+                if !emit(&mut output, &budget, config.generation, Data::Frame(frame)).await {
                     return;
                 }
                 if index == 0 && config.scenario == "disconnected" {
                     emit(
                         &mut output,
                         &budget,
+                        config.generation,
                         Data::State(ConnectionState::Backoff(4)),
                     )
                     .await;
@@ -161,7 +170,9 @@ pub fn subscription(config: &Config) -> impl Stream<Item = Delivery> {
                 let data = match request {
                     Request::Command(v) => {
                         for frame in mock.command(v) {
-                            if !emit(&mut output, &budget, Data::Frame(frame)).await {
+                            if !emit(&mut output, &budget, config.generation, Data::Frame(frame))
+                                .await
+                            {
                                 return;
                             }
                         }
@@ -234,7 +245,7 @@ pub fn subscription(config: &Config) -> impl Stream<Item = Delivery> {
                     }
                     _ => continue,
                 };
-                if !emit(&mut output, &budget, data).await {
+                if !emit(&mut output, &budget, config.generation, data).await {
                     return;
                 }
             }
@@ -243,17 +254,18 @@ pub fn subscription(config: &Config) -> impl Stream<Item = Delivery> {
         let http = match Http::new(&config.server, &config.token) {
             Ok(v) => v,
             Err(v) => {
-                emit(&mut output, &budget, Data::Error(v)).await;
+                emit(&mut output, &budget, config.generation, Data::Error(v)).await;
                 return;
             }
         };
         struct Output<'a> {
             output: &'a mut mpsc::Sender<Delivery>,
             budget: &'a Arc<Semaphore>,
+            generation: u64,
         }
         impl sticktalk_client_core::protocol::EventSink<Handle> for Output<'_> {
             fn emit(&mut self, data: Data) -> sticktalk_client_core::io::Task<'_, bool> {
-                Box::pin(emit(self.output, self.budget, data))
+                Box::pin(emit(self.output, self.budget, self.generation, data))
             }
         }
         let requests = futures_util::stream::unfold(rx, |mut rx| async move {
@@ -270,6 +282,7 @@ pub fn subscription(config: &Config) -> impl Stream<Item = Delivery> {
             &mut Output {
                 output: &mut output,
                 budget: &budget,
+                generation: config.generation,
             },
         )
         .await;
@@ -573,12 +586,20 @@ mod tests {
         use futures_util::StreamExt;
         let (mut tx, mut rx) = mpsc::channel(128);
         let budget = Arc::new(Semaphore::new(2 * 1024 * 1024));
-        assert!(emit(&mut tx, &budget, Data::Error("x".repeat(32768))).await);
+        assert!(emit(&mut tx, &budget, 0, Data::Error("x".repeat(32768))).await);
         assert_eq!(budget.available_permits(), 2 * 1024 * 1024 - 32768 - 128);
         let packet = rx.next().await.unwrap();
         drop(packet);
         assert_eq!(budget.available_permits(), 2 * 1024 * 1024);
-        assert!(!emit(&mut tx, &budget, Data::Error("x".repeat(2 * 1024 * 1024))).await);
+        assert!(
+            !emit(
+                &mut tx,
+                &budget,
+                0,
+                Data::Error("x".repeat(2 * 1024 * 1024))
+            )
+            .await
+        );
     }
 }
 
@@ -703,6 +724,23 @@ pub async fn delete_account(config: Config, current: Option<String>) -> Result<(
         })
         .await?;
     http.delete_account(&proof.proof).await
+}
+
+/// A credential rotation can finish after an explicit logout. Discard its new
+/// credential as well; never leave an unaccepted session in the OS keyring.
+pub async fn discard_session(session: Session) {
+    let config = session.config;
+    if config.mock {
+        return;
+    }
+    let saved = config.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        crate::storage::forget_if(&saved.server, &saved.token);
+    })
+    .await;
+    if let Ok(http) = Http::new(&config.server, &config.token) {
+        http.logout().await;
+    }
 }
 #[derive(Clone)]
 pub enum GoogleOutcome {

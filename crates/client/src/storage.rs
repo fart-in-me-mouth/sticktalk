@@ -1,5 +1,6 @@
 //! Non-secret preference on disk; bearer tokens only in the OS credential store.
 use std::path::PathBuf;
+static CREDENTIAL_WRITE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 pub fn root() -> PathBuf {
     std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
@@ -23,6 +24,7 @@ pub fn save_server(server: &str) {
     let _ = std::fs::write(root().join("server.txt"), server);
 }
 pub fn save_token(server: &str, token: &str) -> Result<(), String> {
+    let _write = CREDENTIAL_WRITE.lock().unwrap_or_else(|e| e.into_inner());
     keyring::Entry::new("StickTalk", server)
         .and_then(|v| v.set_password(token))
         .map_err(|_| "Could not save your session. Please try again.".into())
@@ -33,9 +35,13 @@ pub fn token(server: &str) -> Option<String> {
         .get_password()
         .ok()
 }
-pub fn forget(server: &str) {
-    if let Ok(v) = keyring::Entry::new("StickTalk", server) {
-        let _ = v.delete_credential();
+pub fn forget_if(server: &str, expected: &str) {
+    let _write = CREDENTIAL_WRITE.lock().unwrap_or_else(|e| e.into_inner());
+    // A rotated/re-authenticated credential may already have replaced this one.
+    if token(server).as_deref() == Some(expected) {
+        if let Ok(v) = keyring::Entry::new("StickTalk", server) {
+            let _ = v.delete_credential();
+        }
     }
 }
 

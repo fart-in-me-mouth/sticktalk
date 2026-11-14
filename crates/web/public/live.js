@@ -17,6 +17,36 @@ let saved,
 let viewer;
 let messageMenu;
 let lastDialog;
+let noticeTimer;
+let rotatingPassword = false;
+let finishPasswordRotation;
+let sessionCleanup = Promise.resolve();
+let authPending = false;
+function probeSession() {
+  if (rotatingPassword) return Promise.resolve(false);
+  const probe = fetch('/api/v1/browser/session', {
+    cache:'no-store', signal:AbortSignal.timeout(15000),
+  }).then(response => response.status === 401).catch(() => false);
+  // An old-cookie probe must finish before a new login can set a replacement
+  // cookie, otherwise its late expiry response could erase that new session.
+  sessionCleanup = Promise.all([sessionCleanup, probe]).then(() => {});
+  return probe;
+}
+async function purgePrivateCaches() {
+  // The probe expires a remotely revoked HttpOnly cookie at the server boundary.
+  // It never restores a session or caches its response.
+  void probeSession();
+  navigator.serviceWorker?.controller?.postMessage('purge-private');
+  if (!globalThis.caches) return;
+  for (const name of await caches.keys()) {
+    if (!name.startsWith('sticktalk-')) continue;
+    if (!name.startsWith('sticktalk-shell-')) { await caches.delete(name); continue; }
+    const cache = await caches.open(name);
+    for (const request of await cache.keys()) {
+      if (new URL(request.url).pathname.startsWith('/api/')) await cache.delete(request);
+    }
+  }
+}
 const openMessageMenu=async row=>{
   const id=typeof row==='string'?row:row.dataset.liveMessage;
   messageMenu??=await import('/public/message-menu.js');
@@ -59,6 +89,11 @@ export async function recoverSession() {
   const pending = globalThis.__sticktalkSession;
   delete globalThis.__sticktalkSession;
   return pending ? await pending : '';
+}
+// No credentials or response DTOs cross this boundary. WebSocket's error event
+// intentionally hides HTTP status; only a real 401 means the session was revoked.
+export async function sessionRevoked() {
+  return probeSession();
 }
 export function chatReady() {
   if (!performance.getEntriesByName('sticktalk-chat-ready').length)
@@ -133,6 +168,22 @@ export function mediaEvent(raw) {
   withMedia((m) => m.event(JSON.parse(raw)));
 }
 export function mediaAction(action) {
+  if (action === 'password-changing') {
+    if (!rotatingPassword) {
+      const rotation = new Promise(resolve => { finishPasswordRotation = resolve; });
+      sessionCleanup = Promise.all([sessionCleanup, rotation]).then(() => {});
+    }
+    rotatingPassword = true;
+    return;
+  }
+  if (action === 'password-finished') {
+    rotatingPassword = false;
+    const finish = finishPasswordRotation;
+    finishPasswordRotation = undefined;
+    if ($('#auth-username')) void probeSession().then(() => finish?.());
+    else finish?.();
+    return;
+  }
   if (action === 'profile-saved') {
     const form = $('[data-profile-editor]');
     if (form) {
@@ -199,6 +250,9 @@ export function mediaAction(action) {
     return;
   }
   if (action === "purge") {
+    void purgePrivateCaches();
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => emit('dismiss-notice'), 4000);
     messageMenu?.closeMessageMenu();
     drafts.clear();
     lastChannel=undefined;
@@ -436,7 +490,13 @@ export function installPlatform() {
     if (e.target.matches("[data-live-form]")) {
       e.preventDefault();
       const kind = e.target.dataset.liveForm;
-      emit(kind === "auth" ? "auth" : `submit:${kind}`);
+      if (kind === 'auth') {
+        if (authPending) return;
+        authPending = true;
+        e.target.querySelector('[type=submit]').disabled = true;
+        void sessionCleanup.then(() => { authPending = false; emit('auth'); });
+      }
+      else emit(`submit:${kind}`);
     }
     if (e.target.matches("[data-gif-search]")) {
       e.preventDefault();

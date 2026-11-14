@@ -41,7 +41,9 @@ const caches={
   open:async key=>{
     if(!stores.has(key))stores.set(key,new Map());
     const store=stores.get(key);
-    return {addAll:async paths=>{for(const p of paths)store.set(p,new Response('cached '+p));},match:async p=>store.get(p)?.clone(),put:async(p,r)=>store.set(p,r.clone())};
+    return {addAll:async paths=>{for(const p of paths)store.set(p,new Response('cached '+p));},match:async p=>store.get(p)?.clone(),put:async(p,r)=>store.set(p,r.clone()),
+      keys:async()=>[...store.keys()].map(p=>({url:new URL(p,'https://sticktalk.test').href})),
+      delete:async r=>store.delete(new URL(r.url).pathname)};
   }, keys:async()=>[...stores.keys()], delete:async key=>stores.delete(key),
 };
 const self={location:{origin:'https://sticktalk.test'},addEventListener:(type,fn)=>handlers.set(type,fn),skipWaiting:()=>activates++,clients:{claim:async()=>{}},registration:{}};
@@ -70,6 +72,16 @@ assert(requests.includes('https://sticktalk.test/index.html'),'shell uses stale-
 await request('/'+chunks[0].file);
 assert(store.has('/'+chunks[0].file),'cache secondary screens only on demand');
 handlers.get('message')({data:'activate-update'}); assert.equal(activates,1);
+store.set('/api/v1/messages/private',new Response('private'));
+store.set('/unlisted-private-data',new Response('private'));
+await caches.open('sticktalk-private-test');
+await caches.open('unrelated-app');
+handlers.get('message')({data:'purge-private',waitUntil:p=>pending=p});await pending;
+assert(!store.has('/api/v1/messages/private'));
+assert(!store.has('/unlisted-private-data'));
+assert(!stores.has('sticktalk-private-test'));
+assert(stores.has('unrelated-app'));
+assert(store.has('/'+core.file),'logout preserves the public offline shell');
 console.log(`Loading: core ${core.brotli} B Brotli, ${chunks.length} real lazy chunks; shell/core precache, stale-while-revalidate, API exclusion, deliberate updates: passed`);
 
 const {directSearch}=await import('../public/gifs.js');

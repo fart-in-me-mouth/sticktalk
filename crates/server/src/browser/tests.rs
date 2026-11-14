@@ -38,6 +38,41 @@ fn cookies(response: &Response) -> String {
         .collect::<Vec<_>>()
         .join("; ")
 }
+
+#[tokio::test]
+async fn revoked_browser_session_probe_expires_http_only_credential() {
+    let (_dir, app) = fixture().await;
+    let token = state::token();
+    let cookie = format!("{SESSION}={token}; {CSRF}={}", csrf(&token));
+    let response = call(
+        &app,
+        "GET",
+        "/api/v1/browser/session",
+        &[("cookie", &cookie)],
+        json!(null),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    for name in [SESSION, CSRF] {
+        assert!(response.headers().get_all("set-cookie").iter().any(|h| {
+            let h = h.to_str().unwrap();
+            h.starts_with(&format!("{name}=;")) && h.contains("Max-Age=0")
+        }));
+    }
+    // A Google signup has a CSRF cookie bound to its signup ticket, but no
+    // session yet. A normal unauthenticated boot probe must not erase it.
+    let signup_cookie = format!("{SIGNUP}=signup-ticket; {CSRF}=signup-csrf");
+    let response = call(
+        &app,
+        "GET",
+        "/api/v1/browser/session",
+        &[("cookie", &signup_cookie)],
+        json!(null),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert!(!response.headers().contains_key("set-cookie"));
+}
 async fn value(r: Response) -> serde_json::Value {
     serde_json::from_slice(&to_bytes(r.into_body(), 65536).await.unwrap()).unwrap()
 }

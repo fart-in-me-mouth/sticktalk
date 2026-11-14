@@ -33,6 +33,8 @@ extern "C" {
     fn recover_session() -> js_sys::Promise;
     #[wasm_bindgen(js_name = chatReady)]
     fn chat_ready();
+    #[wasm_bindgen(js_name = sessionRevoked)]
+    fn session_revoked() -> js_sys::Promise;
 }
 
 /// The shared fetch adapter enforces response/chunk bounds and cancellation. The
@@ -45,18 +47,7 @@ impl HttpTransport for CookieFetch {
             // A remotely revoked HttpOnly session cookie can outlive its app
             // state. Login still needs its readable double-submit CSRF cookie.
             let csrf = if self.0.is_empty() {
-                js_sys::Reflect::get(document().as_ref(), &"cookie".into())
-                    .ok()
-                    .and_then(|v| v.as_string())
-                    .and_then(|cookies| {
-                        cookies.split(';').find_map(|cookie| {
-                            cookie
-                                .trim()
-                                .strip_prefix("__Host-sticktalk_csrf=")
-                                .map(str::to_owned)
-                        })
-                    })
-                    .unwrap_or_default()
+                csrf_cookie()
             } else {
                 self.0.clone()
             };
@@ -137,6 +128,7 @@ impl App {
         self.connection = None;
         self.model = Model::default();
         self.csrf.clear();
+        self.error.clear();
         self.ready = false;
         self.register = false;
         self.signup = false;
@@ -383,6 +375,7 @@ pub fn mount() {
         view! { {move || {revision.get(); render.with_value(|a|ui::app(&a.borrow()))}} }
     });
 }
+#[inline(never)]
 fn csrf_cookie() -> String {
     // Read only the non-HttpOnly CSRF cookie. Never read/store session credentials.
     js_sys::Reflect::get(document().as_ref(), &"cookie".into())
@@ -412,6 +405,19 @@ fn start_session(app: Shared, session: BrowserSession) {
         socket(app, epoch).await;
     });
 }
+
+#[inline(never)]
+fn end_session(app: &Shared, notice: &str) {
+    // Dropping the sender wakes the socket task, which closes its transport.
+    // Invalidate in-flight projections before rendering the login screen.
+    let mut a = app.borrow_mut();
+    a.clear_account();
+    a.status = notice.into();
+    media_action("transport-lost");
+    media_action("purge");
+    a.touch();
+}
+
 type MessageEncoder = fn(&ClientMsg) -> Result<Vec<u8>, String>;
 // Keep optional command serializers out of the login/idle core. The split
 // loader caches this function; the named MessagePack wire format is unchanged.
@@ -510,12 +516,7 @@ async fn socket(app: Shared, epoch: u64) {
                         // Session revocation closes the socket without an error
                         // payload. Never leave private history visible while
                         // retrying an already invalid cookie indefinitely.
-                        let mut a = app.borrow_mut();
-                        a.clear_account();
-                        a.error = "Your session ended. Please log in again.".into();
-                        media_action("purge");
-                        media_action("transport-lost");
-                        a.touch();
+                        end_session(&app, "Your session ended. Please log in again.");
                         return;
                     }
                     Wake::Frame(Some(Ok(Frame::Binary(bytes)))) => {
@@ -793,18 +794,14 @@ async fn socket(app: Shared, epoch: u64) {
                                 }
                             }
                             ServerMsg::Error(e) => {
-                                app.borrow_mut().error = e.message;
                                 if matches!(
                                     e.code,
                                     ErrorCode::Unauthenticated | ErrorCode::SessionExpired
                                 ) {
-                                    let mut a = app.borrow_mut();
-                                    a.clear_account();
-                                    media_action("purge");
-                                    media_action("transport-lost");
-                                    a.touch();
+                                    end_session(&app, "Your session ended. Please log in again.");
                                     return;
                                 }
+                                app.borrow_mut().error = e.message;
                                 app.borrow().touch();
                             }
                         }
@@ -824,6 +821,20 @@ async fn socket(app: Shared, epoch: u64) {
                 a.pending
                     .retain(|_, (_, at)| Browser.monotonic_ms().saturating_sub(*at) < 590_000);
             }
+        }
+        // Browser WebSocket failures hide the HTTP upgrade status. The host
+        // probes only on disconnect, and only an authoritative 401 is terminal.
+        let revoked = wasm_bindgen_futures::JsFuture::from(session_revoked())
+            .await
+            .ok()
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if app.borrow().epoch != epoch {
+            return;
+        }
+        if revoked {
+            end_session(&app, "Your session ended. Please log in again.");
+            return;
         }
         Browser.sleep(backoff + nonce(&Browser) % 500).await;
         backoff = (backoff * 2).min(30_000);

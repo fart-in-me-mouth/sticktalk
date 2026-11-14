@@ -507,24 +507,25 @@ impl App {
     }
     pub async fn housekeeping(&self) -> Result<()> {
         crate::resumable::gc(self).await?;
+        // Maintenance writes obey the same writer gate as account mutations.
+        let mut core = self.0.core.lock().await;
+        let mut conn = self.0.pool.acquire().await?;
         sqlx::query("DELETE FROM reserved_usernames WHERE release_at<=?")
             .bind(now() as i64)
-            .execute(&self.0.pool)
+            .execute(&mut *conn)
             .await?;
         sqlx::query("DELETE FROM google_challenges WHERE expires_at<=?")
             .bind(now() as i64)
-            .execute(&self.0.pool)
+            .execute(&mut *conn)
             .await?;
         sqlx::query("DELETE FROM reauth_proofs WHERE expires_at<=?")
             .bind(now() as i64)
-            .execute(&self.0.pool)
+            .execute(&mut *conn)
             .await?;
         sqlx::query("DELETE FROM web_oauth_states WHERE expires_at<=?")
             .bind(now() as i64)
-            .execute(&self.0.pool)
+            .execute(&mut *conn)
             .await?;
-        let mut core = self.0.core.lock().await;
-        let mut conn = self.0.pool.acquire().await?;
         crate::voice::reconcile(self, &mut core, &mut conn).await?;
         crate::commands::expire_invites(&mut conn, &mut core).await?;
         let mut expired_users = vec![];
@@ -625,7 +626,14 @@ impl App {
             let mut tick = tokio::time::interval(Duration::from_secs(60));
             tick.tick().await;
             loop {
-                tokio::select! { _=app.0.shutdown.cancelled()=>break, _=tick.tick()=> { if app.housekeeping().await.is_err() || app.collect_orphan_files().await.is_err() { tracing::warn!("housekeeping failed"); } } }
+                tokio::select! { _=app.0.shutdown.cancelled()=>break, _=tick.tick()=> {
+                    if let Err(error) = app.housekeeping().await {
+                        tracing::warn!(?error, "housekeeping failed");
+                    }
+                    if let Err(error) = app.collect_orphan_files().await {
+                        tracing::warn!(?error, "orphan file collection failed");
+                    }
+                } }
             }
         });
         let storage = self.clone();
