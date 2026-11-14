@@ -1,6 +1,9 @@
+pub(crate) mod audit;
 mod avatar_mask;
 mod controls;
+mod elided;
 pub mod emoji_picker;
+pub mod features3;
 pub mod gif_picker;
 mod history;
 mod link_context;
@@ -321,6 +324,59 @@ fn empty<'a>(name: &str, label: impl Into<String>, button: Button<'a>) -> Elemen
     .into()
 }
 pub fn view(app: &App) -> Element<'_, Msg> {
+    let content = content_view(app);
+    let content: Element<'_, Msg> = if (app.state.session.is_none() || app.state.model.me.is_none())
+        && app.features.confirm_update
+    {
+        if let Some(overlay) = crate::features::overlay(app) {
+            stack![content, overlay].into()
+        } else {
+            content
+        }
+    } else {
+        content
+    };
+    if !app.features.crash_notice {
+        return content;
+    }
+    stack![
+        content,
+        opaque(
+            container(
+                container(
+                    column![
+                        title("StickTalk closed unexpectedly"),
+                        hint("A local diagnostic log is available. Nothing was uploaded."),
+                        row![
+                            action(
+                                "Dismiss",
+                                Msg::feature(crate::features::Event::Desktop(
+                                    crate::desktop_host::Event::DismissCrash
+                                ))
+                            ),
+                            primary(
+                                "Open logs folder",
+                                Msg::feature(crate::features::Event::Desktop(
+                                    crate::desktop_host::Event::OpenLogs
+                                ))
+                            )
+                        ]
+                        .spacing(t::S8)
+                    ]
+                    .spacing(t::S16)
+                )
+                .padding(t::S24)
+                .width(t::LOGIN_W)
+                .style(t::modal)
+            )
+            .center_x(Fill)
+            .center_y(Fill)
+            .style(t::dim)
+        )
+    ]
+    .into()
+}
+fn content_view(app: &App) -> Element<'_, Msg> {
     if app.main.avatar_gallery {
         return controls::avatar_gallery(app);
     }
@@ -346,13 +402,25 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     }
     if app.state.model.me.is_none() {
         return container(
-            column![
-                icon("message-circle", t::AVATAR, t::ACCENT),
-                title("Connecting…"),
-                skeleton(),
-                action("Sign in instead", Msg::Logout)
-            ]
-            .spacing(t::S24),
+            container(
+                column![
+                    icon("message-circle", t::AVATAR, t::ACCENT),
+                    title(
+                        if matches!(app.state.connection, ConnectionState::Connecting) {
+                            "Connecting…"
+                        } else {
+                            "Reconnecting…"
+                        }
+                    ),
+                    connection_banner(app),
+                    skeleton(),
+                    action("Sign in instead", Msg::Logout)
+                ]
+                .spacing(t::S24),
+            )
+            .width(t::LOGIN_W)
+            .padding(t::S32)
+            .style(t::modal),
         )
         .center_x(Fill)
         .center_y(Fill)
@@ -469,6 +537,9 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     if let Some(overlay) = main_window::overlay(app) {
         layers.push(overlay);
     }
+    if let Some(overlay) = features3::folder_overlay(app) {
+        layers.push(overlay);
+    }
     if app.main.dropping {
         layers.push(main_window::drop_overlay());
     }
@@ -489,6 +560,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
                     .align_y(Center),
                 )
                 .padding([t::S12, t::S16])
+                .max_width((app.width - t::S24 * 2.).min(t::QUICK_W))
                 .style(t::elevated),
             )
             .center_x(Fill)
@@ -509,7 +581,6 @@ fn login(app: &App) -> Element<'_, Msg> {
         ]
         .spacing(t::S12)
         .align_y(Center),
-        space().height(t::S8),
         title(if signup {
             "Pick a username"
         } else if app.register {
@@ -518,7 +589,45 @@ fn login(app: &App) -> Element<'_, Msg> {
             "Sign in"
         })
     ]
-    .spacing(t::S16);
+    .spacing(if app.height < t::DEFAULT_H {
+        t::S12
+    } else {
+        t::S16
+    });
+    if !signup && app.change_server {
+        form = form.push(
+            column![
+                section("SERVER ADDRESS"),
+                row![
+                    text_input("https://chat.example.com", &app.server)
+                        .id("login-server")
+                        .on_input_maybe((!app.busy).then_some(Msg::Server))
+                        .on_submit(Msg::RefreshMeta)
+                        .padding([t::S12, t::S16])
+                        .size(t::BODY)
+                        .line_height(iced::Pixels(t::S16))
+                        .width(Fill)
+                        .style(t::input),
+                    action(
+                        if app.meta_loading {
+                            "Connecting…"
+                        } else {
+                            "Connect"
+                        },
+                        Msg::RefreshMeta
+                    )
+                    .on_press_maybe((!app.meta_loading && !app.busy).then_some(Msg::RefreshMeta))
+                ]
+                .spacing(t::S8)
+                .align_y(Center),
+                hint("Use the address from your server administrator.").color(t::TEXT_SECONDARY)
+            ]
+            .spacing(t::S8),
+        );
+        if !app.meta_error.is_empty() {
+            form = form.push(hint(&app.meta_error).color(t::DANGER));
+        }
+    }
     if !signup && app.google_available() {
         form = form.push(google_button(app)).push(
             row![line(), hint("or"), line()]
@@ -530,7 +639,13 @@ fn login(app: &App) -> Element<'_, Msg> {
         column![
             section("USERNAME"),
             text_input("your_username", &app.username)
-                .on_input(Msg::Username)
+                .id("login-username")
+                .on_input_maybe((!app.busy).then_some(Msg::Username))
+                .on_submit(if signup {
+                    Msg::GoogleComplete
+                } else {
+                    Msg::Tab(false)
+                })
                 .padding([t::S12, t::S16])
                 .size(t::BODY)
                 .line_height(iced::Pixels(t::S16))
@@ -543,7 +658,8 @@ fn login(app: &App) -> Element<'_, Msg> {
             column![
                 section("DISPLAY NAME"),
                 text_input("Optional", &app.display)
-                    .on_input(Msg::Display)
+                    .on_input_maybe((!app.busy).then_some(Msg::Display))
+                    .on_submit(Msg::Tab(false))
                     .padding([t::S12, t::S16])
                     .size(t::BODY)
                     .line_height(iced::Pixels(t::S16))
@@ -556,8 +672,9 @@ fn login(app: &App) -> Element<'_, Msg> {
         let mut password = column![
             section("PASSWORD"),
             text_input("", &app.password)
+                .id("login-password")
                 .secure(true)
-                .on_input(Msg::Password)
+                .on_input_maybe((!app.busy).then_some(Msg::Password))
                 .on_submit(Msg::Login)
                 .padding([t::S12, t::S16])
                 .size(t::BODY)
@@ -566,7 +683,7 @@ fn login(app: &App) -> Element<'_, Msg> {
         ]
         .spacing(t::S8);
         if app.register {
-            password = password.push(hint("At least 12 characters."));
+            password = password.push(hint("At least 12 characters.").color(t::TEXT_SECONDARY));
         }
         form = form.push(password);
     }
@@ -574,27 +691,35 @@ fn login(app: &App) -> Element<'_, Msg> {
         form = form.push(hint(&app.error).color(t::DANGER));
     }
     form = form.push(
-        primary(
-            if app.busy {
-                "Signing in…"
-            } else if signup {
-                "Create account"
-            } else if app.register {
-                "Register"
-            } else {
-                "Sign in"
-            },
-            if signup {
+        container(
+            primary(
+                if app.busy {
+                    if app.register || signup {
+                        "Creating account…"
+                    } else {
+                        "Signing in…"
+                    }
+                } else if signup {
+                    "Create account"
+                } else if app.register {
+                    "Register"
+                } else {
+                    "Sign in"
+                },
+                if signup {
+                    Msg::GoogleComplete
+                } else {
+                    Msg::Login
+                },
+            )
+            .on_press_maybe((!app.busy).then_some(if signup {
                 Msg::GoogleComplete
             } else {
                 Msg::Login
-            },
+            }))
+            .width(Fill),
         )
-        .on_press_maybe((!app.busy).then_some(if signup {
-            Msg::GoogleComplete
-        } else {
-            Msg::Login
-        }))
+        .id("login-submit")
         .width(Fill),
     );
     if app.oauth_pending() || signup {
@@ -625,10 +750,18 @@ fn login(app: &App) -> Element<'_, Msg> {
             .align_y(Center),
         );
     }
+    if app.features.update_ready.is_some() {
+        form = form.push(crate::features::update_pill(app));
+    }
     let mut body = column![container(scroller(form).height(Length::Shrink))
-        .padding(t::S32)
+        .id("login-card")
+        .padding(if app.height < t::DEFAULT_H {
+            t::S24
+        } else {
+            t::S32
+        })
         .width(t::LOGIN_W)
-        .max_height(app.height - t::MODAL_INSET - t::HEADER)
+        .max_height(app.height - t::S32 * 2.)
         .style(t::modal)]
     .spacing(t::S12)
     .align_x(Center);
@@ -639,30 +772,12 @@ fn login(app: &App) -> Element<'_, Msg> {
             } else {
                 "Change server"
             }))
-            .on_press(Msg::ChangeServer)
+            .on_press_maybe(
+                (!app.busy && !app.server.trim().is_empty()).then_some(Msg::ChangeServer),
+            )
             .padding(t::S4)
             .style(t::link),
         );
-        if app.change_server {
-            body = body.push(
-                container(
-                    column![
-                        section("SERVER ADDRESS"),
-                        text_input("https://chat.example.com", &app.server)
-                            .on_input(Msg::Server)
-                            .on_submit(Msg::RefreshMeta)
-                            .padding([t::S12, t::S16])
-                            .size(t::BODY)
-                            .line_height(iced::Pixels(t::S16))
-                            .style(t::input)
-                    ]
-                    .spacing(t::S8),
-                )
-                .width(t::LOGIN_W)
-                .padding([0., t::S32])
-                .style(t::bare),
-            );
-        }
     }
     container(body)
         .center_x(Fill)
@@ -685,6 +800,7 @@ fn connection_banner(app: &App) -> Element<'_, Msg> {
         icon("wifi-off", t::INLINE_ICON, t::WARNING),
         hint(match &app.state.connection {
             ConnectionState::Stopped(v) => v.clone(),
+            ConnectionState::Connecting => "Connecting to the server…".into(),
             _ => "Reconnecting… Your conversation will resume automatically.".into(),
         })
         .color(t::WARNING),
@@ -810,7 +926,11 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
                     .push(friend_action(
                         "more-horizontal",
                         "More",
-                        Msg::Open(Dialog::Profile(id)),
+                        crate::main_window::mm(crate::main_window::Message::Open(
+                            crate::main_window::Popover::Context(crate::main_window::Entity::User(
+                                id,
+                            )),
+                        )),
                     ));
             }
             RelationshipKind::IncomingRequest => {
@@ -958,9 +1078,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
     let header = main_window::header(app, channel);
     let rows = app.visible_items();
     let (_, _, top, tail) = app.visible_range();
-    let history: Element<'_, Msg> = if !app.main.search.is_empty() {
-        main_window::local_results(app, id)
-    } else if app.extent.active() {
+    let history: Element<'_, Msg> = if app.extent.active() {
         history::view(app)
     } else if app.state.loading && rows.is_empty() {
         container(skeleton()).height(Fill).style(t::bare).into()
@@ -1028,7 +1146,9 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
         .height(Fill)
         .width(Fill);
     let mut body = row![center].height(Fill);
-    if app
+    if app.text_features.search.open {
+        body = body.push(features3::search_panel(app));
+    } else if app
         .members_open
         .unwrap_or(app.width >= t::MEMBER_BREAKPOINT)
     {
@@ -1041,7 +1161,30 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
         .into()
 }
 fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
+    let permissions = app.channel_permissions(channel.id);
+    if !permissions.contains(Permissions::SEND_MESSAGES) {
+        return container(
+            container(
+                row![
+                    icon("lock-keyhole", t::ICON, t::TEXT_MUTED),
+                    hint("You don't have permission to send messages in this channel.")
+                ]
+                .spacing(t::S12)
+                .align_y(Center),
+            )
+            .width(Fill)
+            .padding([t::S12, t::S16])
+            .style(t::elevated),
+        )
+        .id("composer")
+        .padding([t::S8, t::S16])
+        .style(t::chat)
+        .into();
+    }
     let mut body = column![].spacing(t::S8);
+    if let Some(status) = features3::slowmode_composer(app, channel.id) {
+        body = body.push(status);
+    }
     if let Some(cards) = uploads::cards(app) {
         body = body.push(cards);
     }
@@ -1124,8 +1267,11 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                     button(
                         row![
                             avatar(app, *id, t::S24, false),
-                            txt(app.state.model.name(*id)),
-                            hint(format!("@{}", user.username))
+                            elided::label(app.state.model.name(*id)).width(Fill),
+                            elided::label(format!("@{}", user.username))
+                                .size(t::HINT)
+                                .color(t::TEXT_SECONDARY)
+                                .width(Fill)
                         ]
                         .spacing(t::S12)
                         .align_y(Center),
@@ -1138,7 +1284,16 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                 );
             }
         }
-        body = body.push(container(suggestions).padding(t::S8).style(t::elevated));
+        body = body.push(
+            container(
+                scroller(suggestions)
+                    .id("composer-suggestions")
+                    .height(Length::Shrink),
+            )
+            .max_height((app.height * 0.4).min(t::S32 * 10.))
+            .padding(t::S8)
+            .style(t::elevated),
+        );
     }
     if !app.state.attachments.is_empty() {
         let mut attachments = Row::new().spacing(t::S8);
@@ -1162,7 +1317,7 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                 .style(t::elevated),
             );
         }
-        body = body.push(attachments);
+        body = body.push(attachments.wrap());
     }
     if app.state.editing.is_some() {
         body = body.push(
@@ -1194,17 +1349,23 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
             .map(|line| line.chars().count().max(1).div_ceil(wrap))
             .sum::<usize>()
             .max(1);
-        let height = (lines as f32 * t::BODY * t::LINE + t::S24)
-            .clamp(t::COMPOSER_MIN, app.viewport_h * 0.5);
+        // History height shrinks as the composer grows. Basing this limit on
+        // that feedback signal eventually inverted clamp's bounds at 940×600.
+        let max_height = ((app.height - t::HEADER - t::TYPING - t::S32) * 0.5).max(t::COMPOSER_MIN);
+        let height = (lines as f32 * t::BODY * t::LINE + t::S24).clamp(t::COMPOSER_MIN, max_height);
         let editor = compose_editor(app, placeholder, height, !candidates.is_empty());
         body = body.push(
             container(
                 row![
-                    icon_button(
-                        "plus-circle",
-                        "Upload a file",
-                        Msg::PickUpload(UploadPurpose::Message)
-                    ),
+                    if permissions.contains(Permissions::ATTACH_FILES) {
+                        icon_button(
+                            "plus-circle",
+                            "Upload a file",
+                            Msg::PickUpload(UploadPurpose::Message),
+                        )
+                    } else {
+                        space().width(0).into()
+                    },
                     editor,
                     if !matches!(app.features.gifs.capability, GifCapability::Disabled) {
                         controls::gif_button()
@@ -1252,10 +1413,20 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         .into()
     };
     body = body.push(
-        container(row![dots, hint(typing)].spacing(t::S8).align_y(Center))
-            .height(t::TYPING)
-            .padding([0., t::S8])
-            .style(t::bare),
+        container(
+            row![
+                dots,
+                elided::label(typing)
+                    .size(t::HINT)
+                    .color(t::TEXT_MUTED)
+                    .width(Fill)
+            ]
+            .spacing(t::S8)
+            .align_y(Center),
+        )
+        .height(t::TYPING)
+        .padding([0., t::S8])
+        .style(t::bare),
     );
     container(body)
         .id("composer")
@@ -1341,13 +1512,15 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
                     .style(t::icon),
                 ))
                 .push(
-                    button(hint(ellipsis(
-                        &app.state.model.content(target),
-                        ((app.viewport_w - t::MESSAGE_GUTTER - t::S32 * 5.) / t::GLYPH_WIDTH)
-                            .clamp(16., 70.) as usize,
-                    )))
+                    button(
+                        elided::label(app.state.model.content(target))
+                            .size(t::HINT)
+                            .color(t::TEXT_MUTED)
+                            .width(Fill),
+                    )
                     .on_press(Msg::PreviewReply(reply))
                     .padding(0)
+                    .width(Fill)
                     .style(t::icon),
                 );
         } else {
@@ -1365,13 +1538,20 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
             row![
                 link_context::wrap(
                     button(
-                        txt(app.state.model.name(m.author_id))
-                            .font(t::medium())
-                            .size(t::CHANNEL_NAME)
-                            .color(controls::name_color(app, m.author_id))
+                        container(
+                            elided::label(app.state.model.name(m.author_id))
+                                .font(t::medium())
+                                .size(t::CHANNEL_NAME)
+                                .color(controls::name_color(app, m.author_id))
+                        )
+                        .max_width(
+                            (app.viewport_w - t::MESSAGE_GUTTER - t::SEARCH_REST - t::S16)
+                                .max(t::S32)
+                        )
                     )
                     .on_press(controls::profile_message(m.author_id))
                     .padding(0)
+                    .width(Length::Shrink)
                     .style(t::icon)
                 ),
                 hint(timestamp(m.created_at, false))
@@ -1460,12 +1640,15 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
         for r in m
             .reactions
             .iter()
-            .filter(|r| emoji_picker::has_artwork(&r.emoji))
+            .filter(|r| emoji_picker::has_artwork(&r.emoji) || custom_emoji_id(&r.emoji).is_some())
         {
             reactions = reactions.push(
                 button(
                     row![
-                        emoji(&r.emoji, t::INLINE_ICON),
+                        custom_emoji_id(&r.emoji).map_or_else(
+                            || emoji(&r.emoji, t::INLINE_ICON),
+                            |id| features3::glyph(app, id, t::INLINE_ICON)
+                        ),
                         hint(r.count.to_string()).color(if r.me {
                             t::ACCENT
                         } else {
@@ -1475,12 +1658,20 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
                     .spacing(t::S8)
                     .align_y(Center),
                 )
-                .on_press(Msg::Reaction(m.id, r.emoji.clone(), r.me))
+                .on_press_maybe(
+                    app.channel_permissions(m.channel_id)
+                        .contains(Permissions::ADD_REACTIONS)
+                        .then(|| Msg::Reaction(m.id, r.emoji.clone(), r.me)),
+                )
                 .padding([t::S4, t::S8])
                 .style(t::reaction(r.me)),
             );
         }
-        if hovered {
+        if hovered
+            && app
+                .channel_permissions(m.channel_id)
+                .contains(Permissions::ADD_REACTIONS)
+        {
             reactions = reactions.push(
                 button(icon("plus", t::INLINE_ICON, t::TEXT_SECONDARY))
                     .on_press(Msg::ReactPicker(m.id))
@@ -1488,7 +1679,7 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
                     .style(t::icon),
             );
         }
-        content = content.push(reactions);
+        content = content.push(reactions.wrap());
     }
     let gutter: Element<'_, Msg> = if grouped || compact {
         container(hint(if hovered || compact {
@@ -1539,12 +1730,15 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
         );
     }
     if hovered {
-        let mut tools = row![
-            message_tool("smile", "React", Msg::ReactPicker(m.id)),
-            message_tool("reply", "Reply", Msg::Reply(m.id))
-        ]
-        .spacing(0);
-        if Some(m.author_id) == app.me() {
+        let permissions = app.channel_permissions(m.channel_id);
+        let mut tools = Row::new().spacing(0);
+        if permissions.contains(Permissions::ADD_REACTIONS) {
+            tools = tools.push(message_tool("smile", "React", Msg::ReactPicker(m.id)));
+        }
+        if permissions.contains(Permissions::SEND_MESSAGES) {
+            tools = tools.push(message_tool("reply", "Reply", Msg::Reply(m.id)));
+        }
+        if Some(m.author_id) == app.me() && permissions.contains(Permissions::SEND_MESSAGES) {
             tools = tools.push(message_tool("pencil", "Edit", Msg::Edit(m.id)));
         }
         if Some(m.author_id) == app.me()
@@ -1697,6 +1891,18 @@ fn inline_content<'a>(
     values: &[crate::markdown::Inline],
     size: f32,
 ) -> Element<'a, Msg> {
+    inline_content_edited(app, m, values, size, false)
+}
+fn inline_content_edited<'a>(
+    app: &App,
+    m: &Message,
+    values: &[crate::markdown::Inline],
+    size: f32,
+    edited: bool,
+) -> Element<'a, Msg> {
+    if let Some(view) = features3::inline(app, m, values, size) {
+        return view;
+    }
     use unicode_segmentation::UnicodeSegmentation;
     let is_emoji = |g: &str| {
         g.chars().next().is_some_and(|c| c as u32 >= 0x2300)
@@ -1706,7 +1912,7 @@ fn inline_content<'a>(
         .iter()
         .any(|v| !v.style.code && v.text.graphemes(true).any(is_emoji))
     {
-        return inline_text(app, m, values, size);
+        return inline_text_edited(app, m, values, size, edited);
     }
     // Keep styled words and artwork in the same wrapping flow. Text-only
     // messages retain the original single cached rich paragraph.
@@ -1743,6 +1949,9 @@ fn inline_content<'a>(
             flow = flow.push(inline_text(app, m, &[piece], size));
         }
     }
+    if edited {
+        flow = flow.push(hint(" (edited)"));
+    }
     flow.width(Fill).wrap().into()
 }
 fn inline_text<'a>(
@@ -1750,6 +1959,15 @@ fn inline_text<'a>(
     m: &Message,
     values: &[crate::markdown::Inline],
     size: f32,
+) -> Element<'a, Msg> {
+    inline_text_edited(app, m, values, size, false)
+}
+fn inline_text_edited<'a>(
+    app: &App,
+    m: &Message,
+    values: &[crate::markdown::Inline],
+    size: f32,
+    edited: bool,
 ) -> Element<'a, Msg> {
     use crate::markdown::Target;
     let mut spans = Vec::new();
@@ -1820,6 +2038,14 @@ fn inline_text<'a>(
         }
         spans.push(span);
     }
+    if edited {
+        spans.push(
+            widget::span(" (edited)")
+                .size(t::HINT)
+                .font(t::regular())
+                .color(t::TEXT_MUTED),
+        );
+    }
     link_context::wrap(
         widget::rich_text(spans)
             .font(t::regular())
@@ -1838,9 +2064,15 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
     use crate::markdown::Block;
     let doc = app.markdown.get(m.id, &m.content);
     let mut body = column![].spacing(t::S4).width(Fill);
-    for block in &doc.blocks {
+    for (index, block) in doc.blocks.iter().enumerate() {
         body = body.push(match block {
-            Block::Paragraph(v) => inline_content(app, m, v, t::BODY),
+            Block::Paragraph(v) => inline_content_edited(
+                app,
+                m,
+                v,
+                t::BODY,
+                m.edited_at.is_some() && index + 1 == doc.blocks.len(),
+            ),
             Block::Header(n, v) => inline_content(
                 app,
                 m,
@@ -1903,12 +2135,14 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
             }
         });
     }
-    if m.edited_at.is_some() {
+    if m.edited_at.is_some() && !matches!(doc.blocks.last(), Some(Block::Paragraph(_))) {
         body = body.push(hint("(edited)"));
     }
     use std::hash::{Hash, Hasher};
     let mut hash = std::collections::hash_map::DefaultHasher::new();
     m.content.hash(&mut hash);
+    app.state.model.launch.emoji_revision.hash(&mut hash);
+
     m.edited_at.hash(&mut hash);
     app.settings
         .preferences
@@ -1986,29 +2220,32 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
                     .get(&channel_id)
                     .and_then(|ms| ms.get(id))
                 {
-                    let mut reactions = Row::new().spacing(t::S4);
-                    for value in ["🌱", "❤️", "👍", "✨", "🎉", "👀"] {
-                        let reacted = m.reactions.iter().any(|r| r.emoji == value && r.me);
+                    let permissions = app.channel_permissions(channel_id);
+                    if permissions.contains(Permissions::ADD_REACTIONS) {
+                        let mut reactions = Row::new().spacing(t::S4);
+                        for value in ["🌱", "❤️", "👍", "✨", "🎉", "👀"] {
+                            let reacted = m.reactions.iter().any(|r| r.emoji == value && r.me);
+                            reactions = reactions.push(
+                                button(emoji(value, t::ICON))
+                                    .on_press(Msg::Reaction(*id, value.into(), reacted))
+                                    .padding(t::S4)
+                                    .style(t::reaction(reacted)),
+                            );
+                        }
                         reactions = reactions.push(
-                            button(emoji(value, t::ICON))
-                                .on_press(Msg::Reaction(*id, value.into(), reacted))
+                            button(icon("plus", t::INLINE_ICON, t::TEXT_SECONDARY))
+                                .on_press(Msg::ReactPicker(*id))
                                 .padding(t::S4)
-                                .style(t::reaction(reacted)),
+                                .style(t::icon),
                         );
+                        items = items.push(reactions).push(line());
                     }
-                    reactions = reactions.push(
-                        button(icon("plus", t::INLINE_ICON, t::TEXT_SECONDARY))
-                            .on_press(Msg::ReactPicker(*id))
-                            .padding(t::S4)
-                            .style(t::icon),
-                    );
-                    items = items.push(reactions).push(line()).push(menu_item(
-                        "reply",
-                        "Reply",
-                        Msg::Reply(*id),
-                        false,
-                    ));
-                    if Some(m.author_id) == app.me() {
+                    if permissions.contains(Permissions::SEND_MESSAGES) {
+                        items = items.push(menu_item("reply", "Reply", Msg::Reply(*id), false));
+                    }
+                    if Some(m.author_id) == app.me()
+                        && permissions.contains(Permissions::SEND_MESSAGES)
+                    {
                         items = items.push(menu_item("pencil", "Edit", Msg::Edit(*id), false));
                     }
                     if app
@@ -2035,7 +2272,7 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
                             false,
                         ));
                     }
-                    if app.main.developer {
+                    if app.settings.preferences.developer_mode {
                         items = items.push(controls::item(
                             "Copy ID",
                             "copy",
@@ -2158,6 +2395,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
             "Add a friend",
             "You can add a friend with their exact username.",
         ),
+        Dialog::NewChannel(ChannelKind::Category, _) => ("Create a category", ""),
         Dialog::NewChannel(_, _) => ("Create a channel", ""),
         Dialog::Notifications(_) => return settings::notifications(app),
         Dialog::ChannelSettings(_) => ("Channel settings", ""),
@@ -2270,8 +2508,15 @@ fn modal(app: &App) -> Element<'_, Msg> {
                 .push(footer("Join server", Msg::Submit));
         }
         Dialog::Invite => {
+            let ready = !app.form.code.is_empty();
+            let retry = !app.error.is_empty();
             let code = if app.form.code.is_empty() {
-                "Creating your invite…".into()
+                if retry {
+                    "Invite unavailable"
+                } else {
+                    "Creating your invite…"
+                }
+                .into()
             } else {
                 app.form.code.clone()
             };
@@ -2281,7 +2526,12 @@ fn modal(app: &App) -> Element<'_, Msg> {
                         row![
                             icon("link", t::ICON, t::TEXT_MUTED),
                             txt(ellipsis(&code, 36)).width(Fill),
-                            icon_button("copy", "Copy invite code", Msg::Copy(code))
+                            controls::icon_button_maybe(
+                                "copy",
+                                "Copy invite code",
+                                ready.then(|| Msg::Copy(app.form.code.clone())),
+                                false
+                            )
                         ]
                         .spacing(t::S12)
                         .align_y(Center),
@@ -2293,13 +2543,24 @@ fn modal(app: &App) -> Element<'_, Msg> {
             if let Some(guild_id) = app.state.guild {
                 body = body.push(
                     action(
-                        "Create a new invite",
+                        if retry {
+                            "Try again"
+                        } else {
+                            "Create a new invite"
+                        },
                         Msg::Command(Command::CreateInvite {
                             guild_id,
                             ttl_seconds: 604800,
                             max_uses: 100,
                         }),
                     )
+                    .on_press_maybe((ready || retry).then_some(Msg::Command(
+                        Command::CreateInvite {
+                            guild_id,
+                            ttl_seconds: 604800,
+                            max_uses: 100,
+                        },
+                    )))
                     .style(t::link),
                 );
             }
@@ -2319,7 +2580,16 @@ fn modal(app: &App) -> Element<'_, Msg> {
                     },
                     t::ACCENT,
                 ))
-                .push(field("NAME", "e.g. little-wins", &app.form.name, 0));
+                .push(field(
+                    "NAME",
+                    if *kind == ChannelKind::Category {
+                        "e.g. Projects"
+                    } else {
+                        "e.g. little-wins"
+                    },
+                    &app.form.name,
+                    0,
+                ));
             if *kind == ChannelKind::Text {
                 body = body.push(field(
                     "TOPIC (OPTIONAL)",
@@ -2338,7 +2608,14 @@ fn modal(app: &App) -> Element<'_, Msg> {
                         .map_or(String::new(), |v| app.state.model.channel_name(v))
                 )));
             }
-            body = body.push(footer("Create channel", Msg::Submit));
+            body = body.push(footer(
+                if *kind == ChannelKind::Category {
+                    "Create category"
+                } else {
+                    "Create channel"
+                },
+                Msg::Submit,
+            ));
         }
         Dialog::ChannelSettings(id) => {
             if let Some(c) = app.state.model.channels.get(id) {
@@ -2728,9 +3005,20 @@ fn compose_editor<'a>(
     autocomplete: bool,
 ) -> Element<'a, Msg> {
     let empty = app.editor.text().trim().is_empty();
-    let autocomplete = autocomplete || !app.emoji_candidates().is_empty();
+    let autocomplete = autocomplete
+        || !app.emoji_candidates().is_empty()
+        || !crate::features3::candidates(app).is_empty();
     let viewing_image = app.features.viewer.current().is_some();
+    let quick_binding = app
+        .settings
+        .preferences
+        .keybinds
+        .get("Quick Switcher")
+        .map_or("Ctrl+K", String::as_str);
     let editor = text_editor(&app.editor)
+        // URLs, hashes, and pasted tokens must remain editable inside the same
+        // viewport that the composer's wrapped-height estimate reserves.
+        .wrapping(widget::text::Wrapping::WordOrGlyph)
         .id("composer-editor")
         .placeholder(placeholder)
         .key_binding(move |e| {
@@ -2739,7 +3027,7 @@ fn compose_editor<'a>(
                     crate::features::Event::Key(e.key),
                 )))
             } else {
-                editor_binding(e, empty, autocomplete)
+                editor_binding(quick_binding, e, empty, autocomplete)
             }
         })
         .font(t::regular())
@@ -2779,5 +3067,65 @@ mod integration_layout_tests {
         let member = member_action(&app, Id(2));
         assert_eq!(owner.as_widget().size(), member.as_widget().size());
         assert_eq!(owner.as_widget().size().width, Length::Fixed(36.));
+    }
+}
+
+#[cfg(test)]
+mod qa_long_composer {
+    use super::*;
+    #[test]
+    fn long_unbroken_drafts_paint_wrapped_rows_not_one_clipped_line() {
+        crate::headless::load_fonts();
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.editor = text_editor::Content::with_text(&"x".repeat(512));
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY));
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            t::regular(),
+            iced::Pixels(t::BODY),
+        ));
+        let mut ui = iced_runtime::user_interface::UserInterface::build(
+            compose_editor(&app, String::new(), 160., false),
+            iced::Size::new(240., 160.),
+            iced_runtime::user_interface::Cache::new(),
+            &mut renderer,
+        );
+        ui.draw(
+            &mut renderer,
+            &t::theme(&app),
+            &iced::advanced::renderer::Style {
+                text_color: t::TEXT_PRIMARY,
+            },
+            iced::mouse::Cursor::Unavailable,
+        );
+        drop(ui);
+        #[cfg(feature = "wgpu")]
+        let iced::Renderer::Secondary(mut renderer) = renderer
+        else {
+            unreachable!()
+        };
+        let pixels = iced_tiny_skia::window::compositor::screenshot(
+            &mut renderer,
+            &iced_tiny_skia::graphics::Viewport::with_physical_size(iced::Size::new(240, 160), 1.),
+            t::BG_CHAT,
+        );
+        // Ignore the first line and rounded borders. At least two subsequent
+        // glyph rows must be painted, not hidden past the horizontal viewport.
+        let painted = (32..150)
+            .filter(|&y| {
+                (8..232)
+                    .filter(|&x| {
+                        let i = (y * 240 + x) * 4;
+                        pixels[i] > 150 && pixels[i + 1] > 150 && pixels[i + 2] > 150
+                    })
+                    .count()
+                    > 5
+            })
+            .count();
+        assert!(
+            painted >= 20,
+            "long draft rendered only {painted} later glyph scanlines"
+        );
     }
 }

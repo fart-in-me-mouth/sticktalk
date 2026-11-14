@@ -3,6 +3,12 @@ use iced::widget::column;
 pub(super) const PERMISSIONS: &[(&str, Permissions, &str, &str)] = &[
     (
         "General Server Permissions",
+        Permissions::MANAGE_EMOJI,
+        "Manage Emoji",
+        "Upload, rename, and delete custom server emoji.",
+    ),
+    (
+        "General Server Permissions",
         Permissions::VIEW_CHANNEL,
         "View Channels",
         "Allows members to view channels.",
@@ -318,7 +324,9 @@ fn editor<'a>(app: &'a App, role: &'a Role) -> Element<'a, Msg> {
             button(
                 row![
                     super::super::dot(st::role_color(r.color), t::S8),
-                    small(ellipsis(&r.name, 16))
+                    super::super::elided::label(&r.name)
+                        .size(st::SMALL)
+                        .width(Fill)
                 ]
                 .spacing(t::S8)
                 .align_y(Center),
@@ -331,7 +339,10 @@ fn editor<'a>(app: &'a App, role: &'a Role) -> Element<'a, Msg> {
         );
     }
     let mut panel = column![row![
-        title(format!("Edit Role — {}", role.name)).width(Fill),
+        super::super::elided::label(format!("Edit Role — {}", role.name))
+            .size(t::TITLE)
+            .font(t::semibold())
+            .width(Fill),
         row_action(
             "more-horizontal",
             "Role Actions",
@@ -341,7 +352,7 @@ fn editor<'a>(app: &'a App, role: &'a Role) -> Element<'a, Msg> {
     ]
     .align_y(Center)]
     .spacing(t::S24);
-    let mut tabs = Row::new().spacing(t::S24);
+    let mut tabs = Row::new().spacing(t::S16);
     let tab = app.settings.role_tab.unwrap_or(RoleTab::Display);
     for (label, v) in [
         ("Display", RoleTab::Display),
@@ -363,6 +374,11 @@ fn editor<'a>(app: &'a App, role: &'a Role) -> Element<'a, Msg> {
                 .spacing(t::S12),
             )
             .on_press(Msg::Settings(A::RoleTab(v)))
+            .width(match v {
+                RoleTab::Display => t::S32 * 2.,
+                RoleTab::Permissions => t::S32 * 3.,
+                RoleTab::Members => t::S32 * 4.,
+            })
             .padding(0)
             .style(t::icon),
         );
@@ -405,7 +421,11 @@ fn editor<'a>(app: &'a App, role: &'a Role) -> Element<'a, Msg> {
         panel.into()
     };
     row![
-        container(scroller(inner)).width(t::SIDEBAR - t::S32),
+        container(scroller(inner)).width(if st::columns(app.width).1 < st::CONTENT {
+            t::SEARCH_REST
+        } else {
+            t::SIDEBAR - t::S32
+        }),
         container(panel).width(Fill)
     ]
     .spacing(t::S24)

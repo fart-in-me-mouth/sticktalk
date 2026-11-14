@@ -4,6 +4,7 @@ mod app;
 mod audio_settings;
 mod desktop_host;
 mod features;
+mod features3;
 mod video;
 use sticktalk::backend;
 use sticktalk::{animated, gifs, platform_glue, uploads};
@@ -64,12 +65,51 @@ fn main() -> iced::Result {
     if !_host.should_run {
         return Ok(());
     }
-    iced::daemon(
-        || {
+    let dry = std::env::args().any(|a| a == "--mock") || agent_window::enabled();
+    let _diagnostics =
+        (!dry).then(|| sticktalk_desktop_platform::diagnostics::initialize(&storage::root()));
+    #[cfg(windows)]
+    if !dry
+        && std::env::var_os("STICKTALK_UPDATE_HEALTH_FILE").is_none()
+        && storage::root()
+            .join("Updates/rollback/version.txt")
+            .is_file()
+    {
+        use std::os::windows::process::CommandExt;
+        if let Ok(exe) = std::env::current_exe() {
+            let runner = storage::root().join("Updates/recover.exe");
+            if std::fs::copy(exe.with_file_name("sticktalk-maintenance.exe"), &runner).is_ok()
+                && std::process::Command::new(runner)
+                    .arg("recover")
+                    .arg(&exe)
+                    .arg(storage::root().join("Updates"))
+                    .arg(std::process::id().to_string())
+                    .creation_flags(0x08000000)
+                    .spawn()
+                    .is_ok()
+            {
+                return Ok(());
+            }
+        }
+    }
+    if !dry && platform_glue::apply_pending_at_startup() {
+        return Ok(());
+    }
+    let result = iced::daemon(
+        move || {
             let (mut app, init) = app::App::new();
             let (id, open) = iced::window::open(iced::window::Settings {
                 size: window_size(),
-                visible: !agent_window::enabled() && !std::env::args().any(|a| a == "--background"),
+                icon: image::load_from_memory(include_bytes!("../assets/sticktalk.png"))
+                    .ok()
+                    .and_then(|i| {
+                        let rgba = i.into_rgba8();
+                        let (w, h) = rgba.dimensions();
+                        iced::window::icon::from_rgba(rgba.into_raw(), w, h).ok()
+                    }),
+                visible: (!cfg!(windows) || dry)
+                    && !agent_window::enabled()
+                    && !std::env::args().any(|a| a == "--background"),
                 min_size: Some(iced::Size::new(theme::MIN_W, theme::MIN_H)),
                 exit_on_close_request: false,
                 ..Default::default()
@@ -89,6 +129,7 @@ fn main() -> iced::Result {
     .executor::<platform_glue::Executor>()
     .title("StickTalk")
     .theme(|app: &app::App, _| theme::theme(app))
+    .scale_factor(|_: &app::App, _| agent_window::scale_factor())
     .subscription(app::App::subscription)
     .default_font(theme::regular())
     .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
@@ -99,7 +140,14 @@ fn main() -> iced::Result {
     .font(include_bytes!("../assets/fonts/Inter-Italic.ttf").as_slice())
     .font(include_bytes!("../assets/fonts/Inter-SemiBoldItalic.ttf").as_slice())
     .antialiasing(false)
-    .run()
+    .run();
+    if result.is_err() {
+        sticktalk_desktop_platform::diagnostics::record_failure(
+            &storage::root(),
+            "The desktop window could not initialize.",
+        );
+    }
+    result
 }
 
 fn window_size() -> iced::Size {

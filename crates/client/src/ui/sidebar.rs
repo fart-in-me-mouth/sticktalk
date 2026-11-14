@@ -9,7 +9,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
         .map_or("Direct messages".into(), |g| g.guild.name.clone());
     let mut header = row![button(
         row![
-            txt(ellipsis(&name, 20))
+            elided::label(name)
                 .font(t::semibold())
                 .size(t::CHANNEL_NAME)
                 .width(Fill),
@@ -86,7 +86,9 @@ pub fn view(app: &App) -> Element<'_, Msg> {
                             t::TEXT_MUTED
                         }
                     ),
-                    section(app.state.model.channel_name(c))
+                    elided::label(app.state.model.channel_name(c))
+                        .size(t::HINT)
+                        .font(t::semibold())
                         .color(if hover {
                             t::TEXT_PRIMARY
                         } else {
@@ -221,14 +223,11 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
     let label = button(
         row![
             leading,
-            txt(ellipsis(
-                &app.state.model.channel_name(c),
-                if active { 12 } else { 22 }
-            ))
-            .size(t::CHANNEL_NAME)
-            .font(if unread { t::semibold() } else { t::medium() })
-            .color(color)
-            .width(Fill)
+            elided::label(app.state.model.channel_name(c))
+                .size(t::CHANNEL_NAME)
+                .font(if unread { t::semibold() } else { t::medium() })
+                .color(color)
+                .width(Fill)
         ]
         .spacing(t::S8)
         .align_y(Center),
@@ -264,15 +263,19 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
         }
     } else if let Some(r) = read.filter(|r| r.mention_count > 0) {
         actions = actions.push(
-            container(hint(r.mention_count.to_string()).color(t::TEXT_PRIMARY))
-                .padding([0., t::S4])
-                .style(|_| container::Style {
-                    border: Border {
-                        radius: t::ROUND.into(),
-                        ..Default::default()
-                    },
-                    ..t::surface(t::DANGER)
-                }),
+            container(
+                hint(super::rail::mention_label(r.mention_count))
+                    .font(t::semibold())
+                    .color(t::BADGE_TEXT),
+            )
+            .padding([0., t::S8])
+            .style(|_| container::Style {
+                border: Border {
+                    radius: t::ROUND.into(),
+                    ..Default::default()
+                },
+                ..t::surface(t::DANGER_BUTTON)
+            }),
         );
     }
     let row = container(actions)

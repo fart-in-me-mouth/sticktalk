@@ -44,7 +44,7 @@ pub(super) fn content(app: &App) -> Element<'_, Msg> {
             ),
             line(),
             section("SLOWMODE"),
-            small("Slowmode is not available yet.")
+            super::super::features3::slowmode_settings(app, id, allowed)
         ]
         .spacing(t::S24)
         .into();

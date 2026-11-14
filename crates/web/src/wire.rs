@@ -1,5 +1,31 @@
 //! Small host-boundary rules, tested natively as well as used by WASM.
 use sticktalk_proto::*;
+/// Older servers deliberately store non-image uploads as octet-stream. A video
+/// filename is only a browser decoder hint, never a trusted MIME assertion.
+pub fn video_hint(content_type: &str, filename: &str) -> bool {
+    content_type.starts_with("video/")
+        || (content_type == "application/octet-stream"
+            && filename.rsplit_once('.').is_some_and(|(_, ext)| {
+                matches!(
+                    ext.to_ascii_lowercase().as_str(),
+                    "mp4" | "m4v" | "mov" | "webm"
+                )
+            }))
+}
+/// Accept a pasted invite link without navigating to a user-supplied origin.
+pub fn invite_code(input: &str) -> String {
+    let input = input.trim();
+    let code = input
+        .split_once("?invite=")
+        .map(|(_, value)| value.split(['&', '#']).next().unwrap_or(value))
+        .or_else(|| {
+            input
+                .split_once("/invite/")
+                .map(|(_, value)| value.trim_end_matches('/'))
+        })
+        .unwrap_or(input);
+    code.to_owned()
+}
 pub fn stringify_ids(v: &mut serde_json::Value) {
     match v {
         serde_json::Value::Object(map) => {
@@ -57,6 +83,27 @@ pub fn page_rank(count: u64, len: usize, anchor: Option<(u64, usize)>) -> u64 {
         |(rank, index)| rank.saturating_sub(index as u64),
     )
 }
+/// Shift a bounded window by one fifth while retaining enough overlap for the
+/// visible anchor. Sparse global extent anchors are only for distant seeks.
+pub fn adjacent_pivot(len: usize, older: bool) -> Option<usize> {
+    if len == 0 {
+        return None;
+    }
+    let shift = (len / 5).max(1);
+    Some(if older {
+        (len / 2).saturating_sub(shift)
+    } else {
+        (len / 2 + shift).min(len - 1)
+    })
+}
+pub fn typing_label(names: &[String]) -> String {
+    match names {
+        [] => String::new(),
+        [name] => format!("{name} is typing…"),
+        [a, b] => format!("{a} and {b} are typing…"),
+        _ => "Several people are typing…".into(),
+    }
+}
 /// Preserve the role hue, but raise dark custom colors to AA on the darkest
 /// applicable selected surface. The role swatch still shows the exact saved RGB.
 pub fn legible_role_color(rgb: u32) -> u32 {
@@ -103,6 +150,22 @@ fn message_group_boundaries() {
 mod tests {
     use super::*;
     #[test]
+    fn invite_links_are_parsed_as_data_not_navigation() {
+        let code = "AbC_def-0123456789abcd";
+        assert_eq!(invite_code(&format!("  {code}  ")), code);
+        assert_eq!(
+            invite_code(&format!(
+                "https://example.invalid/?invite={code}&ignored=1#hash"
+            )),
+            code
+        );
+        assert_eq!(
+            invite_code(&format!("https://example.invalid/invite/{code}/")),
+            code
+        );
+        assert_eq!(invite_code("javascript:alert(1)"), "javascript:alert(1)"); // server rejects it
+    }
+    #[test]
     fn custom_role_colors_cannot_hide_names() {
         assert_eq!(legible_role_color(0xe8eaed), 0xe8eaed);
         assert_eq!(legible_role_color(0x3ddc97), 0x3ddc97);
@@ -141,5 +204,39 @@ mod tests {
         assert_eq!(page_rank(10_000, 50, None), 9950);
         assert_eq!(page_rank(10_000, 50, Some((5000, 25))), 4975);
         assert_eq!(page_rank(10, 10, Some((0, 5))), 0);
+    }
+    #[test]
+    fn adjacent_windows_overlap_and_never_skip_extent_anchor_gaps() {
+        assert_eq!(adjacent_pivot(0, true), None);
+        assert_eq!(adjacent_pivot(1, false), Some(0));
+        assert_eq!(adjacent_pivot(50, true), Some(15));
+        assert_eq!(adjacent_pivot(50, false), Some(35));
+        for len in 1..=50 {
+            for older in [true, false] {
+                assert!(adjacent_pivot(len, older).unwrap() < len);
+            }
+        }
+    }
+    #[test]
+    fn typing_copy_handles_plural_and_empty_states() {
+        assert_eq!(typing_label(&[]), "");
+        assert_eq!(typing_label(&["Alex".into()]), "Alex is typing…");
+        assert_eq!(
+            typing_label(&["Alex".into(), "Sam".into()]),
+            "Alex and Sam are typing…"
+        );
+        assert_eq!(
+            typing_label(&["A".into(), "B".into(), "C".into()]),
+            "Several people are typing…"
+        );
+    }
+    #[test]
+    fn legacy_video_hints_are_narrow_and_keep_other_files_downloadable() {
+        assert!(video_hint("video/mp4", "clip"));
+        assert!(video_hint("application/octet-stream", "Camera.MOV"));
+        assert!(video_hint("application/octet-stream", "clip.webm"));
+        assert!(!video_hint("text/html", "clip.mp4"));
+        assert!(!video_hint("application/octet-stream", "clip.mp4.html"));
+        assert!(!video_hint("application/octet-stream", "archive.zip"));
     }
 }

@@ -81,7 +81,11 @@ pub(super) fn content(app: &App, page: UserPage) -> Element<'_, Msg> {
                 p.start_with_windows,
                 A::Toggle(T::Startup, !p.start_with_windows),
                 true
-            )
+            ),
+            line(),
+            toggle_message("Start minimized to tray", "Keep the window hidden until you open StickTalk.",
+                app.features.start_minimized,
+                Msg::feature(crate::features::Event::StartMinimized(!app.features.start_minimized)), true)
         ]
         .spacing(t::S24)
         .into(),
@@ -122,6 +126,8 @@ pub(super) fn content(app: &App, page: UserPage) -> Element<'_, Msg> {
         UserPage::Notifications => {
             let mut c = column![
                 title("Notifications"),
+                toggle("Enable Desktop Notifications","Turn off desktop alerts and message sounds, regardless of server or channel overrides.",p.desktop_notifications,A::Toggle(T::DesktopNotifications,!p.desktop_notifications),true),
+                line(),
                 title("Global Defaults"),
                 small(
                     "Defaults for notifications on this device. Server overrides take precedence."
@@ -241,7 +247,10 @@ fn account(app: &App) -> Element<'_, Msg> {
         .style(move |_| st::banner(st::rgb(app.settings.profile.color)));
     let identity = row![
         column![
-            title(app.state.model.name(me.user.id)),
+            super::super::elided::label(app.state.model.name(me.user.id))
+                .size(t::TITLE)
+                .font(t::semibold())
+                .width(Fill),
             small(&me.user.username)
         ]
         .spacing(t::S8)
@@ -434,9 +443,15 @@ fn account(app: &App) -> Element<'_, Msg> {
 }
 fn account_row<'a>(label: &str, value: &str, a: A) -> Element<'a, Msg> {
     row![
-        column![section(label), small(value).size(st::LABEL)]
-            .spacing(t::S8)
-            .width(Fill),
+        column![
+            section(label),
+            super::super::elided::label(value)
+                .size(st::LABEL)
+                .color(t::TEXT_SECONDARY)
+                .width(Fill)
+        ]
+        .spacing(t::S8)
+        .width(Fill),
         secondary("Edit", a, true).width(t::ATTACHMENT_CARD)
     ]
     .spacing(t::S16)

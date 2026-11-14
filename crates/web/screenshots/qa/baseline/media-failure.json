@@ -1,0 +1,376 @@
+[
+  {
+    "joined": false,
+    "trace": [
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "channel_id": "247102866513199104",
+            "guild_id": "247102439914733568",
+            "participant": {
+              "deafened": false,
+              "muted": false,
+              "session": {
+                "connection_id": "247102866664194048",
+                "user_id": "247102426178387968"
+              },
+              "tracks": []
+            }
+          },
+          "type": "guild_state"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "channel_id": "247102866513199104",
+            "max_rtp_bytes": 1232,
+            "participants": []
+          },
+          "type": "joined"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "deafened": false,
+            "muted": false,
+            "session": {
+              "connection_id": "247102866664194048",
+              "user_id": "247102426178387968"
+            },
+            "tracks": []
+          },
+          "type": "participant"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "channel_id": "247102866513199104",
+            "guild_id": "247102439914733568",
+            "participant": {
+              "deafened": false,
+              "muted": false,
+              "session": {
+                "connection_id": "247102866857132032",
+                "user_id": "247102432780222464"
+              },
+              "tracks": []
+            }
+          },
+          "type": "guild_state"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "deafened": false,
+            "muted": false,
+            "session": {
+              "connection_id": "247102866857132032",
+              "user_id": "247102432780222464"
+            },
+            "tracks": []
+          },
+          "type": "participant"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "deafened": false,
+            "muted": false,
+            "session": {
+              "connection_id": "247102866857132032",
+              "user_id": "247102432780222464"
+            },
+            "tracks": []
+          },
+          "type": "participant"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "deafened": false,
+            "muted": false,
+            "session": {
+              "connection_id": "247102866664194048",
+              "user_id": "247102426178387968"
+            },
+            "tracks": []
+          },
+          "type": "participant"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "type": "ack"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "code": "invalid_request",
+            "message": "invalid media signal"
+          },
+          "type": "error"
+        }
+      },
+      {
+        "type": "error",
+        "data": "invalid media signal"
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "session": {
+              "connection_id": "247102866664194048",
+              "user_id": "247102426178387968"
+            }
+          },
+          "type": "left"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "guild_id": "247102439914733568",
+            "session": {
+              "connection_id": "247102866664194048",
+              "user_id": "247102426178387968"
+            }
+          },
+          "type": "guild_left"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "guild_id": "247102439914733568",
+            "session": {
+              "connection_id": "247102866857132032",
+              "user_id": "247102432780222464"
+            }
+          },
+          "type": "guild_left"
+        }
+      }
+    ],
+    "publications": 0,
+    "subscriptions": 0,
+    "tracks": [],
+    "stats": []
+  },
+  {
+    "joined": false,
+    "trace": [
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "states": []
+          },
+          "type": "guild_snapshot"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "states": []
+          },
+          "type": "guild_snapshot"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "states": []
+          },
+          "type": "guild_snapshot"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "channel_id": "247102866513199104",
+            "guild_id": "247102439914733568",
+            "participant": {
+              "deafened": false,
+              "muted": false,
+              "session": {
+                "connection_id": "247102866664194048",
+                "user_id": "247102426178387968"
+              },
+              "tracks": []
+            }
+          },
+          "type": "guild_state"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "channel_id": "247102866513199104",
+            "guild_id": "247102439914733568",
+            "participant": {
+              "deafened": false,
+              "muted": false,
+              "session": {
+                "connection_id": "247102866857132032",
+                "user_id": "247102432780222464"
+              },
+              "tracks": []
+            }
+          },
+          "type": "guild_state"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "channel_id": "247102866513199104",
+            "max_rtp_bytes": 1232,
+            "participants": [
+              {
+                "deafened": false,
+                "muted": false,
+                "session": {
+                  "connection_id": "247102866664194048",
+                  "user_id": "247102426178387968"
+                },
+                "tracks": []
+              }
+            ]
+          },
+          "type": "joined"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "deafened": false,
+            "muted": false,
+            "session": {
+              "connection_id": "247102866857132032",
+              "user_id": "247102432780222464"
+            },
+            "tracks": []
+          },
+          "type": "participant"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "deafened": false,
+            "muted": false,
+            "session": {
+              "connection_id": "247102866857132032",
+              "user_id": "247102432780222464"
+            },
+            "tracks": []
+          },
+          "type": "participant"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "type": "ack"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "deafened": false,
+            "muted": false,
+            "session": {
+              "connection_id": "247102866664194048",
+              "user_id": "247102426178387968"
+            },
+            "tracks": []
+          },
+          "type": "participant"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "code": "invalid_request",
+            "message": "invalid media signal"
+          },
+          "type": "error"
+        }
+      },
+      {
+        "type": "error",
+        "data": "invalid media signal"
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "guild_id": "247102439914733568",
+            "session": {
+              "connection_id": "247102866664194048",
+              "user_id": "247102426178387968"
+            }
+          },
+          "type": "guild_left"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "session": {
+              "connection_id": "247102866857132032",
+              "user_id": "247102432780222464"
+            }
+          },
+          "type": "left"
+        }
+      },
+      {
+        "type": "event",
+        "data": {
+          "data": {
+            "guild_id": "247102439914733568",
+            "session": {
+              "connection_id": "247102866857132032",
+              "user_id": "247102432780222464"
+            }
+          },
+          "type": "guild_left"
+        }
+      }
+    ],
+    "publications": 0,
+    "subscriptions": 0,
+    "tracks": [],
+    "stats": []
+  }
+]

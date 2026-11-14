@@ -89,6 +89,7 @@ pub(super) fn content<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
     match tab {
         GuildTab::Overview=>profile(app),GuildTab::Roles=>roles::content(app),GuildTab::Members=>members(app),GuildTab::Invites=>invites(app,gid),GuildTab::Bans=>bans(app,gid),
         GuildTab::Engagement=>column![title("Engagement"),section("SYSTEM MESSAGES CHANNEL"),disabled_tip(widget::pick_list(vec!["No system messages".to_owned()],Some("No system messages".to_owned()),|_|Msg::Settings(A::Server(GuildTab::Engagement))).padding(t::S12).style(st::pick_list).menu_style(st::menu),false,"System messages channels are not available on this server yet."),line(),title("Default Notifications"),small("Default notification preferences for new members are not available on this server yet."),secondary("Your Notification Settings",A::Notifications(gid),true)].spacing(t::S24).into(),
+        GuildTab::Emoji=>super::super::features3::settings(app),
         GuildTab::Channels=>{let mut c=column![title("Channels")].spacing(t::S16);for ch in app.sorted_channels(){c=c.push(row![label_text(app.state.model.channel_name(ch)).width(Fill),icon_button("settings","Edit Channel",Msg::Open(Dialog::ChannelSettings(ch.id)))].align_y(Center));}c.into()}
         _=>column![title(label(*tab)),small(match tab{GuildTab::Emoji=>"Custom server emoji management is not available yet.",GuildTab::Access=>"Manage who can join with server invites and member moderation.",_=>"Audit logs are not available yet."})].spacing(t::S24).into(),
     }
@@ -155,6 +156,11 @@ fn profile(app: &App) -> Element<'_, Msg> {
         ]
     ]
     .spacing(t::S16);
+    if st::columns(app.width).1 < st::CONTENT {
+        // One scroll surface at narrow widths: nested, fixed-height scrollers
+        // stranded the preview and fought the outer page for wheel input.
+        return column![form, preview(app)].spacing(t::S24).into();
+    }
     let form = container(
         scroller(form.padding(iced::Padding {
             bottom: if app.settings.server_dirty() {
@@ -168,11 +174,7 @@ fn profile(app: &App) -> Element<'_, Msg> {
         .height((app.height - st::TOP * 2.).max(t::ATTACHMENT_CARD)),
     )
     .width(Fill);
-    if st::columns(app.width).1 < st::CONTENT {
-        column![form, preview(app)].spacing(t::S24).into()
-    } else {
-        row![form, preview(app)].spacing(t::S24).into()
-    }
+    row![form, preview(app)].spacing(t::S24).into()
 }
 
 fn preview(app: &App) -> Element<'_, Msg> {
@@ -309,8 +311,14 @@ fn members(app: &App) -> Element<'_, Msg> {
                 row![
                     avatar(app, m.user.id, t::SMALL_AVATAR, true),
                     column![
-                        label_text(ellipsis(&app.state.model.name(m.user.id), 24)),
-                        hint(format!("@{}", m.user.username))
+                        super::super::elided::label(app.state.model.name(m.user.id))
+                            .size(st::LABEL)
+                            .font(t::semibold())
+                            .width(Fill),
+                        super::super::elided::label(format!("@{}", m.user.username))
+                            .size(t::HINT)
+                            .color(t::TEXT_MUTED)
+                            .width(Fill)
                     ]
                     .spacing(t::S4)
                     .width(Fill),

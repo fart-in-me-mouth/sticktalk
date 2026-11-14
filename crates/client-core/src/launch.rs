@@ -4,36 +4,53 @@ use sticktalk_proto::*;
 
 #[derive(Debug, Clone)]
 pub enum Read {
+    Folders,
     Profile(Id),
     Pins(Id),
     Overwrites(Id),
+    Permissions(Id),
     Extent(Id),
+    Emoji(Id),
+    Slowmode(Id),
 }
 #[derive(Debug, Clone)]
 pub enum SnapshotData {
+    Folders(Snapshot<Vec<ServerFolder>>),
     Profile(Snapshot<ProfileDetail>),
     Pins(Id, Snapshot<Vec<Message>>),
     Overwrites(Id, Snapshot<Vec<PermissionOverwrite>>),
+    Permissions(Id, Snapshot<Permissions>),
     Extent(Snapshot<HistoryExtent>),
+    Emoji(Id, Snapshot<Vec<GuildEmoji>>),
+    Slowmode(Snapshot<SlowmodeStatus>),
 }
 impl SnapshotData {
     pub fn cursor(&self) -> &ResumeCursor {
         match self {
+            Self::Folders(v) => &v.cursor,
             Self::Profile(v) => &v.cursor,
             Self::Pins(_, v) => &v.cursor,
             Self::Overwrites(_, v) => &v.cursor,
+            Self::Permissions(_, v) => &v.cursor,
             Self::Extent(v) => &v.cursor,
+            Self::Emoji(_, v) => &v.cursor,
+            Self::Slowmode(v) => &v.cursor,
         }
     }
 }
 #[derive(Default)]
 pub struct Projection {
+    pub server_folders: Vec<ServerFolder>,
+    pub slowmode: BTreeMap<Id, SlowmodeStatus>,
+    pub emoji: BTreeMap<Id, Vec<GuildEmoji>>,
+    pub emoji_revision: u64,
     pub roles: BTreeMap<Id, Vec<Role>>,
     pub memberships: BTreeMap<(Id, Id), Member>,
     pub notifications: BTreeMap<(Option<Id>, Option<Id>), NotificationSettings>,
     pub profiles: BTreeMap<Id, ProfileDetail>,
     pub pins: BTreeMap<Id, Vec<Message>>,
     pub overwrites: BTreeMap<Id, Vec<PermissionOverwrite>>,
+    pub effective_permissions: BTreeMap<Id, Permissions>,
     pub extents: BTreeMap<Id, HistoryExtent>,
     pub voice: BTreeMap<VoiceSession, GuildVoiceState>,
     pub speaking: BTreeSet<VoiceSession>,
@@ -64,6 +81,25 @@ impl Projection {
     }
     pub fn event(&mut self, e: &Event) {
         match e {
+            Event::ServerFoldersUpdated(folders) => self.server_folders = folders.clone(),
+            Event::SlowmodeUpdated {
+                channel_id,
+                seconds,
+            } => {
+                if let Some(s) = self.slowmode.get_mut(channel_id) {
+                    s.seconds = *seconds;
+                    if *seconds == 0 {
+                        s.retry_after_ms = 0;
+                    }
+                }
+            }
+            Event::GuildEmojiUpdated { guild_id, emoji } => {
+                self.emoji_revision = self.emoji_revision.wrapping_add(1);
+                self.emoji.insert(*guild_id, emoji.clone());
+            }
+            Event::ChannelUpsert(c) => {
+                self.effective_permissions.remove(&c.summary.id);
+            }
             Event::RolesUpdated { guild_id, roles } => {
                 self.roles.insert(*guild_id, roles.clone());
             }
@@ -112,6 +148,12 @@ impl Projection {
                 }
             }
             Event::GuildRemoved { guild_id, .. } => {
+                for folder in &mut self.server_folders {
+                    folder.guild_ids.retain(|g| g != guild_id);
+                }
+                self.server_folders.retain(|f| !f.guild_ids.is_empty());
+                self.emoji_revision = self.emoji_revision.wrapping_add(1);
+                self.emoji.remove(guild_id);
                 self.roles.remove(guild_id);
                 self.memberships.retain(|(g, _), _| g != guild_id);
                 self.voice.retain(|_, v| v.guild_id != *guild_id);
@@ -123,6 +165,8 @@ impl Projection {
         }
     }
     pub fn purge_channel(&mut self, id: Id) {
+        self.slowmode.remove(&id);
+        self.effective_permissions.remove(&id);
         self.profiles.clear();
         self.pins.remove(&id);
         self.extents.remove(&id);
@@ -172,6 +216,14 @@ impl Projection {
     }
     pub fn snapshot(&mut self, data: SnapshotData) {
         match data {
+            SnapshotData::Folders(v) => self.server_folders = v.data,
+            SnapshotData::Slowmode(v) => {
+                bounded_insert(&mut self.slowmode, v.data.channel_id, v.data, 320)
+            }
+            SnapshotData::Emoji(id, v) => {
+                self.emoji_revision = self.emoji_revision.wrapping_add(1);
+                bounded_insert(&mut self.emoji, id, v.data, 10)
+            }
             SnapshotData::Profile(v) => {
                 bounded_insert(&mut self.profiles, v.data.profile.user.id, v.data, 32);
             }
@@ -179,6 +231,12 @@ impl Projection {
             SnapshotData::Overwrites(id, v) => {
                 bounded_insert(&mut self.overwrites, id, v.data, 256)
             }
+            SnapshotData::Permissions(id, v) => bounded_insert(
+                &mut self.effective_permissions,
+                id,
+                v.data & Permissions::all(),
+                320,
+            ),
             SnapshotData::Extent(v) => {
                 bounded_insert(&mut self.extents, v.data.channel_id, v.data, 4)
             }
@@ -274,6 +332,9 @@ pub fn permissions(model: &crate::model::Model, channel: Id) -> Permissions {
     let Some(c) = model.channels.get(&channel) else {
         return Permissions::empty();
     };
+    if let Some(p) = model.launch.effective_permissions.get(&channel) {
+        return *p;
+    }
     let Some(guild) = c.guild_id else {
         return Permissions::VIEW_CHANNEL
             | Permissions::READ_HISTORY
@@ -332,6 +393,42 @@ pub fn permissions(model: &crate::model::Model, channel: Id) -> Permissions {
         {
             p = apply(p, o.deny, o.allow);
         }
+    }
+    // Match the service's implicit dependencies even before its personalized
+    // snapshot arrives; a denied send right also denies attachment/embed UI.
+    if !p.contains(Permissions::VIEW_CHANNEL) {
+        p.remove(
+            Permissions::SEND_MESSAGES
+                | Permissions::READ_HISTORY
+                | Permissions::ATTACH_FILES
+                | Permissions::ADD_REACTIONS
+                | Permissions::MANAGE_MESSAGES
+                | Permissions::EMBED_LINKS
+                | Permissions::MENTION_EVERYONE
+                | Permissions::CONNECT
+                | Permissions::SPEAK
+                | Permissions::STREAM
+                | Permissions::VIDEO
+                | Permissions::USE_VOICE_ACTIVITY
+                | Permissions::PRIORITY_SPEAKER
+                | Permissions::MUTE_MEMBERS
+                | Permissions::DEAFEN_MEMBERS
+                | Permissions::MOVE_MEMBERS,
+        );
+    }
+    if !p.contains(Permissions::SEND_MESSAGES) {
+        p.remove(
+            Permissions::ATTACH_FILES | Permissions::EMBED_LINKS | Permissions::MENTION_EVERYONE,
+        );
+    }
+    if !p.contains(Permissions::CONNECT) {
+        p.remove(
+            Permissions::SPEAK
+                | Permissions::STREAM
+                | Permissions::VIDEO
+                | Permissions::USE_VOICE_ACTIVITY
+                | Permissions::PRIORITY_SPEAKER,
+        );
     }
     p & Permissions::all()
 }
@@ -435,5 +532,61 @@ mod tests {
             .contains(Permissions::MANAGE_GUILD));
         assert!(!permissions(&model, Id(12))
             .intersects(Permissions::MANAGE_MESSAGES | Permissions::MANAGE_GUILD));
+    }
+}
+
+#[cfg(test)]
+mod qa_permission_tests {
+    use super::*;
+    #[test]
+    fn local_affordances_apply_implicit_send_dependencies() {
+        let mut model = crate::mock::Mock::new().model;
+        model.guilds.get_mut(&Id(10)).unwrap().guild.owner_id = Id(2);
+        model.launch.overwrites.insert(
+            Id(12),
+            vec![PermissionOverwrite {
+                kind: OverwriteKind::Member,
+                target_id: Id(1),
+                allow: Permissions::empty(),
+                deny: Permissions::SEND_MESSAGES,
+            }],
+        );
+        let p = permissions(&model, Id(12));
+        assert!(!p.intersects(
+            Permissions::SEND_MESSAGES
+                | Permissions::ATTACH_FILES
+                | Permissions::EMBED_LINKS
+                | Permissions::MENTION_EVERYONE
+        ));
+        assert!(p.contains(Permissions::READ_HISTORY | Permissions::ADD_REACTIONS));
+    }
+    #[test]
+    fn authoritative_mask_invalidates_on_channel_upsert_and_purge() {
+        let mut projection = Projection::default();
+        projection.snapshot(SnapshotData::Permissions(
+            Id(12),
+            Snapshot {
+                cursor: ResumeCursor {
+                    stream_id: "qa".into(),
+                    seq: 0,
+                },
+                data: Permissions::VIEW_CHANNEL,
+            },
+        ));
+        assert_eq!(
+            projection.effective_permissions[&Id(12)],
+            Permissions::VIEW_CHANNEL
+        );
+        let channel = crate::mock::Mock::new().model.channels[&Id(12)].clone();
+        projection.event(&Event::ChannelUpsert(Channel {
+            summary: channel,
+            topic: None,
+        }));
+        assert!(!projection.effective_permissions.contains_key(&Id(12)));
+        projection
+            .effective_permissions
+            .insert(Id(12), Permissions::VIEW_CHANNEL);
+        projection.purge_channel(Id(12));
+        assert!(!projection.effective_permissions.contains_key(&Id(12)));
     }
 }

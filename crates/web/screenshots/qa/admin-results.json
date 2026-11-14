@@ -1,0 +1,18 @@
+{
+  "revision": "a520c4ee8c84107af622",
+  "checks": [
+    "server description/banner persistence, real icon upload/removal, settings stay open",
+    "role create/reorder, member assignment and selected-member role hydration",
+    "permission downgrade immediately purges other creators’ cached invite codes",
+    "ban removes live access; bans snapshot, confirmed revoke and successful rejoin",
+    "invite listing from REST and confirmed revocation",
+    "ordinary-member controls disabled; forged mutation denied by real server"
+  ],
+  "screenshots": [
+    "screenshots/qa/server-profile-saved-390x844.png",
+    "screenshots/qa/roles-reordered-390x844.png",
+    "screenshots/qa/member-roles-saved-390x844.png",
+    "screenshots/qa/bans-populated-390x844.png"
+  ],
+  "errors": []
+}

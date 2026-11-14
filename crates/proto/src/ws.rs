@@ -23,6 +23,9 @@ pub struct Identify {
     /// Opt in to launch-only event variants; old peers omit this field.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub launch_features: bool,
+    /// Opt in to custom emoji, slowmode and folder event variants; independent of legacy launch support.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub text_features: bool,
 }
 
 impl Default for Identify {
@@ -32,6 +35,7 @@ impl Default for Identify {
             token: String::new(),
             resume: None,
             launch_features: false,
+            text_features: false,
         }
     }
 }
@@ -338,6 +342,15 @@ pub struct EventEnvelope {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum Event {
+    ServerFoldersUpdated(Vec<ServerFolder>),
+    SlowmodeUpdated {
+        channel_id: ChannelId,
+        seconds: u32,
+    },
+    GuildEmojiUpdated {
+        guild_id: GuildId,
+        emoji: Vec<GuildEmoji>,
+    },
     RolesUpdated {
         guild_id: GuildId,
         roles: Vec<Role>,

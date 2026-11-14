@@ -1,0 +1,131 @@
+{
+  "state": "connected",
+  "tracks": [
+    {
+      "kind": "audio",
+      "own": true,
+      "paused": true,
+      "readyState": 0,
+      "videoWidth": 0
+    },
+    {
+      "kind": "audio",
+      "own": false,
+      "paused": false,
+      "streamTracks": [
+        {
+          "id": "5bb49058-1979-4e9f-9b8d-7804e92d5ec3",
+          "kind": "audio",
+          "muted": false,
+          "readyState": "live"
+        }
+      ],
+      "readyState": 4,
+      "videoWidth": 0
+    },
+    {
+      "kind": "screen",
+      "own": false,
+      "paused": false,
+      "streamTracks": [
+        {
+          "id": "1a3f884d-a4e0-4e8c-9d11-3bda95d581d3",
+          "kind": "video",
+          "muted": false,
+          "readyState": "live"
+        }
+      ],
+      "readyState": 4,
+      "videoWidth": 320
+    }
+  ],
+  "inbound": [
+    {
+      "id": "IT01A4068237974",
+      "timestamp": 1794615018282.513,
+      "type": "inbound-rtp",
+      "codecId": "CIT01_111_minptime=10;useinbandfec=1",
+      "kind": "audio",
+      "mediaType": "audio",
+      "ssrc": 4068237974,
+      "transportId": "T01",
+      "jitter": 0.002,
+      "packetsLost": 0,
+      "packetsReceived": 391,
+      "packetsReceivedWithCe": 0,
+      "packetsReceivedWithEct1": 0,
+      "audioLevel": 0.249977111117893,
+      "bytesReceived": 23731,
+      "concealedSamples": 600,
+      "concealmentEvents": 1,
+      "fecPacketsDiscarded": 0,
+      "fecPacketsReceived": 0,
+      "headerBytesReceived": 10948,
+      "insertedSamplesForDeceleration": 3515,
+      "jitterBufferDelay": 15244.8,
+      "jitterBufferEmittedCount": 371520,
+      "jitterBufferMinimumDelay": 11827.2,
+      "jitterBufferTargetDelay": 11827.2,
+      "lastPacketReceivedTimestamp": 1794615018266.4421,
+      "mid": "1",
+      "packetsDiscarded": 0,
+      "playoutId": "AP",
+      "remoteId": "ROA4068237974",
+      "removedSamplesForAcceleration": 1664,
+      "silentConcealedSamples": 0,
+      "totalAudioEnergy": 1.9865782629386017,
+      "totalProcessingDelay": 12547.73952,
+      "totalSamplesDuration": 7.789999999999878,
+      "totalSamplesReceived": 373440,
+      "trackIdentifier": "5bb49058-1979-4e9f-9b8d-7804e92d5ec3"
+    },
+    {
+      "id": "IT01V2445723374",
+      "timestamp": 1794615018282.513,
+      "type": "inbound-rtp",
+      "codecId": "CIT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+      "kind": "video",
+      "mediaType": "video",
+      "ssrc": 2445723374,
+      "transportId": "T01",
+      "jitter": 0.013,
+      "packetsLost": 0,
+      "packetsReceived": 18,
+      "packetsReceivedWithCe": 0,
+      "packetsReceivedWithEct1": 0,
+      "bytesReceived": 3163,
+      "decoderImplementation": "FFmpeg",
+      "firCount": 0,
+      "frameHeight": 180,
+      "frameWidth": 320,
+      "framesAssembledFromMultiplePackets": 0,
+      "framesDecoded": 15,
+      "framesDropped": 0,
+      "framesPerSecond": 16,
+      "framesReceived": 15,
+      "freezeCount": 0,
+      "headerBytesReceived": 464,
+      "jitterBufferDelay": 0.268525,
+      "jitterBufferEmittedCount": 15,
+      "jitterBufferMinimumDelay": 0.59349,
+      "jitterBufferTargetDelay": 0.59349,
+      "keyFramesDecoded": 1,
+      "lastPacketReceivedTimestamp": 1794615018252.798,
+      "mid": "2",
+      "nackCount": 0,
+      "pauseCount": 0,
+      "pliCount": 0,
+      "powerEfficientDecoder": false,
+      "qpSum": 605,
+      "remoteId": "ROV2445723374",
+      "totalAssemblyTime": 0,
+      "totalDecodeTime": 0.0018139999999999999,
+      "totalFreezesDuration": 0,
+      "totalInterFrameDelay": 0.905,
+      "totalPausesDuration": 0,
+      "totalProcessingDelay": 0.27077599999999996,
+      "totalSquaredInterFrameDelay": 0.08461300000000001,
+      "trackIdentifier": "1a3f884d-a4e0-4e8c-9d11-3bda95d581d3"
+    }
+  ]
+}

@@ -7,6 +7,9 @@ import { createServer } from "node:net";
 import { once } from "node:events";
 import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { resolve, join, dirname, basename } from "node:path";
+const output = process.env.STICKTALK_QA_DIR ?? "screenshots/live";
+// A failed attempt must not leave an earlier green summary looking current.
+await rm(`${output}/results.json`, {force:true});
 const target = resolve(
   process.env.CARGO_TARGET_DIR ??
     "C:/Users/dwhee/.cargo-target/sticktalk-web-live",
@@ -59,7 +62,7 @@ const expect = async (page, fn, arg) =>
 async function register(page, user) {
   await page.goto(origin);
   if (user === "alice_web") {
-    await mkdir("screenshots/live", { recursive: true });
+    await mkdir(output, { recursive: true });
     for (const [width, height] of [
       [1440, 900],
       [390, 844],
@@ -71,7 +74,7 @@ async function register(page, user) {
       await page.setViewportSize({ width, height });
       await page.evaluate(() => document.fonts.ready);
       await page.screenshot({
-        path: `screenshots/live/login-${width}x${height}.png`,
+        path: `${output}/login-${width}x${height}.png`,
       });
     }
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -92,7 +95,7 @@ async function register(page, user) {
 async function form(page, kind, name, extra = {}) {
   await act(page, `dialog:${kind}`);
   await page.waitForSelector('.live-modal [data-live-form]');
-  if (await page.locator("#f-name").count())
+  if (await page.locator("#f-name").isVisible())
     await page.locator("#f-name").fill(name);
   for (const [id, value] of Object.entries(extra)) {
     const e = page.locator(`#${id}`);
@@ -122,7 +125,7 @@ async function capture(page, prefix) {
     await page.evaluate(()=>{const list=document.querySelector("#live-messages"); if(list&&!document.querySelector(".live-modal,#live-viewer"))list.scrollTop=list.scrollHeight;});
     await wait(80);
     await page.evaluate(()=>{const list=document.querySelector('#live-messages');if(list&&!document.querySelector('.live-modal,#live-viewer'))list.scrollTop=list.scrollHeight;});
-    await page.screenshot({path:`screenshots/live/${prefix}-${width}x${height}.png`});
+    await page.screenshot({path:`${output}/${prefix}-${width}x${height}.png`});
   }
   await page.setViewportSize({width:1440,height:900});
 }
@@ -317,6 +320,7 @@ try {
   );
   await act(alice, "dialog:member-role");
   await alice.locator("#f-name").selectOption(bobId);
+  await alice.locator(`[data-member-role="${roleId}"]`).uncheck();
   await alice.locator("[type=submit]").click();
   await bob.waitForFunction(
     (c) =>
@@ -385,7 +389,7 @@ try {
     "17 MiB Blob.slice upload: pause at 16 MiB, reselect, resume real server offset + attachment",
   );
   await act(alice, "dialog:notifications");
-  await alice.locator("#f-name").fill("mentions");
+  await alice.locator("#f-name").selectOption("mentions");
   await alice.locator("[type=submit]").click();
   await wait(200);
   checks.push("notification settings mutation");
@@ -481,7 +485,7 @@ try {
     "thumbnail only before viewer gesture + original-on-demand + explicit mention",
   );
   const screenshots = [];
-  await mkdir("screenshots/live", { recursive: true });
+  await mkdir(output, { recursive: true });
   for (const [width, height] of [
     [1440, 900],
     [390, 844],
@@ -494,7 +498,7 @@ try {
     await alice.evaluate(() => document.fonts.ready);
     await alice.evaluate(()=>{const list=document.querySelector("#live-messages");if(list)list.scrollTop=list.scrollHeight;});
     await wait(100);
-    const path = `screenshots/live/chat-${width}x${height}.png`;
+    const path = `${output}/chat-${width}x${height}.png`;
     await alice.screenshot({ path, animations: "disabled" });
     screenshots.push(path);
     if (width < 768) {
@@ -614,7 +618,7 @@ try {
   }
   if (!proof)
     await writeFile(
-      "screenshots/live/media-failure.json",
+      `${output}/media-failure.json`,
       JSON.stringify(
         await Promise.all([diagnostic(alice), diagnostic(bob)]),
         null,
@@ -663,7 +667,7 @@ try {
   );
   assert.equal(await alice.locator('.live-error').count(),0,'no stale typing/error toast in call');
   await writeFile(
-    "screenshots/live/voice-stats.json",
+    `${output}/voice-stats.json`,
     JSON.stringify(
       video.map((d) => ({
         state: d.state,
@@ -688,7 +692,7 @@ try {
   ]) {
     await alice.setViewportSize({ width, height });
     await wait(100);
-    const path = `screenshots/live/voice-${width}x${height}.png`;
+    const path = `${output}/voice-${width}x${height}.png`;
     const tiles=await alice.locator('.participant-tile:not([hidden])').evaluateAll(nodes=>nodes.map(n=>({
       rect:n.getBoundingClientRect().toJSON(), kind:n.dataset.kind,
       fit:n.querySelector('video')&&getComputedStyle(n.querySelector('video')).objectFit,
@@ -707,15 +711,14 @@ try {
   await act(alice, "media:leave");
   await act(bob, "media:leave");
   for (const page of [alice, bob]) {
-    await page.waitForFunction(async () => {
-      const d = await (await import("/public/media.js")).diagnostics();
-      return (
-        !d.joined &&
-        d.publications === 0 &&
-        d.subscriptions === 0 &&
-        d.tracks.length === 0
-      );
-    });
+    let released=false;
+    for(let attempt=0;attempt<100;attempt++) {
+      const d=await diagnostic(page);
+      released=!d.joined&&d.publications===0&&d.subscriptions===0&&d.tracks.length===0;
+      if(released)break;
+      await wait(100);
+    }
+    assert(released,"leave releases every publication, subscription and track");
   }
   checks.push(
     "mute + deafen + leave; all publications/subscriptions/tracks released",
@@ -846,15 +849,15 @@ try {
     })),
   };
   await writeFile(
-    "screenshots/live/results.json",
+    `${output}/results.json`,
     JSON.stringify(report, null, 2),
   );
-  await rm("screenshots/live-failure.json", { force: true });
-  await rm("screenshots/live/media-failure.json", { force: true });
+  await rm(`${output}/failure.json`, { force: true });
+  await rm(`${output}/media-failure.json`, { force: true });
   console.log(JSON.stringify(report));
 } catch (error) {
   await writeFile(
-    "screenshots/live-failure.json",
+    `${output}/failure.json`,
     JSON.stringify(
       {
         error: String(error),

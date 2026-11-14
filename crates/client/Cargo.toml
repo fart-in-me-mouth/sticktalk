@@ -5,6 +5,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+# Playback only needs a loopback HTTP/1 stream, not axum's WS/multipart stack.
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 unicode-segmentation = "1.13"
 sticktalk-proto.workspace = true
 sticktalk-client-core = { path = "../client-core" }
@@ -60,3 +62,6 @@ axum.workspace = true
 rsa = "0.9"
 ring = "0.17"
 rand = "0.8"
+
+[build-dependencies]
+winresource = '0.1'

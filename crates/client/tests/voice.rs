@@ -118,6 +118,7 @@ impl Server {
         send(
             &mut ws,
             ClientMsg::Identify(Identify {
+                text_features: false,
                 token: auth.token.clone(),
                 ..Default::default()
             }),
@@ -1145,6 +1146,7 @@ async fn live_calls2_worker(role: &str) {
     send(
         &mut ws,
         ClientMsg::Identify(Identify {
+            text_features: false,
             token: auth.token,
             ..Default::default()
         }),

@@ -109,26 +109,44 @@ pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {
                 false,
             ));
             if Some(*id) != app.me() {
-                list = list
-                    .push(item(
+                let relationship = app.state.model.relationships.get(id).map(|r| r.kind);
+                if relationship == Some(RelationshipKind::Blocked) {
+                    list = list.push(item(
+                        "Unblock",
+                        "user-round",
+                        Msg::Command(Command::UnblockUser { user_id: *id }),
+                        false,
+                    ));
+                } else {
+                    list = list.push(item(
                         "Message",
                         "message-circle",
                         Msg::Command(Command::OpenDm { user_id: *id }),
                         false,
-                    ))
-                    .push(item(
-                        "Add Friend",
-                        "user-plus",
-                        Msg::Command(Command::SendFriendRequest {
-                            username: app
-                                .state
-                                .model
-                                .users
-                                .get(id)
-                                .map_or(String::new(), |u| u.username.clone()),
-                        }),
-                        false,
                     ));
+                    let action = match relationship {
+                        Some(RelationshipKind::IncomingRequest) => Some((
+                            "Accept Friend Request",
+                            Command::AcceptFriendRequest { user_id: *id },
+                        )),
+                        Some(RelationshipKind::OutgoingRequest) => Some((
+                            "Cancel Friend Request",
+                            Command::CancelFriendRequest { user_id: *id },
+                        )),
+                        None => app.state.model.users.get(id).map(|u| {
+                            (
+                                "Add Friend",
+                                Command::SendFriendRequest {
+                                    username: u.username.clone(),
+                                },
+                            )
+                        }),
+                        _ => None,
+                    };
+                    if let Some((label, action)) = action {
+                        list = list.push(item(label, "user-plus", Msg::Command(action), false));
+                    }
+                }
             }
             if Some(*id) != app.me() && app.calls.call.channel.is_some() {
                 list = list
@@ -221,6 +239,27 @@ pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {
             Some(*id)
         }
         Entity::Guild(id) => {
+            list = list.push(item(
+                "Add to Folder",
+                "folder",
+                crate::features3::msg(crate::features3::Event::FolderAdd(*id)),
+                false,
+            ));
+            if app
+                .state
+                .model
+                .launch
+                .server_folders
+                .iter()
+                .any(|f| f.guild_ids.contains(id))
+            {
+                list = list.push(item(
+                    "Remove from Folder",
+                    "folder",
+                    crate::features3::msg(crate::features3::Event::FolderRemove(*id)),
+                    false,
+                ));
+            }
             list = list
                 .push(item(
                     "Open Server",
@@ -246,8 +285,8 @@ pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {
                 ))
                 .push(controls::toggle(
                     "Developer Mode",
-                    app.main.developer,
-                    mm(Main::Developer(!app.main.developer)),
+                    app.settings.preferences.developer_mode,
+                    mm(Main::Developer(!app.settings.preferences.developer_mode)),
                 ));
             None
         }
@@ -263,7 +302,7 @@ pub fn entity<'a>(app: &'a App, e: &'a Entity) -> Element<'a, Msg> {
             None
         }
     };
-    if app.main.developer {
+    if app.settings.preferences.developer_mode {
         if let Some(id) = id {
             list = list.push(separator()).push(item(
                 "Copy ID",

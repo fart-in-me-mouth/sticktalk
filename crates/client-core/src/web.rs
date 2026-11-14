@@ -265,6 +265,8 @@ impl Drop for AbortFetch {
 impl HttpTransport for Fetch {
     fn execute(&self, request: HttpRequest) -> Task<'_, Result<HttpResponse, String>> {
         Box::pin(async move {
+            let safe_read = request.method == "GET" && matches!(&request.body, Body::Empty);
+            let mut retry = crate::http::ReadRetry::new(safe_read);
             let controller = web_sys::AbortController::new()
                 .map_err(|_| "Could not start request".to_string())?;
             let abort = controller.clone();
@@ -315,51 +317,60 @@ impl HttpTransport for Fetch {
                         .map_err(|_| "Invalid CSRF token".to_string())?;
                 }
             }
-            let response = JsFuture::from(window().fetch_with_request(&req))
-                .await
-                .map_err(|_| request.network_error.to_string())?
-                .dyn_into::<web_sys::Response>()
-                .map_err(|_| "Invalid response".to_string())?;
-            let status = response.status();
-            if response
-                .headers()
-                .get("Content-Length")
-                .ok()
-                .flatten()
-                .and_then(|v| v.parse::<u64>().ok())
-                .is_some_and(|v| v > request.max_response as u64)
-            {
-                return Err("Server response exceeds limit".into());
-            }
-            let mut bytes = Vec::new();
-            if let Some(body) = response.body() {
-                let reader = body
-                    .get_reader()
-                    .dyn_into::<web_sys::ReadableStreamDefaultReader>()
-                    .map_err(|_| "Could not read response".to_string())?;
-                loop {
-                    let result = JsFuture::from(reader.read())
-                        .await
-                        .map_err(|_| "Network interrupted".to_string())?;
-                    if js_sys::Reflect::get(&result, &"done".into())
-                        .ok()
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false)
-                    {
-                        break;
-                    }
-                    let value = js_sys::Reflect::get(&result, &"value".into())
-                        .map_err(|_| "Invalid response chunk".to_string())?;
-                    let chunk = js_sys::Uint8Array::new(&value);
-                    if chunk.length() as usize > request.max_response.saturating_sub(bytes.len()) {
-                        let _ = reader.cancel();
-                        return Err("Server response exceeds limit".into());
-                    }
-                    bytes.extend_from_slice(&chunk.to_vec());
+            loop {
+                let response = JsFuture::from(window().fetch_with_request(&req))
+                    .await
+                    .map_err(|_| request.network_error.to_string())?
+                    .dyn_into::<web_sys::Response>()
+                    .map_err(|_| "Invalid response".to_string())?;
+                let status = response.status();
+                if response
+                    .headers()
+                    .get("Content-Length")
+                    .ok()
+                    .flatten()
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .is_some_and(|v| v > request.max_response as u64)
+                {
+                    return Err("Server response exceeds limit".into());
                 }
-                reader.release_lock();
+                let mut bytes = Vec::new();
+                if let Some(body) = response.body() {
+                    let reader = body
+                        .get_reader()
+                        .dyn_into::<web_sys::ReadableStreamDefaultReader>()
+                        .map_err(|_| "Could not read response".to_string())?;
+                    loop {
+                        let result = JsFuture::from(reader.read())
+                            .await
+                            .map_err(|_| "Network interrupted".to_string())?;
+                        if js_sys::Reflect::get(&result, &"done".into())
+                            .ok()
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                        {
+                            break;
+                        }
+                        let value = js_sys::Reflect::get(&result, &"value".into())
+                            .map_err(|_| "Invalid response chunk".to_string())?;
+                        let chunk = js_sys::Uint8Array::new(&value);
+                        if chunk.length() as usize
+                            > request.max_response.saturating_sub(bytes.len())
+                        {
+                            let _ = reader.cancel();
+                            return Err("Server response exceeds limit".into());
+                        }
+                        bytes.extend_from_slice(&chunk.to_vec());
+                    }
+                    reader.release_lock();
+                }
+                let response = HttpResponse { status, bytes };
+                if let Some(delay) = retry.delay(&response) {
+                    Browser.sleep(delay).await;
+                    continue;
+                }
+                return Ok(response);
             }
-            Ok(HttpResponse { status, bytes })
         })
     }
 }

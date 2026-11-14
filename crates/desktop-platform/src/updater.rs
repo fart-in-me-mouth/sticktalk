@@ -154,7 +154,20 @@ impl Updater {
         let envelope: SignedUpdateManifest = serde_json::from_slice(&bytes)?;
         // A current/older release is a normal no-update result, but authenticate first.
         match self.verify(envelope) {
-            Ok(v) => Ok(Some(v)),
+            Ok(v) => {
+                let failed = read_envelope(&self.staging.join("failed-update.json"))
+                    .await
+                    .ok()
+                    .and_then(|e| self.verify(e).ok());
+                if failed.is_some_and(|f| {
+                    f.manifest.version == v.manifest.version
+                        && f.manifest.sha256 == v.manifest.sha256
+                }) {
+                    Ok(None)
+                } else {
+                    Ok(Some(v))
+                }
+            }
             Err(Error::Invalid("update version/target/size/hash")) => {
                 // Do not turn invalid target/hash/size into a silent success.
                 let e: SignedUpdateManifest = serde_json::from_slice(&bytes)?;
@@ -193,6 +206,7 @@ impl Updater {
         let update = self.verify(update.envelope.clone())?;
         let m = &update.manifest;
         tokio::fs::create_dir_all(&self.staging).await?;
+        self.remove_obsolete_artifacts(&m.sha256).await?;
         let part = self.staging.join(format!("{}.part", m.sha256));
         let final_path = self.staging.join(format!("{}.exe", m.sha256));
         if verify_file(&final_path, m).await.is_ok() {
@@ -252,6 +266,27 @@ impl Updater {
         }
         tokio::fs::rename(&part, &final_path).await?;
         self.commit_stage(&update, final_path).await
+    }
+    async fn remove_obsolete_artifacts(&self, keep_hash: &str) -> Result<()> {
+        let mut entries = tokio::fs::read_dir(&self.staging).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let Some((stem, extension)) = name.rsplit_once('.') else {
+                continue;
+            };
+            let hash_file = stem.len() == 64
+                && stem.bytes().all(|c| c.is_ascii_hexdigit())
+                && matches!(extension, "exe" | "part")
+                && stem != keep_hash;
+            let runner = stem
+                .strip_prefix("apply-")
+                .is_some_and(|pid| pid.parse::<u32>().is_ok())
+                && extension == "exe";
+            if hash_file || runner {
+                let _ = tokio::fs::remove_file(entry.path()).await;
+            }
+        }
+        Ok(())
     }
     async fn commit_stage(
         &self,
@@ -349,4 +384,16 @@ async fn verify_file(path: &Path, manifest: &UpdateManifest) -> Result<()> {
         return Err(Error::Invalid("installer SHA-256"));
     }
     Ok(())
+}
+
+async fn read_envelope(path: &Path) -> Result<SignedUpdateManifest> {
+    let file = tokio::fs::File::open(path).await?;
+    let mut bytes = Vec::new();
+    file.take((MAX_MANIFEST * 2 + 1) as u64)
+        .read_to_end(&mut bytes)
+        .await?;
+    if bytes.len() > MAX_MANIFEST * 2 {
+        return Err(Error::Invalid("manifest file size"));
+    }
+    Ok(serde_json::from_slice(&bytes)?)
 }

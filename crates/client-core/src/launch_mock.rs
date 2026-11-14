@@ -206,6 +206,32 @@ pub fn seed(model: &mut Model, now: u64) {
 pub fn read(model: &Model, read: Read) -> Option<SnapshotData> {
     let cursor = model.cursor.clone()?;
     Some(match read {
+        Read::Folders => SnapshotData::Folders(Snapshot {
+            data: model.launch.server_folders.clone(),
+            cursor,
+        }),
+        Read::Slowmode(id) => SnapshotData::Slowmode(Snapshot {
+            data: model
+                .launch
+                .slowmode
+                .get(&id)
+                .cloned()
+                .unwrap_or(SlowmodeStatus {
+                    channel_id: id,
+                    seconds: 0,
+                    bypassed: false,
+                    retry_after_ms: 0,
+                    server_time: 0,
+                }),
+            cursor,
+        }),
+        Read::Emoji(id) => SnapshotData::Emoji(
+            id,
+            Snapshot {
+                data: model.launch.emoji.get(&id).cloned().unwrap_or_default(),
+                cursor: cursor.clone(),
+            },
+        ),
         Read::Profile(id) => SnapshotData::Profile(Snapshot {
             cursor,
             data: model.launch.profiles.get(&id)?.clone(),
@@ -227,6 +253,13 @@ pub fn read(model: &Model, read: Read) -> Option<SnapshotData> {
                     .get(&id)
                     .cloned()
                     .unwrap_or_default(),
+            },
+        ),
+        Read::Permissions(id) => SnapshotData::Permissions(
+            id,
+            Snapshot {
+                cursor,
+                data: crate::launch::permissions(model, id),
             },
         ),
         Read::Extent(id) => {

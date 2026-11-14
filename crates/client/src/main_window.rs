@@ -54,11 +54,11 @@ pub struct State {
     pub hovered_channel: Option<Id>,
     pub hovered_category: Option<Id>,
     pub hovered_member: Option<Id>,
+    pub members_scroll: f32,
     pub user_hover: bool,
     pub split_hover: Option<bool>,
     pub muted: bool,
     pub deafened: bool,
-    pub developer: bool,
     pub dropping: bool,
     pub search: String,
     pub quick: String,
@@ -82,6 +82,7 @@ pub enum Message {
     ChannelHover(Option<Id>),
     CategoryHover(Option<Id>),
     MemberHover(Option<Id>),
+    MemberScroll(f32),
     UserHover(bool),
     SplitHover(Option<bool>),
     Search(String),
@@ -106,8 +107,12 @@ pub enum Message {
     SaveNickname(Id),
     Role(Id, Id),
     Developer(bool),
+    EditProfile,
 }
-pub fn key(key: &keyboard::Key, mods: keyboard::Modifiers) -> Option<Message> {
+pub fn key(key: &keyboard::Key, mods: keyboard::Modifiers, quick_binding: &str) -> Option<Message> {
+    if chord(key, mods).is_some_and(|chord| chord.eq_ignore_ascii_case(quick_binding.trim())) {
+        return Some(Message::Open(Popover::Quick));
+    }
     if mods.control() && mods.shift() {
         if let keyboard::Key::Character(c) = key {
             return match c.to_lowercase().as_str() {
@@ -115,13 +120,6 @@ pub fn key(key: &keyboard::Key, mods: keyboard::Modifiers) -> Option<Message> {
                 "d" => Some(Message::Deafen),
                 _ => None,
             };
-        }
-    }
-    if mods.control() {
-        if let keyboard::Key::Character(c) = key {
-            if c.eq_ignore_ascii_case("k") {
-                return Some(Message::Open(Popover::Quick));
-            }
         }
     }
     if mods.alt() {
@@ -133,8 +131,38 @@ pub fn key(key: &keyboard::Key, mods: keyboard::Modifiers) -> Option<Message> {
     }
     None
 }
+/// Canonical spelling shared by keybind recording and dispatch. Modifier-only
+/// presses are not bindings, and additional modifiers never match accidentally.
+pub fn chord(key: &keyboard::Key, mods: keyboard::Modifiers) -> Option<String> {
+    let name = match key {
+        keyboard::Key::Character(s) => s.to_uppercase(),
+        keyboard::Key::Named(Named::Control | Named::Shift | Named::Alt | Named::Meta) => {
+            return None
+        }
+        keyboard::Key::Named(n) => format!("{n:?}"),
+        _ => return None,
+    };
+    let mut parts = Vec::new();
+    if mods.control() {
+        parts.push("Ctrl".to_owned());
+    }
+    if mods.alt() {
+        parts.push("Alt".to_owned());
+    }
+    if mods.shift() {
+        parts.push("Shift".to_owned());
+    }
+    if mods.logo() {
+        parts.push("Meta".to_owned());
+    }
+    parts.push(name);
+    Some(parts.join("+"))
+}
 impl App {
     pub(crate) fn main_open(&mut self, p: Popover) -> Task<Msg> {
+        if self.settings_dirty() {
+            return self.settings_attention();
+        }
         self.dialog = Dialog::None;
         self.main.position = self.main.pointer;
         self.main.anchor = self.main.anchor.filter(|r| r.contains(self.main.pointer));
@@ -176,12 +204,15 @@ impl App {
             _ => None,
         };
         self.main.popover = Some(p);
-        focus.map_or(Task::none(), operation::focus)
+        operation::focus(focus.unwrap_or("closed-composer"))
     }
     pub(crate) fn main_update(&mut self, m: Message) -> Task<Msg> {
         match m {
             Message::Open(p) => return self.main_open(p),
-            Message::Close => self.main.popover = None,
+            Message::Close => {
+                self.main.popover = None;
+                return operation::focus("composer-editor");
+            }
             Message::Pointer(p) => self.main.pointer = p,
             Message::Anchor(r) => self.main.anchor = Some(r),
             Message::PopoverSize(s) => self.main.popover_size = s,
@@ -194,6 +225,7 @@ impl App {
             Message::ChannelHover(id) => self.main.hovered_channel = id,
             Message::CategoryHover(id) => self.main.hovered_category = id,
             Message::MemberHover(id) => self.main.hovered_member = id,
+            Message::MemberScroll(y) => self.main.members_scroll = y,
             Message::UserHover(v) => self.main.user_hover = v,
             Message::SplitHover(v) => self.main.split_hover = v,
             Message::Search(s) => self.main.search = s,
@@ -209,6 +241,15 @@ impl App {
                     } else {
                         (self.main.quick_index + 1) % n
                     };
+                    return operation::scroll_to(
+                        "quick-results",
+                        iced::widget::scrollable::AbsoluteOffset {
+                            x: 0.,
+                            y: (self.main.quick_index as f32 * crate::theme::QUICK_ROW
+                                - quick_results_height(self.height) / 2.)
+                                .max(0.),
+                        },
+                    );
                 }
             }
             Message::QuickChoose => {
@@ -222,6 +263,13 @@ impl App {
                 }
             }
             Message::Switch(delta, unread) => {
+                if !matches!(self.dialog, Dialog::None)
+                    || self.main.popover.is_some()
+                    || self.features.picker != crate::features::Picker::None
+                    || self.features.viewer.current().is_some()
+                {
+                    return Task::none();
+                }
                 let cs: Vec<_> = self
                     .sorted_channels()
                     .into_iter()
@@ -399,7 +447,19 @@ impl App {
                     }));
                 }
             }
-            Message::Developer(v) => self.main.developer = v,
+            Message::Developer(v) => {
+                return self.settings_update(crate::settings_controller::Action::Toggle(
+                    crate::settings_controller::Toggle::Developer,
+                    v,
+                ))
+            }
+            Message::EditProfile => {
+                let open = self.update(Msg::Open(Dialog::UserSettings));
+                let profile = self.update(Msg::Settings(crate::settings_controller::Action::User(
+                    crate::settings_controller::UserPage::Profiles,
+                )));
+                return Task::batch([open, profile]);
+            }
         }
         Task::none()
     }
@@ -456,10 +516,15 @@ impl App {
             .collect()
     }
     pub(crate) fn main_channel(&mut self, id: Id) {
+        self.main.members_scroll = 0.;
         self.main.popover = None;
         self.main.focus_voice = None;
         self.main.search.clear();
         self.main.extent_changes = 0;
+        self.request(Request::Launch {
+            read: Read::Permissions(id),
+            generation: self.state.generation,
+        });
         self.state.model.active_guild = self.state.guild;
         if self
             .state
@@ -544,6 +609,33 @@ impl App {
         }
     }
     pub(crate) fn main_live_event(&mut self, event: &Event) {
+        // ACL mutations fan out ChannelUpsert even when metadata is unchanged.
+        // Regular members cannot read raw overwrites, but must still learn their
+        // own effective controls, including category and member denials.
+        if let Event::ChannelUpsert(c) = event {
+            if self.state.screen == Screen::Channel(c.summary.id) {
+                self.request(Request::Launch {
+                    read: Read::Permissions(c.summary.id),
+                    generation: self.state.generation,
+                });
+            }
+        }
+        let relationship_user = match event {
+            Event::RelationshipUpsert(r) => Some(r.user.id),
+            Event::RelationshipRemoved { user_id } => Some(*user_id),
+            _ => None,
+        };
+        if let Screen::Channel(id) = self.state.screen {
+            if self.state.model.channels.get(&id).is_some_and(|c| {
+                c.kind == ChannelKind::Direct
+                    && relationship_user.is_some_and(|u| c.recipient_ids.contains(&u))
+            }) {
+                self.request(Request::Launch {
+                    read: Read::Permissions(id),
+                    generation: self.state.generation,
+                });
+            }
+        }
         if let Event::PinsUpdated { channel_id, .. } = event {
             if self.main.popover == Some(Popover::Pins(*channel_id)) {
                 self.request(Request::Launch {
@@ -573,6 +665,9 @@ impl App {
 }
 pub fn mm(m: Message) -> Msg {
     Msg::Main(m)
+}
+pub fn quick_results_height(height: f32) -> f32 {
+    (height - crate::theme::HEADER - crate::theme::S32 * 6.).max(crate::theme::QUICK_ROW * 2.)
 }
 pub fn muted(app: &App, id: Id) -> bool {
     app.state
@@ -657,24 +752,78 @@ mod placement_tests {
 mod tests {
     use super::*;
     #[test]
+    fn navigation_shortcuts_cannot_discard_settings_or_navigate_behind_popups() {
+        let size = iced::Size::new(940., 600.);
+        let mut app = App::headless("user-settings-profile-dirty", size);
+        let _ = app.main_update(Message::Open(Popover::Quick));
+        assert!(matches!(app.dialog, Dialog::UserSettings));
+        assert!(app.main.popover.is_none());
+        assert!(app.settings_dirty());
+        for screen in [
+            "main-user-context",
+            "audit-quick-long",
+            "emoji-picker",
+            "image-viewer",
+        ] {
+            let mut app = App::headless(screen, size);
+            let original = app.state.screen;
+            let _ = app.main_update(Message::Switch(1, false));
+            assert_eq!(app.state.screen, original, "{screen}");
+        }
+    }
+    #[test]
+    fn own_popout_edit_profile_opens_profiles_not_account() {
+        let mut app = App::headless("main-own-profile", iced::Size::new(1280., 800.));
+        let _ = app.main_update(Message::EditProfile);
+        assert!(matches!(app.dialog, Dialog::UserSettings));
+        assert_eq!(
+            app.user_tab,
+            crate::settings_controller::UserPage::Profiles.index()
+        );
+    }
+    #[test]
+    fn escape_dismisses_update_and_only_the_top_viewer_menu() {
+        let size = iced::Size::new(940., 600.);
+        let mut app = App::headless("audit-update-confirm", size);
+        let _ = app.update(Msg::Escape);
+        assert!(!app.features.confirm_update);
+        for screen in ["audit-image-forward", "audit-image-more"] {
+            let mut app = App::headless(screen, size);
+            let _ = app.update(Msg::Escape);
+            assert!(!app.features.viewer.forwarding);
+            assert!(!app.features.viewer.more);
+            assert!(app.features.viewer.current().is_some());
+            let _ = app.update(Msg::Escape);
+            assert!(app.features.viewer.current().is_none());
+        }
+    }
+    #[test]
     fn shortcuts_are_independent_of_input_focus() {
         let control = keyboard::Modifiers::CTRL;
         let shift = keyboard::Modifiers::SHIFT;
         let alt = keyboard::Modifiers::ALT;
         assert!(matches!(
-            key(&keyboard::Key::Character("k".into()), control),
+            key(&keyboard::Key::Character("k".into()), control, "Ctrl+K"),
             Some(Message::Open(Popover::Quick))
         ));
         assert!(matches!(
-            key(&keyboard::Key::Character("M".into()), control | shift),
+            key(
+                &keyboard::Key::Character("M".into()),
+                control | shift,
+                "Ctrl+K"
+            ),
             Some(Message::Mute)
         ));
         assert!(matches!(
-            key(&keyboard::Key::Character("d".into()), control | shift),
+            key(
+                &keyboard::Key::Character("d".into()),
+                control | shift,
+                "Ctrl+K"
+            ),
             Some(Message::Deafen)
         ));
         assert!(matches!(
-            key(&keyboard::Key::Named(Named::ArrowUp), alt | shift),
+            key(&keyboard::Key::Named(Named::ArrowUp), alt | shift, "Ctrl+K"),
             Some(Message::Switch(-1, true))
         ));
     }
@@ -697,5 +846,92 @@ mod tests {
         let _ = app.main_update(Message::Deafen);
         assert!(app.main.deafened);
         assert!(app.tx.is_none()); // headless fixture has no network or audio tasks
+    }
+}
+
+#[cfg(test)]
+mod qa_developer_setting {
+    use super::*;
+    #[test]
+    fn context_switch_updates_the_persisted_developer_setting() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.settings.preferences.developer_mode = false;
+        let _ = app.main_update(Message::Developer(true));
+        assert!(
+            app.settings.preferences.developer_mode,
+            "context and Settings must not use separate flags"
+        );
+        let saved = serde_json::to_vec(&app.settings.preferences).unwrap();
+        let restored: sticktalk_client_core::settings::Preferences =
+            serde_json::from_slice(&saved).unwrap();
+        assert!(restored.developer_mode);
+        let _ = app.main_update(Message::Developer(false));
+        assert!(!app.settings.preferences.developer_mode);
+    }
+}
+
+#[cfg(test)]
+mod qa_quick_binding {
+    use super::*;
+    fn press(app: &mut App, name: &str, mods: keyboard::Modifiers) {
+        let _ = app.update(Msg::Keyboard(
+            keyboard::Key::Character(name.into()),
+            mods,
+            iced::event::Status::Captured,
+        ));
+    }
+    #[test]
+    fn quick_switcher_uses_the_persisted_binding_not_the_default() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.main.popover = None;
+        app.settings
+            .preferences
+            .keybinds
+            .insert("Quick Switcher".into(), "Alt+J".into());
+        press(&mut app, "j", keyboard::Modifiers::ALT);
+        assert!(matches!(app.main.popover, Some(Popover::Quick)));
+        app.main.popover = None;
+        press(&mut app, "k", keyboard::Modifiers::CTRL);
+        assert!(
+            app.main.popover.is_none(),
+            "the old binding must stop firing"
+        );
+        press(
+            &mut app,
+            "j",
+            keyboard::Modifiers::ALT | keyboard::Modifiers::SHIFT,
+        );
+        assert!(
+            app.main.popover.is_none(),
+            "extra modifiers are a different binding"
+        );
+    }
+    #[test]
+    fn recording_an_existing_shortcut_does_not_execute_it() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.main.popover = None;
+        let index = app
+            .settings
+            .preferences
+            .keybinds
+            .keys()
+            .position(|name| name == "Quick Switcher")
+            .unwrap();
+        app.settings.binding = Some(index);
+        press(&mut app, "k", keyboard::Modifiers::CTRL);
+        assert_eq!(app.settings.binding, None);
+        assert_eq!(
+            app.settings.preferences.keybinds["Quick Switcher"],
+            "Ctrl+K"
+        );
+        assert!(app.main.popover.is_none());
+        app.settings.binding = Some(index);
+        let _ = app.update(Msg::Keyboard(
+            keyboard::Key::Named(Named::Escape),
+            keyboard::Modifiers::empty(),
+            iced::event::Status::Ignored,
+        ));
+        assert_eq!(app.settings.binding, None);
+        assert!(app.main.popover.is_none());
     }
 }

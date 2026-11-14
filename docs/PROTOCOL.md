@@ -888,7 +888,9 @@ hex strings, **not Snowflakes**. Requests/responses use the additive DTOs in
 
 Create fields: `purpose`, `channel_id` (required only for message files), sanitized
 display `filename`, claimed `content_type`, `byte_size`, and lowercase hexadecimal
-`sha256` of the **whole file**. Unknown/non-image media remains octet-stream with
+`sha256` of the **whole file**. MP4 (supported ISO-BMFF `ftyp` brands) and WebM (EBML `DocType=webm`) are
+identified from a bounded prefix and returned as `video/mp4` / `video/webm`,
+regardless of the claimed MIME. Unknown media remains octet-stream with
 attachment disposition/nosniff; this change does not bless executable HTML/SVG or
 unvalidated inline video. Avatar/icons must pass the existing bounded image decoder.
 The create response contains `upload_id`, `offset`, `byte_size`, `chunk_size`
@@ -963,7 +965,8 @@ size/hash before execution. Signatures authenticate the manifest and, via its
 hash, the installer. Server response keys/headers alone are not a trust anchor.
 
 Owner release tooling: `tools/release/release.ps1`, using `sticktalk-release` signing
-helper. Default **private key outside repo**:
+helper (the current desktop release script uses the compatible standalone
+`sticktalk-package` utility; see `deploy/RELEASING.md`). Default **private key outside repo**:
 `%USERPROFILE%/.sticktalk-secrets/update-signing.pk8` (Ed25519 PKCS#8).
 The server only gets base64 `STICKTALK_UPDATE_PUBLIC_KEY`. Publishing uses a
 separate random `STICKTALK_RELEASE_TOKEN` (32+ characters), never a user token.
@@ -1406,6 +1409,7 @@ All endpoints are bearer-authenticated GETs returning `Snapshot<T>`:
 | /guilds/{g}/profile | GuildProfile; member |
 | /guilds/{g}/preview | GuildPreview; member |
 | /users/{u}/profile | ProfileDetail; normal profile access, including readable historical authors |
+| /channels/{ch}/permissions | Permissions; own effective channel mask, View Channel required; no raw ACL disclosure |
 | /channels/{ch}/overwrites | Vec<PermissionOverwrite>; View Channel + Manage Roles |
 | /channels/{ch}/pins | Vec<Message>, newest pin first; View Channel + Read History |
 | /me/notifications | Vec<NotificationSettings>; own, inaccessible scopes omitted |
@@ -1787,3 +1791,112 @@ New additive DTOs: `AccountOperation` (`sign_in`, `link`, `unlink`, `password`,
   resumable protocols, charged on arriving bytes including retries/aborts.
   Maximum three unfinished uploads/user; idle reservations expire after one hour.
   Zero file-size configuration means unlimited, for BOTH protocols.
+
+## Additive text features: custom server emoji
+
+Text-feature peers may use `RenameEmoji { guild_id, emoji_id, name }` and
+`DeleteEmoji { guild_id, emoji_id }` inside `Command::Launch`. Permission
+`MANAGE_EMOJI` is bit 28; owners/administrators bypass normally. Changes emit
+`GuildEmojiUpdated { guild_id, emoji: GuildEmoji[] }` to text-feature guild
+members. Legacy clients never receive this new event.
+
+- `GET /api/v1/guilds/{id}/emoji` returns `Snapshot<Vec<GuildEmoji>>`.
+- `POST /api/v1/guilds/{id}/emoji?name=...` accepts a raw PNG/GIF/WebP body
+  of at most 262144 bytes. This REST mutation is an asset-upload lifecycle,
+  not an alternative command transport. Names are 2–32 ASCII alphanumerics/
+  underscores, case-insensitively unique within the guild. Maximum 50/guild.
+- Images are normalized to a maximum 128×128 bounding box, preserving alpha.
+  GIF/animated WebP is normalized to GIF. Safety limits: 2048px source axes,
+  32 MiB total decoded input frames, 120 frames, 256 KiB normalized output.
+- `GET /api/v1/emoji/{id}` serves normalized bytes; `/preview` serves a static
+  transparent PNG first frame. Both require current guild membership on every
+  request, use private/no-store caching, and never expose public asset URLs.
+- Message tokens are `<:name:id>`. Unknown/deleted emoji remain text rather
+  than loading arbitrary URLs. Reactions accept custom tokens only from the
+  message's server; storage uses `<:emoji:id>` so renaming cannot split counts.
+  Existing reaction removal remains possible after emoji deletion.
+- Desktop playback is hover-only and focused/visible-only. Leaving the row
+  drops animation frames and removes its one-shot timer; static previews need
+  no periodic task.
+
+## Additive text features: server message search
+
+`GET /api/v1/guilds/{id}/messages/search?q=...&before=<id>&limit=25`
+returns `Snapshot<MessageSearchPage>`. `items` and `users` are bounded to
+50; `next_before` is an exclusive descending-ID keyset cursor, absent at
+end. `has_more` never counts inaccessible messages. The entire read, including
+channel permission evaluation, runs under the normal snapshot/mutation gate.
+Only text channels with **both View Channel and Read History**, including
+category and member overwrites, enter the SQL query before pagination.
+
+`q` is 1–512 UTF-8 bytes and at most 32 terms/filters. Plain terms are ANDed
+literal FTS5 prefix phrases; double quotes group a phrase. Raw FTS operators
+are never accepted as query syntax. Filters:
+
+- `from:<username|user-id|me>`
+- `in:<channel-name|channel-id>` (optional `#`)
+- `mentions:<username|user-id|me>`
+- `has:link`, `has:file`, `has:image` (multiple filters are ANDed)
+- `before:YYYY-MM-DD`, `after:YYYY-MM-DD` (UTC midnight, exclusive)
+
+Duplicate single-value filters, invalid dates, malformed quotes, unknown
+`has:` types, and limits outside 1–50 return `invalid_request`. Missing users
+or unreadable channels produce an empty page, not cross-server information.
+Search has its own bounded rate bucket. FTS5 external content uses a
+non-deleted-message view, migration backfill, and insert/update/delete triggers;
+soft-deleted text is removed in the same transaction as message deletion.
+
+Desktop Enter submits the header query to a right-hand results panel. The
+panel retains one page plus at most 64 keyset cursors, highlights literal terms,
+and uses the existing around-message history seek on result activation. No
+background polling; canceled/stale responses cannot replace a newer search.
+
+## Additive text features: slowmode
+
+`LaunchCommand::SetSlowmode { channel_id, seconds }` requires Manage Channels
+and a guild text channel. Valid seconds: `0,5,10,30,60,300,900,3600,21600`.
+Changes persist and emit `SlowmodeUpdated { channel_id, seconds }` only to
+text-feature channel viewers. `GET /api/v1/channels/{id}/slowmode` returns a
+personalized `Snapshot<SlowmodeStatus>` (interval, bypass flag, server time,
+remaining milliseconds). Read access is checked on every fetch.
+
+SendMessage checks the latest persisted send by that author/channel under the
+serialized mutation transaction; concurrent devices cannot race the interval.
+Manage Messages or Manage Channels bypasses it. Retries of a committed command
+retain normal receipt semantics. Edits do not consume the interval, and deleting
+the previous message does not evade it. Rejections use `rate_limited`,
+`field="slowmode"`, and `retry_after_ms`.
+
+The desktop composer keeps an editable draft during cooldown and ignores sends
+until expiry, showing a seconds countdown. The host uses a monotonic local
+clock mapped from the server snapshot, not local wall time. Countdown timers
+exist only while a restricted channel is focused and the cooldown is nonzero;
+no slowmode timer exists when disabled, exempt, expired, or offscreen.
+
+## Additive text features: device notifications and server folders
+
+`Identify.text_features` is an independent optional decoder capability,
+defaulting to false and omitted when false. **All new emoji, slowmode, and
+folder event variants require this flag**, including for older peers that
+already opted into `launch_features`. Capability changes invalidate replay and
+force a fresh Ready. The desktop/shared native protocol opts in; the current
+web host opts out until its separately-owned UI adopts these events.
+
+`LaunchCommand::SetServerFolders { folders: Vec<ServerFolder> }` replaces only the caller's
+private folders. Maximum ten folders, ten total member servers, positive
+account-local folder IDs, unique server placement, 1–32 character names without
+controls, RGB color 0..0xffffff. Order and collapsed state persist per account.
+`GET /api/v1/users/@me/server-folders` returns the caller's cursor-bearing
+snapshot. `ServerFoldersUpdated` reaches only that account's opted-in sessions.
+Membership foreign keys remove departed/deleted servers from folder contents.
+
+Desktop rail context menus expose Add to Folder/Remove from Folder; folder
+right-click opens name/color settings and Ungroup Folder. Collapse/expand is
+optimistic, synced to other devices, and rolls back by snapshot on rejection.
+No drag-and-drop implementation is claimed.
+
+The local `Preferences.desktop_notifications` master switch defaults true for
+existing settings files and persists through the existing settings store.
+Disabling it prevents desktop toasts, message sounds, and mention flashes even
+when a server/channel override says All; unread counts and badges are unchanged.
+It is intentionally device-local, not an account/server notification level.

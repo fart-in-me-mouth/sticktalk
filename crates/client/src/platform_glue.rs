@@ -6,10 +6,12 @@ use sticktalk_desktop_platform::{
 use sticktalk_proto::*;
 #[derive(Default)]
 pub struct State {
+    pub disabled: bool,
     pub settings: Vec<NotificationSettings>,
     pub pending_activation: Option<Activation>,
     pub dry_run: bool,
     pub last_toast: Option<String>,
+    pub default_level: Option<NotificationLevel>,
 }
 impl State {
     pub fn observe(&mut self, event: &Event) {
@@ -52,7 +54,12 @@ impl State {
             blocked,
             now: crate::mock::now(),
         };
-        if !sticktalk_client_core::notifications::permits(&self.settings, c) {
+        if !sticktalk_client_core::notifications::permits_on_device(
+            &self.settings,
+            c,
+            self.default_level,
+            !self.disabled,
+        ) {
             return None;
         }
         let toast = MessageToast {
@@ -199,7 +206,11 @@ pub fn bootstrap() -> Result<Host, String> {
                 let _ = INSTANCE.set(std::sync::Arc::new(tokio::sync::Mutex::new(instance)));
             }
         }
-        *INITIAL.lock().map_err(|_| "Activation queue unavailable")? = Some(activation);
+        if (!std::env::args().any(|a| a == "--background") && !crate::storage::start_minimized())
+            || activation != Activation::Open
+        {
+            *INITIAL.lock().map_err(|_| "Activation queue unavailable")? = Some(activation);
+        }
         let apartment = sticktalk_desktop_platform::windows::Apartment::initialize()
             .map_err(|e| e.to_string())?;
         sticktalk_desktop_platform::windows::set_app_id().map_err(|e| e.to_string())?;
@@ -212,6 +223,41 @@ pub fn bootstrap() -> Result<Host, String> {
     {
         let _ = dry;
         Ok(Host { should_run: true })
+    }
+}
+/// A deferred, authenticated update is applied on the next ordinary interactive
+/// launch. Deep links and background startup are never delayed or discarded.
+pub fn apply_pending_at_startup() -> bool {
+    #[cfg(windows)]
+    {
+        if std::env::args().count() != 1
+            || std::env::var_os("STICKTALK_UPDATE_HEALTH_FILE").is_some()
+            || !crate::storage::root()
+                .join("Updates/pending.json")
+                .is_file()
+        {
+            return false;
+        }
+        let Ok(exe) = std::env::current_exe() else {
+            return false;
+        };
+        let Ok(updater) = sticktalk_desktop_platform::updater::Updater::embedded(
+            &crate::storage::update_origin(),
+            env!("CARGO_PKG_VERSION"),
+            crate::storage::root().join("Updates"),
+        ) else {
+            return false;
+        };
+        runtime().block_on(async {
+            if updater.pending().await.ok().flatten().is_none() {
+                return false;
+            }
+            updater.restart_to_apply(&exe).await.is_ok()
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        false
     }
 }
 pub fn has_instance() -> bool {

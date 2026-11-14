@@ -20,14 +20,15 @@ function zoom(next, cx = innerWidth / 2, cy = innerHeight / 2) {
   scale = next; paint();
 }
 function reset() { scale = fit; x = y = 0; paint(); }
-export function closeViewer() {
+export function closeViewer(notify=true) {
   generation++; pointers.clear(); gesture = null;
   if (original) { original.onload = original.onerror = null; original.src = ''; }
   if (image) image.src = '';
-  root?.remove(); root = image = original = source = null;
+  const existed=!!root;root?.remove(); root = image = original = source = null;
+  if(existed&&notify)dispatchEvent(new Event('sticktalk-surfaces-changed'));
   window.removeEventListener('keydown', keys);
   window.removeEventListener('resize', resize);
-  priorFocus?.focus();
+  const focus=priorFocus;priorFocus=null;focus?.focus();
 }
 function resize() {
   if (!root || !image.naturalWidth) return;
@@ -56,7 +57,7 @@ function keys(e) {
   }
 }
 export function openViewer(target) {
-  closeViewer(); source = target; priorFocus = document.activeElement;
+  closeViewer(false); source = target; priorFocus = document.activeElement;
   const token = ++generation;
   root = document.createElement('div'); root.id = 'live-viewer'; root.className = 'live-viewer';
   root.dataset.channel = $('#live-messages')?.dataset.channel ?? '';
@@ -93,6 +94,7 @@ export function openViewer(target) {
   const link = document.createElement('a'); link.href = target.dataset.viewImage; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Open original';
   const status = document.createElement('span'); status.setAttribute('role', 'status'); status.textContent = 'Loading original…';
   footer.append(label, link, status); root.append(toolbar, image, footer); document.body.append(root);
+  dispatchEvent(new Event('sticktalk-surfaces-changed'));
   toolbar.querySelector('button').focus();
   root.onclick = (e) => { if (e.target === root) closeViewer(); };
   root.onwheel = (e) => { e.preventDefault(); zoom(scale * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX, e.clientY); };

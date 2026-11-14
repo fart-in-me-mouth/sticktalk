@@ -24,17 +24,19 @@ pub enum Msg {
     Call(crate::voice_ui::Action),
     Main(crate::main_window::Message),
     Feature(Box<crate::features::Event>),
+    TextFeature(Box<crate::features3::Event>),
     Settings(crate::settings_controller::Action),
     SettingsStored(Result<(), String>),
     SettingsPersist(u64),
     SettingsKey(keyboard::Key, keyboard::Modifiers),
+    Keyboard(keyboard::Key, keyboard::Modifiers, iced::event::Status),
     Server(String),
     Username(String),
     Password(String),
     Display(String),
     ToggleRegister,
-    ChangeServer,
     RefreshMeta,
+    ChangeServer,
     Meta(String, Result<MetaResponse, String>),
     GoogleStart(bool),
     GoogleCancel,
@@ -174,6 +176,7 @@ pub struct App {
     pub main: crate::main_window::State,
     pub extent: crate::history_extent::Window,
     pub features: crate::features::State,
+    pub text_features: crate::features3::State,
     pub settings: crate::settings_controller::State,
     pub state: ClientState,
     trace: Option<PathBuf>,
@@ -192,6 +195,8 @@ pub struct App {
     pub display: String,
     pub register: bool,
     pub change_server: bool,
+    pub meta_loading: bool,
+    pub meta_error: String,
     pub google_id: Option<String>,
     pub signup: Option<GoogleSignupRequired>,
     pub methods: Option<AuthMethodsResponse>,
@@ -250,14 +255,35 @@ impl App {
                 .and_then(|i| args.get(i + 1))
                 .cloned()
         };
-        let capture = flag("--capture").map(PathBuf::from);
+        let capture = flag("--capture")
+            .or_else(|| {
+                if mock && crate::agent_window::enabled() {
+                    flag("--native-capture")
+                } else {
+                    None
+                }
+            })
+            .map(PathBuf::from);
         let initial_screen = flag("--screen").unwrap_or_default();
-        let server = storage::server();
-        let session = if mock
+        let qa_session = crate::agent_window::qa_session();
+        let server = qa_session.as_ref().map_or_else(
+            || {
+                if mock {
+                    "https://chat.example.com".into()
+                } else {
+                    storage::server()
+                }
+            },
+            |s| s.config.server.clone(),
+        );
+        let session = if qa_session.is_some() {
+            qa_session
+        } else if mock
             && !matches!(
                 initial_screen.as_str(),
                 "login" | "register" | "google-login" | "pick-username"
-            ) {
+            )
+        {
             Some(Session {
                 config: Config {
                     server: "http://127.0.0.1:8080".into(),
@@ -271,10 +297,15 @@ impl App {
             None
         };
         let state = Self {
+            text_features: crate::features3::State::default(),
             calls: crate::voice_ui::State::default(),
             main: crate::main_window::State::default(),
             extent: crate::history_extent::Window::default(),
-            features: Default::default(),
+            features: crate::features::State {
+                crash_notice: !mock && sticktalk_desktop_platform::diagnostics::previous_crash(),
+                start_minimized: !mock && storage::start_minimized(),
+                ..Default::default()
+            },
             settings: crate::settings_controller::State {
                 preferences: crate::settings_controller::State::load_preferences(mock),
                 ..Default::default()
@@ -298,7 +329,9 @@ impl App {
             password: String::new(),
             display: String::new(),
             register: initial_screen == "register",
-            change_server: false,
+            meta_loading: !mock && !server.trim().is_empty(),
+            meta_error: String::new(),
+            change_server: server.trim().is_empty(),
             google_id: mock.then(|| "mock-desktop".into()),
             signup: (initial_screen == "pick-username").then(|| GoogleSignupRequired {
                 ticket: "mock-signup-ticket".into(),
@@ -364,7 +397,7 @@ impl App {
             resolving: BTreeSet::new(),
             preview: None,
         };
-        let task = if !mock {
+        let task = if !mock && !server.trim().is_empty() && state.state.session.is_none() {
             Task::perform(
                 async move {
                     tokio::task::spawn_blocking(move || {
@@ -396,7 +429,7 @@ impl App {
         if mock && state.signup.is_some() {
             let _ = state.mock_account.lock().unwrap().google("mock-new");
         }
-        let meta_task = if mock {
+        let meta_task = if mock || state.server.trim().is_empty() {
             Task::none()
         } else {
             let server = state.server.clone();
@@ -432,6 +465,7 @@ impl App {
     pub fn subscription(&self) -> Subscription<Msg> {
         let mut subs = vec![
             crate::features::subscription(self),
+            crate::features3::subscription(self),
             iced::event::listen_with(|event, _status, _id| match event {
                 UiEvent::Window(window::Event::CloseRequested) => {
                     Some(Msg::Call(crate::voice_ui::Action::WindowClosed(_id)))
@@ -457,30 +491,8 @@ impl App {
                 UiEvent::Mouse(iced::mouse::Event::CursorMoved { position }) => {
                     Some(Msg::Main(crate::main_window::Message::Pointer(position)))
                 }
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    ref key, modifiers, ..
-                }) if crate::main_window::key(key, modifiers).is_some() => {
-                    crate::main_window::key(key, modifiers).map(Msg::Main)
-                }
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::Escape),
-                    ..
-                }) => Some(Msg::Escape),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::Tab),
-                    modifiers,
-                    ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::Tab(modifiers.shift())),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::ArrowDown),
-                    ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::MenuMove(false)),
-                UiEvent::Keyboard(keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(Named::ArrowUp),
-                    ..
-                }) if _status == iced::event::Status::Ignored => Some(Msg::MenuMove(true)),
                 UiEvent::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
-                    Some(Msg::SettingsKey(key, modifiers))
+                    Some(Msg::Keyboard(key, modifiers, _status))
                 }
                 UiEvent::Mouse(iced::mouse::Event::ButtonPressed(_)) => Some(Msg::Activity),
                 UiEvent::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) => {
@@ -660,12 +672,19 @@ impl App {
             self.calls.recording_key = false;
         }
         if reconcile {
-            Task::batch([task, crate::features::reconcile(self)])
+            Task::batch([
+                task,
+                crate::features::reconcile(self),
+                crate::features3::reconcile(self),
+            ])
         } else {
             task
         }
     }
     fn update_main(&mut self, message: Msg) -> Task<Msg> {
+        if matches!(message, Msg::Escape) && self.text_features.folder_dialog.take().is_some() {
+            return Task::none();
+        }
         if matches!(message, Msg::Escape) && self.calls.recording_key {
             self.calls.recording_key = false;
             self.call_command(sticktalk::voice::Command::Configure(
@@ -700,39 +719,65 @@ impl App {
         match message {
             Msg::Call(action) => return self.call_update(action),
             Msg::Main(m) => return self.main_update(m),
+            Msg::TextFeature(event) => return crate::features3::update(self, *event),
             Msg::Feature(event) => return crate::features::update(self, *event),
             Msg::Settings(action) => return self.settings_update(action),
+            Msg::Keyboard(key, modifiers, status) => {
+                // Record first: existing shortcuts must not consume the chord
+                // while the Keybinds page is waiting for a new binding.
+                if self.settings.binding.is_some() {
+                    if key == keyboard::Key::Named(Named::Escape) {
+                        self.settings.binding = None;
+                        return Task::none();
+                    }
+                    return self.update(Msg::SettingsKey(key, modifiers));
+                }
+                let binding = self
+                    .settings
+                    .preferences
+                    .keybinds
+                    .get("Quick Switcher")
+                    .map_or("Ctrl+K", String::as_str);
+                if let Some(action) = crate::main_window::key(&key, modifiers, binding) {
+                    return self.main_update(action);
+                }
+                let message = match key {
+                    keyboard::Key::Named(Named::Escape) => Msg::Escape,
+                    keyboard::Key::Named(Named::Tab) if status == iced::event::Status::Ignored => {
+                        Msg::Tab(modifiers.shift())
+                    }
+                    keyboard::Key::Named(Named::ArrowDown)
+                        if status == iced::event::Status::Ignored =>
+                    {
+                        Msg::MenuMove(false)
+                    }
+                    keyboard::Key::Named(Named::ArrowUp)
+                        if status == iced::event::Status::Ignored =>
+                    {
+                        Msg::MenuMove(true)
+                    }
+                    _ => Msg::SettingsKey(key, modifiers),
+                };
+                return self.update(message);
+            }
             Msg::SettingsKey(key, modifiers) => {
                 if let Some(index) = self.settings.binding {
-                    let name = match key {
-                        keyboard::Key::Character(s) => s.to_uppercase(),
-                        keyboard::Key::Named(
-                            Named::Control | Named::Shift | Named::Alt | Named::Meta,
-                        ) => return Task::none(),
-                        keyboard::Key::Named(n) => format!("{n:?}"),
-                        _ => return Task::none(),
+                    let Some(chord) = crate::main_window::chord(&key, modifiers) else {
+                        return Task::none();
                     };
-                    let mut parts = Vec::new();
-                    if modifiers.control() {
-                        parts.push("Ctrl".to_owned());
-                    }
-                    if modifiers.alt() {
-                        parts.push("Alt".to_owned());
-                    }
-                    if modifiers.shift() {
-                        parts.push("Shift".to_owned());
-                    }
-                    if modifiers.logo() {
-                        parts.push("Meta".to_owned());
-                    }
-                    parts.push(name);
                     self.settings.binding = None;
                     return self.settings_update(crate::settings_controller::Action::Text(
                         crate::settings_controller::TextField::Keybind(index),
-                        parts.join("+"),
+                        chord,
                     ));
                 }
-                if let Some(action) = crate::main_window::key(&key, modifiers) {
+                let binding = self
+                    .settings
+                    .preferences
+                    .keybinds
+                    .get("Quick Switcher")
+                    .map_or("Ctrl+K", String::as_str);
+                if let Some(action) = crate::main_window::key(&key, modifiers, binding) {
                     return self.main_update(action);
                 }
                 return crate::features::update(self, crate::features::Event::Key(key));
@@ -768,12 +813,22 @@ impl App {
                 if self.busy {
                     return Task::none();
                 }
+                if self.server.trim().is_empty() {
+                    self.change_server = true;
+                    return operation::focus("login-server");
+                }
                 self.change_server = !self.change_server;
                 if !self.change_server {
                     return self.update(Msg::RefreshMeta);
                 }
             }
             Msg::RefreshMeta => {
+                if self.server.trim().is_empty() {
+                    self.change_server = true;
+                    return operation::focus("login-server");
+                }
+                self.meta_loading = true;
+                self.meta_error.clear();
                 self.google_id = None;
                 self.features.gifs.capability = GifCapability::Disabled;
                 let server = self.server.trim().trim_end_matches('/').to_owned();
@@ -783,9 +838,24 @@ impl App {
             }
             Msg::Meta(server, result) => {
                 if server.trim_end_matches('/') == self.server.trim().trim_end_matches('/') {
-                    if let Ok(meta) = result {
-                        self.google_id = meta.google_client_id;
-                        self.features.gifs.capability = meta.gifs;
+                    self.meta_loading = false;
+                    match result {
+                        Ok(meta) => {
+                            self.meta_error.clear();
+                            self.google_id = meta.google_client_id;
+                            self.features.gifs.capability = meta.gifs;
+                            if !self.mock_mode {
+                                storage::save_server(server.trim().trim_end_matches('/'));
+                            }
+                        }
+                        Err(error) => {
+                            self.meta_error = format!(
+                                "Could not connect. {error}. Check the address and try again."
+                            );
+                            if self.state.session.is_none() {
+                                self.change_server = true;
+                            }
+                        }
                     }
                 }
             }
@@ -1066,6 +1136,7 @@ impl App {
                 }
             }
             Msg::ToggleMembers => {
+                self.main.members_scroll = 0.;
                 let current = self
                     .members_open
                     .unwrap_or(self.width >= crate::theme::MEMBER_BREAKPOINT);
@@ -1096,6 +1167,14 @@ impl App {
                 if matches!(
                     self.dialog,
                     Dialog::MessageActions(_) | Dialog::GuildMenu | Dialog::MemberMenu(_)
+                ) || matches!(
+                    self.main.popover,
+                    Some(
+                        crate::main_window::Popover::Context(_)
+                            | crate::main_window::Popover::Server
+                            | crate::main_window::Popover::Devices(_)
+                            | crate::main_window::Popover::Notifications(_, _)
+                    )
                 ) {
                     return self.update(Msg::Tab(previous));
                 }
@@ -1131,6 +1210,11 @@ impl App {
                 return Task::batch([saved, operation::focus("composer-editor")]);
             }
             Msg::Server(v) => {
+                if self.busy {
+                    return Task::none();
+                }
+                self.meta_loading = false;
+                self.meta_error.clear();
                 self.google_id = None;
                 self.features.gifs.capability = GifCapability::Disabled;
                 self.server = v;
@@ -1211,6 +1295,14 @@ impl App {
                 }
             }
             Msg::Login => {
+                if self.busy {
+                    return Task::none();
+                }
+                if self.server.trim().is_empty() {
+                    self.change_server = true;
+                    self.error = "Enter the server address from your administrator.".into();
+                    return operation::focus("login-server");
+                }
                 if self.mock_mode {
                     if self.username.trim().len() < 3 || self.password.len() < 12 {
                         self.error="Use a username of at least 3 characters and a password of at least 12 bytes.".into();
@@ -1314,6 +1406,9 @@ impl App {
                 });
             }
             Msg::Open(dialog) => {
+                if let Dialog::Profile(id) = dialog {
+                    return self.main_open(crate::main_window::Popover::Profile(id));
+                }
                 if matches!(dialog, Dialog::EmojiPicker) {
                     self.reaction_target = None;
                     return crate::features::update(
@@ -1357,6 +1452,10 @@ impl App {
                 if self.calls.camera_picker {
                     return self.call_update(crate::voice_ui::Action::CloseCameras);
                 }
+                if self.features.confirm_update {
+                    self.features.confirm_update = false;
+                    return operation::focus("composer-editor");
+                }
                 if self.features.video.fullscreen.is_some() {
                     return crate::video::update(self, crate::video::Event::CloseFullscreen);
                 }
@@ -1378,8 +1477,13 @@ impl App {
                     return self.settings_attention();
                 }
                 if matches!(self.dialog, Dialog::None) && self.features.viewer.current().is_some() {
+                    if self.features.viewer.forwarding || self.features.viewer.more {
+                        self.features.viewer.forwarding = false;
+                        self.features.viewer.more = false;
+                        return crate::focus_button::focus_dialog();
+                    }
                     self.features.viewer.close();
-                    return Task::none();
+                    return operation::focus("composer-editor");
                 }
                 if self.features.picker != crate::features::Picker::None {
                     return crate::features::update(
@@ -1388,7 +1492,7 @@ impl App {
                     );
                 }
                 if self.main.popover.take().is_some() {
-                    return Task::none();
+                    return operation::focus("composer-editor");
                 }
                 if matches!(message, Msg::Escape) && matches!(self.dialog, Dialog::None) {
                     self.mark_channel_read();
@@ -1424,6 +1528,12 @@ impl App {
             }
             Msg::Submit => return self.submit(),
             Msg::Command(command) => {
+                if matches!(self.dialog, Dialog::Invite)
+                    && matches!(command, Command::CreateInvite { .. })
+                {
+                    self.form.code.clear();
+                    self.error.clear();
+                }
                 if matches!(
                     self.main.popover,
                     Some(crate::main_window::Popover::Context(_))
@@ -1470,7 +1580,15 @@ impl App {
             }
             Msg::Send => {
                 if let Screen::Channel(channel_id) = self.state.screen {
-                    let content = sticktalk_client_core::emoji::prepare_send(&self.editor.text());
+                    if self.state.editing.is_none()
+                        && crate::features3::remaining(self, channel_id) > 0
+                    {
+                        return Task::none();
+                    }
+                    let content = sticktalk_client_core::features3::prepare_send(
+                        &self.editor.text(),
+                        crate::features3::entries(self),
+                    );
                     if content.chars().count() > MAX_MESSAGE_CHARS {
                         self.error = "Messages can have up to 4,000 characters.".into();
                         return Task::none();
@@ -1585,14 +1703,35 @@ impl App {
                 let count = self
                     .mention_candidates()
                     .len()
-                    .max(self.emoji_candidates().len());
+                    .max(crate::features3::completion_count(self));
                 if count > 0 {
                     self.suggestion =
                         (self.suggestion as i32 + delta).rem_euclid(count as i32) as usize;
+                    return operation::scroll_to(
+                        "composer-suggestions",
+                        scrollable::AbsoluteOffset {
+                            x: 0.,
+                            y: (self.suggestion as f32
+                                * (crate::theme::AUTOCOMPLETE + crate::theme::S4)
+                                - (self.height * 0.4).min(crate::theme::S32 * 10.) / 2.)
+                                .max(0.),
+                        },
+                    );
                 }
             }
             Msg::CompleteMention => {
-                if let Some(e) = self.emoji_candidates().get(self.suggestion) {
+                if let Some(e) = crate::features3::candidates(self).get(self.suggestion) {
+                    let token = e.token();
+                    return crate::features::update(
+                        self,
+                        crate::features::Event::EmojiComplete(token),
+                    );
+                }
+                let custom = crate::features3::candidates(self).len();
+                if let Some(e) = self
+                    .emoji_candidates()
+                    .get(self.suggestion.saturating_sub(custom))
+                {
                     return crate::features::update(
                         self,
                         crate::features::Event::EmojiComplete(e.emoji().into()),
@@ -2009,27 +2148,18 @@ impl App {
                 }
             }
             Msg::Tab(previous) => {
-                if !matches!(self.dialog, Dialog::None) {
-                    use iced::advanced::widget::{operate, operation as op};
-                    return if previous {
-                        operate(op::scope(
-                            "dialog-scope".into(),
-                            op::focusable::focus_previous(),
-                        ))
-                        .map(|_: ()| Msg::Activity)
-                    } else {
-                        operate(op::scope(
-                            "dialog-scope".into(),
-                            op::focusable::focus_next(),
-                        ))
-                        .map(|_: ()| Msg::Activity)
-                    };
+                use iced::advanced::widget::{operate, operation as op};
+                let cycle = crate::focus_button::cycle(previous);
+                if !matches!(self.dialog, Dialog::None)
+                    || self.main.popover.is_some()
+                    || self.features.picker != crate::features::Picker::None
+                    || self.features.viewer.current().is_some()
+                    || self.features.confirm_update
+                {
+                    return operate(op::scope("dialog-scope".into(), cycle))
+                        .map(|_: ()| Msg::Activity);
                 }
-                return if previous {
-                    operation::focus_previous()
-                } else {
-                    operation::focus_next()
-                };
+                return operate(cycle).map(|_: ()| Msg::Activity);
             }
             Msg::FocusComposer => return operation::focus("composer-editor"),
             Msg::GuildHover(id) => self.hovered_guild = id,
@@ -2140,6 +2270,12 @@ impl App {
             }
             Msg::LoggedOut => self.notice.clear(),
             Msg::Resize(size) => {
+                if self.members_open.is_none()
+                    && (self.width >= crate::theme::MEMBER_BREAKPOINT)
+                        != (size.width >= crate::theme::MEMBER_BREAKPOINT)
+                {
+                    self.main.members_scroll = 0.;
+                }
                 self.width = size.width;
                 self.height = size.height;
                 self.viewport_w = size.width
@@ -2206,6 +2342,7 @@ impl App {
                 if generation == self.state.generation
                     && self.state.model.snapshot_valid(data.cursor())
                 {
+                    crate::features3::snapshot(self, &data);
                     if let sticktalk_client_core::launch::SnapshotData::Extent(v) = &data {
                         self.extent_snapshot(&v.data);
                     }
@@ -2278,6 +2415,7 @@ impl App {
             }
             Data::Frame(frame) => match frame {
                 ServerMsg::Ready(ready) => {
+                    crate::features3::ready(self);
                     self.features.desktop.settings = ready.notification_settings.clone();
                     let old = self.state.screen;
                     self.main.popover = None;
@@ -2417,6 +2555,44 @@ impl App {
                         _ => {}
                     }
                     self.initial_screen.clear();
+                    if crate::agent_window::qa_session().is_some() {
+                        if let Ok(value) = std::env::var("STICKTALK_QA_PREFERENCES") {
+                            if let Ok(mut preferences) = serde_json::from_str::<
+                                sticktalk_client_core::settings::Preferences,
+                            >(&value)
+                            {
+                                preferences.validate();
+                                self.settings.preferences = preferences;
+                                self.settings.preference_revision =
+                                    self.settings.preference_revision.wrapping_add(1);
+                                tasks
+                                    .push(self.settings_persist(self.settings.preference_revision));
+                            }
+                        }
+                        if let Ok(path) = std::env::var("STICKTALK_QA_PREFERENCES_REPORT") {
+                            let bytes = serde_json::to_vec(&self.settings.preferences)
+                                .expect("validated QA preferences");
+                            tasks.push(Task::perform(
+                                async move {
+                                    tokio::fs::write(path, bytes)
+                                        .await
+                                        .map_err(|error| error.to_string())
+                                },
+                                Msg::SettingsStored,
+                            ));
+                        }
+                        if let Ok(channel) = std::env::var("STICKTALK_QA_CHANNEL") {
+                            if let Ok(channel) = channel.parse::<u64>() {
+                                if self.state.model.channels.contains_key(&Id(channel)) {
+                                    tasks.push(self.navigate(Id(channel)));
+                                }
+                            }
+                        }
+                        if let Ok(content) = std::env::var("STICKTALK_QA_SEND") {
+                            replace_editor(&mut self.editor, &content);
+                            tasks.push(Task::done(Msg::Send));
+                        }
+                    }
                     if self.capture.is_some() {
                         tasks.push(Task::perform(
                             async {
@@ -2438,6 +2614,10 @@ impl App {
                         self.features.desktop.observe(&envelope.event);
                         if let Event::MessageCreated { message, .. } = &envelope.event {
                             crate::features::committed(self, message);
+                            self.features.desktop.disabled =
+                                !self.settings.preferences.desktop_notifications;
+                            self.features.desktop.default_level =
+                                Some(self.settings.preferences.notification_level);
                             if let Some(toast) = self.features.desktop.notification(
                                 &self.state.model,
                                 message,
@@ -2488,6 +2668,15 @@ impl App {
                         {
                             self.history_slots.borrow_mut().remove(message_id);
                         }
+                    }
+                    if self
+                        .state
+                        .model
+                        .cursor
+                        .as_ref()
+                        .is_some_and(|c| envelope.seq > c.seq)
+                    {
+                        crate::features3::live_event(self, &envelope.event);
                     }
                     self.main_live_event(&envelope.event);
                     let sessions_changed = matches!(envelope.event, Event::SessionsUpdated);
@@ -2571,6 +2760,16 @@ impl App {
                         .unwrap_or_default();
                     match response.outcome {
                         CommandOutcome::Err(e) => {
+                            crate::features3::command_failed(self, command.as_ref());
+                            if e.field.as_deref() == Some("slowmode") {
+                                if let Some(Command::SendMessage(d)) = &command {
+                                    crate::features3::rejected(
+                                        self,
+                                        d.channel_id,
+                                        e.retry_after_ms.unwrap_or(0),
+                                    );
+                                }
+                            }
                             self.error = format!(
                                 "{}{}",
                                 e.message,
@@ -3026,6 +3225,33 @@ impl App {
             self.error = "You are offline. This action was not queued.".into();
             return false;
         }
+        let required = match &command {
+            Command::SendMessage(m) => Some((
+                m.channel_id,
+                Permissions::SEND_MESSAGES
+                    | if m.attachment_ids.is_empty() {
+                        Permissions::empty()
+                    } else {
+                        Permissions::ATTACH_FILES
+                    },
+            )),
+            Command::EditMessage(m) => Some((m.channel_id, Permissions::SEND_MESSAGES)),
+            Command::Typing { channel_id } => Some((*channel_id, Permissions::SEND_MESSAGES)),
+            Command::AddReaction { channel_id, .. }
+            | Command::RemoveReaction { channel_id, .. } => {
+                Some((*channel_id, Permissions::ADD_REACTIONS))
+            }
+            Command::Launch(LaunchCommand::PinMessage { channel_id, .. }) => {
+                Some((*channel_id, Permissions::MANAGE_MESSAGES))
+            }
+            _ => None,
+        };
+        if required.is_some_and(|(channel, permission)| {
+            !self.channel_permissions(channel).contains(permission)
+        }) {
+            self.error = "You don't have permission to do that in this channel.".into();
+            return false;
+        }
         if self.state.pending.len() >= 32 {
             self.error = "Please wait for pending actions to finish.".into();
             return false;
@@ -3161,7 +3387,10 @@ impl App {
         }
         self.main_channel(id);
         self.subscribe();
-        self.jump()
+        Task::batch([
+            self.jump(),
+            operation::scroll_to("members", scrollable::AbsoluteOffset { x: 0., y: 0. }),
+        ])
     }
     fn subscribe(&mut self) {
         if self.state.connection != ConnectionState::Ready {
@@ -3339,6 +3568,7 @@ impl App {
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         m.content.hash(&mut hash);
         m.edited_at.hash(&mut hash);
+        self.state.model.launch.emoji_revision.hash(&mut hash);
         m.attachments.len().hash(&mut hash);
         m.reactions.len().hash(&mut hash);
         self.row_decorations(m).hash(&mut hash);
@@ -4076,11 +4306,16 @@ impl App {
     }
 }
 pub fn editor_binding(
+    quick_binding: &str,
     event: text_editor::KeyPress,
     empty: bool,
     autocomplete: bool,
 ) -> Option<text_editor::Binding<Msg>> {
     if matches!(event.status, text_editor::Status::Focused { .. }) {
+        // Global shortcuts must not also edit or move the composer caret.
+        if crate::main_window::key(&event.key, event.modifiers, quick_binding).is_some() {
+            return None;
+        }
         if autocomplete {
             let custom = match event.key {
                 keyboard::Key::Named(Named::ArrowDown) => Some(Msg::Suggest(1)),
@@ -4201,14 +4436,15 @@ impl App {
         app.signup = None;
         app.state.session = Some(Session {
             config: Config {
-                server: storage::DEFAULT_SERVER.into(),
+                server: "https://chat.example.com".into(),
                 token: "river".into(),
                 mock: true,
                 generation: 1,
                 scenario: screen.into(),
             },
         });
-        app.server = storage::DEFAULT_SERVER.into();
+        app.server = "https://chat.example.com".into();
+        app.change_server = false;
         app.dialog = Dialog::None;
         app.typing_armed = false;
         for id in [Id(2), Id(3)] {
@@ -4224,11 +4460,33 @@ impl App {
             rgba: image.into_raw(),
         });
         match screen {
-            "login" | "register" | "google-login" | "pick-username" => {
+            "login"
+            | "register"
+            | "google-login"
+            | "pick-username"
+            | "login-error"
+            | "login-connecting"
+            | "crash-recovery"
+            | "login-update"
+            | "login-update-confirm" => {
                 app.state.session = None;
                 app.register = screen == "register";
-                if screen == "login" {
+                if matches!(
+                    screen,
+                    "login" | "login-error" | "login-connecting" | "crash-recovery"
+                ) {
                     app.google_id = None;
+                }
+                app.meta_loading = screen == "login-connecting";
+                app.change_server = matches!(screen, "login-error" | "login-connecting");
+                app.features.crash_notice = screen == "crash-recovery";
+                if matches!(screen, "login-update" | "login-update-confirm") {
+                    app.features.update_ready = Some("0.2.0".into());
+                }
+                app.features.confirm_update = screen == "login-update-confirm";
+                if screen == "login-error" {
+                    app.meta_error =
+                        "Could not connect. Check the server address and try again.".into();
                 }
                 if screen == "pick-username" {
                     app.signup = match app.mock_account.lock().unwrap().google("mock-new").unwrap()
@@ -4237,6 +4495,10 @@ impl App {
                         _ => None,
                     };
                 }
+            }
+            "connecting" => {
+                app.state.model.me = None;
+                app.state.connection = ConnectionState::Connecting;
             }
             "home-online" | "empty-home" => {
                 app.state.guild = None;
@@ -4354,7 +4616,7 @@ impl App {
         }
         use crate::main_window::{Entity, Popover};
         if screen.starts_with("main-") {
-            app.main.developer = true;
+            app.settings.preferences.developer_mode = true;
             app.main.pointer = iced::Point::new(size.width - crate::theme::MEMBERS + 40., 160.);
             app.main.position = app.main.pointer;
             app.main.popover = match screen {
@@ -4597,6 +4859,8 @@ impl App {
         app.error.clear();
         app.mock_call_screen(screen);
         crate::features::fixture(&mut app, screen);
+        crate::ui::audit::configure(&mut app, screen);
+        crate::features3::fixture(&mut app, screen);
         app
     }
     pub(crate) fn headless_scroll(&mut self) {
@@ -4778,9 +5042,28 @@ mod tests {
         assert!(app.error.contains("cancelled"));
     }
     #[test]
+    fn configured_quick_switcher_does_not_also_edit_or_accept_autocomplete() {
+        for (named, chord) in [
+            (Named::ArrowUp, "Ctrl+ArrowUp"),
+            (Named::Enter, "Ctrl+Enter"),
+        ] {
+            assert!(
+                editor_binding(chord, key(named, keyboard::Modifiers::CTRL), true, true).is_none()
+            );
+        }
+    }
+    #[test]
     fn composer_keyboard_contract() {
+        assert!(editor_binding(
+            "Ctrl+K",
+            key(Named::ArrowUp, keyboard::Modifiers::ALT),
+            true,
+            true
+        )
+        .is_none());
         assert!(matches!(
             editor_binding(
+                "Ctrl+K",
                 key(Named::Enter, keyboard::Modifiers::empty()),
                 false,
                 false
@@ -4788,11 +5071,17 @@ mod tests {
             Some(text_editor::Binding::Custom(Msg::Send))
         ));
         assert!(matches!(
-            editor_binding(key(Named::Enter, keyboard::Modifiers::SHIFT), false, false),
+            editor_binding(
+                "Ctrl+K",
+                key(Named::Enter, keyboard::Modifiers::SHIFT),
+                false,
+                false
+            ),
             Some(text_editor::Binding::Enter)
         ));
         assert!(matches!(
             editor_binding(
+                "Ctrl+K",
                 key(Named::ArrowUp, keyboard::Modifiers::empty()),
                 true,
                 false
@@ -4801,6 +5090,7 @@ mod tests {
         ));
         assert!(matches!(
             editor_binding(
+                "Ctrl+K",
                 key(Named::ArrowUp, keyboard::Modifiers::empty()),
                 false,
                 false
@@ -4808,11 +5098,21 @@ mod tests {
             Some(text_editor::Binding::Move(_))
         ));
         assert!(matches!(
-            editor_binding(key(Named::Enter, keyboard::Modifiers::empty()), false, true),
+            editor_binding(
+                "Ctrl+K",
+                key(Named::Enter, keyboard::Modifiers::empty()),
+                false,
+                true
+            ),
             Some(text_editor::Binding::Custom(Msg::CompleteMention))
         ));
         assert!(matches!(
-            editor_binding(key(Named::Tab, keyboard::Modifiers::SHIFT), false, false),
+            editor_binding(
+                "Ctrl+K",
+                key(Named::Tab, keyboard::Modifiers::SHIFT),
+                false,
+                false
+            ),
             Some(text_editor::Binding::Custom(Msg::Tab(true)))
         ));
     }
@@ -4986,5 +5286,152 @@ mod tests {
         app.state.seek_loading = true;
         let _ = app.network(Data::Error("Server request failed".into()));
         assert!(!app.state.seek_loading);
+    }
+    #[test]
+    fn server_connection_errors_are_visible_and_stale_meta_is_ignored() {
+        let mut app = App::headless("login", iced::Size::new(1280., 800.));
+        let _ = app.update(Msg::Server("https://new.example".into()));
+        let _ = app.update(Msg::RefreshMeta);
+        assert!(app.meta_loading);
+        let _ = app.update(Msg::Meta(
+            "https://old.example".into(),
+            Err("unreachable".into()),
+        ));
+        assert!(app.meta_error.is_empty());
+        assert!(app.meta_loading);
+        let _ = app.update(Msg::Meta(
+            "https://new.example".into(),
+            Err("unreachable".into()),
+        ));
+        assert!(!app.meta_loading);
+        assert!(app.meta_error.contains("Check the address"));
+        assert!(
+            app.change_server,
+            "failed saved addresses must expose retry controls"
+        );
+        let _ = app.update(Msg::Server("https://fixed.example".into()));
+        assert!(app.meta_error.is_empty());
+        assert!(app.google_id.is_none());
+    }
+    #[test]
+    fn invite_before_login_is_retained_without_losing_login_screen() {
+        let mut app = App::headless("login", iced::Size::new(1280., 800.));
+        let activation =
+            sticktalk_desktop_platform::activation::Activation::Invite("valid-code".into());
+        let _ = app.update(Msg::feature(crate::features::Event::Activation(
+            activation.clone(),
+        )));
+        assert_eq!(app.features.desktop.pending_activation, Some(activation));
+        assert!(app.state.session.is_none());
+    }
+}
+
+#[cfg(test)]
+mod qa_channel_controls {
+    use super::*;
+    #[test]
+    fn read_only_keyboard_send_and_reaction_shortcuts_are_not_queued() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.state.connection = ConnectionState::Ready;
+        app.state.screen = Screen::Channel(Id(12));
+        app.state.model.launch.effective_permissions.insert(
+            Id(12),
+            Permissions::VIEW_CHANNEL | Permissions::READ_HISTORY,
+        );
+        replace_editor(&mut app.editor, "Keep this draft when sending is denied");
+        let _ = app.update(Msg::Send);
+        assert!(app.error.contains("permission"));
+        assert_eq!(app.editor.text(), "Keep this draft when sending is denied");
+        assert!(app.state.pending.is_empty());
+        app.error.clear();
+        assert!(!app.send(Command::AddReaction {
+            channel_id: Id(12),
+            message_id: Id(2279),
+            emoji: "👍".into()
+        }));
+        assert!(app.error.contains("permission"));
+        assert!(app.state.pending.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod qa_notification_defaults {
+    use super::*;
+    #[tokio::test]
+    async fn real_event_path_honors_device_notification_defaults_without_os_effects() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.focused = false;
+        app.state.screen = Screen::Friends(FriendTab::All);
+        app.features.desktop.settings.clear();
+        app.features.desktop.last_toast = None;
+        let mut message = app.state.model.messages[&Id(12)]
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        message.author_id = Id(2);
+        message.content = "An ordinary non-mention message".into();
+        message.mention_ids.clear();
+        app.settings.preferences.notification_level = NotificationLevel::Nothing;
+        let seq = app.state.model.cursor.as_ref().unwrap().seq + 1;
+        let author = app.state.model.users[&Id(2)].clone();
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq,
+            event: Event::MessageCreated {
+                message: message.clone(),
+                author: author.clone(),
+            },
+        }))));
+        assert!(app.features.desktop.last_toast.is_none());
+        app.settings.preferences.notification_level = NotificationLevel::All;
+        message.id = Id(message.id.0 + 1);
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq: seq + 1,
+            event: Event::MessageCreated { message, author },
+        }))));
+        assert!(app.features.desktop.last_toast.is_some());
+    }
+}
+#[cfg(test)]
+mod features3_notification_tests {
+    use super::*;
+    #[tokio::test]
+    async fn master_switch_blocks_real_message_toast_path_without_changing_unreads() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.focused = false;
+        app.features.desktop.dry_run = true;
+        app.settings.preferences.notification_level = NotificationLevel::All;
+        app.settings.preferences.desktop_notifications = false;
+        let mut message = app.state.model.messages[&Id(12)]
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        message.id = Id(9_900_000);
+        message.author_id = Id(2);
+        message.content = "A notification test".into();
+        message.attachments.clear();
+        message.reactions.clear();
+        message.mention_ids.clear();
+        let cursor = app.state.model.cursor.as_ref().unwrap().seq;
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq: cursor + 1,
+            event: Event::MessageCreated {
+                message: message.clone(),
+                author: app.state.model.users[&Id(2)].clone(),
+            },
+        }))));
+        assert!(app.features.desktop.last_toast.is_none());
+        assert!(app.state.model.messages[&Id(12)].contains_key(&message.id));
+        app.settings.preferences.desktop_notifications = true;
+        message.id = Id(9_900_001);
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq: cursor + 2,
+            event: Event::MessageCreated {
+                message,
+                author: app.state.model.users[&Id(2)].clone(),
+            },
+        }))));
+        assert!(app.features.desktop.last_toast.is_some());
     }
 }

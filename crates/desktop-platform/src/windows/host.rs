@@ -15,6 +15,7 @@ struct Host {
     tray: TrayIcon,
     tx: Sender<TrayAction>,
     explorer: u32,
+    root: std::path::PathBuf,
 }
 pub fn available() -> bool {
     AVAILABLE.load(Ordering::Acquire)
@@ -30,10 +31,30 @@ pub fn install(hwnd: HWND, tx: Sender<TrayAction>) -> Result<()> {
     if available() {
         return Ok(());
     }
-    let tray = TrayIcon::add(hwnd, CALLBACK, Icon::brand()?)?;
+    let root = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("StickTalk");
+    let minimized = std::fs::read(root.join("desktop.json"))
+        .ok()
+        .filter(|v| v.len() <= 128)
+        .and_then(|v| serde_json::from_slice::<bool>(&v).ok())
+        .unwrap_or(false);
+    super::placement::restore(
+        hwnd,
+        &root,
+        minimized || std::env::args().any(|a| a == "--background"),
+    );
+    let icon = std::env::current_exe()
+        .ok()
+        .and_then(|exe| Icon::load_ico(&exe.with_file_name("sticktalk.ico")).ok())
+        .or_else(|| Icon::brand().ok())
+        .ok_or(Error::Invalid("tray icon"))?;
+    let tray = TrayIcon::add(hwnd, CALLBACK, icon)?;
     let host = Box::new(Host {
         tray,
         tx,
+        root,
         explorer: unsafe { RegisterWindowMessageW(windows::core::w!("TaskbarCreated")) },
     });
     let ptr = Box::into_raw(host);
@@ -55,6 +76,11 @@ unsafe extern "system" fn callback(
     data: usize,
 ) -> LRESULT {
     let host = &*(data as *const Host);
+    if matches!(message, WM_EXITSIZEMOVE | WM_CLOSE)
+        || (message == WM_SIZE && w.0 != SIZE_MINIMIZED as usize)
+    {
+        super::placement::save(hwnd, &host.root);
+    }
     if message == WM_NCDESTROY {
         let _ = RemoveWindowSubclass(hwnd, Some(callback), SUBCLASS);
         AVAILABLE.store(false, Ordering::Release);

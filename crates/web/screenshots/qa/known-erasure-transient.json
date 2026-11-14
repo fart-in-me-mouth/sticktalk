@@ -1,0 +1,8 @@
+{
+  "operation": "synthetic account erasure after 10000 authored history rows",
+  "build": "a520c4ee8c84107af622",
+  "observedUIError": "Unavailable",
+  "rootCause": "unconfirmed; observed once under shared-host build load",
+  "finalCleanRunRetries": [],
+  "finalCleanRunChecks": "tombstone exists and zero authored messages retain content or an undeleted state"
+}

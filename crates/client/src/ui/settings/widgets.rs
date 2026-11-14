@@ -125,7 +125,7 @@ pub(super) fn toggle_message<'a>(
     enabled: bool,
 ) -> Element<'a, Msg> {
     let symbol: Element<'a, Msg> = if on {
-        icon("check", t::HINT, t::ACCENT).into()
+        icon("check", t::HINT, t::ACCENT_TEXT).into()
     } else {
         space().into()
     };
@@ -155,31 +155,25 @@ pub(super) fn toggle_message<'a>(
             s.border.radius = t::ROUND.into();
             s
         });
-    let e = button(
-        row![
-            column![
-                label_text(label).color(if enabled {
-                    t::TEXT_PRIMARY
-                } else {
-                    t::alpha(t::TEXT_PRIMARY, 0.4)
-                }),
-                small(description).color(if enabled {
-                    t::TEXT_MUTED
-                } else {
-                    t::alpha(t::TEXT_MUTED, 0.4)
-                })
-            ]
-            .spacing(t::S8)
-            .width(Fill),
-            switch
-        ]
-        .spacing(t::S24)
-        .align_y(Center),
-    )
-    .on_press_maybe(enabled.then_some(message))
-    .width(Fill)
-    .padding([t::S12, 0.])
-    .style(st::toggle_row);
+    let mut copy = column![label_text(label).color(if enabled {
+        t::TEXT_PRIMARY
+    } else {
+        t::alpha(t::TEXT_PRIMARY, 0.4)
+    })]
+    .spacing(t::S8)
+    .width(Fill);
+    if !description.is_empty() {
+        copy = copy.push(small(description).color(if enabled {
+            t::TEXT_SECONDARY
+        } else {
+            t::alpha(t::TEXT_SECONDARY, 0.4)
+        }));
+    }
+    let e = button(row![copy, switch].spacing(t::S24).align_y(Center))
+        .on_press_maybe(enabled.then_some(message))
+        .width(Fill)
+        .padding([t::S12, 0.])
+        .style(st::toggle_row);
     disabled_tip(e, enabled, LOCKED)
 }
 pub(super) fn choice<'a>(label: &str, selected: bool, a: A) -> Element<'a, Msg> {
@@ -234,7 +228,7 @@ pub(super) fn swatches<'a>(color: u32, field: bool, enabled: bool) -> Element<'a
                 .style(st::swatch(st::rgb(c), c == color)),
         );
     }
-    r.into()
+    r.wrap().into()
 }
 pub(super) fn role_chip<'a>(r: &'a Role) -> Element<'a, Msg> {
     container(
@@ -244,12 +238,13 @@ pub(super) fn role_chip<'a>(r: &'a Role) -> Element<'a, Msg> {
                 s.border.radius = t::ROUND.into();
                 s
             }),
-            small(ellipsis(&r.name, 20))
+            super::super::elided::label(&r.name).size(st::SMALL)
         ]
         .spacing(t::S8)
         .align_y(Center),
     )
     .padding([t::S4, t::S8])
+    .max_width(t::SIDEBAR)
     .style(|_| {
         let mut s = t::surface(st::ACTION_BG);
         s.border.radius = t::S4.into();

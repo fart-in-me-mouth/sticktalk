@@ -129,6 +129,9 @@ pub struct NativeHttp(pub reqwest::Client);
 impl HttpTransport for NativeHttp {
     fn execute(&self, request: HttpRequest) -> Task<'_, Result<HttpResponse, String>> {
         Box::pin(async move {
+            let safe_read = request.method == "GET" && matches!(&request.body, Body::Empty);
+            let mut retry = sticktalk_client_core::http::ReadRetry::new(safe_read);
+            let deadline = Instant::now() + Duration::from_millis(request.timeout_ms);
             let mut builder = self
                 .0
                 .request(
@@ -150,13 +153,27 @@ impl HttpTransport for NativeHttp {
                             chunks.map_err(std::io::Error::other),
                         )),
                 };
-            let response = builder
-                .send()
-                .await
-                .map_err(|_| request.network_error.to_string())?;
-            let status = response.status().as_u16();
-            let bytes = crate::backend::limited(response, request.max_response).await?;
-            Ok(HttpResponse { status, bytes })
+            loop {
+                let next = if safe_read { builder.try_clone() } else { None };
+                let response = builder
+                    .timeout(deadline.saturating_duration_since(Instant::now()))
+                    .send()
+                    .await
+                    .map_err(|_| request.network_error.to_string())?;
+                let status = response.status().as_u16();
+                let bytes = crate::backend::limited(response, request.max_response).await?;
+                let response = HttpResponse { status, bytes };
+                if let (Some(delay), Some(next)) = (retry.delay(&response), next) {
+                    if deadline.saturating_duration_since(Instant::now())
+                        > Duration::from_millis(delay)
+                    {
+                        tokio::time::sleep(Duration::from_millis(delay)).await;
+                        builder = next;
+                        continue;
+                    }
+                }
+                return Ok(response);
+            }
         })
     }
 }

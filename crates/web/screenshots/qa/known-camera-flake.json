@@ -1,0 +1,167 @@
+{
+  "issue": "Intermittent two-way fake-camera stall, observed in concurrent and serial suites; unchanged serial runs also pass",
+  "concurrentBrowserSuites": true,
+  "failingBuild": "6b43820c5774e05050b9",
+  "noSfuChangesAllowed": true,
+  "failedRun": [
+    {
+      "state": "connected",
+      "inbound": [
+        {
+          "kind": "audio",
+          "packetsReceived": 2346
+        },
+        {
+          "kind": "video",
+          "packetsReceived": 1,
+          "framesDecoded": 0,
+          "framesReceived": 0
+        }
+      ]
+    },
+    {
+      "state": "connected",
+      "inbound": [
+        {
+          "kind": "audio",
+          "packetsReceived": 2345
+        },
+        {
+          "kind": "video",
+          "packetsReceived": 1,
+          "framesDecoded": 1,
+          "framesReceived": 1
+        }
+      ]
+    }
+  ],
+  "isolatedDecodedFrames": [
+    88,
+    15
+  ],
+  "serialFailure": {
+    "build": "9e091f525b4d2c89a334",
+    "peers": [
+      {
+        "state": "connected",
+        "inbound": [
+          {
+            "kind": "audio",
+            "packetsReceived": 2345
+          },
+          {
+            "kind": "video",
+            "packetsReceived": 1,
+            "framesDecoded": 1,
+            "framesReceived": 1
+          }
+        ]
+      },
+      {
+        "state": "connected",
+        "inbound": [
+          {
+            "kind": "audio",
+            "packetsReceived": 2347
+          },
+          {
+            "kind": "video",
+            "packetsReceived": 1,
+            "framesDecoded": 1,
+            "framesReceived": 1
+          }
+        ]
+      }
+    ]
+  },
+  "status": "OPEN: intermittent original full-suite receive failure remains after acknowledged-subscription mitigation",
+  "finalAttempt": {
+    "build": "a520c4ee8c84107af622",
+    "peers": [
+      {
+        "state": "connected",
+        "pendingRequests": 0,
+        "inbound": [
+          {
+            "kind": "audio",
+            "packetsReceived": 2345
+          },
+          {
+            "kind": "video",
+            "packetsReceived": 787,
+            "framesDecoded": 768,
+            "framesReceived": 768
+          }
+        ]
+      },
+      {
+        "state": "connected",
+        "pendingRequests": 0,
+        "inbound": [
+          {
+            "kind": "audio",
+            "packetsReceived": 2346
+          },
+          {
+            "kind": "video",
+            "packetsReceived": 1,
+            "framesDecoded": 0,
+            "framesReceived": 0
+          }
+        ]
+      }
+    ]
+  },
+  "postMitigationThreeCycleTest": {
+    "revision": "a520c4ee8c84107af622",
+    "realServer": true,
+    "independentBrowserProcesses": 2,
+    "rounds": [
+      {
+        "round": 1,
+        "decodedDelta": [
+          10,
+          10
+        ],
+        "states": [
+          "connected",
+          "connected"
+        ],
+        "remoteWidths": [
+          320,
+          320
+        ]
+      },
+      {
+        "round": 2,
+        "decodedDelta": [
+          10,
+          10
+        ],
+        "states": [
+          "connected",
+          "connected"
+        ],
+        "remoteWidths": [
+          1280,
+          1280
+        ]
+      },
+      {
+        "round": 3,
+        "decodedDelta": [
+          10,
+          10
+        ],
+        "states": [
+          "connected",
+          "connected"
+        ],
+        "remoteWidths": [
+          1280,
+          1280
+        ]
+      }
+    ]
+  }
+}

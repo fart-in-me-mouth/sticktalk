@@ -2,6 +2,7 @@ import { readFile, writeFile, readdir, stat, unlink } from "node:fs/promises";
 import { resolve, join, relative } from "node:path";
 import { createHash } from "node:crypto";
 import { brotliCompressSync, constants } from "node:zlib";
+import {versionRuntime} from './version-runtime.mjs';
 await import('./split.mjs');
 const dist = resolve(process.env.TRUNK_STAGING_DIR ?? "dist");
 async function hashedAsset(prefix, extension, content) {
@@ -117,6 +118,7 @@ if (process.env.STICKTALK_WEB_MOCK !== "1") {
       await unlink(file);
   }
 }
+if(process.env.STICKTALK_WEB_MOCK!=='1')await versionRuntime(dist);
 const assets = (await files(dist)).filter(
   (p) =>
     !p.endsWith(".br") && !p.endsWith("sw.js") && !p.endsWith("sizes.json"),
@@ -156,6 +158,7 @@ const paths = sizes
       !p.includes("media.js") &&
       !p.includes("push.js") &&
       !p.includes("viewer.js") &&
+      !p.includes("message-menu.js") &&
       !p.includes("gifs.js") &&
       !(p.endsWith(".wasm") && !p.endsWith("_bg.wasm")) &&
       !p.includes("__wasm_split_manifest"),

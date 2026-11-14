@@ -45,6 +45,19 @@ pub(crate) async fn mutate(
 ) -> Result<CommandResult> {
     use LaunchCommand::*;
     match cmd {
+        SetServerFolders { folders } => crate::folders::set(c, u, folders, out).await,
+        SetSlowmode {
+            channel_id,
+            seconds,
+        } => crate::slowmode::set(c, u, channel_id, seconds, out).await,
+        RenameEmoji {
+            guild_id,
+            emoji_id,
+            name,
+        } => crate::custom_emoji::mutate(c, u, guild_id, emoji_id, Some(name), out).await,
+        DeleteEmoji { guild_id, emoji_id } => {
+            crate::custom_emoji::mutate(c, u, guild_id, emoji_id, None, out).await
+        }
         CreateRole {
             guild_id: g,
             name: s,
@@ -677,6 +690,33 @@ pub(crate) async fn snapshot(
                 profile: guild_profile(c, g).await?,
                 online_count
             })
+        }
+        ["channels", ch, "permissions"] => {
+            let ch = url_id(ch)?;
+            let channel = access(c, u, ch, Permissions::VIEW_CHANNEL).await?;
+            let p = if let Some(guild) = channel.summary.guild_id {
+                acl::evaluate(c, u, guild, Some(ch)).await?
+            } else {
+                let mut p = Permissions::VIEW_CHANNEL
+                    | Permissions::READ_HISTORY
+                    | Permissions::SEND_MESSAGES
+                    | Permissions::ATTACH_FILES
+                    | Permissions::ADD_REACTIONS;
+                if channel.summary.kind == ChannelKind::Direct {
+                    for peer in channel
+                        .summary
+                        .recipient_ids
+                        .iter()
+                        .filter(|peer| **peer != u)
+                    {
+                        if blocked(c, u, *peer).await? {
+                            p.remove(Permissions::SEND_MESSAGES | Permissions::ATTACH_FILES);
+                        }
+                    }
+                }
+                p
+            };
+            snap!(p)
         }
         ["channels", ch, "overwrites"] => {
             let ch = url_id(ch)?;

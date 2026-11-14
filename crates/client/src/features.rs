@@ -28,6 +28,7 @@ pub enum Event {
     Update(crate::platform_glue::UpdateEvent),
     Trim(u64),
     ConfirmUpdate,
+    StartMinimized(bool),
     ApplyUpdate,
     Restarted(Result<(), String>),
     Key(iced::keyboard::Key),
@@ -97,6 +98,8 @@ pub struct State {
     pub desktop: crate::platform_glue::State,
     pub loaded: Option<(String, Id)>,
     pub update_ready: Option<String>,
+    pub crash_notice: bool,
+    pub start_minimized: bool,
     pub confirm_update: bool,
     pub last_badge: u32,
     pub flash_pending: bool,
@@ -132,13 +135,13 @@ pub fn subscription(app: &App) -> Subscription<Msg> {
                 .map(|a| Msg::feature(Event::Activation(a))),
         );
     }
-    if let Some(c) = config(app) {
-        if !c.mock && option_env!("STICKTALK_UPDATE_PUBLIC_KEY").is_some() {
-            subs.push(
-                Subscription::run_with(c.server, |s| crate::platform_glue::updates(s.as_str()))
-                    .map(|v| Msg::feature(Event::Update(v))),
-            );
-        }
+    if !app.mock_mode && option_env!("STICKTALK_UPDATE_PUBLIC_KEY").is_some() {
+        subs.push(
+            Subscription::run_with(crate::storage::update_origin(), |s| {
+                crate::platform_glue::updates(s.as_str())
+            })
+            .map(|v| Msg::feature(Event::Update(v))),
+        );
     }
 
     if let (Some(c), Some(account)) = (config(app), app.me()) {
@@ -208,19 +211,44 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
         Event::Update(crate::platform_glue::UpdateEvent::Ready(version)) => {
             app.features.update_ready = Some(version)
         }
-        Event::Update(crate::platform_glue::UpdateEvent::Failed(error)) => {
-            app.error = format!("Update check failed: {error}")
+        Event::Update(crate::platform_glue::UpdateEvent::Failed(_)) => {
+            // Offline startup must not replace sign-in errors or interrupt typing.
+            let root = crate::storage::root().join("Updates");
+            if !app.mock_mode && std::fs::create_dir_all(&root).is_ok() {
+                let _ = std::fs::write(
+                    root.join("check-error.log"),
+                    "Could not check for updates. Will retry at the next scheduled check.",
+                );
+            }
         }
-        Event::ConfirmUpdate => app.features.confirm_update = !app.features.confirm_update,
+        Event::StartMinimized(enabled) => {
+            if !app.mock_mode {
+                if let Err(error) = crate::storage::save_start_minimized(enabled) {
+                    app.error = error;
+                    return Task::none();
+                }
+            }
+            app.features.start_minimized = enabled;
+        }
+        Event::ConfirmUpdate => {
+            if app.settings_dirty() {
+                return app.settings_attention();
+            }
+            app.features.confirm_update = !app.features.confirm_update;
+            return if app.features.confirm_update {
+                crate::focus_button::focus_dialog()
+            } else {
+                operation::focus("composer-editor")
+            };
+        }
         Event::ApplyUpdate => {
             if app.features.confirm_update {
                 app.features.confirm_update = false;
-                if let Some(c) = config(app) {
-                    if !c.mock {
-                        return emit(async move {
-                            Event::Restarted(crate::platform_glue::restart(c.server).await)
-                        });
-                    }
+                if !app.mock_mode {
+                    let origin = crate::storage::update_origin();
+                    return emit(async move {
+                        Event::Restarted(crate::platform_glue::restart(origin).await)
+                    });
                 }
             }
         }
@@ -303,6 +331,9 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             }
         }
         Event::Picker(p) => {
+            if app.settings_dirty() {
+                return app.settings_attention();
+            }
             app.features.picker = if app.features.picker == p {
                 Picker::None
             } else {
@@ -524,7 +555,7 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
                 thumbnail: None,
             }];
             app.features.picker = Picker::None;
-            return load_viewer(app);
+            return Task::batch([load_viewer(app), crate::focus_button::focus_dialog()]);
         }
         Event::ViewerOpen(a) => {
             let mut items: Vec<_> = if let Screen::Channel(c) = app.state.screen {
@@ -549,7 +580,7 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             app.features.viewer.items = items;
             app.features.viewer.index = index;
             app.features.picker = Picker::None;
-            return load_viewer(app);
+            return Task::batch([load_viewer(app), crate::focus_button::focus_dialog()]);
         }
         Event::ViewerLoaded(serial, result) => {
             let s = &mut app.features.viewer;
@@ -569,10 +600,17 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
                 }
             }
         }
-        Event::ViewerClose => app.features.viewer.close(),
-        Event::ViewerMore => app.features.viewer.more = !app.features.viewer.more,
+        Event::ViewerClose => {
+            app.features.viewer.close();
+            return operation::focus("composer-editor");
+        }
+        Event::ViewerMore => {
+            app.features.viewer.more = !app.features.viewer.more;
+            return crate::focus_button::focus_dialog();
+        }
         Event::ViewerForwardMenu => {
-            app.features.viewer.forwarding = !app.features.viewer.forwarding
+            app.features.viewer.forwarding = !app.features.viewer.forwarding;
+            return crate::focus_button::focus_dialog();
         }
         Event::ViewerZoom(factor) => {
             let fit = app.features.viewer.fit(app);
@@ -892,22 +930,26 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
         }
         Event::Activation(a) => {
             use sticktalk_desktop_platform::activation::Activation;
-            if app.me().is_none() {
+            let focus = crate::desktop_host::update(
+                app,
+                crate::desktop_host::Event::Tray(
+                    sticktalk_desktop_platform::tray::TrayAction::Open,
+                ),
+            );
+            if a == Activation::Open {
+                return focus;
+            }
+            if app.state.session.is_none() || app.me().is_none() {
                 app.features.desktop.pending_activation = Some(a);
+                return focus;
             } else {
                 match a {
-                    Activation::Open => {
-                        return crate::desktop_host::update(
-                            app,
-                            crate::desktop_host::Event::Tray(
-                                sticktalk_desktop_platform::tray::TrayAction::Open,
-                            ),
-                        )
-                    }
+                    Activation::Open => return focus,
                     Activation::Invite(code) => {
                         app.features.picker = Picker::None;
                         app.dialog = Dialog::JoinGuild;
                         app.form.code = code;
+                        return focus;
                     }
                     Activation::Message {
                         channel_id,
@@ -915,7 +957,11 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
                     } => {
                         if app.state.model.channels.contains_key(&Id(channel_id)) {
                             let nav = app.update(Msg::Select(Id(channel_id)));
-                            return Task::batch([nav, app.update(Msg::JumpTo(Id(message_id)))]);
+                            return Task::batch([
+                                focus,
+                                nav,
+                                app.update(Msg::JumpTo(Id(message_id))),
+                            ]);
                         }
                     }
                 }
@@ -991,6 +1037,10 @@ pub fn persist(app: &App) -> Task<Msg> {
 }
 pub fn reconcile(app: &mut App) -> Task<Msg> {
     crate::desktop_host::sync(app);
+    app.features.desktop.disabled = !app.settings.preferences.desktop_notifications;
+    if app.features.desktop.disabled {
+        app.features.flash_pending = false;
+    }
     let (Some(c), Some(account)) = (config(app), app.me()) else {
         return Task::none();
     };
@@ -1157,8 +1207,13 @@ pub fn overlay(app: &App) -> Option<iced::Element<'_, Msg>> {
                     iced::widget::column![
                         super::ui::title("Restart to update?"),
                         super::ui::hint("StickTalk will close and install the verified update."),
-                        super::ui::action("Cancel", Msg::feature(Event::ConfirmUpdate)),
-                        super::ui::primary("Restart", Msg::feature(Event::ApplyUpdate))
+                        iced::widget::row![
+                            space().width(Fill),
+                            super::ui::action("Cancel", Msg::feature(Event::ConfirmUpdate)),
+                            super::ui::primary("Restart", Msg::feature(Event::ApplyUpdate))
+                        ]
+                        .spacing(t::S8)
+                        .align_y(iced::Center)
                     ]
                     .spacing(t::S16),
                 )
@@ -1166,6 +1221,7 @@ pub fn overlay(app: &App) -> Option<iced::Element<'_, Msg>> {
                 .width(t::LOGIN_W)
                 .style(t::modal),
             ))
+            .id("dialog-scope")
             .center_x(Fill)
             .center_y(Fill)
             .style(t::dim)
@@ -1173,7 +1229,17 @@ pub fn overlay(app: &App) -> Option<iced::Element<'_, Msg>> {
         );
     }
     if app.features.viewer.current().is_some() {
-        return Some(viewer::view(app));
+        return Some(
+            container(viewer::view(app))
+                .id(
+                    if app.features.viewer.forwarding || app.features.viewer.more {
+                        "viewer-underlay"
+                    } else {
+                        "dialog-scope"
+                    },
+                )
+                .into(),
+        );
     }
     let picker = match app.features.picker {
         Picker::None => return None,
@@ -1185,6 +1251,7 @@ pub fn overlay(app: &App) -> Option<iced::Element<'_, Msg>> {
             mouse_area(container(space()).width(Fill).height(Fill))
                 .on_press(Msg::feature(Event::Picker(Picker::None))),
             container(opaque(picker))
+                .id("dialog-scope")
                 .align_right(Fill)
                 .align_bottom(Fill)
                 .padding(Padding {
@@ -1253,7 +1320,7 @@ pub fn committed(app: &mut App, m: &Message) {
 
 pub fn update_pill(app: &App) -> iced::Element<'_, Msg> {
     if app.features.update_ready.is_some() {
-        super::ui::action("Restart to update", Msg::feature(Event::ConfirmUpdate))
+        super::ui::action("Update ready — restart", Msg::feature(Event::ConfirmUpdate))
             .width(iced::Fill)
             .style(crate::theme::primary)
             .into()

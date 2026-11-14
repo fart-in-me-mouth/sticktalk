@@ -14,6 +14,9 @@ use iced::{
 pub struct LinkContext<'a> {
     inner: Element<'a, Msg>,
 }
+// A wrapper with children must not share the empty/stateless widget tag. The
+// persistent message cache starts with Tree::empty and may replace a Space.
+struct LinkContextState;
 pub fn wrap<'a>(inner: impl Into<Element<'a, Msg>>) -> Element<'a, Msg> {
     Element::new(LinkContext {
         inner: inner.into(),
@@ -21,16 +24,16 @@ pub fn wrap<'a>(inner: impl Into<Element<'a, Msg>>) -> Element<'a, Msg> {
 }
 impl Widget<Msg, Theme, Renderer> for LinkContext<'_> {
     fn tag(&self) -> widget::tree::Tag {
-        widget::tree::Tag::stateless()
+        widget::tree::Tag::of::<LinkContextState>()
     }
     fn state(&self) -> widget::tree::State {
-        widget::tree::State::None
+        widget::tree::State::new(LinkContextState)
     }
     fn children(&self) -> Vec<Tree> {
         vec![Tree::new(self.inner.as_widget())]
     }
     fn diff(&self, tree: &mut Tree) {
-        tree.children[0].diff(self.inner.as_widget());
+        tree.diff_children(&[self.inner.as_widget()]);
     }
     fn size(&self) -> Size<Length> {
         self.inner.as_widget().size()
@@ -173,5 +176,21 @@ impl Widget<Msg, Theme, Renderer> for LinkContext<'_> {
             viewport,
             translation,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn link_wrapper_reconciles_an_empty_or_previously_stateless_tree() {
+        let mut tree = Tree::empty();
+        for _ in 0..3 {
+            let wrapped = wrap(iced::widget::text("A real message with a link"));
+            tree.diff(wrapped.as_widget());
+            assert_eq!(tree.children.len(), 1);
+            let space: Element<'_, Msg> = iced::widget::space().into();
+            tree.diff(space.as_widget());
+        }
     }
 }

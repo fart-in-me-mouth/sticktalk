@@ -2,6 +2,46 @@
 pub fn enabled() -> bool {
     std::env::var("STICKTALK_AGENT_WINDOW").is_ok_and(|v| v == "secondary")
 }
+/// Explicit debug-only live QA session. Does not read/write a real account's
+/// credentials, and cannot point the test hooks off loopback. The native QA
+/// harness also supplies an isolated LOCALAPPDATA settings home.
+pub fn qa_session() -> Option<crate::backend::Session> {
+    if !cfg!(debug_assertions) || !enabled() {
+        return None;
+    }
+    let server = std::env::var("STICKTALK_QA_SERVER").ok()?;
+    let token = std::env::var("STICKTALK_QA_TOKEN").ok()?;
+    let server = sticktalk_client_core::http::validate_server(&server).ok()?;
+    let local = reqwest::Url::parse(&server).ok()?;
+    if local.host_str() != Some("127.0.0.1") || token.is_empty() {
+        return None;
+    }
+    Some(crate::backend::Session {
+        config: crate::backend::Config {
+            server,
+            token,
+            mock: false,
+            generation: crate::backend::nonce(),
+            scenario: String::new(),
+        },
+    })
+}
+/// Test application scaling without changing the owner's Windows display settings.
+/// Production windows always use the OS scale unchanged.
+pub fn scale_factor() -> f32 {
+    static SCALE: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *SCALE.get_or_init(|| {
+        if enabled() {
+            std::env::var("STICKTALK_AGENT_SCALE")
+                .ok()
+                .and_then(|v| v.parse::<f32>().ok())
+                .filter(|v| v.is_finite() && (1. ..=2.).contains(v))
+                .unwrap_or(1.)
+        } else {
+            1.
+        }
+    })
+}
 pub fn show_secondary(window: &dyn iced_runtime::window::Window) -> bool {
     #[cfg(windows)]
     {

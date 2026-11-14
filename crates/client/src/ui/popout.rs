@@ -144,18 +144,54 @@ pub fn profile(app: &App, id: Id) -> Element<'_, Msg> {
     }
     if Some(id) == app.me() {
         content = content.push(
-            primary("Edit Profile", Msg::Open(Dialog::UserSettings))
+            primary("Edit Profile", mm(Main::EditProfile))
                 .height(t::PROFILE_ACTION)
                 .width(Fill),
         );
     } else {
+        let relationship = app.state.model.relationships.get(&id).map(|r| r.kind);
+        let (label, message, enabled) = match relationship {
+            Some(RelationshipKind::Friend) => (
+                "Message",
+                Msg::Command(Command::OpenDm { user_id: id }),
+                true,
+            ),
+            Some(RelationshipKind::IncomingRequest) => (
+                "Accept Friend Request",
+                Msg::Command(Command::AcceptFriendRequest { user_id: id }),
+                true,
+            ),
+            Some(RelationshipKind::OutgoingRequest) => {
+                ("Friend Request Sent", Msg::Activity, false)
+            }
+            Some(RelationshipKind::Blocked) => (
+                "Unblock",
+                Msg::Command(Command::UnblockUser { user_id: id }),
+                true,
+            ),
+            None => (
+                "Add Friend",
+                Msg::Command(Command::SendFriendRequest {
+                    username: user.map_or(String::new(), |u| u.username.clone()),
+                }),
+                user.is_some(),
+            ),
+        };
+        content = content.push(
+            primary(label, message.clone())
+                .on_press_maybe(enabled.then_some(message))
+                .height(t::PROFILE_ACTION)
+                .width(Fill),
+        );
         content = content.push(
             text_input(
                 &format!("Message @{}", user.map_or("user", |u| u.username.as_str())),
                 &app.main.message,
             )
             .id("popout-message")
-            .on_input(|v| mm(Main::Draft(v)))
+            .on_input_maybe(
+                (relationship != Some(RelationshipKind::Blocked)).then_some(|v| mm(Main::Draft(v))),
+            )
             .on_submit(mm(Main::SendDm(id)))
             .padding(t::S8)
             .size(t::USER_NAME)
@@ -237,7 +273,7 @@ pub fn pins(app: &App, id: Id) -> Element<'_, Msg> {
         .into()
 }
 pub fn quick(app: &App) -> Element<'_, Msg> {
-    let mut list = column![
+    let header = column![
         text_input("Where would you like to go?", &app.main.quick)
             .id("quick-switcher")
             .on_input(|s| mm(Main::Quick(s)))
@@ -246,9 +282,10 @@ pub fn quick(app: &App) -> Element<'_, Msg> {
             .font(t::regular())
             .size(t::CHANNEL_NAME)
             .style(t::input),
-        hint("Channels, direct messages and servers · ↑↓ to choose · Enter to jump")
+        hint("↑↓ to choose · Enter to jump · Esc to close").color(t::TEXT_SECONDARY)
     ]
     .spacing(t::S8);
+    let mut list = Column::new().spacing(t::S4);
     for (index, (name, e, server)) in app.quick_items().into_iter().enumerate() {
         let msg = match e {
             Entity::Channel(id) => Msg::Select(id),
@@ -259,35 +296,66 @@ pub fn quick(app: &App) -> Element<'_, Msg> {
             button(
                 row![
                     icon(
-                        if matches!(e, Entity::Guild(_)) {
-                            "message-circle"
-                        } else {
-                            "hash"
+                        match e {
+                            Entity::Guild(_) => "message-circle",
+                            Entity::Channel(id) =>
+                                match app.state.model.channels.get(&id).map(|c| c.kind) {
+                                    Some(ChannelKind::Direct) => "at-sign",
+                                    Some(ChannelKind::GroupDm) => "users",
+                                    Some(ChannelKind::Voice) => "volume-2",
+                                    _ => "hash",
+                                },
+                            _ => "hash",
                         },
                         t::ICON,
                         t::TEXT_SECONDARY
                     ),
-                    txt(name).font(t::medium()).width(Fill),
-                    hint(server)
+                    column![
+                        elided::label(name).font(t::medium()).width(Fill),
+                        elided::label(server)
+                            .size(t::HINT)
+                            .color(t::TEXT_SECONDARY)
+                            .width(Fill)
+                    ]
+                    .width(Fill)
                 ]
                 .spacing(t::S12)
                 .align_y(Center),
             )
             .on_press(msg)
             .width(Fill)
-            .height(t::MEMBER_ROW)
+            .height(t::QUICK_ROW)
             .padding(t::S8)
             .style(t::navigation(app.main.quick_index == index)),
         );
     }
     if app.quick_items().is_empty() {
-        list = list.push(hint("No matching channels or servers."));
+        list = list.push(
+            container(
+                column![
+                    icon("search", t::S32, t::TEXT_SECONDARY),
+                    txt("No matching conversations"),
+                    hint("Try a different name.").color(t::TEXT_SECONDARY)
+                ]
+                .spacing(t::S12)
+                .align_x(Center),
+            )
+            .padding(t::S24)
+            .center_x(Fill),
+        );
     }
-    container(list)
-        .padding(t::S16)
-        .width(t::QUICK_W)
-        .style(controls::surface)
-        .into()
+    container(
+        column![
+            header,
+            container(scroller(list).id("quick-results").height(Length::Shrink))
+                .max_height(crate::main_window::quick_results_height(app.height))
+        ]
+        .spacing(t::S16),
+    )
+    .padding(t::S16)
+    .width(t::QUICK_W)
+    .style(controls::surface)
+    .into()
 }
 pub fn mutual(app: &App, id: Id, servers: bool) -> Element<'_, Msg> {
     let mut list = column![

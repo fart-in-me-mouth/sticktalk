@@ -402,6 +402,7 @@ fn every_event_round_trips() {
 #[test]
 fn handshake_reconnect_and_all_result_shapes_round_trip() {
     round_trip(ClientMsg::Identify(Identify {
+        text_features: true,
         launch_features: true,
         version: PROTOCOL_VERSION,
         token: "secret".into(),

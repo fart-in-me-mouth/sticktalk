@@ -29,6 +29,38 @@ pub struct HttpResponse {
     pub status: u16,
     pub bytes: Vec<u8>,
 }
+/// Bounded retry policy for idempotent, empty-body reads only. Mutation replies
+/// must never be replayed by HTTP adapters: their commit status may be unknown.
+pub struct ReadRetry {
+    enabled: bool,
+    remaining: u8,
+    waited_ms: u64,
+}
+impl ReadRetry {
+    pub fn new(empty_get: bool) -> Self {
+        Self {
+            enabled: empty_get,
+            remaining: 3,
+            waited_ms: 0,
+        }
+    }
+    pub fn delay(&mut self, response: &HttpResponse) -> Option<u64> {
+        if !self.enabled || self.remaining == 0 || response.status != 429 {
+            return None;
+        }
+        let error: ApiError = serde_json::from_slice(&response.bytes).ok()?;
+        if error.code != ErrorCode::RateLimited {
+            return None;
+        }
+        let delay = u64::from(error.retry_after_ms.unwrap_or(1000)).max(10);
+        if delay > 5000 || self.waited_ms + delay > 10_000 {
+            return None;
+        }
+        self.remaining -= 1;
+        self.waited_ms += delay;
+        Some(delay)
+    }
+}
 /// Adapters enforce max_response while streaming, disable redirects, and bound time.
 /// Browser adapters may add same-origin cookie/CSRF credentials without changing core.
 pub trait HttpTransport: Clone + MaybeSend + MaybeSync + 'static {
@@ -118,6 +150,25 @@ impl<A: HttpTransport> Http<A> {
             })
             .await
     }
+    pub async fn search(
+        &self,
+        guild: Id,
+        query: &MessageSearchQuery,
+    ) -> Result<Snapshot<MessageSearchPage>, String> {
+        let encoded = {
+            let mut q = url::form_urlencoded::Serializer::new(String::new());
+            q.append_pair("q", &query.q);
+            if let Some(id) = query.before {
+                q.append_pair("before", &id.0.to_string());
+            }
+            if let Some(n) = query.limit {
+                q.append_pair("limit", &n.to_string());
+            }
+            q.finish()
+        };
+        self.json(&format!("/guilds/{}/messages/search?{}", guild.0, encoded))
+            .await
+    }
     pub async fn json<T: DeserializeOwned>(&self, path: &str) -> Result<T, String> {
         decode_json(
             self.execute(
@@ -169,6 +220,16 @@ impl<A: HttpTransport> Http<A> {
             Request::Launch { read, generation } => {
                 use crate::launch::{Read, SnapshotData};
                 let data = match read {
+                    Read::Folders => {
+                        SnapshotData::Folders(self.json("/users/@me/server-folders").await?)
+                    }
+                    Read::Slowmode(id) => SnapshotData::Slowmode(
+                        self.json(&format!("/channels/{}/slowmode", id.0)).await?,
+                    ),
+                    Read::Emoji(id) => SnapshotData::Emoji(
+                        id,
+                        self.json(&format!("/guilds/{}/emoji", id.0)).await?,
+                    ),
                     Read::Profile(id) => {
                         SnapshotData::Profile(self.json(&format!("/users/{}/profile", id.0)).await?)
                     }
@@ -179,6 +240,11 @@ impl<A: HttpTransport> Http<A> {
                     Read::Overwrites(id) => SnapshotData::Overwrites(
                         id,
                         self.json(&format!("/channels/{}/overwrites", id.0)).await?,
+                    ),
+                    Read::Permissions(id) => SnapshotData::Permissions(
+                        id,
+                        self.json(&format!("/channels/{}/permissions", id.0))
+                            .await?,
                     ),
                     Read::Extent(id) => SnapshotData::Extent(
                         self.json(&format!("/channels/{}/history-extent", id.0))
@@ -530,5 +596,55 @@ impl<A: HttpTransport, R: MaybeSend + 'static, H: MaybeSend + 'static>
     fn request(&self, request: Request<R>) -> Task<'static, Result<Data<H>, String>> {
         let http = self.clone();
         Box::pin(async move { http.request(request).await })
+    }
+}
+
+#[cfg(test)]
+mod qa_read_retry {
+    use super::*;
+    fn limited(delay: u32) -> HttpResponse {
+        HttpResponse {
+            status: 429,
+            bytes: serde_json::to_vec(&ApiError {
+                code: ErrorCode::RateLimited,
+                message: "RateLimited".into(),
+                retry_after_ms: Some(delay),
+                field: None,
+            })
+            .unwrap(),
+        }
+    }
+    #[test]
+    fn reads_honor_backoff_but_retries_and_waiting_are_bounded() {
+        let mut read = ReadRetry::new(true);
+        for _ in 0..3 {
+            assert_eq!(read.delay(&limited(500)), Some(500));
+        }
+        assert_eq!(read.delay(&limited(500)), None);
+        let mut read = ReadRetry::new(true);
+        assert_eq!(read.delay(&limited(5000)), Some(5000));
+        assert_eq!(read.delay(&limited(5000)), Some(5000));
+        assert_eq!(read.delay(&limited(1)), None);
+        assert_eq!(ReadRetry::new(true).delay(&limited(60_000)), None);
+        assert_eq!(ReadRetry::new(true).delay(&limited(0)), Some(10));
+        assert_eq!(
+            ReadRetry::new(false).delay(&limited(500)),
+            None,
+            "never replay a mutation"
+        );
+        assert_eq!(
+            ReadRetry::new(true).delay(&HttpResponse {
+                status: 500,
+                bytes: limited(1).bytes
+            }),
+            None
+        );
+        assert_eq!(
+            ReadRetry::new(true).delay(&HttpResponse {
+                status: 429,
+                bytes: b"invalid".to_vec()
+            }),
+            None
+        );
     }
 }
