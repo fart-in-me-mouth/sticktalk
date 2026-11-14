@@ -1517,3 +1517,5 @@ small, .muted-copy, .settings-row-copy small, .device-row small, .account-identi
   .empty-actions > .button { flex: 1; }
 }
 .participant-grid.has-focus .is-focused { grid-row: 1; }
+/* Keep a focused control clear of the visual viewport/keyboard edge. */
+.auth-page { scroll-padding-block: calc(16px + var(--safe-top)) calc(24px + var(--safe-bottom)); }
