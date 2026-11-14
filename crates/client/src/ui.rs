@@ -412,7 +412,7 @@ fn content_view(app: &App) -> Element<'_, Msg> {
                         }
                     ),
                     connection_banner(app),
-                    skeleton(),
+                    skeleton_on(t::BG_SELECTED),
                     action("Sign in instead", Msg::Logout)
                 ]
                 .spacing(t::S24),
@@ -639,7 +639,11 @@ fn login(app: &App) -> Element<'_, Msg> {
     if !signup && (app.google_available() || (!app.meta_connected && app.meta_error.is_empty())) {
         form = form.push(google_button(app));
         if !app.meta_connected {
-            form = form.push(hint("Connect to a server to enable Google sign-in."));
+            form = form.push(hint(if app.meta_loading {
+                "Connecting to the server…"
+            } else {
+                "Connect to a server to enable Google sign-in."
+            }));
         }
         form = form.push(
             row![line(), hint("OR"), line()]
@@ -1046,18 +1050,21 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
         .into()
 }
 fn skeleton<'a>() -> Element<'a, Msg> {
-    let block = |width| {
-        container(space())
-            .height(t::S12)
-            .width(width)
-            .style(t::elevated)
+    skeleton_on(t::BG_ELEVATED)
+}
+fn skeleton_on<'a>(color: Color) -> Element<'a, Msg> {
+    let style = move |_: &iced::Theme| {
+        let mut surface = t::surface(color);
+        surface.border.radius = t::S8.into();
+        surface
     };
+    let block = |width| container(space()).height(t::S12).width(width).style(style);
     column![
         row![
             container(space())
                 .width(t::AVATAR)
                 .height(t::AVATAR)
-                .style(t::elevated),
+                .style(style),
             column![block(t::SIDEBAR), block(t::THUMB_W)].spacing(t::S12)
         ]
         .spacing(t::S16),
@@ -1066,7 +1073,7 @@ fn skeleton<'a>() -> Element<'a, Msg> {
             container(space())
                 .width(t::AVATAR)
                 .height(t::AVATAR)
-                .style(t::elevated),
+                .style(style),
             column![block(t::THUMB_W), block(t::SIDEBAR)].spacing(t::S12)
         ]
         .spacing(t::S16)
@@ -2379,6 +2386,29 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
     }
     menus::card(items)
 }
+fn confirmation_labels(app: &App, command: &Command) -> (&'static str, &'static str) {
+    match command {
+        Command::DeleteMessage { .. } => ("Delete message", "Delete message"),
+        Command::DeleteChannel { channel_id } => {
+            if app
+                .state
+                .model
+                .channels
+                .get(channel_id)
+                .is_some_and(|c| c.kind == ChannelKind::Category)
+            {
+                ("Delete category", "Delete category")
+            } else {
+                ("Delete channel", "Delete channel")
+            }
+        }
+        Command::LeaveGuild { .. } => ("Leave server", "Leave server"),
+        Command::KickMember { .. } => ("Kick member", "Kick member"),
+        Command::BanMember { .. } => ("Ban member", "Ban member"),
+        Command::TransferGroupOwnership { .. } => ("Transfer ownership", "Transfer ownership"),
+        _ => ("Confirm action", "Confirm"),
+    }
+}
 fn modal(app: &App) -> Element<'_, Msg> {
     if matches!(app.dialog, Dialog::GuildSettings(_) | Dialog::UserSettings) {
         return settings(app, &app.dialog);
@@ -2402,7 +2432,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
         ),
         Dialog::GroupSettings(_) => ("Group settings", ""),
         Dialog::Profile(_) => ("Profile", ""),
-        Dialog::Confirm(_, _) => ("Confirm action", ""),
+        Dialog::Confirm(_, command) => (confirmation_labels(app, command).0, ""),
         Dialog::ExternalLink(_) => (
             "Open an external link?",
             "This will open in your default browser.",
@@ -2881,7 +2911,11 @@ fn modal(app: &App) -> Element<'_, Msg> {
                 row![
                     space().width(Fill),
                     action("Cancel", Msg::Close),
-                    action("Confirm", Msg::Confirm(command.clone())).style(t::danger)
+                    action(
+                        confirmation_labels(app, command).1,
+                        Msg::Confirm(command.clone())
+                    )
+                    .style(t::danger)
                 ]
                 .spacing(t::S12),
             );

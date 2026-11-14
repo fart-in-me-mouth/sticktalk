@@ -28,7 +28,9 @@ try {
     $position = Get-Content -LiteralPath $placement -Raw | ConvertFrom-Json
     if (!$position.shown -or !$position.foreground_unchanged) { throw 'Window placement/focus guard failed.' }
     @{ sha256=$hash; binary_bytes=(Get-Item -LiteralPath $binary).Length; arguments=$arguments; measured_at=(Get-Date -Format o) } | ConvertTo-Json | Set-Content -LiteralPath "$Output.binary.json"
-    Get-Content -LiteralPath $Output -Raw
+    (Get-Content -LiteralPath $Output -Raw | ConvertFrom-Json).samples |
+        Select-Object scenario,@{n='working_set_MiB';e={$_.working_set_bytes/1MB}},@{n='private_MiB';e={$_.private_bytes/1MB}},cpu_percent_one_core,messages_seen |
+        Format-Table
 } finally {
     if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id }
     foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }

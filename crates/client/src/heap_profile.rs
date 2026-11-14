@@ -24,7 +24,10 @@ pub fn start() -> Guard {
         format!("{path}.image-base.json"),
         serde_json::json!({"image_base":image_base}).to_string(),
     );
-    let profiler = dhat::Profiler::builder().file_name(path).build();
+    let profiler = dhat::Profiler::builder()
+        .file_name(path)
+        .trim_backtraces(None)
+        .build();
     PROFILER.with(|slot| *slot.borrow_mut() = Some(profiler));
     Guard
 }

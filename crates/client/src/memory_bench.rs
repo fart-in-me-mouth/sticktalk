@@ -32,8 +32,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn requested() -> Option<Self> {
-        let args: Vec<_> = std::env::args().collect();
+    pub fn requested(args: &[String]) -> Option<Self> {
         if !crate::agent_window::enabled() || !args.iter().any(|a| a == "--mock") {
             return None;
         }
@@ -84,6 +83,7 @@ pub fn update(app: &mut App, step: Step) -> Task<Msg> {
             sample["retained_message_bytes"] = app.state.model.retained_bytes().into();
             sample["audio_active"] = app.calls.config.is_some().into();
             sample["image_cache"] = app.images.metrics();
+            sample["heap_collection"] = sticktalk::resources::metrics();
             probe.samples.push(sample);
             let report = serde_json::json!({
                 "method": "release native iced daemon, wgpu/DX12 swapchain, 1280x800 secondary noactivate window; mock transport; 60s idle samples; no working-set eviction",
@@ -125,6 +125,8 @@ pub fn update(app: &mut App, step: Step) -> Task<Msg> {
             }
         }
         Step::ScrollView(frame) => {
+            app.features.trim_epoch = app.features.trim_epoch.wrapping_add(1);
+            app.features.trim_done = false;
             if frame == 5 {
                 probe.cpu = cpu_ticks();
                 probe.started = Instant::now();
@@ -148,6 +150,8 @@ pub fn update(app: &mut App, step: Step) -> Task<Msg> {
             }
         }
         Step::Emoji | Step::Gif => {
+            app.features.trim_epoch = app.features.trim_epoch.wrapping_add(1);
+            app.features.trim_done = false;
             if matches!(step, Step::Emoji) {
                 app.features.picker = Picker::Emoji;
             } else {
@@ -165,6 +169,8 @@ pub fn update(app: &mut App, step: Step) -> Task<Msg> {
             )
         }
         Step::ClosePickers => {
+            app.features.trim_epoch = app.features.trim_epoch.wrapping_add(1);
+            app.features.trim_done = false;
             app.features.picker = Picker::None;
             probe.cpu = cpu_ticks();
             probe.started = Instant::now();

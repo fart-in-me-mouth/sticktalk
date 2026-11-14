@@ -298,7 +298,7 @@ impl App {
             None
         };
         let state = Self {
-            memory_bench: crate::memory_bench::State::requested(),
+            memory_bench: crate::memory_bench::State::requested(&args),
             calls: crate::voice_ui::State::default(),
             main: crate::main_window::State::default(),
             extent: crate::history_extent::Window::default(),
@@ -4480,6 +4480,7 @@ impl App {
                     app.google_id = None;
                 }
                 app.meta_loading = screen == "login-connecting";
+                app.meta_connected = !app.meta_loading && screen != "login-error";
                 app.change_server = matches!(screen, "login-error" | "login-connecting");
                 app.features.crash_notice = screen == "crash-recovery";
                 if matches!(screen, "login-update" | "login-update-confirm") {

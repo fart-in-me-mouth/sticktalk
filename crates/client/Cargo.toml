@@ -45,6 +45,8 @@ tokio-util = { version = "0.7", features = ["io"] }
 [features]
 # Diagnostic only: tracks Rust allocation stacks; never use its timing/RAM as shipping measurements.
 heap-profile = ["dep:dhat"]
+# Measured LFH experiment; not a shipping default (no meaningful native RAM reduction).
+windows-heap-collection = []
 compact-allocator = ["dep:mimalloc", "dep:libmimalloc-sys"]
 default = ["wgpu"]
 wgpu = ["iced/wgpu", "dep:iced_wgpu", "dep:winit", "dep:windows58"]

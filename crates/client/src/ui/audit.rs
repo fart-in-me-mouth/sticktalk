@@ -200,7 +200,10 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
                 app.error = "Could not sign in. Check your username and password.".into();
             }
         }
-        "audit-connecting" => app.state.model.me = None,
+        "audit-connecting" => {
+            app.state.model.me = None;
+            app.state.connection = ConnectionState::Connecting;
+        }
         "audit-empty-dms" => {
             app.state.guild = None;
             app.state.screen = Screen::Friends(FriendTab::All);
