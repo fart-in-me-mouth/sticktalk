@@ -1441,6 +1441,33 @@ mod tests {
     }
 
     #[test]
+    fn test_expand_start_requires_a_partial_not_complete_output_frame() {
+        // 1e7fcf8 intentionally stopped concealing a complete 10 ms leftover.
+        // Pin both boundaries, including interleaved stereo sample counts.
+        for channels in [1, 2] {
+            let config = NetEqConfig {
+                channels,
+                ..NetEqConfig::default()
+            };
+            let frame_samples = (config.sample_rate / 100) as usize * channels as usize;
+            for (samples, expected) in [
+                (frame_samples / 2 - 1, Operation::Expand),
+                (frame_samples / 2, Operation::ExpandStart),
+                (frame_samples - 1, Operation::ExpandStart),
+                (frame_samples, Operation::Normal),
+            ] {
+                let mut neteq = NetEq::new(config.clone()).unwrap();
+                neteq.leftover_samples = vec![0.25; samples];
+                assert_eq!(
+                    neteq.get_decision().unwrap(),
+                    expected,
+                    "{channels} channels, {samples} samples"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_get_decision_expand() {
         let config = NetEqConfig::default();
         let mut neteq = NetEq::new(config).unwrap();
@@ -1454,21 +1481,18 @@ mod tests {
 
         insert_audio(&mut neteq, 50);
         reset_filtered_level(&mut neteq);
-        // // Insert 50ms audio
-        // for i in 0..5 {
-        //     let packet = create_packet(i, i as u32 * 160, 10);
-        //     neteq.insert_packet(packet).unwrap();
-        // }
 
-        // Expect 4 Normal operation
-        for _ in 0..4 {
+        // Play all five complete 10 ms frames before concealment. A full
+        // frame is intentional Normal playback since 1e7fcf8, not ExpandStart.
+        for _ in 0..5 {
             let _ = neteq.get_audio().unwrap();
             assert_eq!(neteq.last_operation, Operation::Normal);
         }
 
-        // Expect ExpandStart
+        assert_eq!(neteq.current_buffer_size_ms(), 0);
+        // An empty buffer skips the partial-frame ExpandStart transition.
         let _ = neteq.get_audio().unwrap();
-        assert_eq!(neteq.last_operation, Operation::ExpandStart);
+        assert_eq!(neteq.last_operation, Operation::Expand);
 
         // Expect Expands while the buffer is empty
         for _ in 0..100 {
@@ -1606,15 +1630,16 @@ mod tests {
         insert_audio(&mut neteq, 50);
         reset_filtered_level(&mut neteq);
 
-        // Drain to normal
-        for _ in 0..4 {
+        // Drain all five complete frames normally (including the last 10 ms).
+        for _ in 0..5 {
             let _ = neteq.get_audio().unwrap();
             assert_eq!(neteq.last_operation, Operation::Normal);
         }
 
-        // ExpandStart
+        assert_eq!(neteq.current_buffer_size_ms(), 0);
+        // An empty buffer skips the partial-frame ExpandStart transition.
         let _ = neteq.get_audio().unwrap();
-        assert_eq!(neteq.last_operation, Operation::ExpandStart);
+        assert_eq!(neteq.last_operation, Operation::Expand);
 
         // Run 600+ expands with no packets arriving (simulates prolonged disconnect).
         // The safety valve at 600 should fire, but we stay in Expand because
@@ -1655,13 +1680,15 @@ mod tests {
         insert_audio(&mut neteq, 50);
         reset_filtered_level(&mut neteq);
 
-        for _ in 0..4 {
+        for _ in 0..5 {
             let _ = neteq.get_audio().unwrap();
+            assert_eq!(neteq.last_operation, Operation::Normal);
         }
 
-        // ExpandStart
+        assert_eq!(neteq.current_buffer_size_ms(), 0);
+        // An empty buffer skips the partial-frame ExpandStart transition.
         let _ = neteq.get_audio().unwrap();
-        assert_eq!(neteq.last_operation, Operation::ExpandStart);
+        assert_eq!(neteq.last_operation, Operation::Expand);
 
         // Run 650 expands to exceed the 600 threshold
         for _ in 0..650 {

@@ -395,11 +395,23 @@ async fn http_admission_and_global_upload_reservation_are_bounded() {
         response.json::<ApiError>().await.unwrap().code,
         ErrorCode::LimitExceeded
     );
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM upload_reservations")
-        .fetch_one(&app.0.pool)
-        .await
-        .unwrap();
-    assert_eq!(count, 0);
+    // An error response is not a barrier for UploadGuard's cancellation-safe
+    // asynchronous Drop cleanup. Await the invariant, not an arbitrary sleep;
+    // a real leaked reservation still fails this bounded check.
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM upload_reservations")
+                .fetch_one(&app.0.pool)
+                .await
+                .unwrap();
+            if count == 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("failed upload reservation was not released");
     app.shutdown();
     task.await.unwrap();
 }
