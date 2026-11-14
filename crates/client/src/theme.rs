@@ -12,6 +12,12 @@ pub const BG_SIDEBAR: Color = Color::from_rgb8(0x17, 0x17, 0x1a);
 pub const BG_CHAT: Color = Color::from_rgb8(0x1c, 0x1c, 0x20);
 pub const BG_ELEVATED: Color = Color::from_rgb8(0x26, 0x26, 0x2b);
 pub const BG_HOVER: Color = Color::from_rgb8(0x23, 0x23, 0x27);
+// Shared list-row hierarchy on our darker sidebar: default < hover < press < selected.
+// Keep these separate from generic surfaces so a hovered row never looks selected.
+pub const ROW_HOVER: Color = BG_HOVER;
+pub const ROW_PRESSED: Color = Color::from_rgb8(0x28, 0x28, 0x2d);
+pub const ROW_SELECTED: Color = BG_SELECTED;
+pub const ROW_TEXT_HOVER: Color = Color::from_rgb8(0xdb, 0xde, 0xe1);
 pub const BG_SELECTED: Color = Color::from_rgb8(0x2e, 0x2e, 0x34);
 pub const DIVIDER: Color = Color::from_rgb8(0x2a, 0x2a, 0x2f);
 pub const TEXT_PRIMARY: Color = Color::from_rgb8(0xe8, 0xea, 0xed);
@@ -296,13 +302,22 @@ pub fn navigation(
     move |theme, status| {
         let mut s = icon(theme, status);
         s.border.radius = S4.into();
-        if selected {
-            s.background = Some(BG_SELECTED.into());
-            s.text_color = TEXT_PRIMARY;
-        }
+        let disabled = status == button_widget::Status::Disabled;
+        let (bg, fg) = if selected {
+            (ROW_SELECTED, TEXT_PRIMARY)
+        } else {
+            match status {
+                button_widget::Status::Hovered => (ROW_HOVER, ROW_TEXT_HOVER),
+                button_widget::Status::Pressed => (ROW_PRESSED, ROW_TEXT_HOVER),
+                _ => (TRANSPARENT, TEXT_SECONDARY),
+            }
+        };
+        s.background = Some(if disabled { alpha(bg, bg.a * 0.4) } else { bg }.into());
+        s.text_color = if disabled { alpha(fg, 0.4) } else { fg };
         s
     }
 }
+
 pub fn reaction(mine: bool) -> impl Fn(&Theme, button_widget::Status) -> button_widget::Style {
     move |theme, status| {
         let mut s = button(theme, status);
@@ -668,6 +683,35 @@ mod audit_style_tests {
 #[cfg(test)]
 mod row_style_tests {
     use super::*;
+    #[test]
+    fn row_states_have_distinct_ordered_fills_and_selection_wins() {
+        use button_widget::Status::*;
+        // Every RGB component increases at each interaction step, not just alpha.
+        for (lower, upper) in [
+            (BG_SIDEBAR, ROW_HOVER),
+            (ROW_HOVER, ROW_PRESSED),
+            (ROW_PRESSED, ROW_SELECTED),
+        ] {
+            assert!(lower.r < upper.r && lower.g < upper.g && lower.b < upper.b);
+            assert_eq!(upper.a, 1.);
+        }
+        for (status, bg, fg) in [
+            (Active, TRANSPARENT, TEXT_SECONDARY),
+            (Hovered, ROW_HOVER, ROW_TEXT_HOVER),
+            (Pressed, ROW_PRESSED, ROW_TEXT_HOVER),
+        ] {
+            let row = navigation(false)(&Theme::Dark, status);
+            assert_eq!(row.background, Some(bg.into()));
+            assert_eq!(row.text_color, fg);
+            let selected = navigation(true)(&Theme::Dark, status);
+            assert_eq!(selected.background, Some(ROW_SELECTED.into()));
+            assert_eq!(selected.text_color, TEXT_PRIMARY);
+        }
+        let disabled = navigation(true)(&Theme::Dark, Disabled);
+        assert_eq!(disabled.background, Some(alpha(ROW_SELECTED, 0.4).into()));
+        assert_eq!(disabled.text_color, alpha(TEXT_PRIMARY, 0.4));
+        assert_ne!(ROW_TEXT_HOVER, TEXT_PRIMARY);
+    }
     #[test]
     fn shared_buttons_use_fills_never_pressed_outlines() {
         for status in [

@@ -142,7 +142,7 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                     app,
                     id,
                     t::SMALL_AVATAR,
-                    if hover { t::BG_HOVER } else { t::BG_SIDEBAR },
+                    if hover { t::ROW_HOVER } else { t::BG_SIDEBAR },
                     false,
                     alpha
                 ),
@@ -171,7 +171,7 @@ pub fn view<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
                         radius: t::TOOLTIP_RADIUS.into(),
                         ..Default::default()
                     },
-                    ..t::surface(if hover { t::BG_HOVER } else { t::TRANSPARENT })
+                    ..t::surface(if hover { t::ROW_HOVER } else { t::TRANSPARENT })
                 }))
                 .on_enter(mm(Main::MemberHover(Some(id))))
                 .on_exit(mm(Main::MemberLeave(id)))

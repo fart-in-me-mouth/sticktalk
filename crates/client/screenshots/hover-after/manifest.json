@@ -1,0 +1,186 @@
+{
+  "renderer": "iced-tiny-skia",
+  "screens": [
+    {
+      "file": "rowfix-selected-hover-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "bc77761464f13e8d63481ea58bc07af7031fc952a5de8e1d216824ca1b7c0262",
+      "width": 1280
+    },
+    {
+      "file": "rowfix-hover-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "41ea9577a8f8078b11e71021513dd9e7e38ec893dd0ba4956444193540c896d9",
+      "width": 1280
+    },
+    {
+      "file": "rowfix-selected-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "e5811fcccf6b9b007d111864e48d7dfaadc1fc911db2bfa507e18623974321c8",
+      "width": 1280
+    },
+    {
+      "file": "rowfix-unread-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "e5811fcccf6b9b007d111864e48d7dfaadc1fc911db2bfa507e18623974321c8",
+      "width": 1280
+    },
+    {
+      "file": "rowfix-muted-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "e5811fcccf6b9b007d111864e48d7dfaadc1fc911db2bfa507e18623974321c8",
+      "width": 1280
+    },
+    {
+      "file": "dm-chat-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "f8109edc28cce8adf9970cd941e7237aa65867b23120277735fb9760cb163591",
+      "width": 1280
+    },
+    {
+      "file": "main-quick-switcher-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "30519309d4267091edbca6805d20fcae33cf9c1ba218e29e5820e1c2145e5a9f",
+      "width": 1280
+    },
+    {
+      "file": "server-search-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "86493a21feec557af2beba80abe973bd87cde6283aed3501382960b146127c98",
+      "width": 1280
+    },
+    {
+      "file": "user-settings-account-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "97a7c08ab96ca4c0b8293dd77a195f9a4e79a87f45cb209c430ab0fda08e3243",
+      "width": 1280
+    },
+    {
+      "file": "voice-call-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "1b8d5caa45ceca67d2b8e91be59fadf8d3e76ff79112ed78a5602576499a5ba1",
+      "width": 1280
+    },
+    {
+      "file": "rowfix-selected-hover-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "6db01ec5d8e8bdebad3bae2aa94056b76af5392c30a73a653332cbb0fe0a7bc3",
+      "width": 1920
+    },
+    {
+      "file": "rowfix-hover-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "fdac283f8d5c2e41ecdfa554ffbfe7253933fde389881d53eb1ccb7666497311",
+      "width": 1920
+    },
+    {
+      "file": "rowfix-selected-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "2296b88f61663fa4d2193783fa3d7991cde19f7ddc6f43127863617905ea02cf",
+      "width": 1920
+    },
+    {
+      "file": "rowfix-unread-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "2296b88f61663fa4d2193783fa3d7991cde19f7ddc6f43127863617905ea02cf",
+      "width": 1920
+    },
+    {
+      "file": "rowfix-muted-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "2296b88f61663fa4d2193783fa3d7991cde19f7ddc6f43127863617905ea02cf",
+      "width": 1920
+    },
+    {
+      "file": "dm-chat-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "04a7ced152cf0c4bcafe5651c9be9d496058dfb010a58ceddcb3fcea0ab5d9e4",
+      "width": 1920
+    },
+    {
+      "file": "main-quick-switcher-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "33a2712ac5a4f33586296919c14c0f3dc395cd1c2a41376008f9a450dd26d826",
+      "width": 1920
+    },
+    {
+      "file": "server-search-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "06682b9880df95540cc288531e2fa81f63ea2938a81d82fcc830424a440a7c62",
+      "width": 1920
+    },
+    {
+      "file": "user-settings-account-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "bfee3ad9ec649a7d8597eb90667112838d8f45616d505a51884405978a077478",
+      "width": 1920
+    },
+    {
+      "file": "voice-call-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "867c85a7ce2b4478a1b6d1d0460a8ba9bfc34fe3a49693d4e1adb261609a0819",
+      "width": 1920
+    }
+  ],
+  "window_backend": "none"
+}

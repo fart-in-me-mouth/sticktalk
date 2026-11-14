@@ -179,7 +179,11 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
     let unread = read.is_some_and(|r| r.unread_count > 0);
     let active = selected || hovered;
     let color = t::alpha(
-        if active || unread {
+        if selected {
+            t::TEXT_PRIMARY
+        } else if hovered {
+            t::ROW_TEXT_HOVER
+        } else if unread {
             t::TEXT_PRIMARY
         } else {
             t::TEXT_SECONDARY
@@ -207,9 +211,9 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
                     id,
                     t::S24,
                     if selected {
-                        t::BG_SELECTED
+                        t::ROW_SELECTED
                     } else if hovered {
-                        t::BG_HOVER
+                        t::ROW_HOVER
                     } else {
                         t::BG_SIDEBAR
                     },
@@ -222,8 +226,10 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
                     glyph,
                     t::ICON,
                     t::alpha(
-                        if active {
-                            t::TEXT_SECONDARY
+                        if selected {
+                            t::TEXT_PRIMARY
+                        } else if hovered {
+                            t::ROW_TEXT_HOVER
                         } else {
                             t::TEXT_MUTED
                         },
@@ -237,8 +243,10 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
             glyph,
             t::ICON,
             t::alpha(
-                if active {
-                    t::TEXT_SECONDARY
+                if selected {
+                    t::TEXT_PRIMARY
+                } else if hovered {
+                    t::ROW_TEXT_HOVER
                 } else {
                     t::TEXT_MUTED
                 },
@@ -253,7 +261,7 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
             leading,
             elided::label(app.state.model.channel_name(c))
                 .size(t::CHANNEL_NAME)
-                .font(if selected || unread {
+                .font(if selected || (unread && !hovered) {
                     t::semibold()
                 } else {
                     t::medium()
@@ -268,7 +276,15 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
     .height(t::CHANNEL_ROW)
     .width(Fill)
     .padding([0., t::S8])
-    .style(t::navigation(selected));
+    // The parent paints the full row (including sibling actions). Do not paint
+    // the same translucent/antialiased surface twice inside the label.
+    .style(move |theme, status| {
+        let mut style = t::navigation(selected)(theme, status);
+        if selected || status != widget::button::Status::Pressed {
+            style.background = None;
+        }
+        style
+    });
     let mut actions = row![label].spacing(0).align_y(Center);
     if active && c.guild_id.is_some() {
         if app
@@ -319,9 +335,9 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
                 ..Default::default()
             },
             ..t::surface(if selected {
-                t::BG_SELECTED
+                t::ROW_SELECTED
             } else if hovered {
-                t::BG_HOVER
+                t::ROW_HOVER
             } else {
                 t::TRANSPARENT
             })
@@ -393,7 +409,7 @@ fn participant<'a>(app: &'a App, v: &'a GuildVoiceState) -> Element<'a, Msg> {
                 .width(Fill)
                 .height(t::VOICE_USER_ROW)
                 .padding(0)
-                .style(t::icon),
+                .style(t::navigation(false)),
         )
         .on_right_press(mm(Main::Open(Popover::Context(Entity::User(user))))),
     ))
