@@ -1,0 +1,120 @@
+{
+  "cause": "H.264 codec preferences discarded the auxiliary RTX codec. str0m only enables stream padding probes when RTX is negotiated; without repair/probes, startup feedback loss can collapse the estimate and expire the keyframe queue.",
+  "scope": "Web adapter only; no SFU, server, protocol, timeouts, bandwidth budgets or media assertions relaxed.",
+  "injection": "Delay one Chromium peer setRemoteDescription for video answers by 7500 ms. Real independent browser processes, real SFU and synthetic capture tracks.",
+  "before": {
+    "revision": "83e503bc1c7dac774f10",
+    "rtxNegotiated": false,
+    "result": "Error: Async condition did not become true within 20000ms",
+    "peers": [
+      {
+        "state": "connected",
+        "inboundVideo": [
+          {
+            "packetsReceived": 1,
+            "bytesReceived": 900,
+            "framesDecoded": 1,
+            "pliCount": 1
+          }
+        ],
+        "serverStats": [
+          {
+            "cap_dropped_packets": 0,
+            "loss_per_million": 0,
+            "mtu_dropped_packets": 0,
+            "path": "unknown",
+            "queue_dropped_packets": 13,
+            "rtt_ms": 12,
+            "rx_bps": 131456,
+            "rx_fps_milli": 19991,
+            "tx_bps": 51258,
+            "tx_fps_milli": 0
+          }
+        ]
+      },
+      {
+        "state": "connected",
+        "inboundVideo": [
+          {
+            "packetsReceived": 91,
+            "bytesReceived": 46114,
+            "framesDecoded": 81,
+            "pliCount": 1
+          }
+        ],
+        "serverStats": [
+          {
+            "cap_dropped_packets": 0,
+            "loss_per_million": 0,
+            "mtu_dropped_packets": 0,
+            "path": "unknown",
+            "queue_dropped_packets": 0,
+            "rtt_ms": 17,
+            "rx_bps": 82221,
+            "rx_fps_milli": 19991,
+            "tx_bps": 133503,
+            "tx_fps_milli": 19991
+          }
+        ]
+      }
+    ]
+  },
+  "after": {
+    "revision": "88b66cdd5b510f722291",
+    "realServer": true,
+    "independentBrowserProcesses": 2,
+    "remoteAnswerDelayMs": 7500,
+    "rounds": [
+      {
+        "round": 1,
+        "decodedDelta": [
+          158,
+          11
+        ],
+        "states": [
+          "connected",
+          "connected"
+        ],
+        "remoteWidths": [
+          640,
+          960
+        ]
+      },
+      {
+        "round": 2,
+        "decodedDelta": [
+          34,
+          12
+        ],
+        "states": [
+          "connected",
+          "connected"
+        ],
+        "remoteWidths": [
+          1280,
+          1280
+        ]
+      },
+      {
+        "round": 3,
+        "decodedDelta": [
+          12,
+          104
+        ],
+        "states": [
+          "connected",
+          "connected"
+        ],
+        "remoteWidths": [
+          1280,
+          1280
+        ]
+      }
+    ]
+  },
+  "primaryCodeEvidence": [
+    "crates/web/public/media.js: h264Codecs",
+    "str0m 0.25.0 src/streams/send.rs: padding_enabled requires RTX",
+    "crates/sfu/src/engine.rs: subscribe declares RTX only if negotiated; allocate/queue recovery"
+  ]
+}

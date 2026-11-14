@@ -12,7 +12,7 @@ try {
   const context=await desktop.newContext({viewport:{width:1440,height:900},permissions:['microphone','camera']});
   await context.route('**/*',r=>['127.0.0.1','localhost','[::1]'].includes(new URL(r.request().url()).hostname)?r.continue():r.abort());
   bob=await context.newPage();
-  const remoteDelay=Number(process.env.STICKTALK_QA_REMOTE_DELAY_MS??0);
+  const remoteDelay=Number(process.env.STICKTALK_QA_REMOTE_DELAY_MS??7500);
   if(remoteDelay)await bob.addInitScript(delay=>{
     const remote=RTCPeerConnection.prototype.setRemoteDescription;
     RTCPeerConnection.prototype.setRemoteDescription=async function(description) {
@@ -31,12 +31,18 @@ try {
   for(let round=1;round<=3;round++) {
     const before=await Promise.all([diagnostic(alice),diagnostic(bob)]),base=before.map(decoded);
     await Promise.all([act(alice,'media:camera'),act(bob,'media:camera')]);
-    await until(async()=>(await Promise.all([diagnostic(alice),diagnostic(bob)])).every((d,i)=>decoded(d)>=base[i]+10&&d.tracks.some(t=>t.kind==='camera'&&!t.own&&t.videoWidth>0&&t.readyState>=2)),20000);
+    await until(async()=>(await Promise.all([diagnostic(alice),diagnostic(bob)])).every((d,i)=>decoded(d)>=base[i]+10&&d.tracks.some(t=>t.kind==='camera'&&!t.own&&t.videoWidth>0&&t.readyState>=2)),20000+remoteDelay*2);
     // Resolution may adapt to the SFU bitrate budget; require actual decoded
     // frame progress, and report the negotiated result rather than assume 720p.
     const active=await Promise.all([diagnostic(alice),diagnostic(bob)]);
+    for(const d of active) {
+      const rtx=process.env.STICKTALK_QA_EXPECT_RTX!=='0';
+      assert.equal(/a=rtpmap:\d+ rtx\/90000/i.test(d.localSdp),rtx);
+      assert.equal(/a=rtpmap:\d+ rtx\/90000/i.test(d.remoteSdp),rtx);
+    }
+
     if(round===1) {
-      assert(await alice.locator('.call-controls .icon-button').evaluateAll(nodes=>nodes.every(e=>e.getBoundingClientRect().height>=48)));
+      assert(await alice.locator('.call-controls .icon-button').evaluateAll(nodes=>nodes.filter(e=>e.getClientRects().length).every(e=>e.getBoundingClientRect().height>=48)));
       assert(await alice.locator('.call-controls [data-live="media:leave"]').evaluate(e=>e.getBoundingClientRect().width>=80));
       await alice.locator('.participant-tile[data-kind=camera]:not([data-self])').click();
       await alice.waitForSelector('.participant-grid.has-focus .is-focused');

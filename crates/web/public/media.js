@@ -68,8 +68,7 @@ function enqueue(task) {
     });
   return queue;
 }
-function preferH264(transceiver) {
-  const codecs = RTCRtpReceiver.getCapabilities("video")?.codecs ?? [];
+export function h264Codecs(codecs) {
   // The SFU does not transcode. Prefer constrained baseline, packetization-mode 1.
   const h264 = codecs.filter(
     (c) =>
@@ -82,7 +81,14 @@ function preferH264(transceiver) {
       Number(/profile-level-id=42/.test(a.sdpFmtpLine)),
   );
   if (!h264.length) throw Error("This browser does not support H.264 video.");
-  transceiver.setCodecPreferences(h264);
+  // RTX is a repair codec, not an alternative video encoder. Filtering it out
+  // disables both NACK repair and str0m's bandwidth-probe padding. An audio-only
+  // TWCC estimate can then strand a new camera at its minimum bitrate: the IDR
+  // queue expires, and without probes there is no feedback to recover capacity.
+  return [...h264, ...codecs.filter(c => c.mimeType.toLowerCase() === 'video/rtx')];
+}
+function preferH264(transceiver) {
+  transceiver.setCodecPreferences(h264Codecs(RTCRtpReceiver.getCapabilities('video')?.codecs ?? []));
 }
 function preferOpus(transceiver) {
   // Match the SFU's Opus-only audio contract; do not offer RED/G.722/DTMF
