@@ -14,7 +14,7 @@ export function openMessageMenu(row) {
   const handle=document.createElement('div');handle.className='sheet-handle';handle.setAttribute('aria-hidden','true');menu.append(handle);
   const defaults=['👍','❤️','😂','🎉','😮','😢'];
   let recent=[];
-  try { const stored=JSON.parse(localStorage.getItem('sticktalk-recent-reactions')??'[]');if(Array.isArray(stored))recent=stored.filter(e=>typeof e==='string'&&e.length<=16).slice(0,6); } catch {}
+  try { const raw=localStorage.getItem('sticktalk-recent-reactions')??'[]';const stored=raw.length<=512?JSON.parse(raw):[];if(Array.isArray(stored))recent=stored.filter(e=>typeof e==='string'&&e.length<=16).slice(0,6); } catch {}
   const quick=document.createElement('div');quick.className='quick-reactions';quick.setAttribute('aria-label','Quick reactions');
   for(const emoji of [...new Set([...recent,...defaults])].slice(0,6)) {
     const button=document.createElement('button');button.textContent=emoji;button.setAttribute('aria-label',`React with ${emoji}`);button.dataset.live=`react:${row.dataset.liveMessage},${emoji}`;

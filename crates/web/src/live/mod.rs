@@ -670,7 +670,22 @@ async fn socket(app: Shared, epoch: u64) {
                                         .collect(),
                                     _ => vec![],
                                 };
+                                let profile_changed =
+                                    matches!(&event.event, Event::ProfileUpdated(_));
                                 let applied = a.model.apply(*event);
+                                if applied && profile_changed {
+                                    let updated = a
+                                        .profile
+                                        .as_ref()
+                                        .and_then(|detail| {
+                                            a.model.settings.profiles.get(&detail.profile.user.id)
+                                        })
+                                        .cloned();
+                                    if let (Some(detail), Some(updated)) = (&mut a.profile, updated)
+                                    {
+                                        detail.profile = updated;
+                                    }
+                                }
                                 if let Some((guild, role, permissions)) =
                                     admin_access.filter(|_| applied)
                                 {

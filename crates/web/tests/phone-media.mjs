@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {readFile,writeFile} from 'node:fs/promises';
-import {harness,register,form,act,shot,wait,until,output} from './qa-harness.mjs';
+import {harness,register,form,act,shotAll as shot,wait,until,output} from './qa-harness.mjs';
 const h=await harness(),checks=[],screenshots=[],errors=[];
 let alice,bob,publisher,desktop;
 const diagnostic=page=>page.evaluate(async()=>(await import('/public/media.js')).diagnostics());

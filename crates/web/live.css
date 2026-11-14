@@ -1503,3 +1503,17 @@ small, .muted-copy, .settings-row-copy small, .device-row small, .account-identi
   .reply-preview { min-width: 0; overflow-wrap: anywhere; }
   .auth-card > .field input { min-height: 52px; }
 }
+@media(max-width:767px) {
+  .profile-editor .avatar-edit > .avatar { display: none; }
+  .profile-editor .avatar-edit { margin-bottom: 24px; }
+}
+.settings-empty { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; padding: 24px 0 8px; }
+.settings-empty > .icon { width: 32px; height: 32px; color: var(--text-secondary); }
+.empty-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+@media(max-width:767px) {
+  .modal-backdrop { align-items: flex-end; padding: 0; }
+  .live-modal:not(.settings-page) { width: 100%; border-radius: 12px 12px 0 0; padding: 24px 16px calc(24px + var(--safe-bottom)); max-height: calc(var(--viewport-height) - var(--safe-top) - 16px); }
+  .live-modal:not(.settings-page) form > [type=submit] { width: 100%; min-height: 48px; }
+  .empty-actions > .button { flex: 1; }
+}
+.participant-grid.has-focus .is-focused { grid-row: 1; }

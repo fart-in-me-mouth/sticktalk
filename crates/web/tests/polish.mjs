@@ -1,12 +1,14 @@
 // Phone polish contracts against real CSR/server state; no fixture API routes.
 import assert from 'node:assert/strict';
-import {writeFile} from 'node:fs/promises';
+import {writeFile,rm} from 'node:fs/promises';
 import {harness,register,form,act,shot,wait,until,output} from './qa-harness.mjs';
 const checks=[],screenshots=[],errors=[];
 let h,page;
+const revisions=[];
+await rm(`${output}/polish-results.json`,{force:true});
 try {
   for(const [width,height] of [[390,844],[412,915],[1440,900]]) {
-    h=await harness();page=await h.phone(width,height);
+    h=await harness();revisions.push(h.revision);page=await h.phone(width,height);
     page.on('pageerror',e=>errors.push(String(e)));
     await page.goto(h.origin);await page.evaluate(()=>document.fonts.ready);
     assert.equal(await page.locator('h1').innerText(),'Welcome back!');
@@ -35,6 +37,15 @@ try {
     await until(()=>page.evaluate(()=>document.querySelector('.profile-preview .profile-banner')?.style.background!==''));
     assert.equal(await page.locator('.profile-save-bar').isVisible(),false);
     assert.notEqual(await page.locator('.profile-banner').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(0, 0, 0)');
+    screenshots.push(await shot(page,'profile-empty'));
+    await form(page,'about',{'f-name':'they/them','f-value':'Building things with good people.','f-extra':'#496c63'});
+    await act(page,'dialog:profile-edit');await page.waitForSelector('[data-profile-editor]');
+    await page.waitForFunction(()=>document.querySelector('.profile-preview-copy').textContent.includes('Building things with good people.'));
+    assert(await page.evaluate(async()=>{
+      const id=document.querySelector('[data-self-id]').dataset.selfId;
+      const p=await(await fetch(`/api/v1/users/${id}/profile`)).json();return p.data.profile.pronouns==='they/them'&&p.data.profile.about_me==='Building things with good people.';
+    }),'first lazy save captures the original bio/pronouns even after immediate navigation');
+
     screenshots.push(await shot(page,'profile-edit'));
     await page.locator('#f-name').fill('Alex Morgan — Design & Engineering');
     await page.locator('#f-value').fill('Reviewing the phone experience');
@@ -70,7 +81,7 @@ try {
     screenshots.push(await shot(page,'roles-reorder-mode'));
     await act(page,'close');
     await page.locator('#live-input').fill('A message to test touch actions.');
-    await act(page,'send-input');await page.waitForSelector('[data-live-message]');
+    await page.getByRole('button',{name:'Send Message',exact:true}).click();await page.waitForSelector('[data-live-message]');
     await page.locator('[data-live-message]').last().focus();await page.keyboard.press('Shift+F10');
     await page.waitForSelector('#live-message-menu');
     assert.equal(await page.locator('.quick-reactions button').count(),6);
@@ -80,6 +91,18 @@ try {
     await page.locator('.quick-reactions button').nth(2).click();
     await page.waitForSelector('.reaction');
     assert.equal(await page.locator('#live-message-menu').count(),0);
+    if(width<768) {
+      await page.locator('[data-live-message]').last().focus();await page.keyboard.press('Shift+F10');
+      await page.waitForSelector('.sheet-handle');
+      assert.equal(await page.locator('.quick-reactions button').first().textContent(),'😂','recent reaction moves to the front');
+      const handle=await page.locator('.sheet-handle').boundingBox(),cdp=await page.context().newCDPSession(page);
+      const x=handle.x+handle.width/2,y=handle.y+handle.height/2;
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1}]});
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:y+100,id:1}]});
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      await page.waitForSelector('#live-message-menu',{state:'detached'});
+    }
+
     await act(page,'dialog:notifications');await page.waitForSelector('[data-live-form=notifications]');
     assert(!await page.locator('.settings-content').innerText().then(s=>s.includes('not available')));
     screenshots.push(await shot(page,'notifications'));
@@ -95,7 +118,8 @@ try {
     await h.close();h=undefined;
   }
   assert.deepEqual(errors,[]);
-  await writeFile(`${output}/polish-results.json`,JSON.stringify({checks,screenshots,errors},null,2));
+  await writeFile(`${output}/polish-results.json`,JSON.stringify({revision:revisions[0],revisions,checks,screenshots,errors},null,2));
+  await rm(`${output}/polish-failure.json`,{force:true});
   console.log(JSON.stringify({checks,errors}));
 } catch(e) {
   await writeFile(`${output}/polish-failure.json`,JSON.stringify({error:String(e),checks,errors,body:await page?.locator('body').innerText().catch(()=>'' )},null,2));throw e;

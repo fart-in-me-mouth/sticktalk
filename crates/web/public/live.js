@@ -398,7 +398,8 @@ export function installPlatform() {
       e.preventDefault();
       if(target.closest('#live-message-menu'))messageMenu?.closeMessageMenu(false);
       const action = target.dataset.live;
-      if (action === "pick-file") $("#live-file")?.click();
+      if (action === "pick-image") { emit("close"); $("#live-file")?.click(); }
+      else if (action === "pick-file") $("#live-file")?.click();
       else if (action === "send-input") send();
       else if (action === "dismiss-error") emit("dismiss-error");
       else if (action.startsWith("delete:")) {

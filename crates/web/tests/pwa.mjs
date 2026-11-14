@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {cp,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {brotliCompressSync} from 'node:zlib';
-import {harness,register,form,act,shot,output,target} from './qa-harness.mjs';
+import {harness,register,form,act,shotAll as shot,output,target} from './qa-harness.mjs';
 const dist=await mkdtemp(join(target,'pwa-dist-'));
 await cp(join(target,'web-dist'),dist,{recursive:true});
 const h=await harness([],{dist}),checks=[],screenshots=[],errors=[];

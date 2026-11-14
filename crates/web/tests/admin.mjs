@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFile,writeFile} from 'node:fs/promises';
-import {harness,register,form,act,shot,output} from './qa-harness.mjs';
+import {harness,register,form,act,shotAll as shot,output} from './qa-harness.mjs';
 const h=await harness(),checks=[],screenshots=[],errors=[];
 let owner,guest;
 try {
