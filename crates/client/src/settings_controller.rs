@@ -932,7 +932,21 @@ impl App {
             }
             A::ChannelHover(id) => self.settings.hovered_channel = id,
             A::CategoryCollapse(id) => {
-                if !self.settings.collapsed_categories.remove(&id) {
+                self.settings.collapsed_categories.retain(|id| {
+                    self.state
+                        .model
+                        .channels
+                        .get(id)
+                        .is_some_and(|c| c.kind == ChannelKind::Category)
+                });
+                if self
+                    .state
+                    .model
+                    .channels
+                    .get(&id)
+                    .is_some_and(|c| c.kind == ChannelKind::Category)
+                    && !self.settings.collapsed_categories.remove(&id)
+                {
                     self.settings.collapsed_categories.insert(id);
                 }
             }
@@ -1332,6 +1346,30 @@ mod tests {
     }
     fn app(screen: &str) -> App {
         App::headless(screen, iced::Size::new(1280., 800.))
+    }
+    #[test]
+    fn collapsed_category_state_cannot_accumulate_deleted_or_unknown_ids() {
+        let mut app = app("guild-settings-channels");
+        app.settings.collapsed_categories.insert(Id(999));
+        let _ = app.settings_update(Action::CategoryCollapse(Id(11)));
+        assert_eq!(app.settings.collapsed_categories.len(), 1);
+        let _ = app.settings_update(Action::CategoryCollapse(Id(999)));
+        assert_eq!(app.settings.collapsed_categories.len(), 1);
+        app.state.model.channels.remove(&Id(11));
+        let _ = app.settings_update(Action::CategoryCollapse(Id(15)));
+        assert_eq!(
+            app.settings
+                .collapsed_categories
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![Id(15)]
+        );
+        app.settings.search = "nothing".into();
+        app.settings.member_filter = Some(Id(103));
+        let _ = app.settings_update(Action::ClearMemberFilters);
+        assert!(app.settings.search.is_empty());
+        assert!(app.settings.member_filter.is_none());
     }
     #[test]
     fn channel_hierarchy_collapse_and_child_pages_return_to_channels() {
