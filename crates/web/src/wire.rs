@@ -113,7 +113,17 @@ pub fn legible_role_color(rgb: u32) -> u32 {
             if v <= 0.04045 {
                 v / 12.92
             } else {
-                ((v + 0.055) / 1.055).powf(2.4)
+                let value = (v + 0.055) / 1.055;
+                // Browser-native IEEE-754 pow avoids shipping a duplicate
+                // software libm implementation just for sRGB contrast checks.
+                #[cfg(target_arch = "wasm32")]
+                {
+                    js_sys::Math::pow(value, 2.4)
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    value.powf(2.4)
+                }
             }
         };
         0.2126 * channel(rgb >> 16) + 0.7152 * channel(rgb >> 8) + 0.0722 * channel(rgb)

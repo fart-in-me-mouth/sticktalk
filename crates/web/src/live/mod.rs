@@ -412,11 +412,22 @@ fn start_session(app: Shared, session: BrowserSession) {
         socket(app, epoch).await;
     });
 }
+type MessageEncoder = fn(&ClientMsg) -> Result<Vec<u8>, String>;
+// Keep optional command serializers out of the login/idle core. The split
+// loader caches this function; the named MessagePack wire format is unchanged.
+#[lazy]
+fn load_message_encoder() -> MessageEncoder {
+    encode_message
+}
+fn encode_message(msg: &ClientMsg) -> Result<Vec<u8>, String> {
+    rmp_serde::to_vec_named(msg).map_err(|_| "Could not encode command".to_string())
+}
 async fn send(
     socket: &mut sticktalk_client_core::protocol::Outgoing,
     msg: &ClientMsg,
 ) -> Result<(), String> {
-    let bytes = rmp_serde::to_vec_named(msg).map_err(|_| "Could not encode command".to_string())?;
+    let encode = load_message_encoder().await;
+    let bytes = encode(msg)?;
     if bytes.len() > MAX_WS_FRAME_BYTES as usize {
         return Err("Command is too large".into());
     }
