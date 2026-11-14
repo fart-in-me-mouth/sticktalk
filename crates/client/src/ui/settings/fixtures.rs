@@ -25,10 +25,14 @@ pub(crate) const SCREENS: &[&str] = &[
     "user-settings-advanced",
     "user-settings-nav-search",
     "guild-settings-overview",
+    "guild-settings-channels",
+    "guild-settings-channels-hover",
+    "guild-settings-channels-collapsed",
     "guild-settings-dirty",
     "guild-settings-engagement",
     "guild-settings-members",
     "guild-settings-members-filter",
+    "guild-settings-members-empty",
     "guild-settings-roles",
     "guild-settings-roles-drag",
     "guild-settings-role-display",
@@ -232,7 +236,12 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
     } else if screen.starts_with("guild-settings-") {
         let tab = match screen {
             "guild-settings-engagement" => GuildTab::Engagement,
-            "guild-settings-members" | "guild-settings-members-filter" => GuildTab::Members,
+            "guild-settings-channels"
+            | "guild-settings-channels-hover"
+            | "guild-settings-channels-collapsed" => GuildTab::Channels,
+            "guild-settings-members"
+            | "guild-settings-members-filter"
+            | "guild-settings-members-empty" => GuildTab::Members,
             "guild-settings-invites" | "guild-settings-invites-empty" => GuildTab::Invites,
             "guild-settings-bans" | "guild-settings-bans-empty" => GuildTab::Bans,
             "guild-settings-emoji" => GuildTab::Emoji,
@@ -242,6 +251,32 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
             _ => GuildTab::Overview,
         };
         app.dialog = Dialog::GuildSettings(tab);
+        if tab == GuildTab::Channels {
+            let mut voice = app.state.model.channels[&Id(13)].clone();
+            voice.id = Id(18);
+            voice.name = Some("Lounge".into());
+            voice.kind = ChannelKind::Voice;
+            voice.position = 3;
+            app.state.model.channels.insert(voice.id, voice);
+            app.state.model.launch.overwrites.insert(
+                Id(17),
+                vec![PermissionOverwrite {
+                    kind: OverwriteKind::Role,
+                    target_id: gid,
+                    allow: Permissions::empty(),
+                    deny: Permissions::VIEW_CHANNEL,
+                }],
+            );
+            if screen.ends_with("hover") {
+                app.settings.hovered_channel = Some(Id(13));
+            }
+            if screen.ends_with("collapsed") {
+                app.settings.collapsed_categories.insert(Id(11));
+            }
+        }
+        if screen == "guild-settings-members-empty" {
+            app.settings.search = "no-such-member".into();
+        }
         if screen == "guild-settings-invites" {
             app.state.model.invites.insert(
                 Id(5001),

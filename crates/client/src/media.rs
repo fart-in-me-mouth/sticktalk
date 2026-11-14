@@ -27,6 +27,9 @@ pub struct Decoded {
     pub rgba: Vec<u8>,
 }
 impl Images {
+    pub fn metrics(&self) -> serde_json::Value {
+        serde_json::json!({"entries":self.entries.len(),"decoded_bytes":self.bytes,"pending":self.pending.len()})
+    }
     pub fn get(&self, id: Id) -> Option<&Handle> {
         self.entries.get(&id).map(|v| &v.0)
     }

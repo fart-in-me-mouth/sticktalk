@@ -117,7 +117,7 @@ fn google_button(app: &App) -> Element<'_, Msg> {
         .spacing(t::S12)
         .align_y(Center),
     )
-    .on_press_maybe((!app.busy).then_some(Msg::GoogleStart(false)))
+    .on_press_maybe((!app.busy && app.google_available()).then_some(Msg::GoogleStart(false)))
     .centered()
     .width(Fill)
     .height(t::HEADER)
@@ -612,7 +612,10 @@ fn login(app: &App) -> Element<'_, Msg> {
                         },
                         Msg::RefreshMeta
                     )
-                    .on_press_maybe((!app.meta_loading && !app.busy).then_some(Msg::RefreshMeta))
+                    .on_press_maybe(
+                        (!app.meta_loading && !app.busy && !app.server.trim().is_empty())
+                            .then_some(Msg::RefreshMeta)
+                    )
                 ]
                 .spacing(t::S8)
                 .align_y(Center),
@@ -622,11 +625,24 @@ fn login(app: &App) -> Element<'_, Msg> {
         );
         if !app.meta_error.is_empty() {
             form = form.push(hint(&app.meta_error).color(t::DANGER));
+        } else if app.meta_connected {
+            form = form.push(
+                row![
+                    icon("check", t::INLINE_ICON, t::ACCENT),
+                    hint("Connected").color(t::ACCENT)
+                ]
+                .spacing(t::S8)
+                .align_y(Center),
+            );
         }
     }
-    if !signup && app.google_available() {
-        form = form.push(google_button(app)).push(
-            row![line(), hint("or"), line()]
+    if !signup && (app.google_available() || (!app.meta_connected && app.meta_error.is_empty())) {
+        form = form.push(google_button(app));
+        if !app.meta_connected {
+            form = form.push(hint("Connect to a server to enable Google sign-in."));
+        }
+        form = form.push(
+            row![line(), hint("OR"), line()]
                 .spacing(t::S16)
                 .align_y(Center),
         );
@@ -761,18 +777,14 @@ fn login(app: &App) -> Element<'_, Msg> {
         .style(t::modal)]
     .spacing(t::S12)
     .align_x(Center);
-    if !signup {
+    if !signup && !app.change_server {
         body = body.push(
-            button(hint(if app.change_server {
-                "Done"
-            } else {
-                "Change server"
-            }))
-            .on_press_maybe(
-                (!app.busy && !app.server.trim().is_empty()).then_some(Msg::ChangeServer),
-            )
-            .padding(t::S4)
-            .style(t::link),
+            button(hint("Change server"))
+                .on_press_maybe(
+                    (!app.busy && !app.server.trim().is_empty()).then_some(Msg::ChangeServer),
+                )
+                .padding(t::S4)
+                .style(t::link),
         );
     }
     container(body)

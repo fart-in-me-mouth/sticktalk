@@ -1,5 +1,6 @@
 //! Full-screen settings. Kept separate from the main-window workstream.
 mod channel;
+mod channels;
 mod fixtures;
 mod roles;
 mod server;

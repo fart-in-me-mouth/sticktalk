@@ -39,9 +39,12 @@ arboard = { version = "3", default-features = false, features = ["image-data"] }
 rfd = { version = "0.15", default-features = false }
 libmimalloc-sys = { version = "0.1", optional = true, features = ["extended"] }
 mimalloc = { version = "0.1", optional = true }
+dhat = { version = "0.3.3", optional = true }
 tokio-util = { version = "0.7", features = ["io"] }
 
 [features]
+# Diagnostic only: tracks Rust allocation stacks; never use its timing/RAM as shipping measurements.
+heap-profile = ["dep:dhat"]
 compact-allocator = ["dep:mimalloc", "dep:libmimalloc-sys"]
 default = ["wgpu"]
 wgpu = ["iced/wgpu", "dep:iced_wgpu", "dep:winit", "dep:windows58"]

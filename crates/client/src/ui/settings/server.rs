@@ -27,6 +27,7 @@ pub(super) fn navigation<'a>(
             vec![
                 ("user-round", GuildTab::Overview),
                 ("bell", GuildTab::Engagement),
+                ("hash", GuildTab::Channels),
             ],
         ),
         ("EXPRESSION", vec![("smile", GuildTab::Emoji)]),
@@ -44,13 +45,18 @@ pub(super) fn navigation<'a>(
             vec![("file", GuildTab::AuditLog), ("ban", GuildTab::Bans)],
         ),
     ] {
+        let entries: Vec<_> = entries
+            .into_iter()
+            .filter(|(_, p)| label(*p).to_lowercase().contains(q))
+            .collect();
+        if entries.is_empty() {
+            continue;
+        }
         if !group.is_empty() {
             nav = nav.push(space().height(t::S16)).push(section(group));
         }
         for (i, p) in entries {
-            if label(p).to_lowercase().contains(q) {
-                nav = nav.push(nav_item(i, label(p), A::Server(p), tab == p));
-            }
+            nav = nav.push(nav_item(i, label(p), A::Server(p), tab == p));
         }
     }
     if app
@@ -89,7 +95,7 @@ pub(super) fn content<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
     match tab {
         GuildTab::Overview=>profile(app),GuildTab::Roles=>roles::content(app),GuildTab::Members=>members(app),GuildTab::Invites=>invites(app,gid),GuildTab::Bans=>bans(app,gid),
         GuildTab::Engagement=>column![title("Engagement"),section("SYSTEM MESSAGES CHANNEL"),disabled_tip(widget::pick_list(vec!["No system messages".to_owned()],Some("No system messages".to_owned()),|_|Msg::Settings(A::Server(GuildTab::Engagement))).padding(t::S12).style(st::pick_list).menu_style(st::menu),false,"System messages channels are not available on this server yet."),line(),title("Default Notifications"),small("Default notification preferences for new members are not available on this server yet."),secondary("Your Notification Settings",A::Notifications(gid),true)].spacing(t::S24).into(),
-        GuildTab::Channels=>{let mut c=column![title("Channels")].spacing(t::S16);for ch in app.sorted_channels(){c=c.push(row![label_text(app.state.model.channel_name(ch)).width(Fill),icon_button("settings","Edit Channel",Msg::Open(Dialog::ChannelSettings(ch.id)))].align_y(Center));}c.into()}
+        GuildTab::Channels=>channels::content(app),
         _=>column![title(label(*tab)),small(match tab{GuildTab::Emoji=>"Custom server emoji management is not available yet.",GuildTab::Access=>"Manage who can join with server invites and member moderation.",_=>"Audit logs are not available yet."})].spacing(t::S24).into(),
     }
 }
@@ -290,6 +296,7 @@ fn members(app: &App) -> Element<'_, Msg> {
         line()
     ]
     .spacing(t::S16);
+    let mut matched = 0;
     for m in app.state.model.members.values().filter(|m| {
         m.guild_id == gid
             && (app.state.model.name(m.user.id).to_lowercase().contains(&q)
@@ -299,6 +306,7 @@ fn members(app: &App) -> Element<'_, Msg> {
                 .member_filter
                 .is_none_or(|r| m.role_ids.contains(&r))
     }) {
+        matched += 1;
         let chips = m
             .role_ids
             .iter()
@@ -336,6 +344,16 @@ fn members(app: &App) -> Element<'_, Msg> {
                 .align_y(Center),
             )
             .push(line());
+    }
+    if matched == 0 && (!q.is_empty() || app.settings.member_filter.is_some()) {
+        c = c.push(
+            column![
+                icon("users", t::AVATAR, t::TEXT_MUTED),
+                label_text("No members match these filters"),
+                secondary("Clear filters", A::ClearMemberFilters, true)
+            ]
+            .spacing(t::S16),
+        );
     }
     if app.state.member_after.is_some() {
         c = c

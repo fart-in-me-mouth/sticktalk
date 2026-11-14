@@ -10,11 +10,14 @@ use sticktalk::{animated, gifs, platform_glue, uploads};
 mod datetime;
 mod focus_button;
 mod headless;
+#[cfg(feature = "heap-profile")]
+mod heap_profile;
 mod icons;
 use sticktalk::markdown;
 use sticktalk::media;
 mod history_extent;
 mod main_window;
+mod memory_bench;
 mod message_layout;
 use sticktalk::mock;
 use sticktalk::model;
@@ -28,10 +31,15 @@ mod settings_controller;
 mod theme;
 mod ui;
 mod voice_ui;
-#[cfg(feature = "compact-allocator")]
+#[cfg(all(feature = "compact-allocator", not(feature = "heap-profile")))]
 #[global_allocator]
 static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+#[cfg(feature = "heap-profile")]
+#[global_allocator]
+static HEAP_PROFILER: dhat::Alloc = dhat::Alloc;
 fn main() -> iced::Result {
+    #[cfg(feature = "heap-profile")]
+    let _heap_profile = heap_profile::start();
     std::env::set_var("TOKIO_WORKER_THREADS", "2");
     // Keep DX12: Vulkan reduced commit but regressed the text-scroll benchmark. iced's compositor
     // still falls back to tiny-skia if initialization fails. Respect overrides.
