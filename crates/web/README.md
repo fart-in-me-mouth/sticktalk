@@ -142,6 +142,10 @@ Evidence and limitations: [QA report](../../docs/QA_WEB_REPORT.md),
 
 ## Known remaining launch work
 
+- The original two-browser camera regression remains intermittent after subscription
+  ordering mitigation. The focused three-cycle test passes, but this is not release
+  certification. See the QA report; decoded-frame assertions remain enabled.
+
 - Mobile settings now cover account/profile, appearance, per-server/conversation
   notifications, voice/video, sessions, deletion and blocked users. Server settings
   cover overview/icon/banner, role order/permissions/member assignment, channels,

@@ -8,6 +8,8 @@ import { once } from "node:events";
 import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { resolve, join, dirname, basename } from "node:path";
 const output = process.env.STICKTALK_QA_DIR ?? "screenshots/live";
+// A failed attempt must not leave an earlier green summary looking current.
+await rm(`${output}/results.json`, {force:true});
 const target = resolve(
   process.env.CARGO_TARGET_DIR ??
     "C:/Users/dwhee/.cargo-target/sticktalk-web-live",

@@ -26,7 +26,7 @@ def sheet(paths, name, columns=4, width=210, height=455):
 
 
 for size in ["390x844", "412x915", "820x1180", "1440x900", "1280x800", "1920x1080"]:
-    paths = sorted([*root.glob(f"*-{size}.png"), *(root / "live").glob(f"*-{size}.png")])
+    paths = sorted([*root.glob(f"*-{size}.png"), *(root / "live").glob(f"*-{size}.png"), *(root / "prior-camera-success").glob(f"*-{size}.png")])
     if size.startswith(("390", "412")):
         paths += sorted(root.glob(f"*-{size.split(chr(120))[0]}x440.png"))
     paths = [p for p in paths if "failure" not in p.name]
@@ -68,7 +68,7 @@ if (root / "lighthouse-summary.json").exists() and (root / "bundle-sizes.json").
         y = 115 + i * 99
         draw.text((28, y), label, font=body, fill="#E8EAED")
         for value, offset, color, prefix in [(old, 28, "#71717B", "Before"), (new, 55, "#3DDC97", "After")]:
-            width = min(650, value / maximum * 650)
+            width = min(550, value / maximum * 550)
             draw.rounded_rectangle((325, y + offset, 325 + width, y + offset + 18), radius=3, fill=color)
             value_label = f"{value:,.0f} {unit}"
             draw.text((990, y + offset - 4), value_label, font=body, fill="#E8EAED", anchor="ra")

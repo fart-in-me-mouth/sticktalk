@@ -132,9 +132,10 @@ try {
   await until(async()=>(await diagnostic(publisher)).state==='connected',45000);
   await act(publisher,'media:share');await publisher.locator('.live-share-options button').first().click();
   await alice.waitForFunction(()=>[...document.querySelectorAll('[data-kind=screen] video')].some(v=>v.videoWidth>0&&v.readyState>=2),null,{timeout:45000});
+  await until(async()=>(await diagnostic(alice)).stats.some(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>=10),45000);
   screenshots.push(await shot(alice,'screen-share-phone'));
   const stats=await diagnostic(alice);
-  assert(stats.stats.some(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>0));
+  assert(stats.stats.some(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>=10));
   await writeFile(`${output}/phone-share-stats.json`,JSON.stringify({state:stats.state,tracks:stats.tracks,inbound:stats.stats.filter(r=>r.type==='inbound-rtp')},null,2));
   await alice.getByRole('button',{name:'Mute',exact:true}).last().tap();
   await alice.getByRole('button',{name:'Deafen',exact:true}).last().tap();

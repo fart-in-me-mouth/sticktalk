@@ -263,7 +263,12 @@ try {
         const error=document.querySelector('.live-error')?.textContent;
         return error?{error}:false;
       },null,{timeout:45000});
-      const state=await outcome.jsonValue();await outcome.dispose();
+      let state;
+      try{state=await outcome.jsonValue();}
+      catch(e){
+        if(!String(e).includes('Execution context was destroyed'))throw e;
+        await page.waitForSelector('#auth-username');state={auth:true};
+      }finally{await outcome.dispose().catch(()=>{});}
       if(state.auth)break;
       // Revocation can render an error just before the successful HTTP reload.
       await wait(500);if(await page.locator('#auth-username').count())break;
