@@ -15,7 +15,7 @@ $downloads = Join-Path $tools 'downloads'
 New-Item -ItemType Directory -Force $downloads | Out-Null
 function Get-Tool([string]$Name, [string]$Url, [string]$Sha256, [string[]]$Members = @()) {
     $archive = Join-Path $downloads "$Name.tar.gz"
-    if (!(Test-Path -LiteralPath $archive)) { Invoke-WebRequest $Url -OutFile $archive }
+    if (!(Test-Path -LiteralPath $archive)) { Invoke-WebRequest -UseBasicParsing $Url -OutFile $archive }
     if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $Sha256) { throw "$Name archive hash mismatch; remove the bad archive and retry." }
     & tar -xf $archive -C $tools @Members
     if ($LASTEXITCODE -ne 0) { throw "$Name extraction failed." }

@@ -21,6 +21,9 @@ try {
             if ($LASTEXITCODE -ne 0) { throw "JavaScript parse error in $file" }
         }
     }
+    foreach ($doc in (& git ls-files '*.md')) {
+        if ((Get-Content -LiteralPath $doc -Raw) -match '(?m)^\$env:CARGO_TARGET_DIR\s*=\s*''\$env:') { throw "Single-quoted environment variable in $doc" }
+    }
     Remove-Item Env:CARGO_TARGET_DIR -ErrorAction SilentlyContinue
     $metadata = & cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Cargo metadata failed.' }

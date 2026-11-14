@@ -47,13 +47,13 @@ try {
             if (!(Test-Path -LiteralPath $MakeNsis)) {
                 New-Item -ItemType Directory -Force -Path $tools | Out-Null
                 $zip = Join-Path $tools 'nsis-3.13.zip'
-                Invoke-WebRequest 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.13/nsis-3.13.zip' -OutFile $zip
+                Invoke-WebRequest -UseBasicParsing 'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.13/nsis-3.13.zip' -OutFile $zip
                 # Some SourceForge mirrors return a download HTML interstitial.
                 if ((Get-Item -LiteralPath $zip).Length -lt 1000000) {
                     $html = Get-Content -LiteralPath $zip -Raw
                     $redirect = [regex]::Match($html, 'content="5; url=([^"]+)"').Groups[1].Value.Replace('&amp;', '&')
                     if ($redirect -notmatch '^https://downloads\.sourceforge\.net/project/nsis/') { throw 'Unexpected NSIS download redirect.' }
-                    Invoke-WebRequest $redirect -OutFile $zip
+                    Invoke-WebRequest -UseBasicParsing $redirect -OutFile $zip
                 }
                 # Pin the official portable archive: reviewed separately from each build.
                 $expected = 'BA63DFFC4410EE89193E1CB5A41989991BD77C61068DA17E3156D136B7B0B3D8'

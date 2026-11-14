@@ -1,5 +1,9 @@
 # StickTalk server — Phase 1 implementation
 
+These are Phase 1 foundation notes, including historical feature-status text.
+Use [HANDOFF.md](../../HANDOFF.md) for current build/run/deployment instructions,
+the Oracle/SFU/web + Pi topology and unresolved release gates.
+
 `sticktalk-server` implements the Phase 1 REST routes, WebSocket commands and
 events in [`docs/PROTOCOL.md`](../../docs/PROTOCOL.md), using the existing public
 `sticktalk-proto` types. Optional Google auth uses additive REST types without
@@ -69,9 +73,9 @@ There are no intentional Phase 1 endpoint/command omissions.
 ## Build and run (Windows PowerShell)
 
 ```powershell
-$env:CARGO_TARGET_DIR = '$env:USERPROFILE/.cargo-target/sticktalk-server'
-& "$env:USERPROFILE/.cargo/bin/cargo.exe" build -p sticktalk-server --release
-& "$env:CARGO_TARGET_DIR/release/sticktalk-server.exe" --bind 127.0.0.1:8080 --data-dir "$env:LOCALAPPDATA/StickTalk/server-data"
+$env:CARGO_TARGET_DIR = "$env:USERPROFILE/.cargo-target/sticktalk-server"
+& "$env:USERPROFILE/.cargo/bin/cargo.exe" build -p sticktalk-server --profile server
+& "$env:CARGO_TARGET_DIR/server/sticktalk-server.exe" --bind 127.0.0.1:8080 --data-dir "$env:LOCALAPPDATA/StickTalk/server-data"
 ```
 
 All settings are listed by `sticktalk-server --help`. Defaults: loopback 8080,
@@ -89,8 +93,8 @@ executed against a live Oracle VM during this Windows implementation task.
 The following commands were run with the dedicated server target directory:
 
 ```powershell
-$env:CARGO_TARGET_DIR = '$env:USERPROFILE/.cargo-target/sticktalk-server'
-& "$env:USERPROFILE/.cargo/bin/cargo.exe" build -p sticktalk-server --release
+$env:CARGO_TARGET_DIR = "$env:USERPROFILE/.cargo-target/sticktalk-server"
+& "$env:USERPROFILE/.cargo/bin/cargo.exe" build -p sticktalk-server --profile server
 & "$env:USERPROFILE/.cargo/bin/cargo.exe" test -p sticktalk-server
 & "$env:USERPROFILE/.cargo/bin/cargo.exe" clippy -p sticktalk-server --all-targets -- -D warnings
 & "$env:USERPROFILE/.cargo/bin/cargo.exe" fmt -p sticktalk-server -- --check

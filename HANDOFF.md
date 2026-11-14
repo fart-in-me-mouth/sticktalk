@@ -7,6 +7,10 @@ and credentials in private environment files, not changes committed to Git.
 The first build needs Internet access for toolchains, Rust/npm dependencies and
 portable tools; the source bundle is not an offline compiler/dependency mirror.
 
+**Unresolved release gate:** extended phone QA displayed `Unavailable` during
+account deletion and did not return to login. Investigate/retest before a broad
+production rollout; see [validation and evidence](docs/HANDOFF_VALIDATION.md).
+
 ## 1. Understand the five pieces
 
 1. StickTalk is a Rust chat app with a native Windows client and a browser PWA.
@@ -69,7 +73,7 @@ can take tens of minutes. Do not sync live databases, uploads or build trees.
 - **Rust stable/MSVC**, per user:
 
   ```powershell
-  Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile "$env:TEMP/rustup-init.exe"
+  Invoke-WebRequest -UseBasicParsing https://win.rustup.rs/x86_64 -OutFile "$env:TEMP/rustup-init.exe"
   & "$env:TEMP/rustup-init.exe" -y --default-host x86_64-pc-windows-msvc --profile minimal
   $env:PATH = "$HOME/.cargo/bin;$env:PATH"
   rustup component add rustfmt clippy
@@ -84,7 +88,7 @@ can take tens of minutes. Do not sync live databases, uploads or build trees.
   UAC workarounds**. The administrator's explicit install command is:
 
   ```powershell
-  Invoke-WebRequest https://aka.ms/vs/17/release/vs_BuildTools.exe -OutFile "$env:TEMP/vs_BuildTools.exe"
+  Invoke-WebRequest -UseBasicParsing https://aka.ms/vs/17/release/vs_BuildTools.exe -OutFile "$env:TEMP/vs_BuildTools.exe"
   & "$env:TEMP/vs_BuildTools.exe" --wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended
   ```
 
@@ -101,8 +105,8 @@ can take tens of minutes. Do not sync live databases, uploads or build trees.
   $v = (Invoke-RestMethod https://nodejs.org/dist/index.json | Where-Object { $_.lts -and $_.version -match '^v22\.' } | Select-Object -First 1).version
   if (!$v) { throw 'No Node 22 LTS found; select a supported LTS from the official downloads page.' }
   $name = "node-$v-win-x64.zip"
-  Invoke-WebRequest "https://nodejs.org/dist/$v/$name" -OutFile "$env:TEMP/$name"
-  $sums = (Invoke-WebRequest "https://nodejs.org/dist/$v/SHASUMS256.txt").Content
+  Invoke-WebRequest -UseBasicParsing "https://nodejs.org/dist/$v/$name" -OutFile "$env:TEMP/$name"
+  $sums = (Invoke-WebRequest -UseBasicParsing "https://nodejs.org/dist/$v/SHASUMS256.txt").Content
   $hash = (($sums -split "`n" | Where-Object { $_.TrimEnd().EndsWith("  $name") }) -split '\s+')[0]
   if (!$hash -or (Get-FileHash "$env:TEMP/$name" -Algorithm SHA256).Hash -ne $hash) { throw 'Node archive checksum mismatch.' }
   Expand-Archive "$env:TEMP/$name" "$HOME/Tools/node" -Force
@@ -129,6 +133,8 @@ that one target directory, without administrator rights. On subsequent shells,
 dot-source without `-InstallTools`. The script sets only process-local PATH,
 Python/libclang and `CMAKE_GENERATOR='Visual Studio 17 2022'`. The generator is
 **not** set globally in Cargo, so Linux/macOS and ARM cross-builds are unaffected.
+When a helper creates a new target directory it tags it as disposable cache so
+Cargo can clean it later. Existing unregistered directories are never relabeled.
 Do not source the historical `crates/media/tools/build-env.ps1`; it describes an
 older developer setup. No NASM is required for the normal default desktop build.
 
@@ -320,6 +326,11 @@ CMake/pkg-config/LLVM/Binaryen. Server/web commands above are feasible, but macO
 has **not** been validated in this Windows handoff. Windows installers, WASAPI,
 GPU capture/remote input and native desktop media are Windows-specific; use the
 PWA on Linux/macOS rather than assuming full desktop feature parity.
+An operator using Linux/macOS can maintain the server, Pi and PWA, but producing
+Windows installers still requires a trusted Windows x64 build PC/runner. This
+repository does not supply a Linux/macOS-to-MSVC release pipeline. Keep the
+private update-signing key on a trusted release machine, never on the chat server
+or an untrusted/shared runner.
 
 ## 7. Deploy Oracle, then your Pi
 
@@ -404,6 +415,10 @@ the checkout, restrict ACLs/modes and keep an encrypted admin backup.
 Agree explicitly who is the primary operator and who can release/recover data.
 Changing backup recipients alone does not re-encrypt old archives. Losing an age
 identity or LUKS unlock method can make the only backup permanently unreadable.
+If existing users already trust a **production** update key, coordinate a signed
+key-rotation release using that old trusted key first; changing only the server's
+public key will not migrate installed clients. Engineering fixture keys are not
+production keys.
 
 ## 9. Release an update to users
 
@@ -446,6 +461,9 @@ downgrades require the matching backup. Keep OS/Caddy and app-local DLLs patched
   remove unused profiles only after stopping builds. Never recursively delete a
   computed directory until you have checked its full absolute path. Do not
   lower quality settings or change Cargo profiles just to hide a disk problem.
+  If Cargo refuses cleanup because `CACHEDIR.TAG` is missing, respect that safety
+  check: verify the directory's contents or choose a fresh dedicated build path;
+  never force-delete an arbitrary existing folder.
 - **WASM tools fail:** match wasm-bindgen to Cargo.lock; set `WASM_OPT`,
   `WASM_BINDGEN`, `WASM_SPLIT` explicitly. Build from `crates/web` for relocation
   flags. Keep all hashed chunks together. Node/npm install is not the WASM build.

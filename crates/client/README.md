@@ -6,7 +6,7 @@ Native Rust / iced 0.14 client; wgpu by default with automatic tiny-skia fallbac
 
 ```powershell
 $env:PATH = "$env:USERPROFILE/.cargo/bin;$env:PATH"
-$env:CARGO_TARGET_DIR = '$env:USERPROFILE/.cargo-target/sticktalk-client'
+$env:CARGO_TARGET_DIR = "$env:USERPROFILE/.cargo-target/sticktalk-client"
 cargo build -p sticktalk --release
 ```
 

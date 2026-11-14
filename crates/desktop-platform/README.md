@@ -127,7 +127,7 @@ rollback, and recovery tests; see `deploy/windows/VALIDATION.md`.
 All default commands are safe on the owner's active desktop:
 
 ```powershell
-$env:CARGO_TARGET_DIR = '$env:USERPROFILE/.cargo-target/sticktalk-desktop-platform'
+$env:CARGO_TARGET_DIR = "$env:USERPROFILE/.cargo-target/sticktalk-desktop-platform"
 cargo run -p sticktalk-desktop-platform --example notifications # escaped XML only
 cargo run -p sticktalk-desktop-platform --example tray          # reducer/menu only
 cargo run -p sticktalk-desktop-platform --example sounds        # byte counts only

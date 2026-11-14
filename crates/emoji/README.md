@@ -57,7 +57,7 @@ On stable Rust, workspace `release-small` (size optimization, fat LTO, stripped)
 `wasm32-unknown-unknown`:
 
 ```
-$env:CARGO_TARGET_DIR='$env:USERPROFILE/.cargo-target/sticktalk-emoji'
+$env:CARGO_TARGET_DIR="$env:USERPROFILE/.cargo-target/sticktalk-emoji"
 cargo build -p sticktalk-emoji --examples --target wasm32-unknown-unknown --profile release-small
 ```
 

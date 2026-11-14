@@ -1,5 +1,9 @@
 # StickTalk foundation architecture
 
+The opening Phase 1 status below is historical foundation context. For the
+current Oracle/SFU/web + private Pi topology, portable build commands and known
+release gates, start with [HANDOFF.md](../HANDOFF.md).
+
 Status: Phase 1 server implemented, protocol version **1**. The native
 axum/tokio server provides accounts, REST snapshots, WebSocket chat/presence,
 SQLite persistence, media and bounded replay. Google sign-in is optional and
