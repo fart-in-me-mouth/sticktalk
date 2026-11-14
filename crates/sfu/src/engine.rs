@@ -1324,7 +1324,7 @@ impl Sfu {
                 if starting {
                     // Do not let an audio-only estimate throttle a new video
                     // subscription before feedback for its first frame arrives.
-                    let initial = desired.min(8_000_000);
+                    let initial = desired.min(16_000_000);
                     p.rtc.bwe().reset(str0m::bwe::Bitrate::bps(initial));
                     p.bwe = initial;
                 }
@@ -1518,7 +1518,7 @@ impl Sfu {
             if peer.failed {
                 return Ok(());
             }
-            if peer.pending_media.values().any(|queue| !queue.is_empty()) {
+            if peer.video_active {
                 let bytes = usize::from(self.config.max_datagram_bytes);
                 let room = self.room_budgets.get(&peer.channel).ok_or(Error::Config)?;
                 let ready = peer
@@ -1527,10 +1527,10 @@ impl Sfu {
                     .max(room.ready_at(bytes, self.now))
                     .max(self.budget.ready_at(bytes, self.now));
                 if let Some(ready) = bounded_admission_deadline(ready, self.now) {
-                    // Keep originals in str0m's bounded, BWE-paced queue until
-                    // ALL wire budgets can admit a full datagram atomically.
-                    // Do not poll and drop: that breaks H.264 reference chains
-                    // and produces artificial loss/congestion feedback.
+                    // Preflight probes/RTX too: dropping an encrypted probe
+                    // invents TWCC loss after assigning its sequence number.
+                    // str0m still prioritizes originals. The same strict wire
+                    // caps and <=10 ms RTC deferral apply to every class.
                     peer.deadline = ready;
                     break;
                 }
@@ -1577,8 +1577,9 @@ impl Sfu {
                         // Unmapped/withdrawn SSRCs (including probes) cannot escape
                         // publication authorization via a paced or retransmit queue.
                         let video = route.video;
-                        // Probe padding uses RTX or the RTP padding bit. Preserve
-                        // original-media burst headroom without bypassing any cap.
+                        // Padding/RTX share the wire cap, but not the original
+                        // media backlog. Never discard at an artificial reserve
+                        // after str0m has assigned a transport sequence number.
                         let repair = route.rtx.is_some_and(|r| *r == ssrc) || bytes[0] & 0x20 != 0;
                         let mut sent_keyframe = None;
                         if !repair {
@@ -1595,9 +1596,9 @@ impl Sfu {
                                 .room_budgets
                                 .get_mut(&peer.channel)
                                 .ok_or(Error::Config)?;
-                            if !peer.video_budget.available(bytes.len(), repair, self.now)
-                                || !room.available(bytes.len(), repair, self.now)
-                                || !self.budget.available(bytes.len(), repair, self.now)
+                            if !peer.video_budget.available(bytes.len(), self.now)
+                                || !room.available(bytes.len(), self.now)
+                                || !self.budget.available(bytes.len(), self.now)
                             {
                                 peer.stats.cap_dropped_packets += 1;
                                 if !repair {
@@ -1832,6 +1833,8 @@ impl Sfu {
             self.collect(to)?;
             let keyframe = starts_keyframe(codec_of(&track), &packet.payload);
             let receiver = self.peers.get_mut(&to).unwrap();
+            let videos = receiver.routes.values().filter(|r| r.video).count() as u64;
+            let drain_bps = receiver.bwe.min(receiver.bwe_target) / videos.max(1);
             let r = receiver.routes.get_mut(&target).unwrap();
             if video {
                 r.burst
@@ -1843,8 +1846,7 @@ impl Sfu {
             }
             let pending = receiver.pending_media.entry(route.ssrc).or_default();
             let pending_count = pending.len();
-            let overloaded = video
-                && media_queue_overloaded(pending, receiver.bwe, receiver.stats.rtt_ms, self.now);
+            let overloaded = video && media_queue_overloaded(pending, drain_bps, self.now);
             if self.video_trace
                 && video
                 && self.now.saturating_duration_since(receiver.created) <= Duration::from_secs(15)
@@ -1853,10 +1855,7 @@ impl Sfu {
                         >= Duration::from_millis(100))
             {
                 receiver.queue_trace_at = self.now;
-                let horizon_ms =
-                    (u64::from(receiver.stats.rtt_ms.unwrap_or(50)) * 2 + 100).clamp(100, 250);
-                let byte_limit = (receiver.bwe.saturating_mul(horizon_ms) / 8000)
-                    .clamp(256 * 1024, 2 * 1024 * 1024);
+                let byte_limit = media_queue_byte_limit(drain_bps);
                 eprintln!("VIDEO_TRACE startup_queue peer={to:?} seconds={:.3} packets={pending_count} bytes={} age_ms={:.3} resets={} bwe={} allocation={} keyframe_bytes={keyframe_bytes} byte_limit={byte_limit} pacing_budget_bytes={} pacing_ready_us={}",
                     self.now.saturating_duration_since(receiver.created).as_secs_f64(), pending.iter().map(|p| p.2).sum::<usize>(),
                     pending.front().map_or(0., |p| self.now.saturating_duration_since(p.1).as_secs_f64()*1000.),
@@ -2504,17 +2503,23 @@ fn starts_keyframe(codec: Codec, p: &[u8]) -> bool {
     }
 }
 
-/// Bound originals by bitrate times a two-RTT recovery horizon (100..250ms).
-/// Permit a bounded IDR burst even when the estimate has just fallen. Padding
-/// and RTX must not enter this accounting; they do not add new decoder work.
+/// Bound queued media by the time it takes to drain at the sustainable fair
+/// wire rate, not by RTT. A localhost RTT approaching zero must not turn a
+/// healthy 100-200 ms frame/startup burst into loss. The independent oldest-
+/// packet age guard enforces the same 250 ms residence limit, and absolute
+/// byte/packet ceilings apply even to arbitrarily large compressed frames.
+fn media_queue_byte_limit(bps: u64) -> u64 {
+    (bps.saturating_mul(250) / 8000).clamp(1232, 2 * 1024 * 1024)
+}
+
+/// Padding and RTX must not enter this accounting. Independent age/packet
+/// bounds remain strict even when a source supplies arbitrarily large IDRs.
 fn media_queue_overloaded(
     pending: &VecDeque<(u16, Instant, usize)>,
     bps: u64,
-    rtt_ms: Option<u32>,
     now: Instant,
 ) -> bool {
-    let horizon_ms = (u64::from(rtt_ms.unwrap_or(50)) * 2 + 100).clamp(100, 250);
-    let bytes = (bps.saturating_mul(horizon_ms) / 8000).clamp(256 * 1024, 2 * 1024 * 1024);
+    let bytes = media_queue_byte_limit(bps);
     pending.len() >= 2048
         || pending.iter().map(|p| p.2 as u64).sum::<u64>() >= bytes
         || pending
@@ -2554,40 +2559,55 @@ mod policy_queue_tests {
         );
     }
     #[test]
-    fn original_media_queue_is_bounded_by_rate_rtt_and_age_not_probe_padding() {
+    fn original_media_queue_is_bounded_by_fair_drain_time_age_and_memory() {
         let now = Instant::now();
         let mut pending = VecDeque::new();
-        // Healthy 1440p IDR: much larger than a packet, but not a stale queue.
-        for seq in 0..200 {
+        // Healthy startup delta backlog: the old RTT/256 KiB guard reset
+        // this at only 108 ms of age, despite <140 ms of drain work remaining.
+        for seq in 0..240 {
             pending.push_back((seq, now, 1200));
         }
-        assert!(!media_queue_overloaded(&pending, 12_000_000, Some(1), now));
-        assert!(media_queue_overloaded(
-            &pending,
-            12_000_000,
-            Some(1),
-            now + Duration::from_millis(251)
-        ));
-        for seq in 200..300 {
-            pending.push_back((seq, now, 1200));
-        }
-        assert!(media_queue_overloaded(&pending, 12_000_000, Some(1), now));
         assert!(!media_queue_overloaded(
             &pending,
-            12_000_000,
-            Some(100),
-            now
+            16_000_000,
+            now + Duration::from_millis(108)
         ));
+        assert!(media_queue_overloaded(
+            &pending,
+            16_000_000,
+            now + Duration::from_millis(251)
+        ));
+        // A low allocation cannot retain the same queue indefinitely.
+        assert!(media_queue_overloaded(&pending, 8_000_000, now));
         pending.clear();
         for seq in 0..2048 {
             pending.push_back((seq, now, 1));
         }
+        assert!(media_queue_overloaded(&pending, 100_000_000, now));
+        assert_eq!(media_queue_byte_limit(16_000_000), 500_000);
+        assert_eq!(media_queue_byte_limit(u64::MAX), 2 * 1024 * 1024);
+        assert_eq!(media_queue_byte_limit(0), 1232);
+    }
+    #[test]
+    fn idr_fragments_keep_frame_identity_without_relaxing_the_latency_bound() {
+        let now = Instant::now();
+        let mut burst = FrameBurst::default();
+        let mut pending = VecDeque::new();
+        for seq in 0..350 {
+            burst.observe(9000, seq == 0, 1200);
+            pending.push_back((seq, now, 1200));
+        }
+        assert_eq!(burst.keyframe_bytes, 420_000);
+        assert!(!media_queue_overloaded(&pending, 16_000_000, now));
         assert!(media_queue_overloaded(
             &pending,
-            100_000_000,
-            Some(100),
-            now
+            16_000_000,
+            now + Duration::from_millis(251)
         ));
+        assert!(media_queue_overloaded(&pending, 8_000_000, now));
+        burst.observe(10500, false, 30_000);
+        assert_eq!(burst.keyframe_bytes, 420_000);
+        assert!(!burst.keyframe);
     }
     #[test]
     fn policy_generation_discards_pre_revocation_encrypted_datagrams() {

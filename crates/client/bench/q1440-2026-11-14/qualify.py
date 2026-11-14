@@ -9,6 +9,15 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parent
 WORKSPACE = ROOT.parents[3]
 
+def metric_pass(m, run, role):
+    bins = m['fps_by_second']
+    strict = run['quality'] == '1080'
+    return (len(bins) == run['seconds'] and m['seconds'] >= run['seconds']
+            and sum(bins) == m['frames'] and m['frames'] / m['seconds'] >= 58
+            and min(bins) >= (55 if strict else 45)
+            and abs(m['drift_ms']) < (5 if strict else 20)
+            and (role != 'sharer' or m['encoder_reconfigurations'] == 0))
+
 def results():
     rows = []
     for directory in sorted(ROOT.iterdir()):
@@ -24,11 +33,7 @@ def results():
             m = json.loads(path.read_text(encoding='utf-8-sig'))
             bins = m['fps_by_second']
             avg = m['frames'] / m['seconds']
-            strict = run['quality'] == '1080'
-            okay = (len(bins) == run['seconds'] and m['seconds'] >= run['seconds']
-                    and avg >= 58 and min(bins) >= (55 if strict else 45)
-                    and abs(m['drift_ms']) < (5 if strict else 20)
-                    and (role != 'sharer' or m['encoder_reconfigurations'] == 0))
+            okay = metric_pass(m, run, role)
             row['roles'][role] = {'average': avg, 'min': min(bins), 'first': bins[0],
                                   'drift_ms': m['drift_ms'], 'passed': okay,
                                   'reconfigs': m['encoder_reconfigurations']}
@@ -56,6 +61,13 @@ def results():
                      f"{row['roles'].get('sharer', {}).get('reconfigs', 'missing')} | "
                      f"{'PASS' if row['passed'] else 'FAIL'} |")
     (ROOT / 'acceptance-table.md').write_text('\n'.join(table) + '\n')
+    required = ['final-a-1080'] + [f'final-b-startup-{i}' for i in range(1, 6)]
+    required += ['final-c-1440-long', 'final-d-wgc-1440', 'final-d-wgc-source']
+    required += [f'final-e-load-{i}' for i in range(1, 6)]
+    present = {r['name']: r['passed'] for r in rows}
+    status = {'complete': all(present.get(n, False) for n in required),
+              'missing_or_failed': [n for n in required if not present.get(n, False)]}
+    (ROOT / 'qualification-status.json').write_text(json.dumps(status, indent=2))
     return rows
 
 def case(name, source, quality, seconds):

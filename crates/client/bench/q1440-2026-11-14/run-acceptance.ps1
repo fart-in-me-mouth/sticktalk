@@ -35,6 +35,7 @@ if (Test-Path -LiteralPath $env:STICKTALK_CALLS2_OUTPUT) { throw 'Refusing to ov
 New-Item -ItemType Directory -Path $env:STICKTALK_CALLS2_OUTPUT | Out-Null
 git diff HEAD -- crates/sfu crates/media crates/client/src crates/client/tests | Set-Content -LiteralPath (Join-Path $env:STICKTALK_CALLS2_OUTPUT 'source.diff')
 @{
+    compiler_processes = @(Get-Process -Name cargo,rustc,cl,link -ErrorAction SilentlyContinue | Select-Object Name,Id,CPU)
     source = $Source; quality = $Quality; fps = $Fps; seconds = $Seconds; viewers = 2
     commit = (git rev-parse HEAD); binary = $binary.Name
     binary_sha256 = (Get-FileHash -LiteralPath $binary.FullName -Algorithm SHA256).Hash
@@ -62,6 +63,10 @@ $result = $process.ExitCode
 if ($null -eq $result) { throw 'Native test ExitCode unavailable; refusing false-green acceptance' }
 $process.Dispose()
 } finally { if ($fixture) { if (-not $fixture.HasExited) { Stop-Process -Id $fixture.Id }; $fixture.Dispose() } }
+$metadata = Get-Content -LiteralPath (Join-Path $env:STICKTALK_CALLS2_OUTPUT 'run.json') -Raw | ConvertFrom-Json
+$metadata | Add-Member -NotePropertyName compiler_processes_end -NotePropertyValue @(Get-Process -Name cargo,rustc,cl,link -ErrorAction SilentlyContinue | Select-Object Name,Id,CPU)
+$metadata | Add-Member -NotePropertyName utc_ended -NotePropertyValue (Get-Date).ToUniversalTime().ToString('o')
+$metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $env:STICKTALK_CALLS2_OUTPUT 'run.json')
 Get-Content -LiteralPath $stdout, $stderr | Set-Content -LiteralPath $log
 if ($result -eq 0) {
     foreach ($role in @('sharer', 'viewer_b', 'viewer_c')) {
