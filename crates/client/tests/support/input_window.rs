@@ -15,6 +15,7 @@ pub struct Counts {
     pub button_down: AtomicU32,
     pub button_up: AtomicU32,
     pub moves: AtomicU32,
+    pub first_key_down: std::sync::Mutex<Option<std::time::Instant>>,
 }
 pub struct Target {
     hwnd: usize,
@@ -57,6 +58,12 @@ impl Target {
                 };
                 if let Some(counter) = counter {
                     counter.fetch_add(1, Ordering::SeqCst);
+                }
+                if msg == WM_KEYDOWN {
+                    c.first_key_down
+                        .lock()
+                        .unwrap()
+                        .get_or_insert_with(std::time::Instant::now);
                 }
             }
             if msg == WM_DESTROY {

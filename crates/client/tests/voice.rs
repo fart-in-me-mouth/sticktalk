@@ -658,6 +658,7 @@ async fn file_audio_and_control(real_input: bool) {
             },
         ),
     ] {
+        let input_started = Instant::now();
         receiver
             .input
             .send(Input::Control(ControlData::Input {
@@ -679,6 +680,30 @@ async fn file_audio_and_control(real_input: bool) {
                     )
                     .unwrap();
                 break;
+            }
+        }
+        if sequence == 4 {
+            if let Some(target) = &target {
+                let observed = loop {
+                    let observed = *target.counts.first_key_down.lock().unwrap();
+                    if let Some(at) = observed {
+                        break at;
+                    }
+                    assert!(
+                        input_started.elapsed() < Duration::from_secs(1),
+                        "OS key delivery timed out"
+                    );
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                };
+                let latency = observed.saturating_duration_since(input_started);
+                println!(
+                    "CONTROL_DATA_CHANNEL_TO_OS_KEY latency_us={} (excludes video)",
+                    latency.as_micros()
+                );
+                assert!(
+                    latency < Duration::from_millis(50),
+                    "remote input added over 50ms"
+                );
             }
         }
     }
@@ -1251,7 +1276,7 @@ async fn live_calls2_worker(role: &str) {
                 if let Some((data,keyframe))=assembler.push(seq,ts,marker,&data) {
                     access_units += 1; decoded_keyframes += u64::from(keyframe);
                     if let Some(size) = rtp::dimensions(&data) { coded_size = size; }
-                    let frame=EncodedFrame {data,timestamp:i64::from(ts)*1000/9,duration:166_667,keyframe,size:coded_size,generation:0,encode_latency:Duration::ZERO};
+                    let frame=EncodedFrame {data,timestamp:i64::from(ts)*1000/9,duration:10_000_000 / i64::from(quality.fps.get()),keyframe,size:coded_size,generation:0,encode_latency:Duration::ZERO};
                     bytes+=frame.data.len() as u64;
                     if let Some(decoder)=&mut decoder {
                         match decoder.decode(frame) { Ok(frames) => {
