@@ -7,6 +7,12 @@ if ($env:OS -ne 'Windows_NT') { throw 'This helper is Windows-only; use the Linu
 if (!$env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = Join-Path $PSScriptRoot '../target' }
 $env:CARGO_TARGET_DIR = [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
 $env:CARGO_INCREMENTAL = '0'
+# Tools precede Cargo's first build. Mark only a directory we create ourselves
+# as disposable cache; never relabel an existing user directory for deletion.
+if (!(Test-Path -LiteralPath $env:CARGO_TARGET_DIR)) {
+    New-Item -ItemType Directory -Path $env:CARGO_TARGET_DIR | Out-Null
+    [IO.File]::WriteAllText((Join-Path $env:CARGO_TARGET_DIR 'CACHEDIR.TAG'), "Signature: 8a477f597d28d172789f06886806bc55`n# Disposable StickTalk build/tool cache.`n", [Text.UTF8Encoding]::new($false))
+}
 $tools = Join-Path $env:CARGO_TARGET_DIR 'tools/python'
 if ($InstallTools) {
     & python -m pip install --disable-pip-version-check --upgrade --target $tools cmake==3.31.6 meson==1.7.2 ninja==1.13.0 libclang==18.1.1

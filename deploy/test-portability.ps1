@@ -10,7 +10,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Cannot enumerate tracked tools.' }
     foreach ($file in $files) {
         $text = Get-Content -LiteralPath $file -Raw
-        if ($text -match '(?i)[a-z]:[/\\]Users[/\\][a-z0-9_.-]+[/\\]') { throw "Hardcoded user profile in $file" }
+        if ($text -match '(?i)[a-z]:[/\\]Users[/\\][^/\\\r\n]+[/\\]') { throw "Hardcoded user profile in $file" }
         if ($file.EndsWith('.ps1')) {
             $tokens = $null
             $errors = $null
