@@ -97,7 +97,10 @@ async fn bounded_requests(
         return Error::new(ErrorCode::Unavailable).into_response();
     };
     let mut permits = vec![permit];
+    // Per-IP/user download limits are for API file transfers. The web app fetches
+    // ~20 hashed chunks at once; over a real network they overlap and would 409.
     if transfer
+        && path.starts_with("/api/")
         && matches!(
             *r.method(),
             axum::http::Method::GET | axum::http::Method::HEAD
@@ -890,6 +893,23 @@ mod tests {
             .collect();
         assert!(download_permit(&app, "download-ip:127.0.0.1".into(), 8).is_err());
         drop(permits);
+    }
+    #[tokio::test]
+    async fn web_app_assets_do_not_use_file_download_limits() {
+        use tower::ServiceExt;
+        let (_dir, app) = crate::audit_tests::fixture().await;
+        // Exhaust this client's concurrent file downloads.
+        let held: Vec<_> = (0..8)
+            .map(|_| download_permit(&app, "download:auth-ip:local".into(), 8).unwrap())
+            .collect();
+        let get = |path: &str| {
+            router(app.clone()).oneshot(Request::get(path).body(Body::empty()).unwrap())
+        };
+        // A static web asset still loads (404 here: the fixture has no web root).
+        assert_eq!(get("/pkg/abc/chunk_1.wasm").await.unwrap().status(), 404);
+        // API file downloads keep their limit.
+        assert_eq!(get("/api/v1/files/1").await.unwrap().status(), 409);
+        drop(held);
     }
     #[tokio::test]
     async fn login_cannot_follow_reassigned_username() {
