@@ -46,7 +46,12 @@ pub(super) fn video(
         if kind == TrackKind::Camera {
             return container(
                 column![
-                    avatar(app, session.user_id, t::CALL_AVATAR, false),
+                    avatar(
+                        app,
+                        session.user_id,
+                        (height - t::S32).clamp(t::S24, t::CALL_AVATAR),
+                        false
+                    ),
                     hint(app.state.model.name(session.user_id))
                 ]
                 .spacing(t::S12)

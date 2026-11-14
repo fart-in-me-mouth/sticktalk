@@ -249,7 +249,7 @@ pub(super) fn view(app: &App) -> Element<'_, Msg> {
     .max_height((app.height - 2. * t::S24).max(t::HEADER))
     .padding(t::S24)
     .width(t::PICKER_WIDTH)
-    .style(t::elevated)
+    .style(t::modal)
     .into()
 }
 pub(super) fn cameras(app: &App) -> Element<'_, Msg> {
@@ -275,6 +275,6 @@ pub(super) fn cameras(app: &App) -> Element<'_, Msg> {
     .max_height((app.height - 2. * t::S24).max(t::HEADER))
     .padding(t::S24)
     .width(t::PICKER_WIDTH)
-    .style(t::elevated)
+    .style(t::modal)
     .into()
 }

@@ -23,6 +23,16 @@ pub const SCREENS: &[&str] = &[
     "controlling-banner",
     "request-control",
     "camera-tiles",
+    "camera-grid-1",
+    "camera-grid-2",
+    "camera-grid-3",
+    "camera-grid-4",
+    "camera-grid-5",
+    "camera-grid-6",
+    "camera-grid-7",
+    "camera-grid-8",
+    "camera-grid-9",
+    "call-controls-hover",
     "camera-chooser",
     "voice-call",
     "call-empty",
@@ -371,6 +381,11 @@ pub fn render(screen: &str, w: u32, h: u32, path: &Path) -> Result<(), String> {
             mouse::Cursor::Available(iced::Point::new(
                 t::RAIL + t::SIDEBAR - t::S16,
                 h as f32 - t::USER_HEIGHT / 2.,
+            ))
+        } else if screen == "call-controls-hover" {
+            mouse::Cursor::Available(iced::Point::new(
+                (w as f32 + t::RAIL + t::SIDEBAR) / 2. - 2. * (t::GUILD_ICON + t::S12),
+                h as f32 - t::S16 - t::GUILD_ICON / 2.,
             ))
         } else if screen.starts_with("main-history-") {
             mouse::Cursor::Available(iced::Point::new(

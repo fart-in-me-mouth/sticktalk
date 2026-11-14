@@ -15,7 +15,7 @@ pub(super) fn participant<'a>(
             .clamp(t::SOURCE_PREVIEW_H, t::CALL_TILE_HEIGHT)
     } else {
         t::CALL_TILE_HEIGHT
-    };
+    } - 2. * t::FOCUS;
     let has_stream = p.tracks.iter().any(|t| t.kind == TrackKind::Screen);
     let watch = || {
         action(

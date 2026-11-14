@@ -152,6 +152,7 @@ impl App {
                 | "call-muted"
                 | "call-streaming"
                 | "voice-quality"
+                | "call-controls-hover"
                 | "share-picker"
                 | "voice-consent"
                 | "voice-settings"
@@ -170,7 +171,8 @@ impl App {
                 | "request-control"
                 | "camera-tiles"
                 | "camera-chooser"
-        ) {
+        ) && !screen.starts_with("camera-grid-")
+        {
             return;
         }
         let Some(mut channel) = self
@@ -316,7 +318,7 @@ impl App {
                 mtu_dropped_packets: 0,
             });
         }
-        if matches!(screen, "camera-tiles" | "call-nine") {
+        if matches!(screen, "camera-tiles" | "call-nine") || screen.starts_with("camera-grid-") {
             for p in self.calls.call.participants.values_mut() {
                 p.tracks.push(PublishedTrack {
                     mid: "camera".into(),
@@ -426,7 +428,7 @@ impl App {
                 .guild_states
                 .retain(|session, _| Some(*session) == self.calls.call.own);
         }
-        if screen == "call-nine" {
+        if screen == "call-nine" || screen.starts_with("camera-grid-") {
             for (index, name) in [
                 "Jordan",
                 "Alexandra Chen",
@@ -467,6 +469,20 @@ impl App {
                 user_id: Id(5),
                 connection_id: Id(905),
             });
+        }
+        if let Some(count) = screen
+            .strip_prefix("camera-grid-")
+            .and_then(|n| n.parse::<u64>().ok())
+            .filter(|n| (1..=9).contains(n))
+        {
+            self.calls
+                .call
+                .participants
+                .retain(|session, _| session.user_id.0 <= count);
+            self.calls
+                .call
+                .guild_states
+                .retain(|session, _| session.user_id.0 <= count);
         }
         if screen == "call-muted" {
             self.calls.call.muted = true;
