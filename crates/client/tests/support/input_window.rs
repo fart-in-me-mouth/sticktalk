@@ -20,6 +20,7 @@ pub struct Counts {
 pub struct Target {
     hwnd: usize,
     before: usize,
+    before_cursor: Option<POINT>,
     worker: Option<std::thread::JoinHandle<()>>,
     pub counts: Arc<Counts>,
     pub source: sticktalk_media::Source,
@@ -85,6 +86,10 @@ impl Target {
         let counts = Arc::new(Counts::default());
         let shared = counts.clone();
         let before = unsafe { GetForegroundWindow() as usize };
+        let before_cursor = unsafe {
+            let mut point = POINT::default();
+            (GetCursorPos(&mut point) != 0).then_some(point)
+        };
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
         let worker = std::thread::spawn(move || unsafe {
             let class: Vec<u16> = "StickTalkQaInputTarget\0".encode_utf16().collect();
@@ -141,6 +146,7 @@ impl Target {
         Self {
             hwnd,
             before,
+            before_cursor,
             worker: Some(worker),
             counts,
             source,
@@ -180,6 +186,9 @@ impl Drop for Target {
         unsafe {
             if IsWindow(self.before as HWND) != 0 {
                 SetForegroundWindow(self.before as HWND);
+            }
+            if let Some(point) = self.before_cursor {
+                SetCursorPos(point.x, point.y);
             }
         }
     }
