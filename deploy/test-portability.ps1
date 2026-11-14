@@ -26,7 +26,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Cargo metadata failed.' }
     $expected = Join-Path $repo 'target'
     if ([IO.Path]::GetFullPath($metadata.target_directory) -ne $expected) { throw "Default Cargo target is not $expected" }
-    foreach ($private in @('target/probe', 'probe.sqlite3', 'probe.sqlite3-wal', 'probe.pk8', 'probe.age', '.env', 'secrets/probe')) {
+    foreach ($private in @('target/probe', 'probe.sqlite3', 'probe.sqlite3-wal', 'probe.pk8', 'probe.age', '.env', 'sticktalk.env', 'sticktalk-backup-key.txt', 'secrets/probe')) {
         & git check-ignore --quiet -- $private
         if ($LASTEXITCODE -ne 0) { throw "Private/build path not ignored: $private" }
     }

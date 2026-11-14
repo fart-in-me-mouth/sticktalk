@@ -58,6 +58,8 @@ Replace username/IP and verify the SSH fingerprint with the owner. On Pi:
 cd ~/sticktalk-setup
 id sticktalk || sudo useradd --system --user-group --home-dir /srv/sticktalk --shell /usr/sbin/nologin sticktalk
 sudo install -d -m 0700 /etc/sticktalk
+# The encrypted mount root is 0700: the service must be able to traverse it.
+sudo chown sticktalk:sticktalk /srv/sticktalk
 sudo install -d -o sticktalk -g sticktalk -m 0700 /srv/sticktalk/node
 sudo install -m 0755 sticktalk-server /usr/local/bin/sticktalk-server
 sudo install -m 0644 pi/sticktalk-storage.service pi/sticktalk-standby.service /etc/systemd/system/
@@ -179,7 +181,8 @@ select the Pi boot/root SD partition. This erases the selected partition:
 DATA=/dev/disk/by-id/REPLACE_WITH_EMPTY_SSD_PARTITION
 readlink -f "$DATA"
 lsblk -o NAME,SIZE,MODEL,FSTYPE,MOUNTPOINTS "$DATA"
-sudo systemctl stop sticktalk sticktalk-storage
+# On an existing installation only: stop its storage/standby services first.
+# sudo systemctl stop sticktalk-storage sticktalk-standby
 sudo cryptsetup luksFormat --type luks2 "$DATA"
 # Choose a long unique passphrase; save it in your password manager OFF the Pi.
 sudo cryptsetup open "$DATA" sticktalk-data
@@ -193,7 +196,8 @@ sudo cryptsetup luksUUID "$DATA"
 
 Keep the printed UUID and a copy of the header backup **offline** with the owner;
 the header is not a decryption key, but a damaged header can make data unrecoverable.
-Restore the private node archive into `/srv/sticktalk/node`, and restore the
+For an existing installation, restore the private node archive into
+`/srv/sticktalk/node`, and restore the
 service's ownership (`sudo chown -R sticktalk:sticktalk /srv/sticktalk/node`).
 Older Pi-only servers use `/srv/sticktalk/data` instead. Add to
 `/etc/fstab` (not a second plaintext mount) using `sudoedit /etc/fstab`:
@@ -207,10 +211,15 @@ After every reboot, unlock and start manually (replace the UUID):
 ```sh
 sudo cryptsetup open /dev/disk/by-uuid/REPLACE_WITH_LUKS_UUID sticktalk-data
 sudo mount /srv/sticktalk
-sudo systemctl start sticktalk-storage sticktalk
+sudo systemctl start sticktalk-storage
 findmnt /srv/sticktalk
 sudo cryptsetup status sticktalk-data
 ```
+
+Do not start the old `sticktalk` primary or `sticktalk-standby` during a normal
+storage-node reboot. Standby is only started after fencing Oracle in section 6.
+On a fresh installation continue with section 3 after mounting; the account and
+services do not exist yet.
 
 **Optional unattended plan:** keep the passphrase as recovery and add a root-only
 keyfile on the Pi's SD card. This protects a removed SSD, not the whole stolen Pi:
