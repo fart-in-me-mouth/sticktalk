@@ -120,7 +120,7 @@ pub fn subscription(app: &App) -> Subscription<Msg> {
         crate::video::subscription(app),
         crate::desktop_host::subscription(app),
     ];
-    if cfg!(feature = "compact-allocator") && !app.features.trim_done {
+    if sticktalk::resources::supported() && !app.features.trim_done {
         subs.push(Subscription::run_with(app.features.trim_epoch, |epoch| {
             let epoch = *epoch;
             iced::futures::stream::once(async move {
@@ -205,7 +205,20 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
         Event::Trim(epoch) => {
             if epoch == app.features.trim_epoch {
                 app.features.trim_done = true;
+                // Never run heap maintenance while real-time audio is active.
+                if app.calls.config.is_some() || app.calls.mic_test {
+                    return Task::none();
+                }
+                #[cfg(feature = "compact-allocator")]
                 sticktalk::resources::collect();
+                // Native LFH optimization can synchronize multiple heaps. Keep
+                // it off the UI executor; this is one job after input settles,
+                // not a polling loop or a frame-time allocation task.
+                #[cfg(not(feature = "compact-allocator"))]
+                return emit(async {
+                    let _ = tokio::task::spawn_blocking(sticktalk::resources::collect).await;
+                    Event::Notice(Ok(()))
+                });
             }
         }
         Event::Update(crate::platform_glue::UpdateEvent::Ready(version)) => {
@@ -1464,6 +1477,20 @@ pub fn fixture(app: &mut App, screen: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn idle_collection_ignores_stale_timers_and_active_mic_tests() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.features.trim_epoch = 42;
+        app.features.trim_done = false;
+        drop(update(&mut app, Event::Trim(41)));
+        assert!(!app.features.trim_done);
+        app.calls.mic_test = true;
+        let before = sticktalk::resources::metrics();
+        drop(update(&mut app, Event::Trim(42)));
+        assert!(app.features.trim_done);
+        assert_eq!(before, sticktalk::resources::metrics());
+    }
+
     #[test]
     fn ready_uploads_survive_channel_switches() {
         let mut app = App::headless("upload-progress", iced::Size::new(1280., 800.));

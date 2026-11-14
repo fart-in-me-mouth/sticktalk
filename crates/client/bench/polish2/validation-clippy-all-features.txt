@@ -1,0 +1,124 @@
+warning: hiding a lifetime that's named elsewhere is confusing
+  --> crates\server\vendor\tract-nnef\src\ast\dump_doc.rs:11:50
+   |
+11 |     pub fn new(w: &'a mut dyn std::io::Write) -> DocDumper {
+   |                    -- the lifetime is named here ^^^^^^^^^ the same lifetime is hidden here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+   = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: consistently use `'a`
+   |
+11 |     pub fn new(w: &'a mut dyn std::io::Write) -> DocDumper<'a> {
+   |                                                           ++++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> crates\server\vendor\tract-nnef\src\deser.rs:356:22
+    |
+356 |     pub fn named_arg(&self, name: &str) -> TractResult<Cow<RValue>> {
+    |                      ^^^^^ the lifetime is elided here ^^^^^^^^^^^ the same lifetime is hidden here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+356 |     pub fn named_arg(&self, name: &str) -> TractResult<Cow<'_, RValue>> {
+    |                                                            +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> crates\server\vendor\tract-nnef\src\deser.rs:360:26
+    |
+360 |     pub fn get_named_arg(&self, name: &str) -> Option<Cow<RValue>> {
+    |                          ^^^^^                        ^^^^^^^^^^^ the same lifetime is hidden here
+    |                          |
+    |                          the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+360 |     pub fn get_named_arg(&self, name: &str) -> Option<Cow<'_, RValue>> {
+    |                                                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> crates\server\vendor\tract-nnef\src\resource.rs:29:13
+   |
+29 |     fn name(&self) -> Cow<str>;
+   |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+   |             |
+   |             the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+29 |     fn name(&self) -> Cow<'_, str>;
+   |                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> crates\server\vendor\tract-nnef\src\resource.rs:53:13
+   |
+53 |     fn name(&self) -> Cow<str> {
+   |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+   |             |
+   |             the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+53 |     fn name(&self) -> Cow<'_, str> {
+   |                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> crates\server\vendor\tract-nnef\src\resource.rs:80:13
+   |
+80 |     fn name(&self) -> Cow<str> {
+   |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+   |             |
+   |             the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+80 |     fn name(&self) -> Cow<'_, str> {
+   |                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> crates\server\vendor\tract-nnef\src\resource.rs:106:13
+    |
+106 |     fn name(&self) -> Cow<str> {
+    |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+    |             |
+    |             the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+106 |     fn name(&self) -> Cow<'_, str> {
+    |                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> crates\server\vendor\tract-nnef\src\resource.rs:140:13
+    |
+140 |     fn name(&self) -> Cow<str> {
+    |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+    |             |
+    |             the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+140 |     fn name(&self) -> Cow<'_, str> {
+    |                           +++
+
+warning: `tract-nnef` (lib) generated 8 warnings (run `cargo clippy --fix --lib -p tract-nnef -- -D warnings` to apply 8 suggestions)
+   Compiling libmimalloc-sys v0.1.49
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+    Checking rustc-demangle v0.1.28
+    Checking cty v0.2.2
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-7237cbab-faa7c40978537b9b\crates\client)
+    Checking mintex v0.1.4
+    Checking thousands v0.2.0
+    Checking backtrace v0.3.77
+    Checking dhat v0.3.3
+    Checking mimalloc v0.1.52
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.67s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`

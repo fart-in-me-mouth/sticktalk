@@ -1,0 +1,96 @@
+{
+  "renderer": "iced-tiny-skia",
+  "screens": [
+    {
+      "file": "audit-first-launch-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "bae8f488fc8af3a1ca9933da6aa05683b65210e722bce5c2eb194889acdded42",
+      "width": 1280
+    },
+    {
+      "file": "google-login-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "7b870845f5c7203dc1a0c5963baa240d4112cec0ed2f79cef1afed3a853b9d95",
+      "width": 1280
+    },
+    {
+      "file": "guild-settings-channels-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "0b2299d7ff4bfd6c069dc295095ac05a9c76c456fa213babafd62b90ce10d007",
+      "width": 1280
+    },
+    {
+      "file": "guild-settings-channels-hover-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "af3de557c4fd1d06ffd172bdab8c1a436c44ceebdcb8b47757b38eec7776b54f",
+      "width": 1280
+    },
+    {
+      "file": "guild-settings-channels-collapsed-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "a288658dac83f679002aa6ee17d4a2fef6a6cd5419568eda7b34a2f3d9eb2b84",
+      "width": 1280
+    },
+    {
+      "file": "audit-first-launch-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "14b58da2e3e5408e27491b6ddf3af56df7817ac9b77d98a62889102a8440a9fb",
+      "width": 1920
+    },
+    {
+      "file": "google-login-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "6c6c82527d20748ed3e2900841a7e3f18438e38038837166d7ac02274c889f60",
+      "width": 1920
+    },
+    {
+      "file": "guild-settings-channels-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "9214d948682a5cca6ae9f97c06b69ed8a64b988aaceac76bd18e582b8322360a",
+      "width": 1920
+    },
+    {
+      "file": "guild-settings-channels-hover-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "42ae4f876c3a6152d3d33ad92e17124670b596afcb3b9cdeb9661486353b2a95",
+      "width": 1920
+    },
+    {
+      "file": "guild-settings-channels-collapsed-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "9bf9a4c342576789db366c93336288f8dc4fa98f957968d99acaebe6384f3efa",
+      "width": 1920
+    }
+  ],
+  "window_backend": "none"
+}

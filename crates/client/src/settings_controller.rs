@@ -175,6 +175,7 @@ pub enum Action {
     Permission(Permissions, bool),
     ClearPermissions(Permissions),
     MemberFilter(Option<Id>),
+    ClearMemberFilters,
     AddMembers(bool),
     Assign(Id, bool),
     DragStart(Id),
@@ -182,6 +183,8 @@ pub enum Action {
     DragLeave(Id),
     DragEnd,
     ChannelTab(bool),
+    ChannelHover(Option<Id>),
+    CategoryCollapse(Id),
     OverwriteTarget(OverwriteKind, Id),
     AddOverwrite(OverwriteKind, Id),
     RemoveOverwrite,
@@ -213,6 +216,8 @@ pub struct ServerDraft {
 }
 #[derive(Default)]
 pub struct State {
+    pub hovered_channel: Option<Id>,
+    pub collapsed_categories: BTreeSet<Id>,
     pub preference_task: Option<iced::task::Handle>,
     pub preference_revision: u64,
     pub about_editor: iced::widget::text_editor::Content,
@@ -921,6 +926,30 @@ impl App {
                     }));
                 }
             }
+            A::ClearMemberFilters => {
+                self.settings.search.clear();
+                self.settings.member_filter = None;
+            }
+            A::ChannelHover(id) => self.settings.hovered_channel = id,
+            A::CategoryCollapse(id) => {
+                self.settings.collapsed_categories.retain(|id| {
+                    self.state
+                        .model
+                        .channels
+                        .get(id)
+                        .is_some_and(|c| c.kind == ChannelKind::Category)
+                });
+                if self
+                    .state
+                    .model
+                    .channels
+                    .get(&id)
+                    .is_some_and(|c| c.kind == ChannelKind::Category)
+                    && !self.settings.collapsed_categories.remove(&id)
+                {
+                    self.settings.collapsed_categories.insert(id);
+                }
+            }
             A::DragStart(id) => {
                 if let Some(r) = self.state.model.settings.roles.get(&id) {
                     if self
@@ -1317,6 +1346,54 @@ mod tests {
     }
     fn app(screen: &str) -> App {
         App::headless(screen, iced::Size::new(1280., 800.))
+    }
+    #[test]
+    fn collapsed_category_state_cannot_accumulate_deleted_or_unknown_ids() {
+        let mut app = app("guild-settings-channels");
+        app.settings.collapsed_categories.insert(Id(999));
+        let _ = app.settings_update(Action::CategoryCollapse(Id(11)));
+        assert_eq!(app.settings.collapsed_categories.len(), 1);
+        let _ = app.settings_update(Action::CategoryCollapse(Id(999)));
+        assert_eq!(app.settings.collapsed_categories.len(), 1);
+        app.state.model.channels.remove(&Id(11));
+        let _ = app.settings_update(Action::CategoryCollapse(Id(15)));
+        assert_eq!(
+            app.settings
+                .collapsed_categories
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![Id(15)]
+        );
+        app.settings.search = "nothing".into();
+        app.settings.member_filter = Some(Id(103));
+        let _ = app.settings_update(Action::ClearMemberFilters);
+        assert!(app.settings.search.is_empty());
+        assert!(app.settings.member_filter.is_none());
+    }
+    #[test]
+    fn channel_hierarchy_collapse_and_child_pages_return_to_channels() {
+        let mut app = app("guild-settings-channels");
+        let _ = app.settings_update(Action::CategoryCollapse(Id(11)));
+        assert!(app.settings.collapsed_categories.contains(&Id(11)));
+        let _ = app.settings_update(Action::CategoryCollapse(Id(11)));
+        assert!(!app.settings.collapsed_categories.contains(&Id(11)));
+        let _ = app.update(Msg::Open(Dialog::ChannelSettings(Id(12))));
+        assert!(matches!(app.dialog, Dialog::ChannelSettings(Id(12))));
+        let _ = app.update(Msg::Close);
+        assert!(matches!(
+            app.dialog,
+            Dialog::GuildSettings(GuildTab::Channels)
+        ));
+        let _ = app.update(Msg::Open(Dialog::NewChannel(
+            ChannelKind::Text,
+            Some(Id(11)),
+        )));
+        let _ = app.update(Msg::Close);
+        assert!(matches!(
+            app.dialog,
+            Dialog::GuildSettings(GuildTab::Channels)
+        ));
     }
     #[test]
     fn preserved_role_drafts_never_hijack_user_or_server_profile_saves() {

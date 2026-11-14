@@ -1,0 +1,335 @@
+warning: hiding a lifetime that's named elsewhere is confusing
+  --> crates\server\vendor\tract-nnef\src\ast\dump_doc.rs:11:50
+   |
+11 |     pub fn new(w: &'a mut dyn std::io::Write) -> DocDumper {
+   |                    -- the lifetime is named here ^^^^^^^^^ the same lifetime is hidden here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+   = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: consistently use `'a`
+   |
+11 |     pub fn new(w: &'a mut dyn std::io::Write) -> DocDumper<'a> {
+   |                                                           ++++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> crates\server\vendor\tract-nnef\src\deser.rs:356:22
+    |
+356 |     pub fn named_arg(&self, name: &str) -> TractResult<Cow<RValue>> {
+    |                      ^^^^^ the lifetime is elided here ^^^^^^^^^^^ the same lifetime is hidden here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+356 |     pub fn named_arg(&self, name: &str) -> TractResult<Cow<'_, RValue>> {
+    |                                                            +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> crates\server\vendor\tract-nnef\src\deser.rs:360:26
+    |
+360 |     pub fn get_named_arg(&self, name: &str) -> Option<Cow<RValue>> {
+    |                          ^^^^^                        ^^^^^^^^^^^ the same lifetime is hidden here
+    |                          |
+    |                          the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+360 |     pub fn get_named_arg(&self, name: &str) -> Option<Cow<'_, RValue>> {
+    |                                                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> crates\server\vendor\tract-nnef\src\resource.rs:29:13
+   |
+29 |     fn name(&self) -> Cow<str>;
+   |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+   |             |
+   |             the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+29 |     fn name(&self) -> Cow<'_, str>;
+   |                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> crates\server\vendor\tract-nnef\src\resource.rs:53:13
+   |
+53 |     fn name(&self) -> Cow<str> {
+   |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+   |             |
+   |             the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+53 |     fn name(&self) -> Cow<'_, str> {
+   |                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> crates\server\vendor\tract-nnef\src\resource.rs:80:13
+   |
+80 |     fn name(&self) -> Cow<str> {
+   |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+   |             |
+   |             the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+80 |     fn name(&self) -> Cow<'_, str> {
+   |                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> crates\server\vendor\tract-nnef\src\resource.rs:106:13
+    |
+106 |     fn name(&self) -> Cow<str> {
+    |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+    |             |
+    |             the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+106 |     fn name(&self) -> Cow<'_, str> {
+    |                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> crates\server\vendor\tract-nnef\src\resource.rs:140:13
+    |
+140 |     fn name(&self) -> Cow<str> {
+    |             ^^^^^     ^^^^^^^^ the same lifetime is hidden here
+    |             |
+    |             the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+140 |     fn name(&self) -> Cow<'_, str> {
+    |                           +++
+
+warning: `tract-nnef` (lib) generated 8 warnings (run `cargo fix --lib -p tract-nnef` to apply 8 suggestions)
+warning: pocketstation-webrtc-audio-processing-sys@2.1.1: MSVC WebRTC APM symbols are unprefixed; link exactly one APM implementation
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+   Compiling sticktalk v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-7237cbab-faa7c40978537b9b\crates\client)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.97s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-polish2\debug\deps\sticktalk-5677640bbf3df578.exe)
+
+running 32 tests
+test backend::tests::inbound_budget_counts_large_non_frame_payloads_and_releases_on_drop ... ok
+test backend::tests::requires_secure_server ... ok
+test backend::tests::outgoing_queue_obeys_byte_budget_and_accepts_maximum_message ... ok
+test media::tests::decoded_lru_is_bounded_and_touches_preserve_recent_images ... ok
+test oauth::flow_tests::full_oauth_exchange_uses_mock_authorization_and_token_servers_only ... ok
+test platform::tests::dropping_a_spawned_task_cancels_its_work ... ok
+test platform_glue::sound_tests::test_notification_and_sound_effects_are_dry ... ok
+test resources::tests::collection_preserves_live_data_and_never_sets_working_set_limits ... ok
+test uploads::identity_tests::checkpoints_do_not_restart_an_in_flight_worker ... ok
+test uploads::tests::restart_keeps_account_scoped_offset_and_no_token ... ok
+test video_stream::tests::decoder_capability_is_lazy_scoped_bounded_and_stops_on_drop ... ok
+test voice::control::native::tests::input_structs_only_never_send_input ... ok
+test voice::control::tests::banner_hook_gate_closes_before_queue_processing_but_still_releases_held_input ... ok
+test voice::control::tests::grant_revoke_dry_run_releases_keys_and_replay_fails_closed ... ok
+test voice::control::tests::physical_pixel_bounds_matrix_including_mixed_dpi_and_negative_origins ... ok
+test voice::control_banner::tests::untrusted_long_name_cannot_hide_emergency_stop_text ... ok
+test voice::hotkeys::tests::injected_mouse_never_revokes_and_physical_mouse_does ... ok
+test voice::hotkeys::tests::stop_chord_cannot_be_shadowed_by_ptt ... ok
+test voice::native::visibility_tests::hidden_video_and_its_audio_are_removed_without_muting_voice ... ok
+test oauth::flow_tests::timeout_and_cancellation_drop_the_loopback_listener ... ok
+test voice::peer::sender_tests::a_closed_transport_fails_the_actor_instead_of_retaining_control ... ok
+test voice::native::visibility_tests::unavailable_control_channel_revokes_over_independent_signaling ... ok
+test voice::peer::sender_tests::congestion_discards_the_damaged_frame_and_resumes_only_on_new_idr ... ok
+test voice::peer::sender_tests::loopback_socket_reserves_a_bounded_idr_burst_buffer ... ok
+test voice::rtp::tests::fragmented_idr_round_trip_and_loss_is_dropped ... ok
+test voice::socket_wait::tests::readiness_wakes_without_a_poll_timer_and_deadlines_remain_bounded ... ok
+test voice::tests::emergency_release_does_not_depend_on_command_queue_capacity ... ok
+test voice::tests::explicit_bind_policy_never_uses_wildcards_or_network_enumeration ... ok
+test voice::tests::settings_roundtrip_and_studio_bypass ... ok
+test voice::wake_tests::attenuation_tracks_only_audible_present_speakers ... ok
+test voice::wake_tests::queued_command_wakes_blocked_transport_without_a_poll_timer ... ok
+test voice::peer::sender_tests::idle_to_video_declares_probe_capacity_without_a_bandwidth_floor ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.23s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-polish2\debug\deps\sticktalk-53a3da8d78687667.exe)
+
+running 122 tests
+test app::qa_channel_controls::read_only_keyboard_send_and_reaction_shortcuts_are_not_queued ... ok
+test app::features3_notification_tests::master_switch_blocks_real_message_toast_path_without_changing_unreads ... ok
+test app::qa_notification_defaults::real_event_path_honors_device_notification_defaults_without_os_effects ... ok
+test app::tests::cancelled_server_icon_upload_cannot_apply_to_another_form ... ok
+test app::tests::composer_keyboard_contract ... ok
+test app::tests::configured_quick_switcher_does_not_also_edit_or_accept_autocomplete ... ok
+test app::tests::failed_history_request_does_not_leave_the_landing_loader_stuck ... ok
+test app::tests::high_refresh_drag_uses_velocity_not_only_single_event_distance ... ok
+test app::tests::channel_reordering_is_bounded_to_siblings_and_boundaries_are_noops ... ok
+test app::tests::invite_before_login_is_retained_without_losing_login_screen ... ok
+test app::tests::mention_selection_and_editor_replacement ... ok
+test app::tests::jump_to_unloaded_reply_replaces_only_the_region_and_ignores_stale_results ... ok
+test app::tests::metadata_continuation_pages_append_instead_of_replacing ... ok
+test app::tests::server_connection_errors_are_visible_and_stale_meta_is_ignored ... ok
+test app::tests::server_connection_success_is_inline_and_resets_on_edit ... ok
+test app::tests::subpixel_row_measurements_do_not_invalidate_layout_forever ... ok
+test app::tests::settings_escape_modal_return_and_google_cancel_are_local ... ok
+test app::tests::unrelated_stream_events_do_not_invalidate_message_geometry ... ok
+test app::tests::virtualized_rows_are_bounded_and_measurements_override_estimates ... ok
+test audio_settings::tests::audio_controls_persist_and_fallback_toast_keeps_the_call ... ok
+test app::tests::virtual_index_keeps_evicted_slots_and_only_builds_visible_rows ... ok
+test audio_settings::tests::fake_hotplug_uses_native_enumeration_and_selection_seam ... ok
+test audio_settings::tests::escape_cancels_recording_before_closing_settings ... ok
+test audio_settings::tests::live_controls_are_coalesced_without_restarting_the_test ... ok
+test audio_settings::tests::fake_mic_meter_and_processed_loopback_need_no_devices ... ok
+test audio_settings::tests::old_preferences_default_new_fields_and_validate_bounds ... ok
+test audio_settings::tests::recorder_and_settings_close_never_start_devices ... ok
+test audio_settings::tests::settings_navigation_stops_meter_and_recorder_without_stopping_call ... ok
+test datetime::tests::membership_date_is_readable ... ok
+test features3::emoji_safety_tests::folder_saves_wait_for_the_snapshot_and_search_results_are_stream_scoped ... ok
+test features3::emoji_safety_tests::glyph_cache_survives_preview_load_and_eviction ... ok
+test features3::emoji_safety_tests::unknown_tokens_are_plain_text_and_shortcodes_offer_keyboard_choices ... ok
+test features3::tests::fixtures_keep_real_feature_state_and_timers_stop_when_inactive ... ok
+test features::caret_tests::unicode_caret_in_middle_uses_cosmic_byte_index ... ok
+test features::picker_lifecycle_tests::cancel_cannot_delete_an_attachment_in_a_pending_send ... ok
+test features::picker_lifecycle_tests::search_clears_the_previous_hover_selection ... ok
+test features::tests::closing_viewer_releases_original_and_ignores_late_results ... ok
+test features::tests::idle_collection_ignores_stale_timers_and_active_mic_tests ... ok
+test features::tests::old_gif_queries_cannot_replace_new_results ... ok
+test features::tests::ready_uploads_survive_channel_switches ... ok
+test features::tests::shortcode_completion_preserves_tail_and_picker_inserts_at_caret ... ok
+test headless::tests::audit_inventory_covers_each_settings_page_without_duplicates_or_call_surfaces ... ok
+test headless::tests::delete_confirmation_backdrop_blocks_settings_navigation ... ok
+test headless::tests::first_launch_requires_an_explicit_server_and_keeps_its_field_visible ... ok
+test features3::emoji_safety_tests::emoji_decoder_keeps_every_accepted_frame_and_rejects_large_dimensions ... ok
+test headless::tests::huge_member_list_only_shapes_visible_names_and_overscan ... ok
+test headless::tests::invite_placeholder_cannot_be_copied_and_failure_exposes_only_retry ... ok
+test headless::tests::minimum_window_autocomplete_and_wrapping_reactions_keep_the_composer_on_screen ... ok
+test headless::tests::muted_notification_modal_keeps_its_footer_inside_the_minimum_window ... ok
+test headless::tests::newest_message_clears_composer_with_long_text_images_and_typing_toggles ... ok
+test headless::tests::offscreen_png_has_exact_size_and_neutral_rgba_tokens ... ok
+test headless::tests::pending_sparse_seek_does_not_replace_loaded_messages_with_skeletons ... ok
+test headless::tests::first_run_cards_fit_and_dpi_renders_at_native_resolution ... ok
+test headless::tests::popup_tab_order_wraps_without_reaching_the_background ... ok
+test headless::tests::profile_popouts_measure_natural_height_before_clamping_at_the_bottom ... ok
+test headless::tests::server_configuration_and_connection_status_fixtures_expose_the_server_field ... ok
+test headless::tests::scaled_capture_preserves_logical_layout_and_physical_dimensions ... ok
+test headless::tests::server_connect_controls_do_not_clip_sign_in_at_the_minimum_window ... ok
+test history_extent::tests::landing_preserves_thumb_geometry_and_ignores_stale_pages ... ok
+test history_extent::tests::sparse_anchors_are_channel_ranks_not_snowflake_distances ... ok
+test main_window::placement_tests::menus_stay_inside_window_and_avoid_clicked_rows ... ok
+test main_window::qa_developer_setting::context_switch_updates_the_persisted_developer_setting ... ok
+test main_window::qa_quick_binding::quick_switcher_uses_the_persisted_binding_not_the_default ... ok
+test main_window::qa_quick_binding::recording_an_existing_shortcut_does_not_execute_it ... ok
+test main_window::tests::escape_dismisses_update_and_only_the_top_viewer_menu ... ok
+test main_window::tests::mute_and_deafen_do_not_start_media_or_timers ... ok
+test main_window::tests::navigation_shortcuts_cannot_discard_settings_or_navigate_behind_popups ... ok
+test main_window::tests::own_popout_edit_profile_opens_profiles_not_account ... ok
+test main_window::tests::quick_switcher_fuzzy_matches_and_hoisted_names_use_nicknames ... ok
+test main_window::tests::shortcuts_are_independent_of_input_focus ... ok
+test message_layout::tests::shaped_tree_and_layout_survive_leaving_the_visible_window ... ok
+test scroll::controller::tests::accumulation_does_not_restart_older_impulses ... ok
+test scroll::controller::tests::ease_out_finishes_and_stops ... ok
+test scroll::controller::tests::refresh_rate_independent_bounded_and_cancelable ... ok
+test scroll::widget::tests::bookkeeping_callbacks_do_not_rebuild_settings_on_each_frame ... ok
+test scroll::widget::tests::high_refresh_frames_do_not_lose_fractional_distance ... ok
+test scroll::widget::tests::page_keys_animate_and_home_end_seek_directly ... ok
+test scroll::widget::tests::wheel_eases_pixels_cancel_tail_and_idle_stops_requesting_frames ... ok
+test scroll::widget::tests::wheel_tail_survives_tree_rebuild_and_anchor_operation ... ok
+test headless::tests::tooltip_is_anchored_to_the_icon_not_the_viewport ... ok
+test scroll_bench::input_tests::native_iced_fractional_wheel_and_scrollbar_drag_are_headless ... ok
+test settings_controller::tests::account_username_draft_blocks_navigation_and_modals_until_reset ... ok
+test settings_controller::tests::appearance_and_font_changes_invalidate_real_chat_layout_immediately ... ok
+test settings_controller::tests::channel_hierarchy_collapse_and_child_pages_return_to_channels ... ok
+test settings_controller::tests::collapsed_category_state_cannot_accumulate_deleted_or_unknown_ids ... ok
+test settings_controller::tests::dirty_profile_blocks_navigation_and_close_until_reset ... ok
+test settings_controller::tests::dirty_server_and_channel_keep_their_drafts_on_navigation ... ok
+test settings_controller::tests::disabled_role_cannot_begin_drag_and_confirmation_requires_exact_name ... ok
+test settings_controller::tests::failed_saves_stay_dirty_and_success_only_cleans_its_own_scope ... ok
+test settings_controller::tests::merged_voice_controls_reach_the_existing_call_settings ... ok
+test settings_controller::tests::preserved_role_drafts_never_hijack_user_or_server_profile_saves ... ok
+test settings_controller::tests::role_drafts_cannot_be_lost_by_switching_roles_or_pages ... ok
+test theme::audit_style_tests::enabled_button_labels_and_secondary_copy_meet_aa ... ok
+test theme::audit_style_tests::secondary_disabled_background_keeps_40_percent_opacity ... ok
+test theme::settings::tests::settings_columns_fit_without_a_detached_content_gap ... ok
+test settings_controller::tests::unicode_limits_and_keybind_edits_are_bounded_and_local ... ok
+test ui::call::layout_tests::minimum_window_reserves_room_for_camera_names_and_watch_controls ... ok
+test ui::avatar_mask::tests::status_notch_is_transparent_not_a_painted_dot ... ok
+test ui::controls::tests::uncolored_mentions_keep_the_default_mint_tint ... ok
+test ui::elided::tests::fitting_preserves_graphemes_and_never_exceeds_available_width ... ok
+test ui::elided::qa_header_tests::long_server_names_fit_one_line_without_splitting_graphemes ... ok
+test ui::emoji_picker::tests::packed_art_index_is_sorted_and_common_sequences_render ... ok
+test ui::emoji_picker::tests::virtual_window_is_bounded ... ok
+test ui::gif_picker::tests::masonry_uses_metadata_and_only_returns_visible_tiles ... ok
+test ui::gif_picker::tests::tiles_are_cropped_and_rounded_before_rendering ... ok
+test ui::integration_layout_tests::owner_and_member_reserve_the_same_action_column ... ok
+test ui::link_context::tests::link_wrapper_reconciles_an_empty_or_previously_stateless_tree ... ok
+test ui::observe::tests::context_anchor_precedes_the_open_message ... ok
+test ui::observe::tests::keyboard_focus_is_observed_without_polling ... ok
+test ui::qa_long_composer::long_unbroken_drafts_paint_wrapped_rows_not_one_clipped_line ... ok
+test ui::rail::tests::badge_counts_are_bounded ... ok
+test ui::stream_input::tests::escape_deadline_is_one_second_and_focus_loss_releases_capture ... ok
+test ui::stream_input::tests::new_grant_requires_a_local_video_click_before_input_capture ... ok
+test ui::stream_input::tests::viewer_pointer_is_normalized_only_inside_the_video_rectangle ... ok
+test ui::viewer::tests::tiny_images_open_at_native_size_and_double_click_toggles_actual_size ... ok
+test video::qa_native_formats::native_mp4_and_webm_fixtures_produce_video_frames ... ignored, opens the native decoder, muted and without windows
+test video::tests::picker_video_workers_are_visible_bounded_and_stop_on_close_or_blur ... ok
+test video::tests::stale_frames_do_not_reanimate_closed_or_replaced_views ... ok
+test voice_ui::tests::close_to_tray_unsubscribes_video_until_the_main_window_is_restored ... ok
+test voice_ui::tests::hidden_screen_unsubscribes_and_popout_keeps_only_its_stream ... ok
+test voice_ui::tests::popout_and_close_clear_fullscreen_ownership_without_polling_os_tasks ... ok
+test ui::emoji_picker::tests::every_picker_entry_has_art_even_with_a_selected_skin_tone ... ok
+
+test result: ok. 121 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 8.02s
+
+     Running tests\live.rs (C:/Users/dwhee/.cargo-target/sticktalk-polish2\debug\deps\live-344ecf4992e4b52f.exe)
+
+running 16 tests
+test attachments_over_128_mib_stream_ranges_and_recheck_access ... ok
+test cut_socket_replays_into_the_real_client_reducer ... ok
+test desktop_two_real_clients_render_and_send ... ignored, opens two real desktop windows on a secondary monitor
+test features3_emoji_search_slowmode_and_private_folders_real_transport ... ok
+test files_above_two_gib_have_no_size_ceiling ... ignored, launch gate: streams a real 2 GiB + 1 byte upload to temporary disk
+test history_reads_back_off_instead_of_failing_at_the_real_rest_bucket ... ok
+test accounts_profiles_presence_rotation_and_erasure_real_clients ... ok
+test launch_main_window_real_clients ... ok
+test native_decoder_plays_video_above_128_mib_before_full_download ... ignored, launch gate: opens the native hardware decoder, muted and windowless
+test native_upload_worker_checkpoints_completion_and_download_replaces_atomically ... ok
+test ordinary_member_controls_use_authoritative_effective_channel_permissions ... ok
+test invite_expiry_is_enforced_after_real_elapsed_time has been running for over 60 seconds
+test invite_expiry_is_enforced_after_real_elapsed_time ... ok
+test server_icons_channels_invites_and_moderation_real_clients ... ok
+test settings_roles_overwrites_profiles_devices_and_notification_sync ... ok
+test thousands_of_messages_paginate_jump_and_keep_unreads_across_client_restart ... ignored, launch gate: 2048 messages at production 60/min; approximately 34 minutes
+test phase_one_real_clients has been running for over 60 seconds
+test phase_one_real_clients ... ok
+
+test result: ok. 12 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 235.85s
+
+     Running tests\preferences_live.rs (C:/Users/dwhee/.cargo-target/sticktalk-polish2\debug\deps\preferences_live-e621bbc45a0fa99c.exe)
+
+running 1 test
+test every_non_voice_preference_survives_native_process_restart ... ignored, opens sequential native windows on a secondary monitor
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\video.rs (C:/Users/dwhee/.cargo-target/sticktalk-polish2\debug\deps\video-16a9c8fb4503c4a8.exe)
+
+running 2 tests
+test gpu_picker_preview_and_measured_cpu_fallback ... ignored, invisible one-shot WGC picker profiling; never writes captured pixels
+test shared_nv12_shader_reaches_iced_pipeline_without_cpu_fallback ... ignored, hardware encoder, decoder and offscreen DX12; no OS window
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-polish2\debug\deps\voice-cfc4b738ac953e33.exe)
+
+running 3 tests
+test file_1080p60_decodes_at_least_58_fps_for_sixty_seconds ... ignored, 60-second generated FILE video + hardware encoder/decoder; no capture devices
+test live_calls2_two_viewers_ten_minutes ... ignored, 10-minute invisible live WGC acceptance; explicit invocation only
+test two_native_endpoints_exchange_file_opus_through_real_server ... ok
+
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 4.23s
+
+   Doc-tests sticktalk
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

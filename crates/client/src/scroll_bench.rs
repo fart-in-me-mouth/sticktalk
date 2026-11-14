@@ -310,6 +310,8 @@ pub fn resources(args: &[String], index: usize) -> Result<(), String> {
     #[cfg(not(windows))]
     let memory = serde_json::Value::Null;
     let output = serde_json::json!({"memory":memory,"size":[1280,800],"renderer":if cfg!(feature="wgpu"){std::env::var("STICKTALK_BENCH_BACKEND").unwrap_or_else(|_|"dx12".into())}else{"tiny-skia".to_string()},"allocator":if cfg!(feature="compact-allocator"){"mimalloc"}else{"system"},"method":"30 warm frames, 2s idle and one allocator collection, live App/view/cache/renderer retained; one offscreen target; NO OS window or swapchain; not directly comparable to native-window working set"});
+    #[cfg(feature = "heap-profile")]
+    crate::heap_profile::finish();
     std::fs::write(path, serde_json::to_vec_pretty(&output).unwrap()).map_err(|e| e.to_string())
 }
 

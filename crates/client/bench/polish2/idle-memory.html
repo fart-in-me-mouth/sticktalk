@@ -1,0 +1,31 @@
+<section id="sticktalk-idle-memory" data-viz-composition>
+  <div data-viz-container></div>
+  <script type="application/json" data-viz-chart>
+    {
+      "id": "sticktalk-idle-memory",
+      "title": "Idle memory (MiB), real window",
+      "description": "Default release, DX12; one 60-second sample per build. After includes the master merge. Target under 100 MiB working set was not achieved.",
+      "height": 200,
+      "spec": {
+        "type": "horizontalBar",
+        "y": "Metric",
+        "x": ["Before", "After"],
+        "xLabel": "MiB",
+        "xDomain": [0, 180],
+        "showValues": true,
+        "valueFormat": { "style": "decimal", "minimumFractionDigits": 2, "maximumFractionDigits": 2 }
+      },
+      "columns": ["Metric", "Before", "After"],
+      "rows": [
+        ["Working set", 139.80, 139.88],
+        ["Private bytes", 153.47, 153.69]
+      ]
+    }
+  </script>
+</section>
+<script type="module">
+  import { mountChart } from "https://persistent.oaistatic.com/plugins/visualize/charts/1.2.3/element.js";
+  const root = document.getElementById("sticktalk-idle-memory");
+  const config = JSON.parse(root.querySelector("[data-viz-chart]").textContent);
+  mountChart(root.querySelector("[data-viz-container]"), config);
+</script>

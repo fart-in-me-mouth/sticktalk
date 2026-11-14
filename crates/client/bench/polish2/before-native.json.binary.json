@@ -1,0 +1,6 @@
+{
+  "measured_at": "2026-11-13T19:49:58.0524985-05:00",
+  "sha256": "B3E3350CFC9CFDDD926F7E598C3D4D10F9337948E9EB1975177FD7382459C133",
+  "arguments": "--mock --screen scroll-5000 --size 1280x800 --memory-bench \"C:\\Users\\dwhee\\.t3\\worktrees\\discord clone\\t3-7237cbab-faa7c40978537b9b/crates/client/bench/polish2/before-native.json\" --agent-window-report \"C:\\Users\\dwhee\\.t3\\worktrees\\discord clone\\t3-7237cbab-faa7c40978537b9b/crates/client/bench/polish2/before-native.json.placement.json\"",
+  "binary_bytes": 80967168
+}

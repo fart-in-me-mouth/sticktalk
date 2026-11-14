@@ -1,0 +1,821 @@
+{
+  "method": "DHAT native daemon, full stacks; includes live mock backend, history and pickers. Native driver allocations excluded; not shipping RAM/CPU.",
+  "live_bytes": 2211467,
+  "peak_live_bytes": 9700036,
+  "allocation_sites": 12409,
+  "largest_live_sites": [
+    {
+      "live_bytes": 848684,
+      "peak_live_bytes": 848684,
+      "total_bytes": 848684,
+      "live_blocks": 7,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 635544,
+      "peak_live_bytes": 423696,
+      "total_bytes": 635544,
+      "live_blocks": 6,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 336128,
+      "peak_live_bytes": 336128,
+      "total_bytes": 336128,
+      "live_blocks": 16,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 74496,
+      "peak_live_bytes": 74496,
+      "total_bytes": 74496,
+      "live_blocks": 1,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 65536,
+      "peak_live_bytes": 65536,
+      "total_bytes": 130688,
+      "live_blocks": 1,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 34832,
+      "peak_live_bytes": 34832,
+      "total_bytes": 34832,
+      "live_blocks": 1,
+      "stack": [
+        "<hashbrown::raw::RawTable<(&str, ())>>::reserve_rehash::<hashbrown::map::make_hasher<&str, (), core::hash::BuildHasherDefault<rustc_hash::FxHasher>>::{closure#0}>+0x152",
+        "naga::back::hlsl::keywords::RESERVED_SET::{closure#0}+0x36",
+        "<naga::back::hlsl::keywords::RESERVED_SET::{closure#0} as core::ops::function::FnOnce<()>>::call_once+0xd",
+        "<once_cell::race::once_box::OnceBox<naga::proc::keyword_set::KeywordSet>>::init::<<once_cell::race::once_box::OnceBox<_>>::get_or_init::Void, <once_cell::race::once_box::OnceBox<naga::proc::keyword_set::KeywordSet>>::get_or_init<<naga::racy_lock::RacyLock<naga::proc::keyword_set::KeywordSet> as core::ops::deref::Deref>::deref::{closure#0}>::{closure#0}>+0x10",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 32768,
+      "peak_live_bytes": 32768,
+      "total_bytes": 32768,
+      "live_blocks": 1,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::initialize::<<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::get_or_init<sticktalk::platform_glue::runtime::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 30208,
+      "peak_live_bytes": 30208,
+      "total_bytes": 30208,
+      "live_blocks": 236,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(alloc::string::String, ttf_parser::language::Language)>>::grow_one+0x40",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 16384,
+      "peak_live_bytes": 16384,
+      "total_bytes": 16384,
+      "live_blocks": 1,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::initialize::<<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::get_or_init<sticktalk::platform_glue::runtime::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 9508,
+      "peak_live_bytes": 9508,
+      "total_bytes": 9508,
+      "live_blocks": 290,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 7216,
+      "peak_live_bytes": 7216,
+      "total_bytes": 13200,
+      "live_blocks": 19,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x4f",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 7216,
+      "peak_live_bytes": 7216,
+      "total_bytes": 13200,
+      "live_blocks": 19,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x4f",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 7216,
+      "peak_live_bytes": 7216,
+      "total_bytes": 13200,
+      "live_blocks": 19,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x4f",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 6912,
+      "peak_live_bytes": 6912,
+      "total_bytes": 6912,
+      "live_blocks": 54,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(alloc::string::String, ttf_parser::language::Language)>>::grow_one+0x40",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 6240,
+      "peak_live_bytes": 6240,
+      "total_bytes": 6240,
+      "live_blocks": 1,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::initialize::<<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::get_or_init<sticktalk::platform_glue::runtime::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 4801,
+      "peak_live_bytes": 4801,
+      "total_bytes": 4801,
+      "live_blocks": 290,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 4480,
+      "peak_live_bytes": 4480,
+      "total_bytes": 4480,
+      "live_blocks": 5,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 4096,
+      "peak_live_bytes": 4096,
+      "total_bytes": 4096,
+      "live_blocks": 2,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::initialize::<<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::get_or_init<sticktalk::platform_glue::runtime::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 3952,
+      "peak_live_bytes": 3952,
+      "total_bytes": 4233,
+      "live_blocks": 314,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 3072,
+      "peak_live_bytes": 3072,
+      "total_bytes": 6096,
+      "live_blocks": 1,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 3072,
+      "peak_live_bytes": 3072,
+      "total_bytes": 6096,
+      "live_blocks": 1,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 3072,
+      "peak_live_bytes": 3072,
+      "total_bytes": 6096,
+      "live_blocks": 1,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 3072,
+      "peak_live_bytes": 3072,
+      "total_bytes": 6096,
+      "live_blocks": 1,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 2816,
+      "peak_live_bytes": 2816,
+      "total_bytes": 4224,
+      "live_blocks": 1,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(usize, tract_core::axes::Axis)>>::grow_one+0x40",
+        "<alloc::collections::vec_deque::VecDeque<(fontdb::ID, harfrust::hb::ot_shape_plan::hb_ot_shape_plan_t)>>::grow+0x12",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 2592,
+      "peak_live_bytes": 2592,
+      "total_bytes": 2592,
+      "live_blocks": 1,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 2592,
+      "peak_live_bytes": 2592,
+      "total_bytes": 2592,
+      "live_blocks": 1,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 2592,
+      "peak_live_bytes": 2592,
+      "total_bytes": 2592,
+      "live_blocks": 1,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 2592,
+      "peak_live_bytes": 2592,
+      "total_bytes": 2592,
+      "live_blocks": 1,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1840,
+      "peak_live_bytes": 1840,
+      "total_bytes": 3484,
+      "live_blocks": 1,
+      "stack": [
+        "<hashbrown::raw::RawTable<(winit::platform_impl::windows::keyboard_layout::WindowsModifiers, std::collections::hash::map::HashMap<winit::keyboard::KeyCode, winit::keyboard::Key>)>>::reserve_rehash::<hashbrown::map::make_hasher<winit::platform_impl::windows::keyboard_layout::WindowsModifiers, std::collections::hash::map::HashMap<winit::keyboard::KeyCode, winit::keyboard::Key>, std::hash::random::RandomState>::{closure#0}>+0x163",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1792,
+      "peak_live_bytes": 1792,
+      "total_bytes": 1792,
+      "live_blocks": 2,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1536,
+      "peak_live_bytes": 1536,
+      "total_bytes": 1536,
+      "live_blocks": 2,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gpos::GposMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1536,
+      "peak_live_bytes": 1536,
+      "total_bytes": 1536,
+      "live_blocks": 2,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gpos::GposMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1536,
+      "peak_live_bytes": 1536,
+      "total_bytes": 1536,
+      "live_blocks": 2,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gpos::GposMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1368,
+      "peak_live_bytes": 1368,
+      "total_bytes": 1368,
+      "live_blocks": 19,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1368,
+      "peak_live_bytes": 1368,
+      "total_bytes": 1368,
+      "live_blocks": 19,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1368,
+      "peak_live_bytes": 1368,
+      "total_bytes": 1368,
+      "live_blocks": 19,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1328,
+      "peak_live_bytes": 1328,
+      "total_bytes": 1328,
+      "live_blocks": 1,
+      "stack": [
+        "<hashbrown::raw::RawTable<(u16, winit::keyboard::Key)>>::reserve_rehash::<hashbrown::map::make_hasher<u16, winit::keyboard::Key, std::hash::random::RandomState>::{closure#0}>+0x161",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1328,
+      "peak_live_bytes": 1328,
+      "total_bytes": 1328,
+      "live_blocks": 1,
+      "stack": [
+        "<hashbrown::raw::RawTable<(u16, winit::keyboard::Key)>>::reserve_rehash::<hashbrown::map::make_hasher<u16, winit::keyboard::Key, std::hash::random::RandomState>::{closure#0}>+0x161",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1264,
+      "peak_live_bytes": 1264,
+      "total_bytes": 1264,
+      "live_blocks": 1,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 1264,
+      "peak_live_bytes": 1264,
+      "total_bytes": 1264,
+      "live_blocks": 1,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x4f",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    }
+  ],
+  "largest_peak_sites": [
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 1780000,
+      "total_bytes": 1780000,
+      "live_blocks": 0,
+      "stack": [
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 848684,
+      "peak_live_bytes": 848684,
+      "total_bytes": 848684,
+      "live_blocks": 7,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 775424,
+      "total_bytes": 775424,
+      "live_blocks": 0,
+      "stack": [
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 622592,
+      "total_bytes": 3600384,
+      "live_blocks": 0,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 635544,
+      "peak_live_bytes": 423696,
+      "total_bytes": 635544,
+      "live_blocks": 6,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 336128,
+      "peak_live_bytes": 336128,
+      "total_bytes": 336128,
+      "live_blocks": 16,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 264688,
+      "total_bytes": 520056,
+      "live_blocks": 0,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 185808,
+      "total_bytes": 309680,
+      "live_blocks": 0,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 182000,
+      "total_bytes": 354900,
+      "live_blocks": 0,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 174080,
+      "total_bytes": 1044480,
+      "live_blocks": 0,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 174080,
+      "total_bytes": 174080,
+      "live_blocks": 0,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner>::grow_exact+0x32",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 158400,
+      "total_bytes": 158400,
+      "live_blocks": 0,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f4b6c: GetFocus (???:0:0)",
+        "0x7ff8f531f543: GetWindowDpiAwarenessContext (???:0:0)",
+        "0x7ff8f64da424: KiUserCallbackDispatcher (???:0:0)",
+        "0x7ff8f3cd1904: NtUserDispatchMessage (???:0:0)",
+        "0x7ff8f52f5f28: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 139232,
+      "total_bytes": 794616,
+      "live_blocks": 0,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 120000,
+      "total_bytes": 120000,
+      "live_blocks": 0,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 119680,
+      "total_bytes": 234080,
+      "live_blocks": 0,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f4b6c: GetFocus (???:0:0)",
+        "0x7ff8f531f543: GetWindowDpiAwarenessContext (???:0:0)",
+        "0x7ff8f64da424: KiUserCallbackDispatcher (???:0:0)",
+        "0x7ff8f3cd1904: NtUserDispatchMessage (???:0:0)",
+        "0x7ff8f52f5f28: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 112640,
+      "total_bytes": 221760,
+      "live_blocks": 0,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<harfrust::hb::ot::lookup::SubtableInfo>>::grow_one+0x40",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f4b6c: GetFocus (???:0:0)",
+        "0x7ff8f531f543: GetWindowDpiAwarenessContext (???:0:0)",
+        "0x7ff8f64da424: KiUserCallbackDispatcher (???:0:0)",
+        "0x7ff8f3cd1904: NtUserDispatchMessage (???:0:0)",
+        "0x7ff8f52f5f28: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 111840,
+      "total_bytes": 130480,
+      "live_blocks": 0,
+      "stack": [
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 104000,
+      "total_bytes": 104000,
+      "live_blocks": 0,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 103680,
+      "total_bytes": 103680,
+      "live_blocks": 0,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f4b6c: GetFocus (???:0:0)",
+        "0x7ff8f531f543: GetWindowDpiAwarenessContext (???:0:0)",
+        "0x7ff8f64da424: KiUserCallbackDispatcher (???:0:0)",
+        "0x7ff8f3cd1904: NtUserDispatchMessage (???:0:0)",
+        "0x7ff8f52f5f28: IsWindowUnicode (???:0:0)",
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 100464,
+      "total_bytes": 100464,
+      "live_blocks": 0,
+      "stack": [
+        "?__scrt_common_main_seh@@YAHXZ+0x10c",
+        "0x7ff8f523dda7: BaseThreadInitThunk (???:0:0)",
+        "0x7ff8f6439c5c: RtlUserThreadStart (???:0:0)"
+      ]
+    }
+  ]
+}

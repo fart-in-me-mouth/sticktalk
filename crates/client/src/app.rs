@@ -21,6 +21,7 @@ use sticktalk_client_core::state::ClientState;
 pub use sticktalk_client_core::state::{Dialog, Form, FriendTab, GuildTab, Screen};
 #[derive(Debug, Clone)]
 pub enum Msg {
+    MemoryBench(crate::memory_bench::Step),
     Call(crate::voice_ui::Action),
     Main(crate::main_window::Message),
     Feature(Box<crate::features::Event>),
@@ -172,6 +173,7 @@ struct RowCache {
 }
 
 pub struct App {
+    pub memory_bench: Option<crate::memory_bench::State>,
     pub calls: crate::voice_ui::State,
     pub main: crate::main_window::State,
     pub extent: crate::history_extent::Window,
@@ -196,6 +198,7 @@ pub struct App {
     pub register: bool,
     pub change_server: bool,
     pub meta_loading: bool,
+    pub meta_connected: bool,
     pub meta_error: String,
     pub google_id: Option<String>,
     pub signup: Option<GoogleSignupRequired>,
@@ -297,6 +300,7 @@ impl App {
             None
         };
         let state = Self {
+            memory_bench: crate::memory_bench::State::requested(&args),
             text_features: crate::features3::State::default(),
             calls: crate::voice_ui::State::default(),
             main: crate::main_window::State::default(),
@@ -331,6 +335,7 @@ impl App {
             register: initial_screen == "register",
             meta_loading: !mock && !server.trim().is_empty(),
             meta_error: String::new(),
+            meta_connected: mock,
             change_server: server.trim().is_empty(),
             google_id: mock.then(|| "mock-desktop".into()),
             signup: (initial_screen == "pick-username").then(|| GoogleSignupRequired {
@@ -450,9 +455,15 @@ impl App {
         let activation = crate::platform_glue::initial_activation().map_or_else(Task::none, |a| {
             Task::done(Msg::feature(crate::features::Event::Activation(a)))
         });
+        let memory_task = if state.memory_bench.is_some() {
+            crate::memory_bench::delay(crate::memory_bench::Step::Start, 15_000)
+        } else {
+            Task::none()
+        };
         (
             state,
             Task::batch([
+                memory_task,
                 task,
                 meta_task,
                 agent_task,
@@ -717,6 +728,7 @@ impl App {
             }
         }
         match message {
+            Msg::MemoryBench(step) => return crate::memory_bench::update(self, step),
             Msg::Call(action) => return self.call_update(action),
             Msg::Main(m) => return self.main_update(m),
             Msg::TextFeature(event) => return crate::features3::update(self, *event),
@@ -823,11 +835,15 @@ impl App {
                 }
             }
             Msg::RefreshMeta => {
+                if self.busy || self.meta_loading {
+                    return Task::none();
+                }
                 if self.server.trim().is_empty() {
                     self.change_server = true;
                     return operation::focus("login-server");
                 }
                 self.meta_loading = true;
+                self.meta_connected = false;
                 self.meta_error.clear();
                 self.google_id = None;
                 self.features.gifs.capability = GifCapability::Disabled;
@@ -841,6 +857,7 @@ impl App {
                     self.meta_loading = false;
                     match result {
                         Ok(meta) => {
+                            self.meta_connected = true;
                             self.meta_error.clear();
                             self.google_id = meta.google_client_id;
                             self.features.gifs.capability = meta.gifs;
@@ -849,6 +866,7 @@ impl App {
                             }
                         }
                         Err(error) => {
+                            self.meta_connected = false;
                             self.meta_error = format!(
                                 "Could not connect. {error}. Check the address and try again."
                             );
@@ -1214,6 +1232,7 @@ impl App {
                     return Task::none();
                 }
                 self.meta_loading = false;
+                self.meta_connected = false;
                 self.meta_error.clear();
                 self.google_id = None;
                 self.features.gifs.capability = GifCapability::Disabled;
@@ -2988,10 +3007,18 @@ impl App {
                     self.extent.ends_at_present = true;
                 }
                 let images = self.load_images();
-                if self.state.session.as_ref().is_some_and(|s| {
-                    s.config.mock
-                        && matches!(s.config.scenario.as_str(), "stress-scroll" | "scroll-5000")
-                }) {
+                if self.memory_bench.as_ref().is_some_and(|p| p.scrolling) {
+                    return Task::batch([
+                        images,
+                        crate::memory_bench::delay(crate::memory_bench::Step::ScrollView(0), 50),
+                    ]);
+                }
+                if self.memory_bench.is_none()
+                    && self.state.session.as_ref().is_some_and(|s| {
+                        s.config.mock
+                            && matches!(s.config.scenario.as_str(), "stress-scroll" | "scroll-5000")
+                    })
+                {
                     self.state.at_present = false;
                     self.scroll_y = 0.;
                     if self.state.history_more {
@@ -4052,7 +4079,14 @@ impl App {
             self.settings_return = Some(self.dialog.clone());
         }
         if is_settings {
-            self.settings_return = None;
+            self.settings_return =
+                if matches!(self.dialog, Dialog::GuildSettings(GuildTab::Channels))
+                    && matches!(dialog, Dialog::ChannelSettings(_))
+                {
+                    Some(self.dialog.clone())
+                } else {
+                    None
+                };
         }
         if !matches!(dialog, Dialog::MessageActions(_) | Dialog::MemberMenu(_)) {
             self.form = Form::default();
@@ -4264,7 +4298,15 @@ impl App {
         let Some(channel) = self.state.model.channels.get(&id) else {
             return;
         };
+        if channel.guild_id != Some(guild_id)
+            || !self
+                .channel_permissions(id)
+                .contains(Permissions::MANAGE_CHANNELS)
+        {
+            return;
+        }
         let parent = channel.parent_id;
+        let category = channel.kind == ChannelKind::Category;
         let mut siblings: Vec<_> = self
             .state
             .model
@@ -4277,10 +4319,25 @@ impl App {
         let Some(i) = siblings.iter().position(|(_, v)| *v == id) else {
             return;
         };
-        let other = if down { i + 1 } else { i.saturating_sub(1) };
-        if other >= siblings.len() {
+        let eligible: Vec<_> = siblings
+            .iter()
+            .enumerate()
+            .filter_map(|(index, (_, id))| {
+                ((self.state.model.channels[id].kind == ChannelKind::Category) == category)
+                    .then_some(index)
+            })
+            .collect();
+        let Some(peer) = eligible.iter().position(|index| *index == i) else {
             return;
-        }
+        };
+        let other = if down {
+            eligible.get(peer + 1)
+        } else {
+            peer.checked_sub(1).and_then(|p| eligible.get(p))
+        };
+        let Some(&other) = other else {
+            return;
+        };
         siblings.swap(i, other);
         let replacements: BTreeMap<_, _> = siblings
             .iter()
@@ -4478,6 +4535,7 @@ impl App {
                     app.google_id = None;
                 }
                 app.meta_loading = screen == "login-connecting";
+                app.meta_connected = !app.meta_loading && screen != "login-error";
                 app.change_server = matches!(screen, "login-error" | "login-connecting");
                 app.features.crash_notice = screen == "crash-recovery";
                 if matches!(screen, "login-update" | "login-update-confirm") {
@@ -4594,6 +4652,12 @@ impl App {
             }
             "member-menu" => {
                 app.open(Dialog::GuildSettings(GuildTab::Members));
+                // Model the row-action click, rather than the uninitialized pointer origin.
+                let (left, content) = crate::theme::settings::columns(size.width);
+                app.main.pointer = iced::Point::new(
+                    left + crate::theme::settings::CONTENT_GAP + content - crate::theme::S16,
+                    crate::theme::HEADER + crate::theme::S32 * 9. + crate::theme::S8,
+                );
                 app.open(Dialog::MemberMenu(Id(2)));
             }
             "password-settings" => {
@@ -5311,6 +5375,92 @@ mod tests {
         );
         let _ = app.update(Msg::Server("https://fixed.example".into()));
         assert!(app.meta_error.is_empty());
+        assert!(app.google_id.is_none());
+    }
+    #[tokio::test]
+    async fn channel_reordering_is_bounded_to_siblings_and_boundaries_are_noops() {
+        use futures_util::StreamExt;
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        let config = app.state.session.as_ref().unwrap().config.clone();
+        let stream = backend::subscription(&config);
+        futures_util::pin_mut!(stream);
+        let delivery = stream.next().await.unwrap();
+        let Data::Connected(handle) = delivery.data.as_ref() else {
+            panic!("missing mock handle");
+        };
+        app.tx = Some(handle.clone());
+        app.reorder(Id(12), false);
+        assert!(app.state.pending.is_empty());
+        // The desktop fixture adds voice/private rows after the three text rows.
+        let last = app
+            .sorted_channels()
+            .into_iter()
+            .rfind(|c| c.parent_id == Some(Id(11)))
+            .unwrap()
+            .id;
+        app.reorder(last, true);
+        app.reorder(Id(999), false);
+        app.reorder(Id(31), false); // another guild must never be reordered
+        assert!(app.state.pending.is_empty());
+        app.reorder(Id(13), true);
+        let Command::ReorderChannels {
+            guild_id,
+            placements,
+        } = app.state.pending.values().next().unwrap()
+        else {
+            panic!("missing reorder");
+        };
+        assert_eq!(*guild_id, Id(10));
+        assert_eq!(
+            placements
+                .iter()
+                .find(|p| p.channel_id == Id(13))
+                .unwrap()
+                .position,
+            2
+        );
+        assert_eq!(
+            placements
+                .iter()
+                .find(|p| p.channel_id == Id(14))
+                .unwrap()
+                .position,
+            1
+        );
+        assert_eq!(
+            placements
+                .iter()
+                .find(|p| p.channel_id == Id(16))
+                .unwrap()
+                .parent_id,
+            Some(Id(15))
+        );
+        assert_eq!(
+            placements
+                .iter()
+                .find(|p| p.channel_id == Id(16))
+                .unwrap()
+                .position,
+            0
+        );
+    }
+    #[tokio::test]
+    async fn server_connection_success_is_inline_and_resets_on_edit() {
+        let mut app = App::headless("audit-first-launch", iced::Size::new(1280., 800.));
+        assert!(!app.meta_connected);
+        let _ = app.update(Msg::Server("https://chat.example.com".into()));
+        let _ = app.update(Msg::RefreshMeta);
+        assert!(app.meta_loading);
+        let duplicate = app.update(Msg::RefreshMeta);
+        drop(duplicate);
+        let result = backend::meta(app.server.clone(), true).await;
+        let _ = app.update(Msg::Meta(app.server.clone(), result));
+        assert!(app.meta_connected);
+        assert!(!app.meta_loading);
+        assert!(app.meta_error.is_empty());
+        assert!(app.google_available());
+        let _ = app.update(Msg::Server("https://another.example".into()));
+        assert!(!app.meta_connected);
         assert!(app.google_id.is_none());
     }
     #[test]

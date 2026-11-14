@@ -14,6 +14,8 @@ pub(crate) const SCREENS: &[&str] = &[
     "audit-profile-long",
     "audit-login-error",
     "audit-first-launch",
+    "audit-login-connected",
+    "audit-login-no-google",
     "audit-register-error",
     "audit-login-busy",
     "audit-connecting",
@@ -56,9 +58,16 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
             app.form.code.clear();
             app.error = "Could not create an invite. Try again.".into();
         }
+        "audit-login-connected" | "audit-login-no-google" => {
+            app.state.session = None;
+            app.change_server = true;
+            app.meta_connected = true;
+            app.google_id = (screen == "audit-login-connected").then(|| "mock-desktop".into());
+        }
         "audit-first-launch" => {
             app.state.session = None;
             app.google_id = None;
+            app.meta_connected = false;
             app.server.clear();
             app.change_server = true;
         }
@@ -191,7 +200,10 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
                 app.error = "Could not sign in. Check your username and password.".into();
             }
         }
-        "audit-connecting" => app.state.model.me = None,
+        "audit-connecting" => {
+            app.state.model.me = None;
+            app.state.connection = ConnectionState::Connecting;
+        }
         "audit-empty-dms" => {
             app.state.guild = None;
             app.state.screen = Screen::Friends(FriendTab::All);

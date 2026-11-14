@@ -1,0 +1,983 @@
+{
+  "method": "DHAT Rust allocations; checkpoint retains App/view-cache/GPU renderer. Native driver allocations and mapped image pages are NOT included. Instrumented process RAM is NOT shipping RAM.",
+  "live_bytes": 3326594,
+  "peak_live_bytes": 3822709,
+  "allocation_sites": 6515,
+  "largest_live_sites": [
+    {
+      "live_bytes": 174080,
+      "peak_live_bytes": 174080,
+      "total_bytes": 174080,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner>::grow_exact+0x32",
+        "<image::metadata::cicp::CicpRgb>::cast_pixels_by_layout::<u8, u8>+0x7d5",
+        "<image::images::dynimage::DynamicImage>::to_rgba8+0x27a",
+        "<sticktalk::app::App>::headless+0x2859",
+        "sticktalk::headless::run_if_requested+0x443",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 132204,
+      "peak_live_bytes": 132204,
+      "total_bytes": 132204,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0xea",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 131904,
+      "peak_live_bytes": 131904,
+      "total_bytes": 131904,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x9e",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 131904,
+      "peak_live_bytes": 131904,
+      "total_bytes": 131904,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x78",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 128076,
+      "peak_live_bytes": 128076,
+      "total_bytes": 128076,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x136",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 127728,
+      "peak_live_bytes": 127728,
+      "total_bytes": 127728,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x110",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 120000,
+      "peak_live_bytes": 120000,
+      "total_bytes": 120000,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_wgpu::Renderer>::new+0x7ed",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x816",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64",
+        "sticktalk::headless::run_if_requested+0x49c",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 107928,
+      "peak_live_bytes": 107928,
+      "total_bytes": 107928,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x15c",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 104000,
+      "peak_live_bytes": 104000,
+      "total_bytes": 104000,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_wgpu::Renderer>::new+0x518",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x816",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64",
+        "sticktalk::headless::run_if_requested+0x49c",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 101376,
+      "peak_live_bytes": 101376,
+      "total_bytes": 198176,
+      "live_blocks": 13,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<harfrust::hb::ot::lookup::SubtableInfo>>::grow_one+0x40",
+        "<cosmic_text::shape::ShapeLine>::layout_to_buffer::{closure#6}+0x534",
+        "<cosmic_text::shape::ShapeLine>::layout_to_buffer+0x21b3",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3de",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_spans::<sticktalk::ui::RichLink>+0x1c6a",
+        "<iced_widget::text::rich::Rich<sticktalk::ui::RichLink, sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x603",
+        "<sticktalk::ui::link_context::LinkContext as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x3c",
+        "iced_core::layout::flex::resolve::<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>+0x57c"
+      ]
+    },
+    {
+      "live_bytes": 89856,
+      "peak_live_bytes": 89856,
+      "total_bytes": 120192,
+      "live_blocks": 164,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "<cosmic_text::shape::Shaping>::run+0x1a38",
+        "<cosmic_text::shape::ShapeWord>::build+0x308",
+        "<cosmic_text::shape::ShapeSpan>::build+0x89f",
+        "<cosmic_text::buffer_line::BufferLine>::shape+0x520",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3a4",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_text+0x38a",
+        "<iced_core::text::paragraph::Plain<iced_graphics::text::paragraph::Paragraph>>::update+0x74"
+      ]
+    },
+    {
+      "live_bytes": 88940,
+      "peak_live_bytes": 88940,
+      "total_bytes": 88940,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0xc4",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 70656,
+      "peak_live_bytes": 70656,
+      "total_bytes": 70656,
+      "live_blocks": 134,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "cosmic_text::shape::shape_fallback+0x19cb",
+        "<cosmic_text::shape::Shaping>::run+0x8d6",
+        "<cosmic_text::shape::ShapeWord>::build+0x308",
+        "<cosmic_text::shape::ShapeSpan>::build+0x89f",
+        "<cosmic_text::buffer_line::BufferLine>::shape+0x520",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3a4",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_spans::<sticktalk::ui::RichLink>+0x1c6a"
+      ]
+    },
+    {
+      "live_bytes": 65536,
+      "peak_live_bytes": 65536,
+      "total_bytes": 130688,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}+0x388",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54",
+        "sticktalk::headless::load_fonts+0x1ad",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 65536,
+      "peak_live_bytes": 65536,
+      "total_bytes": 130688,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_wgpu::image::vector::Cache>::load+0xfa",
+        "<iced_widget::svg::Svg as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x6c",
+        "<iced_widget::container::Container<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x246",
+        "<sticktalk::focus_button::Button as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x1d6",
+        "<iced_widget::container::Container<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x246",
+        "<iced_widget::stack::Stack<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x1bb",
+        "<iced_widget::mouse_area::MouseArea<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x35",
+        "<sticktalk::ui::observe::Observer as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x96",
+        "<sticktalk::ui::tooltip_delay::Tooltip as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x56"
+      ]
+    },
+    {
+      "live_bytes": 46080,
+      "peak_live_bytes": 46080,
+      "total_bytes": 46080,
+      "live_blocks": 120,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "cosmic_text::shape::shape_fallback+0x19cb",
+        "<cosmic_text::shape::Shaping>::run+0x8d6",
+        "<cosmic_text::shape::ShapeWord>::build+0x308",
+        "<cosmic_text::shape::ShapeSpan>::build+0x99d",
+        "<cosmic_text::buffer_line::BufferLine>::shape+0x520",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3a4",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_spans::<sticktalk::ui::RichLink>+0x1c6a"
+      ]
+    },
+    {
+      "live_bytes": 43120,
+      "peak_live_bytes": 43120,
+      "total_bytes": 85904,
+      "live_blocks": 3,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<usvg::text::layout::DecorationSpan>>::grow_one+0x40",
+        "iced_wgpu::text::prepare+0x1cbd",
+        "<iced_wgpu::Renderer>::prepare+0x55da",
+        "<iced_wgpu::Renderer>::draw+0xbb",
+        "<iced_wgpu::Renderer>::present+0x30",
+        "sticktalk::headless::run_if_requested+0xe63",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 34832,
+      "peak_live_bytes": 34832,
+      "total_bytes": 34832,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<hashbrown::raw::RawTable<(&str, ())>>::reserve_rehash::<hashbrown::map::make_hasher<&str, (), core::hash::BuildHasherDefault<rustc_hash::FxHasher>>::{closure#0}>+0x152",
+        "naga::back::hlsl::keywords::RESERVED_SET::{closure#0}+0x36",
+        "<naga::back::hlsl::keywords::RESERVED_SET::{closure#0} as core::ops::function::FnOnce<()>>::call_once+0xd",
+        "<once_cell::race::once_box::OnceBox<naga::proc::keyword_set::KeywordSet>>::init::<<once_cell::race::once_box::OnceBox<_>>::get_or_init::Void, <once_cell::race::once_box::OnceBox<naga::proc::keyword_set::KeywordSet>>::get_or_init<<naga::racy_lock::RacyLock<naga::proc::keyword_set::KeywordSet> as core::ops::deref::Deref>::deref::{closure#0}>::{closure#0}>+0x10",
+        "<wgpu_hal::dx12::Device>::load_shader+0x4a2c",
+        "<wgpu_hal::dx12::Device as wgpu_hal::dynamic::device::DynDevice>::create_render_pipeline+0x9bc",
+        "<wgpu_core::global::Global>::device_create_general_render_pipeline+0x3c62",
+        "<wgpu::api::device::Device>::create_render_pipeline+0x1658",
+        "<iced_wgpu::engine::Engine>::new+0x4ea"
+      ]
+    },
+    {
+      "live_bytes": 30720,
+      "peak_live_bytes": 30720,
+      "total_bytes": 59840,
+      "live_blocks": 10,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(usize, (usize, usize), (usize, usize))>>::grow_one+0x40",
+        "<core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::iter::adapters::enumerate::Enumerate<core::slice::iter::Iter<naga::front::wgsl::parse::ast::FunctionArgument>>, <naga::front::wgsl::lower::Lowerer>::function::{closure#0}>, core::result::Result<core::convert::Infallible, alloc::boxed::Box<naga::front::wgsl::error::Error>>> as core::iter::traits::iterator::Iterator>::next+0x506",
+        "<naga::front::wgsl::lower::Lowerer>::lower+0xa1a",
+        "naga::front::wgsl::parse_str+0xa3d",
+        "<wgpu::api::device::Device>::create_shader_module+0x1b7",
+        "<iced_wgpu::engine::Engine>::new+0x5d2",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x7cf",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64"
+      ]
+    },
+    {
+      "live_bytes": 30208,
+      "peak_live_bytes": 30208,
+      "total_bytes": 30208,
+      "live_blocks": 236,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(alloc::string::String, ttf_parser::language::Language)>>::grow_one+0x40",
+        "fontdb::collect_families+0x292",
+        "fontdb::parse_face_info+0x249",
+        "<fontdb::Database>::load_fonts_dir_impl+0xaa3",
+        "<fontdb::Database>::load_system_fonts+0x12e",
+        "<std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}+0x576",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 30208,
+      "peak_live_bytes": 30208,
+      "total_bytes": 30208,
+      "live_blocks": 236,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(alloc::string::String, ttf_parser::language::Language)>>::grow_one+0x40",
+        "fontdb::collect_families+0x292",
+        "fontdb::parse_face_info+0x249",
+        "<fontdb::Database>::load_fonts_dir_impl+0xaa3",
+        "<fontdb::Database>::load_system_fonts+0x12e",
+        "<iced_wgpu::image::vector::Cache>::load+0x2e0",
+        "<iced_widget::svg::Svg as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x6c",
+        "<iced_widget::container::Container<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x246"
+      ]
+    },
+    {
+      "live_bytes": 29504,
+      "peak_live_bytes": 29504,
+      "total_bytes": 29504,
+      "live_blocks": 461,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "iced_wgpu::text::prepare+0x1815",
+        "<iced_wgpu::Renderer>::prepare+0x55da",
+        "<iced_wgpu::Renderer>::draw+0xbb",
+        "<iced_wgpu::Renderer>::present+0x30",
+        "sticktalk::headless::run_if_requested+0xe63",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 27264,
+      "peak_live_bytes": 27264,
+      "total_bytes": 27648,
+      "live_blocks": 71,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "<cosmic_text::shape::Shaping>::run+0x1a38",
+        "<cosmic_text::shape::ShapeWord>::build+0x308",
+        "<cosmic_text::shape::ShapeSpan>::build+0x99d",
+        "<cosmic_text::buffer_line::BufferLine>::shape+0x520",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3a4",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_text+0x38a",
+        "<iced_core::text::paragraph::Plain<iced_graphics::text::paragraph::Paragraph>>::update+0x74"
+      ]
+    },
+    {
+      "live_bytes": 26192,
+      "peak_live_bytes": 26192,
+      "total_bytes": 26192,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<hashbrown::raw::RawTable<(u64, iced_wgpu::image::vector::Svg)>>::reserve_rehash::<hashbrown::map::make_hasher<u64, iced_wgpu::image::vector::Svg, rustc_hash::FxBuildHasher>::{closure#0}>+0x15b",
+        "<iced_wgpu::image::vector::Cache>::load+0xa00",
+        "<iced_widget::svg::Svg as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::draw+0x99",
+        "<sticktalk::icons::InheritedIcon as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::draw+0x54",
+        "<sticktalk::focus_button::Button as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::draw+0x291",
+        "<sticktalk::ui::tooltip_delay::Tooltip as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::draw+0x9b",
+        "<iced_widget::row::Row<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::draw+0x28c",
+        "<iced_widget::container::Container<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::draw+0x24b",
+        "<iced_widget::column::Column<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::draw+0x28c"
+      ]
+    },
+    {
+      "live_bytes": 25664,
+      "peak_live_bytes": 25664,
+      "total_bytes": 25664,
+      "live_blocks": 13,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "<cosmic_text::buffer_line::BufferLine>::shape+0xbf3",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3a4",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_spans::<sticktalk::ui::RichLink>+0x1c6a",
+        "<iced_widget::text::rich::Rich<sticktalk::ui::RichLink, sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x603",
+        "<sticktalk::ui::link_context::LinkContext as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x3c",
+        "iced_core::layout::flex::resolve::<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>+0x57c",
+        "<iced_widget::column::Column<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0xbc"
+      ]
+    },
+    {
+      "live_bytes": 21648,
+      "peak_live_bytes": 21648,
+      "total_bytes": 39600,
+      "live_blocks": 57,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x4f",
+        "<harfrust::hb::ot::lookup::LookupInfo>::new+0x26a",
+        "<std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}+0xcf",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>+0x4f",
+        "harfrust::hb::ot_shape::substitute_pre+0x3b3c",
+        "<harfrust::hb::face::hb_font_t>::shape_with_plan+0x1252",
+        "cosmic_text::shape::shape_fallback+0xfb1"
+      ]
+    },
+    {
+      "live_bytes": 19680,
+      "peak_live_bytes": 19680,
+      "total_bytes": 38240,
+      "live_blocks": 7,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(usize, (usize, usize), (usize, usize))>>::grow_one+0x40",
+        "<core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::iter::adapters::enumerate::Enumerate<core::slice::iter::Iter<naga::front::wgsl::parse::ast::FunctionArgument>>, <naga::front::wgsl::lower::Lowerer>::function::{closure#0}>, core::result::Result<core::convert::Infallible, alloc::boxed::Box<naga::front::wgsl::error::Error>>> as core::iter::traits::iterator::Iterator>::next+0x506",
+        "<naga::front::wgsl::lower::Lowerer>::lower+0xa1a",
+        "naga::front::wgsl::parse_str+0xa3d",
+        "<wgpu::api::device::Device>::create_shader_module+0x1b7",
+        "<iced_wgpu::engine::Engine>::new+0x19c",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x7cf",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64"
+      ]
+    },
+    {
+      "live_bytes": 18304,
+      "peak_live_bytes": 18304,
+      "total_bytes": 33176,
+      "live_blocks": 13,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<cosmic_text::shape::ShapeLine>::layout_to_buffer+0x1f9d",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3de",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_text+0x38a",
+        "<iced_core::text::paragraph::Plain<iced_graphics::text::paragraph::Paragraph>>::update+0x74",
+        "iced_core::layout::sized::<iced_core::length::Length, iced_core::length::Length, iced_core::widget::text::layout<iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>::{closure#0}>+0x1e2",
+        "<iced_core::widget::text::Text<iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x122",
+        "iced_core::layout::flex::resolve::<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>+0x57c",
+        "<iced_widget::row::Row<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x58",
+        "iced_core::layout::flex::resolve::<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>+0x57c"
+      ]
+    },
+    {
+      "live_bytes": 18304,
+      "peak_live_bytes": 18304,
+      "total_bytes": 33176,
+      "live_blocks": 13,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<cosmic_text::shape::ShapeLine>::layout_to_buffer+0x1f9d",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3de",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_text+0x38a",
+        "<iced_core::text::paragraph::Plain<iced_graphics::text::paragraph::Paragraph>>::update+0x74",
+        "<sticktalk::ui::elided::Elided as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x32d",
+        "<iced_widget::container::Container<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x246",
+        "<sticktalk::focus_button::Button as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x1d6",
+        "<sticktalk::ui::link_context::LinkContext as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x3c",
+        "iced_core::layout::flex::resolve::<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>+0x57c"
+      ]
+    },
+    {
+      "live_bytes": 17632,
+      "peak_live_bytes": 17632,
+      "total_bytes": 17632,
+      "live_blocks": 58,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "usvg::parser::converter::convert_path+0x2648",
+        "usvg::parser::converter::convert_element_impl+0x98",
+        "<usvg::parser::converter::convert_element::{closure#0} as core::ops::function::FnOnce<(&mut usvg::parser::converter::Cache, &mut usvg::tree::Group)>>::call_once::{shim:vtable#0}+0x3a",
+        "usvg::parser::converter::convert_group+0x3d3",
+        "usvg::parser::converter::convert_element+0x2c9",
+        "usvg::parser::converter::convert_children+0x83",
+        "<usvg::parser::converter::convert_element::{closure#0} as core::ops::function::FnOnce<(&mut usvg::parser::converter::Cache, &mut usvg::tree::Group)>>::call_once::{shim:vtable#0}+0x3a",
+        "usvg::parser::converter::convert_group+0x3d3",
+        "usvg::parser::converter::convert_element+0x2c9"
+      ]
+    },
+    {
+      "live_bytes": 16864,
+      "peak_live_bytes": 16864,
+      "total_bytes": 16864,
+      "live_blocks": 17,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(wgpu_types::Limits, wgpu::api::device::RequestDeviceError)>>::grow_one+0x40",
+        "<cosmic_text::buffer::Buffer>::set_text+0x5d1",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_text+0x185",
+        "<iced_core::text::paragraph::Plain<iced_graphics::text::paragraph::Paragraph>>::update+0x74",
+        "iced_core::layout::sized::<iced_core::length::Length, iced_core::length::Length, iced_core::widget::text::layout<iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>::{closure#0}>+0x1e2",
+        "<iced_core::widget::text::Text<iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x122",
+        "<iced_widget::container::Container<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x246",
+        "<sticktalk::focus_button::Button as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x1d6"
+      ]
+    },
+    {
+      "live_bytes": 16320,
+      "peak_live_bytes": 16320,
+      "total_bytes": 16320,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<wgpu_hal::dx12::sampler::SamplerHeap>::new+0x137",
+        "<wgpu_hal::dx12::Adapter as wgpu_hal::dynamic::adapter::DynAdapter>::open+0x11d3",
+        "<wgpu_core::instance::Adapter>::create_device_and_queue+0x132e",
+        "<wgpu::api::adapter::Adapter>::request_device+0x1fb",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x374",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64",
+        "sticktalk::headless::run_if_requested+0x49c",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 16000,
+      "peak_live_bytes": 16000,
+      "total_bytes": 31360,
+      "live_blocks": 4,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(usize, (usize, usize), (usize, usize))>>::grow_one+0x40",
+        "<core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::iter::adapters::enumerate::Enumerate<core::slice::iter::Iter<naga::front::wgsl::parse::ast::FunctionArgument>>, <naga::front::wgsl::lower::Lowerer>::function::{closure#0}>, core::result::Result<core::convert::Infallible, alloc::boxed::Box<naga::front::wgsl::error::Error>>> as core::iter::traits::iterator::Iterator>::next+0x506",
+        "<naga::front::wgsl::lower::Lowerer>::lower+0xa1a",
+        "naga::front::wgsl::parse_str+0xa3d",
+        "<wgpu::api::device::Device>::create_shader_module+0x1b7",
+        "<iced_wgpu::engine::Engine>::new+0x1cf6",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x7cf",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64"
+      ]
+    },
+    {
+      "live_bytes": 15872,
+      "peak_live_bytes": 15872,
+      "total_bytes": 15872,
+      "live_blocks": 16,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(wgpu_types::Limits, wgpu::api::device::RequestDeviceError)>>::grow_one+0x40",
+        "<cosmic_text::buffer::Buffer>::set_text+0x5d1",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_text+0x185",
+        "<iced_core::text::paragraph::Plain<iced_graphics::text::paragraph::Paragraph>>::update+0x74",
+        "iced_core::layout::sized::<iced_core::length::Length, iced_core::length::Length, iced_core::widget::text::layout<iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>::{closure#0}>+0x1e2",
+        "<iced_core::widget::text::Text<iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x122",
+        "iced_core::layout::flex::resolve::<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>+0x57c",
+        "<iced_widget::row::Row<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x58"
+      ]
+    },
+    {
+      "live_bytes": 15400,
+      "peak_live_bytes": 15400,
+      "total_bytes": 15400,
+      "live_blocks": 2,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<naga::valid::Validator>::validate_function+0xd6",
+        "<naga::valid::Validator>::validate_impl+0x46a2",
+        "<wgpu::api::device::Device>::create_shader_module+0x9ad",
+        "<iced_wgpu::engine::Engine>::new+0x5d2",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x7cf",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64",
+        "sticktalk::headless::run_if_requested+0x49c",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 14840,
+      "peak_live_bytes": 14840,
+      "total_bytes": 14840,
+      "live_blocks": 2,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<naga::valid::Validator>::validate_function+0xd6",
+        "<naga::valid::Validator>::validate_impl+0x46a2",
+        "<wgpu::api::device::Device>::create_shader_module+0x9ad",
+        "<iced_wgpu::engine::Engine>::new+0x19c",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x7cf",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64",
+        "sticktalk::headless::run_if_requested+0x49c",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 14560,
+      "peak_live_bytes": 14560,
+      "total_bytes": 14560,
+      "live_blocks": 2,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<naga::valid::Validator>::validate_function+0xd6",
+        "<naga::valid::Validator>::validate_impl+0x46a2",
+        "<wgpu::api::device::Device>::create_shader_module+0x9ad",
+        "<iced_wgpu::engine::Engine>::new+0x1cf6",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x7cf",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64",
+        "sticktalk::headless::run_if_requested+0x49c",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 13440,
+      "peak_live_bytes": 13440,
+      "total_bytes": 25600,
+      "live_blocks": 8,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(usize, (usize, usize), (usize, usize))>>::grow_one+0x40",
+        "<core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::iter::adapters::enumerate::Enumerate<core::slice::iter::Iter<naga::front::wgsl::parse::ast::FunctionArgument>>, <naga::front::wgsl::lower::Lowerer>::function::{closure#0}>, core::result::Result<core::convert::Infallible, alloc::boxed::Box<naga::front::wgsl::error::Error>>> as core::iter::traits::iterator::Iterator>::next+0x506",
+        "<naga::front::wgsl::lower::Lowerer>::lower+0xa1a",
+        "naga::front::wgsl::parse_str+0xa3d",
+        "<wgpu::api::device::Device>::create_shader_module+0x1b7",
+        "<iced_wgpu::engine::Engine>::new+0x169e",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x7cf",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64"
+      ]
+    },
+    {
+      "live_bytes": 13440,
+      "peak_live_bytes": 13440,
+      "total_bytes": 25920,
+      "live_blocks": 6,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(usize, (usize, usize), (usize, usize))>>::grow_one+0x40",
+        "<naga::proc::constant_evaluator::ConstantEvaluator>::append_expr+0x304",
+        "<naga::proc::constant_evaluator::ConstantEvaluator>::register_evaluated_expr+0x362",
+        "<naga::proc::constant_evaluator::ConstantEvaluator>::try_eval_and_append+0x802",
+        "<naga::front::wgsl::lower::ExpressionContext>::append_expression+0x14d",
+        "<naga::front::wgsl::lower::ExpressionContext>::interrupt_emitter+0x1ec",
+        "<naga::front::wgsl::lower::Lowerer>::expression_for_reference+0xd52",
+        "<naga::front::wgsl::lower::Lowerer>::expression+0x16"
+      ]
+    },
+    {
+      "live_bytes": 13376,
+      "peak_live_bytes": 13376,
+      "total_bytes": 23848,
+      "live_blocks": 11,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<cosmic_text::shape::ShapeLine>::layout_to_buffer+0x1f9d",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3de",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_text+0x38a",
+        "<iced_core::text::paragraph::Plain<iced_graphics::text::paragraph::Paragraph>>::update+0x74",
+        "<sticktalk::ui::elided::Elided as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x32d",
+        "iced_core::layout::flex::resolve::<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>+0xc0f",
+        "<iced_widget::row::Row<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x58",
+        "<sticktalk::focus_button::Button as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x1d6",
+        "iced_core::layout::flex::resolve::<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>+0xc0f"
+      ]
+    }
+  ],
+  "largest_peak_sites": [
+    {
+      "live_bytes": 174080,
+      "peak_live_bytes": 174080,
+      "total_bytes": 174080,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner>::grow_exact+0x32",
+        "<image::metadata::cicp::CicpRgb>::cast_pixels_by_layout::<u8, u8>+0x7d5",
+        "<image::images::dynimage::DynamicImage>::to_rgba8+0x27a",
+        "<sticktalk::app::App>::headless+0x2859",
+        "sticktalk::headless::run_if_requested+0x443",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 139264,
+      "total_bytes": 277984,
+      "live_blocks": 0,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<winit::platform_impl::windows::keyboard::MessageAsKeyEvent>>::grow_one+0x40",
+        "<iced_wgpu::Renderer>::prepare+0x6db1",
+        "<iced_wgpu::Renderer>::draw+0xbb",
+        "<iced_wgpu::Renderer>::present+0x30",
+        "sticktalk::headless::run_if_requested+0xe63",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 132204,
+      "peak_live_bytes": 132204,
+      "total_bytes": 132204,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0xea",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 131904,
+      "peak_live_bytes": 131904,
+      "total_bytes": 131904,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x9e",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 131904,
+      "peak_live_bytes": 131904,
+      "total_bytes": 131904,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x78",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 128076,
+      "peak_live_bytes": 128076,
+      "total_bytes": 128076,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x136",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 127728,
+      "peak_live_bytes": 127728,
+      "total_bytes": 127728,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x110",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 120000,
+      "peak_live_bytes": 120000,
+      "total_bytes": 120000,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_wgpu::Renderer>::new+0x7ed",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x816",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64",
+        "sticktalk::headless::run_if_requested+0x49c",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 107928,
+      "peak_live_bytes": 107928,
+      "total_bytes": 107928,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0x15c",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 104000,
+      "peak_live_bytes": 104000,
+      "total_bytes": 104000,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_wgpu::Renderer>::new+0x518",
+        "<sticktalk::scroll_bench::Gpu>::with_size::{closure#1}+0x816",
+        "<sticktalk::scroll_bench::Gpu>::with_size+0xb64",
+        "sticktalk::headless::run_if_requested+0x49c",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 101376,
+      "peak_live_bytes": 101376,
+      "total_bytes": 198176,
+      "live_blocks": 13,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<harfrust::hb::ot::lookup::SubtableInfo>>::grow_one+0x40",
+        "<cosmic_text::shape::ShapeLine>::layout_to_buffer::{closure#6}+0x534",
+        "<cosmic_text::shape::ShapeLine>::layout_to_buffer+0x21b3",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3de",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_spans::<sticktalk::ui::RichLink>+0x1c6a",
+        "<iced_widget::text::rich::Rich<sticktalk::ui::RichLink, sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x603",
+        "<sticktalk::ui::link_context::LinkContext as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x3c",
+        "iced_core::layout::flex::resolve::<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>+0x57c"
+      ]
+    },
+    {
+      "live_bytes": 89856,
+      "peak_live_bytes": 89856,
+      "total_bytes": 120192,
+      "live_blocks": 164,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "<cosmic_text::shape::Shaping>::run+0x1a38",
+        "<cosmic_text::shape::ShapeWord>::build+0x308",
+        "<cosmic_text::shape::ShapeSpan>::build+0x89f",
+        "<cosmic_text::buffer_line::BufferLine>::shape+0x520",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3a4",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_text+0x38a",
+        "<iced_core::text::paragraph::Plain<iced_graphics::text::paragraph::Paragraph>>::update+0x74"
+      ]
+    },
+    {
+      "live_bytes": 88940,
+      "peak_live_bytes": 88940,
+      "total_bytes": 88940,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_graphics::text::FontSystem>::load_font+0x220",
+        "sticktalk::headless::load_fonts+0xc4",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 5712,
+      "peak_live_bytes": 85568,
+      "total_bytes": 155064,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<hashbrown::raw::RawTable<(core::num::nonzero::NonZero<u64>, gpu_allocator::allocator::free_list_allocator::MemoryChunk)>>::reserve_rehash::<hashbrown::map::make_hasher<core::num::nonzero::NonZero<u64>, gpu_allocator::allocator::free_list_allocator::MemoryChunk, std::hash::random::RandomState>::{closure#0}>+0x161",
+        "<hashbrown::map::HashMap<core::num::nonzero::NonZero<u64>, gpu_allocator::allocator::free_list_allocator::MemoryChunk, std::hash::random::RandomState>>::insert+0x314",
+        "<gpu_allocator::allocator::free_list_allocator::FreeListAllocator as gpu_allocator::allocator::SubAllocator>::allocate+0x711",
+        "<gpu_allocator::d3d12::Allocator>::allocate+0x2fa",
+        "<wgpu_hal::dx12::suballocation::DeviceAllocationContext>::create_buffer+0x272",
+        "<wgpu_hal::dx12::Device as wgpu_hal::dynamic::device::DynDevice>::create_buffer+0xa5",
+        "<wgpu_core::resource::StagingBuffer>::new+0x5f",
+        "<wgpu::api::queue::Queue>::write_texture+0x16c8",
+        "<cryoglyph::text_atlas::InnerAtlas>::grow+0x48c"
+      ]
+    },
+    {
+      "live_bytes": 70656,
+      "peak_live_bytes": 70656,
+      "total_bytes": 70656,
+      "live_blocks": 134,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "cosmic_text::shape::shape_fallback+0x19cb",
+        "<cosmic_text::shape::Shaping>::run+0x8d6",
+        "<cosmic_text::shape::ShapeWord>::build+0x308",
+        "<cosmic_text::shape::ShapeSpan>::build+0x89f",
+        "<cosmic_text::buffer_line::BufferLine>::shape+0x520",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3a4",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_spans::<sticktalk::ui::RichLink>+0x1c6a"
+      ]
+    },
+    {
+      "live_bytes": 65536,
+      "peak_live_bytes": 65536,
+      "total_bytes": 130688,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<std::sync::once::Once>::call_once_force::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>::{closure#0}>::{closure#0}+0x388",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54",
+        "sticktalk::headless::load_fonts+0x1ad",
+        "sticktalk::headless::run_if_requested+0x3ad",
+        "sticktalk::main+0x854"
+      ]
+    },
+    {
+      "live_bytes": 65536,
+      "peak_live_bytes": 65536,
+      "total_bytes": 130688,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<iced_wgpu::image::vector::Cache>::load+0xfa",
+        "<iced_widget::svg::Svg as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x6c",
+        "<iced_widget::container::Container<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x246",
+        "<sticktalk::focus_button::Button as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x1d6",
+        "<iced_widget::container::Container<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x246",
+        "<iced_widget::stack::Stack<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x1bb",
+        "<iced_widget::mouse_area::MouseArea<sticktalk::app::Msg> as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x35",
+        "<sticktalk::ui::observe::Observer as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x96",
+        "<sticktalk::ui::tooltip_delay::Tooltip as iced_core::widget::Widget<sticktalk::app::Msg, iced_core::theme::Theme, iced_renderer::fallback::Renderer<iced_wgpu::Renderer, iced_tiny_skia::Renderer>>>::layout+0x56"
+      ]
+    },
+    {
+      "live_bytes": 11408,
+      "peak_live_bytes": 57040,
+      "total_bytes": 131520,
+      "live_blocks": 1,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<hashbrown::raw::RawTable<(core::num::nonzero::NonZero<u64>, gpu_allocator::allocator::free_list_allocator::MemoryChunk)>>::reserve_rehash::<hashbrown::map::make_hasher<core::num::nonzero::NonZero<u64>, gpu_allocator::allocator::free_list_allocator::MemoryChunk, std::hash::random::RandomState>::{closure#0}>+0x161",
+        "<hashbrown::map::HashMap<core::num::nonzero::NonZero<u64>, gpu_allocator::allocator::free_list_allocator::MemoryChunk, std::hash::random::RandomState>>::insert+0x314",
+        "<gpu_allocator::allocator::free_list_allocator::FreeListAllocator as gpu_allocator::allocator::SubAllocator>::allocate+0x711",
+        "<gpu_allocator::d3d12::Allocator>::allocate+0x2fa",
+        "<wgpu_hal::dx12::suballocation::DeviceAllocationContext>::create_buffer+0x272",
+        "<wgpu_hal::dx12::Device as wgpu_hal::dynamic::device::DynDevice>::create_buffer+0xa5",
+        "<wgpu_core::resource::StagingBuffer>::new+0x5f",
+        "<wgpu::api::queue::Queue>::write_texture+0x16c8",
+        "iced_wgpu::text::prepare+0x13d3"
+      ]
+    },
+    {
+      "live_bytes": 46080,
+      "peak_live_bytes": 46080,
+      "total_bytes": 46080,
+      "live_blocks": 120,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a",
+        "cosmic_text::shape::shape_fallback+0x19cb",
+        "<cosmic_text::shape::Shaping>::run+0x8d6",
+        "<cosmic_text::shape::ShapeWord>::build+0x308",
+        "<cosmic_text::shape::ShapeSpan>::build+0x99d",
+        "<cosmic_text::buffer_line::BufferLine>::shape+0x520",
+        "<cosmic_text::buffer::Buffer>::shape_until_scroll+0x3a4",
+        "<iced_graphics::text::paragraph::Paragraph as iced_core::text::paragraph::Paragraph>::with_spans::<sticktalk::ui::RichLink>+0x1c6a"
+      ]
+    },
+    {
+      "live_bytes": 43120,
+      "peak_live_bytes": 43120,
+      "total_bytes": 85904,
+      "live_blocks": 3,
+      "stack": [
+        "<dhat::Alloc as core::alloc::global::GlobalAlloc>::alloc+0x212",
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<usvg::text::layout::DecorationSpan>>::grow_one+0x40",
+        "iced_wgpu::text::prepare+0x1cbd",
+        "<iced_wgpu::Renderer>::prepare+0x55da",
+        "<iced_wgpu::Renderer>::draw+0xbb",
+        "<iced_wgpu::Renderer>::present+0x30",
+        "sticktalk::headless::run_if_requested+0xe63",
+        "sticktalk::main+0x854"
+      ]
+    }
+  ]
+}

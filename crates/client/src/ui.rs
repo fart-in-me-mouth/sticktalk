@@ -118,7 +118,7 @@ fn google_button(app: &App) -> Element<'_, Msg> {
         .spacing(t::S12)
         .align_y(Center),
     )
-    .on_press_maybe((!app.busy).then_some(Msg::GoogleStart(false)))
+    .on_press_maybe((!app.busy && app.google_available()).then_some(Msg::GoogleStart(false)))
     .centered()
     .width(Fill)
     .height(t::HEADER)
@@ -413,7 +413,7 @@ fn content_view(app: &App) -> Element<'_, Msg> {
                         }
                     ),
                     connection_banner(app),
-                    skeleton(),
+                    skeleton_on(t::BG_SELECTED),
                     action("Sign in instead", Msg::Logout)
                 ]
                 .spacing(t::S24),
@@ -616,7 +616,10 @@ fn login(app: &App) -> Element<'_, Msg> {
                         },
                         Msg::RefreshMeta
                     )
-                    .on_press_maybe((!app.meta_loading && !app.busy).then_some(Msg::RefreshMeta))
+                    .on_press_maybe(
+                        (!app.meta_loading && !app.busy && !app.server.trim().is_empty())
+                            .then_some(Msg::RefreshMeta)
+                    )
                 ]
                 .spacing(t::S8)
                 .align_y(Center),
@@ -626,11 +629,28 @@ fn login(app: &App) -> Element<'_, Msg> {
         );
         if !app.meta_error.is_empty() {
             form = form.push(hint(&app.meta_error).color(t::DANGER));
+        } else if app.meta_connected {
+            form = form.push(
+                row![
+                    icon("check", t::INLINE_ICON, t::ACCENT),
+                    hint("Connected").color(t::ACCENT)
+                ]
+                .spacing(t::S8)
+                .align_y(Center),
+            );
         }
     }
-    if !signup && app.google_available() {
-        form = form.push(google_button(app)).push(
-            row![line(), hint("or"), line()]
+    if !signup && (app.google_available() || (!app.meta_connected && app.meta_error.is_empty())) {
+        form = form.push(google_button(app));
+        if !app.meta_connected {
+            form = form.push(hint(if app.meta_loading {
+                "Connecting to the server…"
+            } else {
+                "Connect to a server to enable Google sign-in."
+            }));
+        }
+        form = form.push(
+            row![line(), hint("OR"), line()]
                 .spacing(t::S16)
                 .align_y(Center),
         );
@@ -765,18 +785,14 @@ fn login(app: &App) -> Element<'_, Msg> {
         .style(t::modal)]
     .spacing(t::S12)
     .align_x(Center);
-    if !signup {
+    if !signup && !app.change_server {
         body = body.push(
-            button(hint(if app.change_server {
-                "Done"
-            } else {
-                "Change server"
-            }))
-            .on_press_maybe(
-                (!app.busy && !app.server.trim().is_empty()).then_some(Msg::ChangeServer),
-            )
-            .padding(t::S4)
-            .style(t::link),
+            button(hint("Change server"))
+                .on_press_maybe(
+                    (!app.busy && !app.server.trim().is_empty()).then_some(Msg::ChangeServer),
+                )
+                .padding(t::S4)
+                .style(t::link),
         );
     }
     container(body)
@@ -1038,18 +1054,21 @@ fn friends(app: &App, tab: FriendTab) -> Element<'_, Msg> {
         .into()
 }
 fn skeleton<'a>() -> Element<'a, Msg> {
-    let block = |width| {
-        container(space())
-            .height(t::S12)
-            .width(width)
-            .style(t::elevated)
+    skeleton_on(t::BG_ELEVATED)
+}
+fn skeleton_on<'a>(color: Color) -> Element<'a, Msg> {
+    let style = move |_: &iced::Theme| {
+        let mut surface = t::surface(color);
+        surface.border.radius = t::S8.into();
+        surface
     };
+    let block = |width| container(space()).height(t::S12).width(width).style(style);
     column![
         row![
             container(space())
                 .width(t::AVATAR)
                 .height(t::AVATAR)
-                .style(t::elevated),
+                .style(style),
             column![block(t::SIDEBAR), block(t::THUMB_W)].spacing(t::S12)
         ]
         .spacing(t::S16),
@@ -1058,7 +1077,7 @@ fn skeleton<'a>() -> Element<'a, Msg> {
             container(space())
                 .width(t::AVATAR)
                 .height(t::AVATAR)
-                .style(t::elevated),
+                .style(style),
             column![block(t::THUMB_W), block(t::SIDEBAR)].spacing(t::S12)
         ]
         .spacing(t::S16)
@@ -2382,6 +2401,29 @@ fn context_menu(app: &App) -> Element<'_, Msg> {
     }
     menus::card(items)
 }
+fn confirmation_labels(app: &App, command: &Command) -> (&'static str, &'static str) {
+    match command {
+        Command::DeleteMessage { .. } => ("Delete message", "Delete message"),
+        Command::DeleteChannel { channel_id } => {
+            if app
+                .state
+                .model
+                .channels
+                .get(channel_id)
+                .is_some_and(|c| c.kind == ChannelKind::Category)
+            {
+                ("Delete category", "Delete category")
+            } else {
+                ("Delete channel", "Delete channel")
+            }
+        }
+        Command::LeaveGuild { .. } => ("Leave server", "Leave server"),
+        Command::KickMember { .. } => ("Kick member", "Kick member"),
+        Command::BanMember { .. } => ("Ban member", "Ban member"),
+        Command::TransferGroupOwnership { .. } => ("Transfer ownership", "Transfer ownership"),
+        _ => ("Confirm action", "Confirm"),
+    }
+}
 fn modal(app: &App) -> Element<'_, Msg> {
     if matches!(app.dialog, Dialog::GuildSettings(_) | Dialog::UserSettings) {
         return settings(app, &app.dialog);
@@ -2405,7 +2447,7 @@ fn modal(app: &App) -> Element<'_, Msg> {
         ),
         Dialog::GroupSettings(_) => ("Group settings", ""),
         Dialog::Profile(_) => ("Profile", ""),
-        Dialog::Confirm(_, _) => ("Confirm action", ""),
+        Dialog::Confirm(_, command) => (confirmation_labels(app, command).0, ""),
         Dialog::ExternalLink(_) => (
             "Open an external link?",
             "This will open in your default browser.",
@@ -2884,7 +2926,11 @@ fn modal(app: &App) -> Element<'_, Msg> {
                 row![
                     space().width(Fill),
                     action("Cancel", Msg::Close),
-                    action("Confirm", Msg::Confirm(command.clone())).style(t::danger)
+                    action(
+                        confirmation_labels(app, command).1,
+                        Msg::Confirm(command.clone())
+                    )
+                    .style(t::danger)
                 ]
                 .spacing(t::S12),
             );
