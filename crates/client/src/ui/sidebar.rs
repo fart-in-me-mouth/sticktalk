@@ -116,13 +116,12 @@ pub fn view(app: &App) -> Element<'_, Msg> {
             list = list.push(space().height(t::S12)).push(
                 mouse_area(header)
                     .on_enter(mm(Main::CategoryHover(Some(c.id))))
-                    .on_exit(mm(Main::CategoryHover(None)))
+                    .on_exit(mm(Main::CategoryLeave(c.id)))
                     .on_right_press(mm(Main::Open(Popover::Context(Entity::Channel(c.id))))),
             );
             continue;
         }
-        let selected =
-            app.state.screen == Screen::Channel(c.id) || app.main.focus_voice == Some(c.id);
+        let selected = app.channel_selected(c.id);
         let unread = app
             .state
             .model
@@ -156,9 +155,12 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     container(column![
         header,
         line(),
-        container(scroller(list).id("channels").height(Fill))
-            .padding([t::S8, t::S8])
-            .height(Fill),
+        container(
+            mouse_area(scroller(list).id("channels").height(Fill))
+                .on_exit(mm(Main::ChannelHover(None)))
+        )
+        .padding([t::S8, t::S8])
+        .height(Fill),
         voice_connected(app),
         crate::features::update_pill(app),
         user_panel(app)
@@ -169,7 +171,7 @@ pub fn view(app: &App) -> Element<'_, Msg> {
     .into()
 }
 fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
-    let selected = app.state.screen == Screen::Channel(c.id) || app.main.focus_voice == Some(c.id);
+    let selected = app.channel_selected(c.id);
     let hovered = app.main.hovered_channel == Some(c.id);
     let muted = muted(app, c.id);
     let opacity = if muted { 0.4 } else { 1. };
@@ -177,7 +179,7 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
     let unread = read.is_some_and(|r| r.unread_count > 0);
     let active = selected || hovered;
     let color = t::alpha(
-        if selected || unread {
+        if active || unread {
             t::TEXT_PRIMARY
         } else {
             t::TEXT_SECONDARY
@@ -215,9 +217,35 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
                     opacity,
                 )
             })
-            .unwrap_or_else(|| icon(glyph, t::ICON, t::alpha(t::TEXT_MUTED, opacity)).into())
+            .unwrap_or_else(|| {
+                icon(
+                    glyph,
+                    t::ICON,
+                    t::alpha(
+                        if active {
+                            t::TEXT_SECONDARY
+                        } else {
+                            t::TEXT_MUTED
+                        },
+                        opacity,
+                    ),
+                )
+                .into()
+            })
     } else {
-        icon(glyph, t::ICON, t::alpha(t::TEXT_MUTED, opacity)).into()
+        icon(
+            glyph,
+            t::ICON,
+            t::alpha(
+                if active {
+                    t::TEXT_SECONDARY
+                } else {
+                    t::TEXT_MUTED
+                },
+                opacity,
+            ),
+        )
+        .into()
     };
     // Actions are siblings, not nested buttons: a gear/invite never selects the row.
     let label = button(
@@ -225,7 +253,11 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
             leading,
             elided::label(app.state.model.channel_name(c))
                 .size(t::CHANNEL_NAME)
-                .font(if unread { t::semibold() } else { t::medium() })
+                .font(if selected || unread {
+                    t::semibold()
+                } else {
+                    t::medium()
+                })
                 .color(color)
                 .width(Fill)
         ]
@@ -236,7 +268,7 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
     .height(t::CHANNEL_ROW)
     .width(Fill)
     .padding([0., t::S8])
-    .style(t::icon);
+    .style(t::navigation(selected));
     let mut actions = row![label].spacing(0).align_y(Center);
     if active && c.guild_id.is_some() {
         if app
@@ -279,6 +311,7 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
         );
     }
     let row = container(actions)
+        .id(format!("channel-row-{}", c.id.0))
         .height(t::CHANNEL_ROW)
         .style(move |_| container::Style {
             border: Border {
@@ -313,7 +346,8 @@ fn channel_row<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
     observe::anchor(
         mouse_area(stack![row, marker])
             .on_enter(mm(Main::ChannelHover(Some(c.id))))
-            .on_exit(mm(Main::ChannelHover(None)))
+            .on_move(move |_| mm(Main::ChannelHover(Some(c.id))))
+            .on_exit(mm(Main::ChannelLeave(c.id)))
             .on_right_press(mm(Main::Open(Popover::Context(Entity::Channel(c.id))))),
     )
 }

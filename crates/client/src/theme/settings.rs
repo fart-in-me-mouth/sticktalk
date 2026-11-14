@@ -137,14 +137,15 @@ pub fn pick_list(
         text_color: TEXT_PRIMARY,
         placeholder_color: TEXT_MUTED,
         handle_color: TEXT_SECONDARY,
-        background: INPUT_BG.into(),
+        background: if matches!(status, iced::widget::pick_list::Status::Opened { .. }) {
+            BG_SELECTED
+        } else {
+            INPUT_BG
+        }
+        .into(),
         border: Border {
-            color: if matches!(status, iced::widget::pick_list::Status::Opened { .. }) {
-                ACCENT
-            } else {
-                TRANSPARENT
-            },
-            width: HAIRLINE,
+            color: TRANSPARENT,
+            width: 0.,
             radius: S8.into(),
         },
     }

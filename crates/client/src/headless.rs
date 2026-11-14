@@ -382,6 +382,8 @@ pub(crate) fn load_fonts() {
         .write()
         .unwrap();
     for bytes in [
+        crate::composer_emoji::FONT,
+        crate::composer_emoji::CUSTOM_FONT,
         include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice(),
         include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice(),
         include_bytes!("../assets/fonts/Inter-Bold.ttf").as_slice(),
@@ -426,7 +428,9 @@ fn render_scaled(screen: &str, w: u32, h: u32, scale: f32, path: &Path) -> Resul
         let mut ui = UserInterface::build(crate::ui::view(&app), size, cache, &mut renderer);
         let focus = match screen {
             "audit-login-focused" => Some("login-username"),
-            "audit-composer-focused" => Some("composer-editor"),
+            "audit-composer-focused" | "rowfix-emoji" | "rowfix-custom-composer" => {
+                Some("composer-editor")
+            }
             "audit-quick-focused" => Some("quick-switcher"),
             "main-search-focused" => Some("header-search"),
             _ => None,
@@ -499,6 +503,18 @@ fn render_scaled(screen: &str, w: u32, h: u32, scale: f32, path: &Path) -> Resul
                     position: cursor.position().unwrap(),
                 })],
                 cursor,
+                &mut renderer,
+                &mut iced::advanced::graphics::core::clipboard::Null,
+                &mut messages,
+            );
+        }
+        if screen.starts_with("rowfix-") && screen != "rowfix-emoji" && pass == 0 {
+            let _ = ui.update(
+                &[
+                    iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+                    iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+                ],
+                mouse::Cursor::Available(iced::Point::new(t::RAIL + t::S32 * 2., 117.)),
                 &mut renderer,
                 &mut iced::advanced::graphics::core::clipboard::Null,
                 &mut messages,
@@ -1256,5 +1272,172 @@ mod tests {
             g.last,
             g.offset.y
         );
+    }
+}
+
+#[cfg(test)]
+mod rowfix_tests {
+    use super::*;
+    use iced::advanced::widget::{self, Operation};
+    use sticktalk_proto::Id;
+    fn renderer() -> iced::Renderer {
+        #[cfg(feature = "wgpu")]
+        {
+            iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+                t::regular(),
+                iced::Pixels(t::BODY),
+            ))
+        }
+        #[cfg(not(feature = "wgpu"))]
+        {
+            iced_tiny_skia::Renderer::new(t::regular(), iced::Pixels(t::BODY))
+        }
+    }
+    #[derive(Default)]
+    struct Rows(std::collections::BTreeMap<Id, iced::Rectangle>);
+    impl Operation for Rows {
+        fn traverse(&mut self, f: &mut dyn FnMut(&mut dyn Operation)) {
+            f(self);
+        }
+        fn container(&mut self, id: Option<&widget::Id>, bounds: iced::Rectangle) {
+            for channel in [12, 13, 14, 16, 17, 22] {
+                if id == Some(&widget::Id::from(format!("channel-row-{channel}"))) {
+                    self.0.insert(Id(channel), bounds);
+                }
+            }
+        }
+    }
+    fn drive(
+        app: &mut App,
+        cache: &mut Cache,
+        renderer: &mut iced::Renderer,
+        point: iced::Point,
+        click: bool,
+    ) {
+        let mut ui = UserInterface::build(
+            crate::ui::view(app),
+            Size::new(1280., 800.),
+            std::mem::take(cache),
+            renderer,
+        );
+        let mut messages = Vec::new();
+        let mut events = vec![iced::Event::Mouse(mouse::Event::CursorMoved {
+            position: point,
+        })];
+        if click {
+            events.extend([
+                iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+                iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+            ]);
+        }
+        let _ = ui.update(
+            &events,
+            mouse::Cursor::Available(point),
+            renderer,
+            &mut iced::advanced::graphics::core::clipboard::Null,
+            &mut messages,
+        );
+        *cache = ui.into_cache();
+        for message in messages {
+            if matches!(message, Msg::Main(_) | Msg::Select(_)) {
+                let _ = app.update(message);
+            }
+        }
+    }
+    fn pixels(renderer: &mut iced::Renderer) -> Vec<u8> {
+        #[cfg(feature = "wgpu")]
+        let iced::Renderer::Secondary(renderer) = renderer
+        else {
+            unreachable!()
+        };
+        iced_tiny_skia::window::compositor::screenshot(
+            renderer,
+            &iced_tiny_skia::graphics::Viewport::with_physical_size(Size::new(1280, 800), 1.),
+            t::BG_CHAT,
+        )
+    }
+    #[test]
+    fn selecting_a_hovering_b_then_c_has_one_selected_fill_and_no_stale_hover() {
+        load_fonts();
+        let mut app = App::headless("guild-chat", Size::new(1280., 800.));
+        let mut renderer = renderer();
+        let mut cache = Cache::new();
+        let mut ui = UserInterface::build(
+            crate::ui::view(&app),
+            Size::new(1280., 800.),
+            cache,
+            &mut renderer,
+        );
+        let mut rows = Rows::default();
+        ui.operate(&renderer, &mut rows);
+        cache = ui.into_cache();
+        let point = |id| {
+            let r = rows.0[&Id(id)];
+            iced::Point::new(r.x + 70., r.y + r.height / 2.)
+        };
+        drive(&mut app, &mut cache, &mut renderer, point(12), true);
+        drive(&mut app, &mut cache, &mut renderer, point(14), false);
+        assert_eq!(app.main.hovered_channel, Some(Id(14)));
+        drive(&mut app, &mut cache, &mut renderer, point(13), false);
+        assert_eq!(app.main.hovered_channel, Some(Id(13)));
+        // Enter/exit messages from different rows can arrive in either tree order.
+        let _ = app.main_update(crate::main_window::Message::ChannelLeave(Id(14)));
+        assert_eq!(app.main.hovered_channel, Some(Id(13)));
+        assert_eq!(
+            app.sorted_channels()
+                .iter()
+                .filter(|c| app.channel_selected(c.id))
+                .count(),
+            1
+        );
+        let mut ui = UserInterface::build(
+            crate::ui::view(&app),
+            Size::new(1280., 800.),
+            cache,
+            &mut renderer,
+        );
+        ui.draw(
+            &mut renderer,
+            &t::theme(&app),
+            &iced::advanced::renderer::Style {
+                text_color: t::TEXT_PRIMARY,
+            },
+            mouse::Cursor::Available(point(13)),
+        );
+        cache = ui.into_cache();
+        let png = pixels(&mut renderer);
+        let sample = |id| {
+            let r = rows.0[&Id(id)];
+            let i = (((r.y + 2.) as usize) * 1280 + (r.x + 40.) as usize) * 4;
+            &png[i..i + 3]
+        };
+        assert_eq!(sample(12), [0x2e, 0x2e, 0x34]);
+        assert_eq!(sample(13), [0x23, 0x23, 0x27]);
+        assert_eq!(sample(14), [0x17, 0x17, 0x1a]);
+        // No mint click/focus/pressed rectangle anywhere in the channel list.
+        assert!(!(56..350).any(|y| (80..304).any(|x| {
+            let i = (y * 1280 + x) * 4;
+            png[i] < 120 && png[i + 1] > 170 && png[i + 2] > 90
+        })));
+        drive(
+            &mut app,
+            &mut cache,
+            &mut renderer,
+            iced::Point::new(600., 300.),
+            false,
+        );
+        assert_eq!(app.main.hovered_channel, None);
+        drive(&mut app, &mut cache, &mut renderer, point(14), false);
+        let _ = app.update(Msg::Focus(false));
+        assert_eq!(app.main.hovered_channel, None);
+        let _ = app.main_update(crate::main_window::Message::ChannelHover(Some(Id(14))));
+        assert_eq!(
+            app.main.hovered_channel, None,
+            "late layout/hover events cannot relight a blurred window"
+        );
+        // Voice navigation replaces the text destination instead of selecting both.
+        app.main.focus_voice = Some(Id(22));
+        assert!(!app.channel_selected(Id(12)));
+        assert!(app.channel_selected(Id(22)));
     }
 }

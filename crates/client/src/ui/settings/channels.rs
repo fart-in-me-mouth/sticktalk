@@ -207,6 +207,6 @@ fn hover_row<'a>(
         style
     }))
     .on_enter(Msg::Settings(A::ChannelHover(Some(ch.id))))
-    .on_exit(Msg::Settings(A::ChannelHover(None)))
+    .on_exit(Msg::Settings(A::ChannelLeave(ch.id)))
     .into()
 }

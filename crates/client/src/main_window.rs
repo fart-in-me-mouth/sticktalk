@@ -80,6 +80,11 @@ pub enum Message {
     SearchFocus(bool),
     Category(Id),
     ChannelHover(Option<Id>),
+    ChannelLeave(Id),
+    CategoryLeave(Id),
+    MemberLeave(Id),
+    RailLeave(Option<Id>),
+    ClearHover,
     CategoryHover(Option<Id>),
     MemberHover(Option<Id>),
     MemberScroll(f32),
@@ -206,6 +211,23 @@ impl App {
         self.main.popover = Some(p);
         operation::focus(focus.unwrap_or("closed-composer"))
     }
+    /// Only one sidebar destination owns selection, including voice navigation.
+    pub(crate) fn channel_selected(&self, id: Id) -> bool {
+        self.main.focus_voice.or(match self.state.screen {
+            Screen::Channel(id) => Some(id),
+            _ => None,
+        }) == Some(id)
+    }
+    pub(crate) fn clear_hover(&mut self) {
+        self.main.hovered_channel = None;
+        self.main.hovered_category = None;
+        self.main.hovered_member = None;
+        self.main.user_hover = false;
+        self.main.split_hover = None;
+        self.hovered_guild = None;
+        self.hovered = None;
+        self.settings.hovered_channel = None;
+    }
     pub(crate) fn main_update(&mut self, m: Message) -> Task<Msg> {
         match m {
             Message::Open(p) => return self.main_open(p),
@@ -222,9 +244,30 @@ impl App {
                     self.main.collapsed.insert(id);
                 }
             }
-            Message::ChannelHover(id) => self.main.hovered_channel = id,
-            Message::CategoryHover(id) => self.main.hovered_category = id,
-            Message::MemberHover(id) => self.main.hovered_member = id,
+            Message::ClearHover => self.clear_hover(),
+            Message::ChannelHover(id) => self.main.hovered_channel = id.filter(|_| self.focused),
+            Message::ChannelLeave(id) => {
+                if self.main.hovered_channel == Some(id) {
+                    self.main.hovered_channel = None;
+                }
+            }
+            Message::CategoryLeave(id) => {
+                if self.main.hovered_category == Some(id) {
+                    self.main.hovered_category = None;
+                }
+            }
+            Message::MemberLeave(id) => {
+                if self.main.hovered_member == Some(id) {
+                    self.main.hovered_member = None;
+                }
+            }
+            Message::RailLeave(id) => {
+                if self.hovered_guild == Some(id) {
+                    self.hovered_guild = None;
+                }
+            }
+            Message::CategoryHover(id) => self.main.hovered_category = id.filter(|_| self.focused),
+            Message::MemberHover(id) => self.main.hovered_member = id.filter(|_| self.focused),
             Message::MemberScroll(y) => self.main.members_scroll = y,
             Message::UserHover(v) => self.main.user_hover = v,
             Message::SplitHover(v) => self.main.split_hover = v,

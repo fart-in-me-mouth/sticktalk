@@ -8,6 +8,7 @@ mod features3;
 mod video;
 use sticktalk::backend;
 use sticktalk::{animated, gifs, platform_glue, uploads};
+mod composer_emoji;
 mod datetime;
 mod focus_button;
 mod headless;
@@ -140,6 +141,8 @@ fn main() -> iced::Result {
     .scale_factor(|_: &app::App, _| agent_window::scale_factor())
     .subscription(app::App::subscription)
     .default_font(theme::regular())
+    .font(composer_emoji::FONT)
+    .font(composer_emoji::CUSTOM_FONT)
     .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
     .font(include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice())
     .font(include_bytes!("../assets/fonts/Inter-Bold.ttf").as_slice())

@@ -501,6 +501,9 @@ impl App {
                 UiEvent::Window(window::Event::FilesHoveredLeft) => {
                     Some(Msg::Main(crate::main_window::Message::DropHover(false)))
                 }
+                UiEvent::Mouse(iced::mouse::Event::CursorLeft) => {
+                    Some(Msg::Main(crate::main_window::Message::ClearHover))
+                }
                 UiEvent::Mouse(iced::mouse::Event::CursorMoved { position }) => {
                     Some(Msg::Main(crate::main_window::Message::Pointer(position)))
                 }
@@ -1330,6 +1333,9 @@ impl App {
             }
             Msg::Focus(focused) => {
                 self.focused = focused;
+                if !focused {
+                    self.clear_hover();
+                }
                 if focused {
                     self.activity();
                 }
@@ -1490,7 +1496,7 @@ impl App {
                     ]);
                 }
                 if menu {
-                    return self.update(Msg::Tab(false));
+                    return crate::focus_button::focus_dialog();
                 }
                 return operation::focus(field);
             }
@@ -2214,7 +2220,7 @@ impl App {
                 return operate(cycle).map(|_: ()| Msg::Activity);
             }
             Msg::FocusComposer => return operation::focus("composer-editor"),
-            Msg::GuildHover(id) => self.hovered_guild = id,
+            Msg::GuildHover(id) => self.hovered_guild = id.filter(|_| self.focused),
             Msg::MoreInvites => {
                 if let (Some(guild), Some(after)) = (self.state.guild, self.state.invite_after) {
                     self.request(Request::Invites {
