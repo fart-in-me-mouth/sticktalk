@@ -47,7 +47,8 @@ not compile on the 2 GB Pi or copy a newer Ubuntu-glibc binary to Bookworm:
 ```powershell
 ./deploy/pi/build.ps1 -InstallTools
 ssh piuser@100.64.0.2 'mkdir -p ~/sticktalk-setup'
-scp $env:USERPROFILE/.cargo-target/sticktalk-server/aarch64-unknown-linux-gnu/server/sticktalk-server piuser@100.64.0.2:sticktalk-setup/
+$target = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PWD 'target' }
+scp "$target/aarch64-unknown-linux-gnu/server/sticktalk-server" piuser@100.64.0.2:sticktalk-setup/
 scp -r ./deploy/pi piuser@100.64.0.2:sticktalk-setup/
 ```
 

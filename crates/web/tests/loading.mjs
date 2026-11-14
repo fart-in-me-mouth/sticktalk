@@ -3,6 +3,8 @@ import {join,resolve,dirname} from 'node:path';
 import {hostGraphFingerprint} from '../scripts/version-runtime.mjs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+process.env.CARGO_TARGET_DIR ??= fileURLToPath(new URL('../../../target/', import.meta.url));
 const dist=process.env.STICKTALK_WEB_DIST ?? join(process.env.CARGO_TARGET_DIR,'web-dist');
 const inventory=JSON.parse(await readFile(join(dist,'sizes.json'),'utf8'));
 const core=inventory.assets.find(a=>a.file.endsWith('_bg.wasm'));

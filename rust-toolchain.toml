@@ -2,4 +2,5 @@
 channel = "stable"
 profile = "minimal"
 components = ["rustfmt", "clippy"]
-targets = ["x86_64-pc-windows-msvc", "aarch64-unknown-linux-gnu"]
+# rustup installs the host target automatically. Optional WASM/Pi targets are
+# installed explicitly by the documented build steps, not on every host.

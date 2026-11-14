@@ -3,8 +3,10 @@
 ## Desktop integration update (2026-11-12)
 
 The client integration is documented in `../client/VOICE_INTEGRATION.md`.
-Normal PowerShell builds no longer need `build-env.ps1`: the workspace pins the
-installed VS 2022 CMake generator, and the vendored native APM build discovers
+Normal PowerShell builds no longer need the historical `tools/build-env.ps1`:
+use the portable root [build-shell helper](../../deploy/dev-env.ps1) and
+[handoff guide](../../HANDOFF.md). They select VS 2022 Build Tools or any other
+2022 edition with the C++ workload. The vendored native APM build discovers
 MSVC and the existing portable per-user Meson/Ninja/libclang tools itself. See
 `vendor/BUILD_CHANGES.md` for prerequisites and precise changes. No installer,
 admin rights, global PATH edit, second target directory or prebuilt DSP DLL.
@@ -225,7 +227,7 @@ Task-local build tools only, no installer/admin/system PATH changes:
 
 ```powershell
 # Python packages live in the named per-user tools directory, not globally:
-python -m pip install --target C:/Users/dwhee/.cargo-tools/sticktalk-call-hq/python meson==1.7.2 ninja==1.13.0 libclang==18.1.1
+python -m pip install --target "$env:USERPROFILE/.cargo-tools/sticktalk-call-hq/python" meson==1.7.2 ninja==1.13.0 libclang==18.1.1
 # Extract official NASM2.16.03 ZIP into that tools directory (URL/hash below).
 . ./crates/media/tools/build-env.ps1
 # Process-local MSVC2022 environment; ONE short target C:/mhq, outside OneDrive.
