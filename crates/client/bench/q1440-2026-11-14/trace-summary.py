@@ -1,14 +1,20 @@
 """Sampled startup queue maxima and all resets, attributed by authenticated peer."""
-import pathlib,re,json
+import pathlib,re,json,zipfile
 ROOT=pathlib.Path(__file__).resolve().parent
 out={}
 for run in sorted(ROOT.iterdir()):
     if not (run/'run.json').exists(): continue
     log=ROOT/(run.name+'.trace.log')
-    if not log.exists(): continue
+    if log.exists():
+        lines=log.read_text(errors='replace').splitlines()
+    elif (ROOT/'trace-logs.zip').exists():
+        with zipfile.ZipFile(ROOT/'trace-logs.zip') as archive:
+            if log.name not in archive.namelist(): continue
+            lines=archive.read(log.name).decode(errors='replace').splitlines()
+    else: continue
     peers={}
     resets=[]
-    for line in log.read_text(errors='replace').splitlines():
+    for line in lines:
         if 'original_queue_reset' in line: resets.append(line)
         if 'startup_queue' not in line: continue
         peer=re.search(r'peer=(VoiceSession \{.*?\})',line)[1]

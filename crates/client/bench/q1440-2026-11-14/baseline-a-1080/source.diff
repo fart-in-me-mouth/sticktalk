@@ -1,0 +1,136 @@
+diff --git a/crates/sfu/tests/peers.rs b/crates/sfu/tests/peers.rs
+index feef4f4..622f987 100644
+--- a/crates/sfu/tests/peers.rs
++++ b/crates/sfu/tests/peers.rs
+@@ -4,6 +4,131 @@ use sticktalk_sfu::proto::*;
+ use str0m::{media::KeyframeRequestKind, Event};
+ use support::*;
+ 
++#[test]
++fn paced_two_viewer_video_keeps_every_one_second_bin_without_inventing_probe_loss() {
++    let mut n = Network::new(32_000_000);
++    let a = n.add(true);
++    let b = n.add(false);
++    let c = n.add(false);
++    n.subscribe(b, a, TrackKind::Screen);
++    n.subscribe(c, a, TrackKind::Screen);
++    n.clear();
++    let before_bytes = n.video_bytes;
++    let mut sequence = 1;
++    // A deterministic RTP transport regression, NOT hardware video acceptance.
++    // ~11.6 Mbps payload with a 130 KB IDR each second, over sixty simulated
++    // seconds so allocation/ALR probes and sequence rollover are exercised.
++    for second in 0..60 {
++        let before = [n.peers[b].frames, n.peers[c].frames];
++        for frame in 0..60 {
++            let keyframe = frame == 0;
++            let packets = if keyframe { 110 } else { 19 };
++            for packet in 0..packets {
++                let mut payload = vec![7; 1180];
++                payload[0] = 0x7c;
++                let kind = if keyframe { 5 } else { 1 };
++                payload[1] = kind
++                    | if packet == 0 {
++                        0x80
++                    } else if packet + 1 == packets {
++                        0x40
++                    } else {
++                        0
++                    };
++                n.send(
++                    a,
++                    TrackKind::Screen,
++                    sequence,
++                    9000 + (second * 60 + frame) * 1500,
++                    &payload,
++                    packet + 1 == packets,
++                );
++                sequence += 1;
++            }
++            n.advance(Duration::from_micros(16_667));
++        }
++        for (viewer, previous) in [(b, before[0]), (c, before[1])] {
++            let frames = n.peers[viewer].frames - previous;
++            assert!(
++                frames >= 45,
++                "viewer {viewer} simulated bin {second}: {frames} fps"
++            );
++            n.peers[viewer].events.clear();
++        }
++    }
++    for viewer in [b, c] {
++        assert!(n.peers[viewer].frames >= 3480);
++        assert!(n
++            .signals
++            .iter()
++            .any(|(peer, event)| *peer == n.peers[viewer].key
++                && matches!(event, VoiceEvent::Stats(_))));
++    }
++    assert!(n.signals.iter().all(|(_, event)| !matches!(event,
++        VoiceEvent::Stats(stats) if stats.queue_dropped_packets != 0 || stats.cap_dropped_packets != 0)));
++    assert!(n.video_bytes - before_bytes <= 32_000_000 / 8 * 601 / 10);
++}
++
++#[test]
++fn two_viewers_drain_a_fragmented_1440p_idr_without_guard_reset() {
++    let mut n = Network::new(32_000_000);
++    let a = n.add(true);
++    let b = n.add(false);
++    let c = n.add(false);
++    n.subscribe(b, a, TrackKind::Screen);
++    n.subscribe(c, a, TrackKind::Screen);
++    n.clear();
++    // The negotiated fixture estimate is 12 Mbps: 295 KB drains within
++    // 250 ms, while 413/590 KB do not. Keep this above the old 256 KiB
++    // guard without asserting that an impossible oversized burst must fit.
++    // One 295 KB FU-A IDR at a single instant, followed by normal delta
++    // frames. Exercises actual SRTP, str0m pacing, both fair wire buckets and
++    // the guard, rather than just testing a larger numeric threshold.
++    for seq in 1..=250 {
++        let mut payload = vec![7; 1180];
++        payload[0] = 0x7c;
++        payload[1] = if seq == 1 {
++            0x85
++        } else if seq == 250 {
++            0x45
++        } else {
++            0x05
++        };
++        n.send(a, TrackKind::Screen, seq, 9000, &payload, seq == 250);
++    }
++    for frame in 1..=60 {
++        n.advance(Duration::from_micros(16_667));
++        let mut payload = vec![7; 1180];
++        payload[0] = 0x41;
++        n.send(
++            a,
++            TrackKind::Screen,
++            250 + frame,
++            9000 + frame as u32 * 1500,
++            &payload,
++            true,
++        );
++    }
++    for receiver in [b, c] {
++        let fragments = n.peers[receiver]
++            .events
++            .iter()
++            .filter(|event| matches!(event, Event::RtpPacket(p) if p.header.timestamp == 9000))
++            .count();
++        assert_eq!(
++            fragments, 250,
++            "viewer {receiver} lost part of its startup IDR"
++        );
++    }
++    assert!(n.signals.iter().all(|(_, event)| !matches!(event,
++        VoiceEvent::Stats(stats) if stats.queue_dropped_packets != 0)));
++    // Even dropped padding creates missing transport sequence numbers and
++    // false congestion feedback. Admit it before dequeue, not poll-and-drop.
++    assert!(n.signals.iter().all(|(_, event)| !matches!(event,
++        VoiceEvent::Stats(stats) if stats.cap_dropped_packets != 0)));
++    assert!(n.max_rtp <= 1232);
++}
++
+ #[test]
+ fn per_peer_and_room_caps_apply_to_real_encrypted_1232_byte_path() {
+     for (peer_cap, room_cap) in [(128_000, 2_000_000), (2_000_000, 256_000)] {

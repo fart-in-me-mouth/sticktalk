@@ -1,0 +1,12 @@
+{
+  "target": "C:\\Users\\dwhee\\.cargo-target\\sticktalk-q1440",
+  "observed_bytes": 8386024354,
+  "hard_budget_bytes": 10000000000,
+  "observed_utc_unix": 1794639947.6310265,
+  "final_before_cleanup_bytes": 8420504303,
+  "maximum_observed_bytes": 8420504303,
+  "profile_directories": [
+    "server",
+    "tmp"
+  ]
+}

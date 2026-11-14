@@ -1,0 +1,13 @@
+{
+  "profile": "server",
+  "binary_sha256": "92480D4EE53B6FEF7BA19924B3407A91642C22BC0F0FC9096742642E8FE28296",
+  "binary": "voice-6c2ddc1db49e0114.exe",
+  "quality": "1080",
+  "commit": "3ed11142685ffd30e3826544dcafd350ffff4755",
+  "source": "synthetic",
+  "diff_sha256": "15E8630B183722FB4F6DBB9CCABD43149608F4C9C831BFFC43722B6699341CE4",
+  "utc_started": "2026-11-14T05:59:27.4334391Z",
+  "seconds": 180,
+  "viewers": 2,
+  "fps": 60
+}

@@ -1,0 +1,68 @@
+{
+  "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+  "source": "synthetic",
+  "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+  "profile": "server",
+  "compiler_processes": [
+    {
+      "Name": "cargo",
+      "Id": 7004,
+      "CPU": 1.796875
+    },
+    {
+      "Name": "cargo",
+      "Id": 19760,
+      "CPU": 0.140625
+    },
+    {
+      "Name": "rustc",
+      "Id": 4948,
+      "CPU": 1.8125
+    },
+    {
+      "Name": "rustc",
+      "Id": 16636,
+      "CPU": 1.3125
+    },
+    {
+      "Name": "rustc",
+      "Id": 24368,
+      "CPU": 0.875
+    }
+  ],
+  "seconds": 60,
+  "binary": "voice-6c2ddc1db49e0114.exe",
+  "quality": "1440",
+  "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+  "fps": 60,
+  "viewers": 2,
+  "utc_started": "2026-11-14T06:59:03.2935442Z",
+  "compiler_processes_end": [
+    {
+      "Name": "cargo",
+      "Id": 7004,
+      "CPU": 2.5
+    },
+    {
+      "Name": "cargo",
+      "Id": 19760,
+      "CPU": 0.140625
+    },
+    {
+      "Name": "rustc",
+      "Id": 23056,
+      "CPU": 29.828125
+    },
+    {
+      "Name": "rustc",
+      "Id": 24496,
+      "CPU": 8.203125
+    },
+    {
+      "Name": "rustc",
+      "Id": 26588,
+      "CPU": 7.03125
+    }
+  ],
+  "utc_ended": "2026-11-14T07:00:12.9036431Z"
+}

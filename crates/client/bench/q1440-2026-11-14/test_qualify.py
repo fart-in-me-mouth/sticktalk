@@ -1,5 +1,5 @@
 import unittest
-from qualify import metric_pass
+from qualify import metric_pass, load_present
 
 class Gates(unittest.TestCase):
     def metric(self, **kw):
@@ -8,6 +8,12 @@ class Gates(unittest.TestCase):
         return m
     def passes(self, m, quality='1440', role='viewer_b'):
         return metric_pass(m, dict(quality=quality, seconds=60), role)
+    def test_compiler_load_cannot_be_a_cached_cargo_noop(self):
+        self.assertFalse(load_present({}))
+        one = {'Name': 'rustc', 'CPU': 1.0}
+        self.assertFalse(load_present({'compiler_processes': [one]}))
+        self.assertFalse(load_present({'compiler_processes': [{'Name': 'cargo', 'CPU': 1.0}], 'compiler_processes_end': [one]}))
+        self.assertTrue(load_present({'compiler_processes': [one], 'compiler_processes_end': [one]}))
     def test_first_bin_is_never_discarded(self):
         self.assertFalse(self.passes(self.metric(fps_by_second=[11]+[60]*59,frames=3551)))
     def test_drift_is_strict_including_1080_baseline(self):

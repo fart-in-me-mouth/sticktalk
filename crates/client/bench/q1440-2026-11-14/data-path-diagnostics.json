@@ -1,0 +1,172 @@
+{
+  "final-a-1080": {
+    "publisher_gate_events": [],
+    "last_gate_rtp_seconds": null,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 1920, height: 1080 } quality=Quality { fps: Fps60, resolution: P1080 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 11301, encoded: 11301, dropped: 0, repeated: 0, bytes: 190478021, max_access_unit_bytes: 91602, reconfigurations: 0, quality_requests: 0, keyframe_requests: 1, keyframes: 190, bitrate_updates: 0, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-b-startup-1": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=54026 queue=Some((566, 640836, Some(273))) staged=0",
+      "VIDEO_TRACE sender_gate timestamp=258039 queue=Some((305, 334098, Some(250))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 2.8671,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4100, encoded: 4100, dropped: 0, repeated: 0, bytes: 103089637, max_access_unit_bytes: 131973, reconfigurations: 0, quality_requests: 0, keyframe_requests: 3, keyframes: 71, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-b-startup-2": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=54021 queue=Some((565, 639656, Some(252))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 0.6002333333333333,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4100, encoded: 4100, dropped: 0, repeated: 0, bytes: 97486547, max_access_unit_bytes: 131973, reconfigurations: 0, quality_requests: 0, keyframe_requests: 2, keyframes: 70, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-b-startup-3": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=55524 queue=Some((550, 623978, Some(253))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 0.6169333333333333,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4101, encoded: 4101, dropped: 0, repeated: 0, bytes: 98169233, max_access_unit_bytes: 68550, reconfigurations: 0, quality_requests: 0, keyframe_requests: 2, keyframes: 70, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-b-startup-4": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=55518 queue=Some((564, 638521, Some(274))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 0.6168666666666667,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4102, encoded: 4102, dropped: 0, repeated: 0, bytes: 103150485, max_access_unit_bytes: 68550, reconfigurations: 0, quality_requests: 0, keyframe_requests: 2, keyframes: 70, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-b-startup-5": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=55515 queue=Some((550, 625171, Some(251))) staged=0",
+      "VIDEO_TRACE sender_gate timestamp=217515 queue=Some((536, 608747, Some(250))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 2.4168333333333334,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4101, encoded: 4100, dropped: 0, repeated: 0, bytes: 103085750, max_access_unit_bytes: 136424, reconfigurations: 0, quality_requests: 0, keyframe_requests: 3, keyframes: 70, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-c-1440-long": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=52509 queue=Some((534, 604992, Some(264))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 0.5834333333333334,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 36501, encoded: 36500, dropped: 0, repeated: 0, bytes: 856010008, max_access_unit_bytes: 131973, reconfigurations: 0, quality_requests: 0, keyframe_requests: 2, keyframes: 610, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-d-wgc-1440": {
+    "publisher_gate_events": [],
+    "last_gate_rtp_seconds": null,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=wgc-motion size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 22609, encoded: 11304, dropped: 0, repeated: 0, bytes: 170994258, max_access_unit_bytes: 55059, reconfigurations: 0, quality_requests: 0, keyframe_requests: 1, keyframes: 190, bitrate_updates: 3, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-d-wgc-source": {
+    "publisher_gate_events": [],
+    "last_gate_rtp_seconds": null,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=wgc-motion size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: Source } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 22611, encoded: 11304, dropped: 0, repeated: 0, bytes: 171338337, max_access_unit_bytes: 53002, reconfigurations: 0, quality_requests: 0, keyframe_requests: 1, keyframes: 190, bitrate_updates: 5, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-e-load-1": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=51033 queue=Some((564, 638378, Some(260))) staged=0",
+      "VIDEO_TRACE sender_gate timestamp=238506 queue=Some((452, 501965, Some(261))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 2.6500666666666666,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4108, encoded: 4107, dropped: 0, repeated: 0, bytes: 96543467, max_access_unit_bytes: 126755, reconfigurations: 0, quality_requests: 0, keyframe_requests: 3, keyframes: 71, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-e-load-2": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=54043 queue=Some((587, 665616, Some(264))) staged=0",
+      "VIDEO_TRACE sender_gate timestamp=255021 queue=Some((343, 379438, Some(257))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 2.8335666666666666,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4105, encoded: 4104, dropped: 0, repeated: 0, bytes: 94783546, max_access_unit_bytes: 131973, reconfigurations: 0, quality_requests: 0, keyframe_requests: 3, keyframes: 71, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-e-load-3": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=55533 queue=Some((569, 644421, Some(280))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 0.6170333333333333,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4106, encoded: 4106, dropped: 0, repeated: 0, bytes: 98663559, max_access_unit_bytes: 136493, reconfigurations: 0, quality_requests: 0, keyframe_requests: 2, keyframes: 70, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-e-load-4": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=55546 queue=Some((581, 660139, Some(263))) staged=0",
+      "VIDEO_TRACE sender_gate timestamp=211505 queue=Some((522, 592482, Some(252))) staged=0",
+      "VIDEO_TRACE sender_gate timestamp=214533 queue=Some((532, 602653, Some(260))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 2.3837,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4107, encoded: 4106, dropped: 0, repeated: 0, bytes: 103246021, max_access_unit_bytes: 136424, reconfigurations: 0, quality_requests: 0, keyframe_requests: 4, keyframes: 72, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  },
+  "final-e-load-5": {
+    "publisher_gate_events": [
+      "VIDEO_TRACE sender_gate timestamp=54044 queue=Some((521, 591212, Some(251))) staged=0",
+      "VIDEO_TRACE sender_gate timestamp=57026 queue=Some((602, 685044, Some(271))) staged=0",
+      "VIDEO_TRACE sender_gate timestamp=262517 queue=Some((318, 348904, Some(263))) staged=0"
+    ],
+    "last_gate_rtp_seconds": 2.9168555555555558,
+    "sfu_queue_reset_events": [],
+    "maximum_cumulative_cap_drops": 0,
+    "capture_summary": [
+      "capture source=synthetic size=Size { width: 2560, height: 1440 } quality=Quality { fps: Fps60, resolution: P1440 } hardware encoder=Hardware { name: \"NVIDIA H.264 Encoder MFT\" }, GPU=NVIDIA GeForce RTX 3060 Ti",
+      "capture stats: SessionStats { captured: 4102, encoded: 4101, dropped: 0, repeated: 0, bytes: 103103029, max_access_unit_bytes: 136424, reconfigurations: 0, quality_requests: 0, keyframe_requests: 4, keyframes: 72, bitrate_updates: 1, bitrate_update_failures: 0 }"
+    ]
+  }
+}

@@ -9,6 +9,11 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parent
 WORKSPACE = ROOT.parents[3]
 
+def load_present(run):
+    return all(any(p.get('Name') == 'rustc' and p.get('CPU', 0) > 0
+                   for p in run.get(key, []))
+               for key in ['compiler_processes', 'compiler_processes_end'])
+
 def metric_pass(m, run, role):
     bins = m['fps_by_second']
     strict = run['quality'] == '1080'
@@ -25,6 +30,8 @@ def results():
             continue
         run = json.loads((directory / 'run.json').read_text(encoding='utf-8-sig'))
         row = {'name': directory.name, 'run': run, 'roles': {}, 'passed': True}
+        if directory.name.startswith('final-e-load-'):
+            row['passed'] &= load_present(run)
         for role in ['sharer', 'viewer_b', 'viewer_c']:
             path = directory / f'{role}.metrics.json'
             if not path.exists():

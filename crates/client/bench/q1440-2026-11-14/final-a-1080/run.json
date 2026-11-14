@@ -1,0 +1,16 @@
+{
+  "seconds": 180,
+  "utc_started": "2026-11-14T06:33:07.9665866Z",
+  "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+  "fps": 60,
+  "profile": "server",
+  "source": "synthetic",
+  "binary": "voice-6c2ddc1db49e0114.exe",
+  "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+  "quality": "1080",
+  "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+  "viewers": 2,
+  "compiler_processes": [],
+  "compiler_processes_end": [],
+  "utc_ended": "2026-11-14T06:36:17.6950890Z"
+}
