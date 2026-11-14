@@ -1,0 +1,150 @@
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+   Compiling sticktalk-web v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-3688c202-d0d11ccd867be3da\crates\web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.35s
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\sticktalk_client_core-5cf73069f6402243.exe)
+
+running 53 tests
+test backend::tests::jump_targets_validate_dates_and_ids_without_a_timezone_or_clock ... ok
+test datetime::tests::calendar_dates_use_month_names_without_zero_padding ... ok
+test gifs::tests::playback_has_no_offscreen_or_background_exception ... ok
+test features3::slowmode_tests::cooldown_is_monotonic_handles_clock_skew_replay_and_bypass ... ok
+test launch::tests::fuzzy_is_subsequence_not_substring ... ok
+test features3::search_tests::stale_searches_do_not_replace_newer_results_and_highlights_are_utf8_safe ... ok
+test backend::tests::rejects_trailing_and_large_frames ... ok
+test launch::tests::bounded_cache_keeps_a_new_low_id ... ok
+test http::qa_read_retry::reads_honor_backoff_but_retries_and_waiting_are_bounded ... ok
+test features3::tests::tokens_completion_and_shortcode_collision_are_safe ... ok
+test features3::folder_notification_tests::moves_are_unique_folders_are_purged_on_leave_and_master_switch_survives_restart ... ok
+test markdown::tests::cache_reuses_and_invalidates_edits ... ok
+test markdown::tests::discord_subset_and_escapes ... ok
+test mock::google_tests::google_signup_collision_replay_and_last_method ... ok
+test emoji::tests::replacement_preserves_unknown_and_unicode ... ok
+test launch::tests::guild_settings_do_not_inherit_the_selected_channel_acl ... ok
+test model::tests::ordered_upserts_and_duplicate_sequences ... ok
+test launch::qa_permission_tests::authoritative_mask_invalidates_on_channel_upsert_and_purge ... ok
+test launch::tests::nickname_color_and_hoist_use_highest_assigned_role ... ok
+test model::tests::reconnect_resume_backoff_and_terminal_close ... ok
+test launch::qa_permission_tests::local_affordances_apply_implicit_send_dependencies ... ok
+test notifications::qa_defaults::local_notification_choice_is_applied_and_server_overrides_still_win ... ok
+test model::tests::pagination_replays_deletion_and_edit ... ok
+test notifications::tests::dm_nothing_and_mentions_are_not_all ... ok
+test model::tests::read_counts_are_authoritative_and_idempotent ... ok
+test notifications::tests::server_channel_expiry_and_focus ... ok
+test oauth::nonce_tests::s8_authorization_requests_the_exact_server_nonce ... ok
+test mock::tests::messages_reactions_and_receipt_replay ... ok
+test settings::desktop_preference_tests::startup_is_explicitly_opt_in_and_legacy_preferences_are_compatible ... ok
+test oauth::tests::pkce_rfc7636_vector_and_random_state ... ok
+test settings::tests::administrator_never_bypasses_role_hierarchy_or_moves_everyone ... ok
+test settings::tests::category_then_channel_and_member_overwrites_follow_server_precedence ... ok
+test settings::tests::private_preserves_other_bits_and_tristates_never_overlap ... ok
+test mock::tests::guild_channel_invite_and_moderation_flows ... ok
+test oauth::tests::loopback_parser_rejects_spoofing_duplicates_and_denial ... ok
+test settings::tests::unchanged_attached_icons_are_kept_instead_of_reclaimed ... ok
+test emoji::tests::trigger_and_caret_are_utf8_safe ... ok
+test mock::tests::relationships_and_group_lifecycle ... ok
+test settings::tests::voice_defaults_are_inert_and_preferences_roundtrip ... ok
+test mock::tests::profile_presence_pagination_and_read ... ok
+test upload::tests::malformed_ack_cannot_spin_and_storage_full_is_preserved ... ok
+test tests::http_upload_hashes_and_uses_durable_offset_then_finishes ... ok
+test voice::control::tests::explicit_fresh_consent_and_timeout ... ok
+test upload::tests::restart_uses_server_offset_not_stale_checkpoint ... ok
+test voice::tests::envelope_is_bounded_and_rejects_trailing_data ... ok
+test voice::tests::reconnect_rejoins_but_kick_does_not ... ok
+test voice::tests::server_flags_cannot_be_locally_bypassed ... ok
+test settings::tests::racing_settings_snapshots_replay_metadata_and_refetch_session_invalidations ... ok
+test tests::state_read_permissions_mentions_and_timestamp_formatting_are_portable ... ok
+test tests::injected_driver_correlates_heartbeats_retries_applied_cursor_and_expires_receipts ... ok
+test markdown::tests::unsafe_links_remain_text_and_nesting_is_bounded ... ok
+test model::tests::replay_budget_includes_reactions_and_mentions ... ok
+test model::tests::bounded_cache_and_purge ... ok
+
+test result: ok. 53 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\sticktalk_proto-8184efeee606a4e3.exe)
+
+running 2 tests
+test permissions::tests::presets_include_only_their_defined_rights ... ok
+test permissions::tests::unknown_bits_survive_messagepack_without_granting_known_rights ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\browser.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\browser-176e522b24b7c8be.exe)
+
+running 2 tests
+test browser_dtos_roundtrip_without_a_bearer_field ... ok
+test focus_is_additive_named_wire_and_old_identify_is_unchanged ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\launch.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\launch-0fcc11138d6a8814.exe)
+
+running 5 tests
+test default_scaffolding_preserves_legacy_identify_and_safe_empty_extensions ... ok
+test legacy_identify_has_no_new_required_wire_fields ... ok
+test legacy_members_decode_with_additive_defaults_and_old_bits_unchanged ... ok
+test launch_events_and_results_round_trip ... ok
+test all_launch_commands_round_trip_named_json_and_messagepack ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\operations.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\operations-a49718e72c219f9e.exe)
+
+running 2 tests
+test signed_manifest_envelope_preserves_exact_signed_bytes ... ok
+test operations_round_trip_as_named_maps_without_changing_attachments ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\voice-5b5e84b4edf14aa3.exe)
+
+running 2 tests
+test pre_voice_ready_defaults_to_empty_voice_projection ... ok
+test voice_contract_shapes_and_legacy_envelope ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\wire.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\wire-db3a8f7e6606f194.exe)
+
+running 9 tests
+test named_wire_shape_and_patch_defaults_are_stable ... ok
+test old_page_query_remains_decodable ... ok
+test google_auth_contracts_are_additive_named_maps ... ok
+test gif_discovery_and_favorites_contracts_are_additive ... ok
+test rest_models_and_numeric_masks_round_trip ... ok
+test handshake_reconnect_and_all_result_shapes_round_trip ... ok
+test every_command_round_trips ... ok
+test every_event_round_trips ... ok
+test maximum_bootstrap_metadata_fits_the_frame_budget ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\sticktalk_web-f96d193d6fca421c.exe)
+
+running 12 tests
+test model::tests::bounded_virtual_window ... ok
+test wire::tests::custom_role_colors_cannot_hide_names ... ok
+test wire::tests::adjacent_windows_overlap_and_never_skip_extent_anchor_gaps ... ok
+test model::tests::local_actions_and_input_bounds ... ok
+test wire::message_group_boundaries ... ok
+test wire::tests::invite_links_are_parsed_as_data_not_navigation ... ok
+test model::tests::markdown_is_not_executable ... ok
+test wire::tests::scrollbar_rank_is_bounded_at_empty_and_oldest_extents ... ok
+test wire::tests::legacy_video_hints_are_narrow_and_keep_other_files_downloadable ... ok
+test wire::tests::media_ids_remain_exact_above_javascript_integer_limit ... ok
+test wire::tests::signal_boundary_rejects_malformed_and_oversized_data ... ok
+test wire::tests::typing_copy_handles_plural_and_empty_states ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_client_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sticktalk_proto
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

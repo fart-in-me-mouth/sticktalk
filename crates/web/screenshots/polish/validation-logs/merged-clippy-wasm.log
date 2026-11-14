@@ -1,0 +1,3 @@
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+    Checking sticktalk-web v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-3688c202-d0d11ccd867be3da\crates\web)
+    Finished `web-release` profile [optimized] target(s) in 3.11s

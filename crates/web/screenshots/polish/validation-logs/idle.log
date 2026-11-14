@@ -1,0 +1,5 @@
+
+> test:idle
+> node tests/idle.mjs
+
+{"bundleRevision":"3808e78aad2e6c680634","headless":true,"realServer":true,"view":"Authenticated empty Friends screen; voice/video inactive","sampleMs":59999.9976,"cpuPercentOfOneLogicalCore":0.0728566695809335,"blank":{"processes":[{"id":4256,"type":"browser"},{"id":18904,"type":"renderer"},{"id":17552,"type":"GPU"},{"id":24376,"type":"network.mojom.NetworkService"}],"workingSetBytes":185786368,"privateBytes":78106624},"authenticated":{"processes":[{"id":4256,"type":"browser"},{"id":18904,"type":"renderer"},{"id":17552,"type":"GPU"},{"id":24376,"type":"network.mojom.NetworkService"}],"workingSetBytes":269557760,"privateBytes":119513088},"deltaPrivateBytes":41406464,"deltaWorkingSetBytes":83771392,"note":"Whole separate headless Chromium process-tree totals; working-set sum double-counts shared pages. Not native-client or physical-phone memory."}

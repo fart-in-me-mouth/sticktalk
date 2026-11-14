@@ -1,0 +1,233 @@
+   Compiling libm v0.2.16
+   Compiling num-traits v0.2.19
+   Compiling const-oid v0.9.6
+   Compiling lazy_static v1.5.1
+   Compiling pem-rfc7468 v0.7.0
+   Compiling digest v0.10.7
+   Compiling der v0.7.10
+   Compiling sha2 v0.10.9
+   Compiling hmac v0.12.1
+   Compiling sha1 v0.10.7
+   Compiling tungstenite v0.29.0
+   Compiling sqlx-core v0.9.0
+   Compiling pbkdf2 v0.12.2
+   Compiling hkdf v0.12.4
+   Compiling scrypt v0.11.0
+   Compiling age-core v0.11.0
+   Compiling tokio-tungstenite v0.29.0
+   Compiling blake2 v0.10.6
+   Compiling sharded-slab v0.1.7
+   Compiling axum v0.8.9
+   Compiling tracing-subscriber v0.3.23
+   Compiling crypto-bigint v0.7.11
+   Compiling atoi v2.0.0
+   Compiling rmp v0.8.15
+   Compiling rmp-serde v1.3.1
+   Compiling sqlx-sqlite v0.9.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-3688c202-d0d11ccd867be3da\crates\server\vendor\sqlx-sqlite)
+   Compiling moxcms v0.8.1
+   Compiling primefield v0.14.0
+   Compiling elliptic-curve v0.14.3
+   Compiling wnaf v0.14.1
+   Compiling rfc6979 v0.6.0
+   Compiling ecdsa v0.17.0
+   Compiling primeorder v0.14.0
+   Compiling sqlx v0.9.0
+   Compiling p256 v0.14.0
+   Compiling p384 v0.14.0
+   Compiling num-integer v0.1.47
+   Compiling age v0.11.3
+   Compiling argon2 v0.5.3
+   Compiling image v0.25.10
+   Compiling reqwest v0.12.28
+   Compiling dimpl v0.9.0
+   Compiling spki v0.7.3
+   Compiling num-bigint-dig v0.8.6
+   Compiling pkcs8 v0.10.2
+   Compiling num-iter v0.1.46
+   Compiling pkcs1 v0.7.5
+   Compiling str0m-proto v0.8.0
+   Compiling is v0.12.0
+   Compiling str0m-rust-crypto v0.7.0
+   Compiling signature v2.2.0
+   Compiling tempfile v3.27.0
+   Compiling rsa v0.9.10
+   Compiling str0m v0.25.0
+   Compiling sticktalk-sfu v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-3688c202-d0d11ccd867be3da\crates\sfu)
+   Compiling sticktalk-server v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-3688c202-d0d11ccd867be3da\crates\server)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 59.22s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src\lib.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\sticktalk_server-54af09beee7819dd.exe)
+
+running 124 tests
+test account::tests::admin_cli_erasure_uses_the_same_tombstone_and_username_hold ... ok
+test audit_tests::cross_channel_target_errors_do_not_leak_hidden_message_ids ... ok
+test audit_tests::deployment_security_invariants ... ok
+test audit_tests::dm_and_group_mutations_cannot_use_nonparticipant_ids ... ok
+test audit_tests::every_channel_mutation_rechecks_current_membership ... ok
+test audit_tests::failed_ready_detaches_stream_and_is_not_an_auth_failure ... ok
+test audit_tests::guild_commands_enforce_role_and_hierarchy_boundaries ... ok
+test audit_tests::http_admission_and_global_upload_reservation_are_bounded ... ok
+test audit_tests::presence_visibility_changes_emit_snapshots_and_offline ... ok
+test audit_tests::profile_events_obey_each_sessions_projection ... ok
+test audit_tests::read_counts_never_silently_wrap ... ok
+test audit_tests::readable_historical_authors_can_be_resolved_but_not_enumerated ... ok
+test audit_tests::rest_acl_matrix_and_authorization_before_304 ... ok
+test audit_tests::rest_streams_are_offline_and_metadata_is_bounded ... ok
+test audit_tests::slow_initial_replay_has_one_deadline ... ok
+test audit_tests::stalled_http_body_has_a_deadline_and_releases_admission ... ok
+test backup::encryption_tests::s7_snapshot_is_ciphertext_and_only_owner_identity_decrypts ... ok
+test browser::tests::browser_login_csrf_all_routes_logout_and_bearer_unchanged ... ok
+test browser::tests::cookie_websocket_origin_auth_identify_and_focus ... ok
+test browser::tests::direct_gif_csp_matches_meta_capability_without_wildcards ... ok
+test browser::tests::duplicate_cookie_and_csp_config_rejected ... ok
+test browser::tests::history_extent_exact_counts_gaps_acl_and_index_plans ... ok
+test browser::tests::static_security_headers_compression_caching_and_no_api_fallback ... ok
+test commands::audit_receipt_tests::receipts_cannot_return_removed_nested_entities ... ok
+test custom_emoji::tests::emoji_upload_names_permissions_assets_rename_delete_and_reactions ... ok
+test custom_emoji::tests::normalize_resizes_preserves_alpha_and_animation_and_rejects_bombs ... ok
+test files::tests::cancellation_after_upload_commit_preserves_published_files ... ok
+test files::tests::media_bounds_mime_and_small_thumbnail ... ok
+test files::tests::video_uploads_keep_sniffed_mime_not_untrusted_claims ... ok
+test folders::tests::folders_are_private_validated_persistent_and_membership_scoped ... ok
+test gifs::tests::authentication_validation_account_rate_limits_and_upstream_errors ... ok
+test gifs::tests::cache_coalesces_and_stays_bounded_without_idle_work ... ok
+test gifs::tests::config_is_explicit_disabled_by_default_and_secrets_are_not_public ... ok
+test gifs::tests::discovery_uses_light_renditions_caches_and_preserves_opaque_cursors ... ok
+test gifs::tests::favorites_are_idempotent_private_bounded_and_survive_reopen ... ok
+test gifs::tests::normalized_renditions_and_inputs_fail_closed ... ok
+test google::tests::cache_control_bounds ... ok
+test google::tests::disabled_meta_and_routes ... ok
+test google::tests::existing_google_login_obeys_session_cap_and_ticket_table_is_bounded ... ok
+test google::tests::google_endpoints_share_login_rate_limit_and_body_bound ... ok
+test google::tests::google_only_account_deletion_accepts_only_fresh_existing_identity_proof ... ok
+test google::tests::jwks_cache_rotation_throttle_expiry_and_failure ... ok
+test google::tests::malformed_or_oversized_jwks_fails_closed_and_backs_off ... ok
+test google::tests::s2_disabled_google_does_not_allow_unproven_password_setup ... ok
+test google::tests::s2_google_reauth_proofs_expire_and_cannot_cross_sessions_or_operations ... ok
+test google::tests::s2_stolen_session_cannot_link_unlink_or_create_first_password ... ok
+test google::tests::s8_google_nonce_is_mandatory_single_use_short_lived_and_session_bound ... ok
+test google::tests::signup_session_ticket_hash_replay_collision_and_subject_not_email ... ok
+test google::tests::tickets_expire_rotate_and_are_atomically_single_use ... ok
+test google::tests::valid_token_and_claim_signature_rejections ... ok
+test google::tests::web_redirect_pkce_state_cookie_signup_and_existing_session ... ok
+test http::tests::login_cannot_follow_reassigned_username ... ok
+test http::tests::s3_unpolled_slow_body_releases_admission_and_separate_pool_preserves_rest ... ok
+test http_io::tests::s3_stalled_socket_writer_times_out_without_body_polling ... ok
+test launch_tests::channel_overwrite_controls_management_not_just_guild_base ... ok
+test launch_tests::deleted_legacy_admin_can_be_recreated_by_old_assignment_and_transfer ... ok
+test launch_tests::devices_are_opaque_user_scoped_and_revocation_closes_live_streams ... ok
+test launch_tests::evaluator_full_bit_matrix_and_owner_admin_bypass ... ok
+test launch_tests::hidden_category_parent_ids_and_delete_reorder_events_do_not_leak ... ok
+test launch_tests::hidden_channel_denies_every_existing_channel_command_and_snapshot_projection ... ok
+test launch_tests::legacy_sessions_never_receive_unknown_launch_event_variants ... ok
+test launch_tests::migration_preserves_legacy_member_admin_owner_and_wire_bits ... ok
+test launch_tests::notifications_are_durable_device_synced_expiring_and_visibility_filtered ... ok
+test launch_tests::overwrite_order_aggregate_roles_member_and_implicit_dependencies ... ok
+test launch_tests::pins_require_channel_manage_messages_and_deleted_messages_drop_pins ... ok
+test launch_tests::private_channel_fanout_replay_receipts_and_visibility_restoration ... ok
+test launch_tests::profiles_unicode_limits_mutuals_preview_and_nicknames ... ok
+test launch_tests::rest_private_channel_matrix_profiles_pins_and_device_endpoints ... ok
+test launch_tests::role_hierarchy_assignment_escalation_reorder_and_owner_bypass ... ok
+test launch_tests::s1_empty_partial_and_bit_removal_preserve_protected_acl ... ok
+test legacy::tests::persisted_pre_merge_receipts_reproject_permission_masks_before_replay ... ok
+test legacy::tests::voice_and_role_bits_never_alias_across_negotiated_wire_projection ... ok
+test mentions::tests::broadcasts_and_roles_expand_only_authorized_viewers_and_update_unread_counts ... ok
+test mentions::tests::here_excludes_offline_invisible_and_private_members_and_edits_reexpand ... ok
+test mentions::tests::notifications_respect_suppression_explicit_mentions_mutes_overrides_and_dnd ... ok
+test operations_tests::duplicate_chunks_are_serialized_and_cancel_frees_reservations ... ok
+test operations_tests::reset_code_single_use_and_disable_covers_all_sessions ... ok
+test operations_tests::resumable_crash_restart_hash_acl_range_and_idempotent_finish ... ok
+test operations_tests::signed_release_publish_round_trip_and_tamper_rejection ... ok
+test operations_tests::unlimited_admission_quota_storage_guard_gc_and_owner_usage ... ok
+test push::tests::committed_mentions_coalesce_rate_limit_and_dm_hook ... ok
+test push::tests::delivery_encryption_expired_cleanup_focus_mute_acl_and_policy ... ok
+test push::tests::delivery_rechecks_launch_preferences_and_current_mentions ... ok
+test push::tests::fresh_ephemeral_encryption_roundtrip_and_invalid_curve ... ok
+test push::tests::rfc8291_appendix_a_derivation_and_ciphertext_vector ... ok
+test push::tests::subscriptions_session_isolation_ssrf_quota_keys_and_logout_cascade ... ok
+test search::tests::migration_backfills_and_tracks_soft_delete_edit_hard_delete ... ok
+test search::tests::search_filters_keysets_and_permissions_are_applied_before_limit ... ok
+test search::tests::validates_dates_filters_and_quotes_literal_fts_terms ... ok
+test security_tests::account_deletion_requires_proof_erases_files_and_holds_name_30_days ... ok
+test security_tests::s10_bundled_sqlite_is_security_patched ... ok
+test security_tests::s4_shared_daily_ingress_no_declared_charge_or_abort_refund ... ok
+test security_tests::s4_three_shared_unfinished_slots_idle_expiry_and_quota ... ok
+test security_tests::s4_zero_means_unlimited_for_multipart_too ... ok
+test security_tests::s6_password_change_rotates_and_revokes_sockets_and_voice ... ok
+test security_tests::s7_backups_require_recipient_encrypt_before_sync_and_expire_in_14_days ... ok
+test security_tests::s9_guild_storage_hides_other_guilds_dms_and_host_capacity ... ok
+test slowmode::tests::slowmode_validates_permissions_persists_and_serializes_sends ... ok
+test state::mock_configuration_tests::local_upstreams_cannot_be_public_or_credential_bearing ... ok
+test state::tests::bounded_shared_replay_and_slow_consumer ... ok
+test state::tests::global_replay_budget_and_limiter ... ok
+test state::tests::maximal_bootstrap_fits_frame ... ok
+test state::tests::snowflakes_and_rollback ... ok
+test state::text_feature_compatibility_tests::older_launch_peers_never_receive_new_text_variants ... ok
+test storage_tests::hybrid_lru_cache_and_backup_retention ... ok
+test storage_tests::hybrid_main_outage_resume_cache_permissions_sync_and_backup ... ok
+test storage_tests::hybrid_multigb_stream_flat_rss ... ignored, writes >2 GiB to each tier; run explicitly for memory acceptance
+test storage_tests::hybrid_proxy_mid_download_range_retry ... ok
+test storage_tests::storage_auth_replay_restart_payload_and_traversal ... ok
+test storage_tests::storage_configuration_rejects_public_destinations_and_redacts_secret ... ok
+test storage_tests::storage_interrupted_put_and_download_resume ... ok
+test voice::role_tests::all_role_and_membership_mutations_revoke_live_connect ... ok
+test voice::role_tests::both_branch_database_histories_upgrade_without_checksum_changes_or_data_loss ... ok
+test voice::role_tests::injected_advertised_address_selection_and_loopback_defaults ... ok
+test voice::role_tests::moderation_checks_channel_roles_hierarchy_and_cannot_be_self_unmuted ... ok
+test voice::role_tests::overwrite_revokes_live_speak_stream_video_then_connect_synchronously ... ok
+test voice::role_tests::private_voice_visibility_and_individual_moderator_rights_use_overwrites ... ok
+test voice::tests::only_tailscale_cgnat_addresses_match ... ok
+test voice::tests::s5_signaling_flood_does_not_shutdown_chat ... ok
+test voice::tests::s5_voice_frames_cannot_consume_reserved_chat_capacity ... ok
+test voice::tests::upgrade_retains_channel_children_messages_and_foreign_keys ... ok
+test ws::features3_shapes::folder_commands_use_named_maps_and_reject_positional_folder_structs ... ok
+test ws::tests::framing ... ok
+test ws::tests::positional_nested_structs_and_hostile_lengths_are_rejected ... ok
+
+test result: ok. 123 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 104.00s
+
+     Running unittests src\bin\sticktalk-release.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\sticktalk_release-90689fc63aef2a15.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\sticktalk_server-fc4d3e4f87444ba2.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\integration.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\integration-d80f935e2d9a7191.exe)
+
+running 10 tests
+test around_history_is_bounded_bidirectional_and_accepts_deleted_gaps ... ok
+test authorization_and_protocol_boundaries ... ok
+test graceful_shutdown_drains_authenticated_and_pre_auth_sockets ... ok
+test group_lifecycle_and_relationship_policies ... ok
+test handshake_control_and_replacement ... ok
+test moderation_reorder_and_safe_replay_after_revocation ... ok
+test phase1_end_to_end ... ok
+test preauth_oversize_and_depth_use_size_close_code ... ok
+test receipts_survive_restart_and_streams_do_not ... ok
+test single_use_invite_is_consumed_atomically ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.05s
+
+     Running tests\voice.rs (C:/Users/dwhee/.cargo-target/sticktalk-web3\debug\deps\voice-de5b6fbc99bf1ac4.exe)
+
+running 4 tests
+test failed_sfu_negotiation_reports_clean_error_and_other_calls_continue ... ok
+test full_server_real_peers_media_control_revoke_kick_and_reconnect ... ok
+test role_overwrites_and_moderation_stop_real_media_and_move_without_reconnect ... ok
+test voice_channel_permissions_delete_logout_and_session_expiry ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.42s
+
+   Doc-tests sticktalk_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

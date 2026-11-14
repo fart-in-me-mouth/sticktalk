@@ -1,0 +1,10 @@
+   Compiling color_quant v1.1.0
+   Compiling weezl v0.1.12
+   Compiling sticktalk-proto v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-3688c202-d0d11ccd867be3da\crates\proto)
+   Compiling gif v0.14.2
+   Compiling image v0.25.10
+   Compiling sticktalk-sfu v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-3688c202-d0d11ccd867be3da\crates\sfu)
+   Compiling sticktalk-server v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-3688c202-d0d11ccd867be3da\crates\server)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 36.81s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
