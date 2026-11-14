@@ -1,0 +1,11 @@
+{
+  "note": "Only the root and live/ PNGs listed in contact-index.json are the review gallery. The following are deliberately retained historical/control evidence, not current failures. Deletion of disposable QA files was rejected by the execution policy.",
+  "historical": {
+    "baseline-live/": "First UI pass, before RTX repair was retained.",
+    "camera-investigation/": "Repeated full-suite investigation before the RTX fix.",
+    "camera-delayed-before/": "Intentionally failing no-RTX control, including the 35-second receive stall.",
+    "camera-delayed-after/": "Earlier positive RTX timing trial; final positive evidence is voice-negotiation-results.json.",
+    "phone-failure.json": "Resolved keyboard-edge assertion from the pre-scroll-padding build; final phone-results.json passes.",
+    "full-suite-1.json through full-suite-5.json": "Earlier passing artifact; zero-padded full-suite-01.json through full-suite-05.json identify the latest repeated suite."
+  }
+}

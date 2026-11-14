@@ -1,0 +1,7 @@
+{
+  "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(await page.locator('[type=submit]').evaluate(e=>e.getBoundingClientRect().bottom<=visualViewport.height))\n",
+  "checks": [],
+  "errors": [],
+  "log": "2026-11-14T01:13:36.914199Z  INFO sticktalk_server: StickTalk listening address=127.0.0.1:57127\n",
+  "body": "StickTalk\nWelcome back!\n\nLog in to catch up with your friends.\n\nUsername\nPassword\nLog In\n\nNeed an account? Register"
+}

@@ -1,0 +1,212 @@
+{
+  "checks": [
+    "390: touch drawer dismissal and browser Back",
+    "390: injected 47px/34px safe-area layout",
+    "390: settings/admin screens, responsive layout, local appearance preferences",
+    "profile pronouns/about/banner save and hydrate from the real server",
+    "notification form roundtrip/hydration",
+    "server rename, channel rename/topic/delete",
+    "phone emoji insertion and GIF picker layout (provider disabled)",
+    "offline banner and live reconnect",
+    "adjacent keyset windows reach rows between sparse extent anchors",
+    "10000-row real history extent/seek, bounded 50 DOM rows, rAF scroll measurement",
+    "session-specific and all-other-device logout invalidate a second live browser",
+    "password change with current-password proof and cookie-session reload",
+    "390: logout, password login, confirmed account erasure",
+    "412: touch drawer dismissal and browser Back",
+    "412: injected 47px/34px safe-area layout",
+    "412: settings/admin screens, responsive layout, local appearance preferences",
+    "412: logout, password login, confirmed account erasure",
+    "820: settings/admin screens, responsive layout, local appearance preferences",
+    "820: logout, password login, confirmed account erasure",
+    "1440: settings/admin screens, responsive layout, local appearance preferences",
+    "1440: logout, password login, confirmed account erasure"
+  ],
+  "screenshots": [
+    "screenshots/polish/login-390x844.png",
+    "screenshots/polish/login-keyboard-resize-390x440.png",
+    "screenshots/polish/register-390x844.png",
+    "screenshots/polish/friends-empty-390x844.png",
+    "screenshots/polish/chat-390x844.png",
+    "screenshots/polish/channels-drawer-390x844.png",
+    "screenshots/polish/members-drawer-390x844.png",
+    "screenshots/polish/safe-area-390x844.png",
+    "screenshots/polish/keyboard-resize-390x440.png",
+    "screenshots/polish/settings-390x844.png",
+    "screenshots/polish/account-390x844.png",
+    "screenshots/polish/profile-edit-390x844.png",
+    "screenshots/polish/about-390x844.png",
+    "screenshots/polish/appearance-390x844.png",
+    "screenshots/polish/privacy-390x844.png",
+    "screenshots/polish/notifications-390x844.png",
+    "screenshots/polish/devices-390x844.png",
+    "screenshots/polish/media-settings-390x844.png",
+    "screenshots/polish/delete-account-390x844.png",
+    "screenshots/polish/password-390x844.png",
+    "screenshots/polish/server-390x844.png",
+    "screenshots/polish/server-overview-390x844.png",
+    "screenshots/polish/server-channels-390x844.png",
+    "screenshots/polish/roles-390x844.png",
+    "screenshots/polish/member-role-390x844.png",
+    "screenshots/polish/invite-390x844.png",
+    "screenshots/polish/server-bans-390x844.png",
+    "screenshots/polish/server-emoji-390x844.png",
+    "screenshots/polish/emoji-picker-390x844.png",
+    "screenshots/polish/gif-picker-390x844.png",
+    "screenshots/polish/offline-390x844.png",
+    "screenshots/polish/history-10000-390x844.png",
+    "screenshots/polish/sessions-multiple-390x844.png",
+    "screenshots/polish/login-412x915.png",
+    "screenshots/polish/login-keyboard-resize-412x440.png",
+    "screenshots/polish/register-412x915.png",
+    "screenshots/polish/friends-empty-412x915.png",
+    "screenshots/polish/chat-412x915.png",
+    "screenshots/polish/channels-drawer-412x915.png",
+    "screenshots/polish/members-drawer-412x915.png",
+    "screenshots/polish/safe-area-412x915.png",
+    "screenshots/polish/keyboard-resize-412x440.png",
+    "screenshots/polish/settings-412x915.png",
+    "screenshots/polish/account-412x915.png",
+    "screenshots/polish/profile-edit-412x915.png",
+    "screenshots/polish/about-412x915.png",
+    "screenshots/polish/appearance-412x915.png",
+    "screenshots/polish/privacy-412x915.png",
+    "screenshots/polish/notifications-412x915.png",
+    "screenshots/polish/devices-412x915.png",
+    "screenshots/polish/media-settings-412x915.png",
+    "screenshots/polish/delete-account-412x915.png",
+    "screenshots/polish/password-412x915.png",
+    "screenshots/polish/server-412x915.png",
+    "screenshots/polish/server-overview-412x915.png",
+    "screenshots/polish/server-channels-412x915.png",
+    "screenshots/polish/roles-412x915.png",
+    "screenshots/polish/member-role-412x915.png",
+    "screenshots/polish/invite-412x915.png",
+    "screenshots/polish/server-bans-412x915.png",
+    "screenshots/polish/server-emoji-412x915.png",
+    "screenshots/polish/login-820x1180.png",
+    "screenshots/polish/register-820x1180.png",
+    "screenshots/polish/friends-empty-820x1180.png",
+    "screenshots/polish/chat-820x1180.png",
+    "screenshots/polish/settings-820x1180.png",
+    "screenshots/polish/account-820x1180.png",
+    "screenshots/polish/profile-edit-820x1180.png",
+    "screenshots/polish/about-820x1180.png",
+    "screenshots/polish/appearance-820x1180.png",
+    "screenshots/polish/privacy-820x1180.png",
+    "screenshots/polish/notifications-820x1180.png",
+    "screenshots/polish/devices-820x1180.png",
+    "screenshots/polish/media-settings-820x1180.png",
+    "screenshots/polish/delete-account-820x1180.png",
+    "screenshots/polish/password-820x1180.png",
+    "screenshots/polish/server-820x1180.png",
+    "screenshots/polish/server-overview-820x1180.png",
+    "screenshots/polish/server-channels-820x1180.png",
+    "screenshots/polish/roles-820x1180.png",
+    "screenshots/polish/member-role-820x1180.png",
+    "screenshots/polish/invite-820x1180.png",
+    "screenshots/polish/server-bans-820x1180.png",
+    "screenshots/polish/server-emoji-820x1180.png",
+    "screenshots/polish/login-1440x900.png",
+    "screenshots/polish/register-1440x900.png",
+    "screenshots/polish/friends-empty-1440x900.png",
+    "screenshots/polish/chat-1440x900.png",
+    "screenshots/polish/settings-1440x900.png",
+    "screenshots/polish/account-1440x900.png",
+    "screenshots/polish/profile-edit-1440x900.png",
+    "screenshots/polish/about-1440x900.png",
+    "screenshots/polish/appearance-1440x900.png",
+    "screenshots/polish/privacy-1440x900.png",
+    "screenshots/polish/notifications-1440x900.png",
+    "screenshots/polish/devices-1440x900.png",
+    "screenshots/polish/media-settings-1440x900.png",
+    "screenshots/polish/delete-account-1440x900.png",
+    "screenshots/polish/password-1440x900.png",
+    "screenshots/polish/server-1440x900.png",
+    "screenshots/polish/server-overview-1440x900.png",
+    "screenshots/polish/server-channels-1440x900.png",
+    "screenshots/polish/roles-1440x900.png",
+    "screenshots/polish/member-role-1440x900.png",
+    "screenshots/polish/invite-1440x900.png",
+    "screenshots/polish/server-bans-1440x900.png",
+    "screenshots/polish/server-emoji-1440x900.png"
+  ],
+  "layout": [
+    {
+      "width": 390,
+      "height": 844,
+      "composer": {
+        "input": {
+          "left": 64,
+          "right": 230,
+          "bottom": 816,
+          "width": 166
+        },
+        "main": {
+          "left": 0,
+          "right": 390
+        },
+        "viewport": 390,
+        "height": 844
+      }
+    },
+    {
+      "width": 412,
+      "height": 915,
+      "composer": {
+        "input": {
+          "left": 64,
+          "right": 252,
+          "bottom": 887,
+          "width": 188
+        },
+        "main": {
+          "left": 0,
+          "right": 412
+        },
+        "viewport": 412,
+        "height": 915
+      }
+    },
+    {
+      "width": 820,
+      "height": 1180,
+      "composer": {
+        "input": {
+          "left": 392,
+          "right": 623.78125,
+          "bottom": 1148,
+          "width": 231.78125
+        },
+        "main": {
+          "left": 312,
+          "right": 820
+        },
+        "viewport": 820,
+        "height": 1180
+      }
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "composer": {
+        "input": {
+          "left": 380,
+          "right": 1027.78125,
+          "bottom": 868,
+          "width": 647.78125
+        },
+        "main": {
+          "left": 312,
+          "right": 1200
+        },
+        "viewport": 1440,
+        "height": 900
+      }
+    }
+  ],
+  "errors": [],
+  "csp": [],
+  "transients": [],
+  "revision": "115246168a8745775422"
+}

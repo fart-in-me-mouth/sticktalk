@@ -1,0 +1,1130 @@
+{
+  "bundleRevision": "6bf1ef87d22b60d201ff",
+  "headless": true,
+  "realServer": true,
+  "page": "Cold progressive login; authenticated chat measured separately",
+  "mobile": {
+    "version": "13.6.0",
+    "categories": {
+      "performance": 100,
+      "accessibility": 100,
+      "best-practices": 100
+    },
+    "metrics": {
+      "first-contentful-paint": {
+        "display": "0.9 s",
+        "value": 903.0429999999999
+      },
+      "largest-contentful-paint": {
+        "display": "0.9 s",
+        "value": 903.0429999999999
+      },
+      "total-blocking-time": {
+        "display": "0 ms",
+        "value": 0
+      },
+      "cumulative-layout-shift": {
+        "display": "0",
+        "value": 0.0004817251406140742
+      },
+      "interactive": {
+        "display": "0.9 s",
+        "value": 903.0429999999999
+      }
+    },
+    "appReady": [],
+    "failures": [
+      {
+        "id": "image-delivery-insight",
+        "title": "Improve image delivery",
+        "score": 0.5,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "node",
+              "valueType": "node",
+              "label": ""
+            },
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL",
+              "subItemsHeading": {
+                "key": "reason",
+                "valueType": "text"
+              }
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Resource Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "label": "Est Savings",
+              "subItemsHeading": {
+                "key": "wastedBytes",
+                "valueType": "bytes"
+              }
+            }
+          ],
+          "items": [
+            {
+              "node": {
+                "type": "node",
+                "lhId": "page-2-IMG",
+                "path": "1,HTML,1,BODY,0,DIV,0,MAIN,0,FORM,0,DIV,0,IMG",
+                "selector": "main.auth-page > form.auth-card > div.auth-brand > img.auth-logo",
+                "boundingRect": {
+                  "top": 162,
+                  "bottom": 210,
+                  "left": 132,
+                  "right": 180,
+                  "width": 48,
+                  "height": 48
+                },
+                "snippet": "<img class=\"auth-logo\" src=\"/public/icons/icon-192.png\" alt=\"\" width=\"48\" height=\"48\">",
+                "nodeLabel": "main.auth-page > form.auth-card > div.auth-brand > img.auth-logo"
+              },
+              "url": "http://127.0.0.1:53026/public/icons/icon-192.png",
+              "totalBytes": 5072,
+              "wastedBytes": 4101,
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "reason": "This image file is larger than it needs to be (192x192) for its displayed dimensions (84x84). Use responsive images to reduce the image download size.",
+                    "wastedBytes": 4101
+                  }
+                ]
+              }
+            }
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "wastedBytes": 4101
+          }
+        }
+      },
+      {
+        "id": "network-dependency-tree-insight",
+        "title": "Network dependency tree",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "list-section",
+              "value": {
+                "type": "network-tree",
+                "chains": {
+                  "50BABC874BB2AFF3E0CB7D017425A102": {
+                    "url": "http://127.0.0.1:53026/",
+                    "navStartToEndTime": 83,
+                    "transferSize": 1742,
+                    "isLongest": true,
+                    "children": {
+                      "19316.3": {
+                        "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+                        "navStartToEndTime": 90,
+                        "transferSize": 9038,
+                        "isLongest": true,
+                        "children": {
+                          "19316.18": {
+                            "url": "http://127.0.0.1:53026/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 107,
+                            "transferSize": 19422,
+                            "isLongest": true,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "19316.2": {
+                        "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
+                        "navStartToEndTime": 91,
+                        "transferSize": 2475,
+                        "children": {
+                          "19316.20": {
+                            "url": "http://127.0.0.1:53026/api/v1/browser/capabilities",
+                            "navStartToEndTime": 105,
+                            "transferSize": 761,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "19316.6": {
+                        "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 91,
+                        "transferSize": 1172,
+                        "children": {}
+                      },
+                      "19316.5": {
+                        "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 90,
+                        "transferSize": 900,
+                        "children": {}
+                      }
+                    }
+                  }
+                },
+                "longestChain": {
+                  "duration": 107
+                }
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnected origins",
+              "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.",
+              "value": {
+                "type": "text",
+                "value": "No origins were preconnected"
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnect candidates",
+              "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4",
+              "value": {
+                "type": "text",
+                "value": "No additional origins are good candidates for preconnecting"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "render-blocking-insight",
+        "title": "Render-blocking requests",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+              "totalBytes": 1172,
+              "wastedMs": 302
+            },
+            {
+              "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+              "totalBytes": 900,
+              "wastedMs": 302
+            },
+            {
+              "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+              "totalBytes": 9038,
+              "wastedMs": 152
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "authenticatedChatMobile": {
+    "version": "13.6.0",
+    "categories": {
+      "performance": 86,
+      "accessibility": 100,
+      "best-practices": 100
+    },
+    "metrics": {
+      "first-contentful-paint": {
+        "display": "0.9 s",
+        "value": 917.1717000000001
+      },
+      "largest-contentful-paint": {
+        "display": "4.2 s",
+        "value": 4183.1363249999995
+      },
+      "total-blocking-time": {
+        "display": "0 ms",
+        "value": 3
+      },
+      "cumulative-layout-shift": {
+        "display": "0",
+        "value": 0
+      },
+      "interactive": {
+        "display": "4.2 s",
+        "value": 4183.1363249999995
+      }
+    },
+    "appReady": [
+      {
+        "name": "sticktalk-chat-ready",
+        "startTime": 166.691,
+        "timingType": "Mark"
+      }
+    ],
+    "failures": [
+      {
+        "id": "largest-contentful-paint",
+        "title": "Largest Contentful Paint",
+        "score": 0.45
+      },
+      {
+        "id": "interactive",
+        "title": "Time to Interactive",
+        "score": 0.86
+      },
+      {
+        "id": "valid-source-maps",
+        "title": "Missing source maps for large first-party JavaScript",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "scriptUrl",
+              "valueType": "url",
+              "subItemsHeading": {
+                "key": "error"
+              },
+              "label": "URL"
+            },
+            {
+              "key": "sourceMapUrl",
+              "valueType": "url",
+              "label": "Map URL"
+            }
+          ],
+          "items": [
+            {
+              "scriptUrl": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5_bg.wasm",
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "error": "Large JavaScript file is missing a source map"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "unminified-javascript",
+        "title": "Minify JavaScript",
+        "score": 0.5,
+        "details": {
+          "type": "opportunity",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedBytes",
+              "valueType": "bytes",
+              "label": "Est Savings"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5.js",
+              "totalBytes": 7522,
+              "wastedBytes": 2422,
+              "wastedPercent": 32.19503573953342
+            }
+          ],
+          "overallSavingsMs": 0,
+          "overallSavingsBytes": 2422,
+          "sortedBy": [
+            "wastedBytes"
+          ],
+          "debugData": {
+            "type": "debugdata",
+            "metricSavings": {
+              "FCP": 0,
+              "LCP": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "network-dependency-tree-insight",
+        "title": "Network dependency tree",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "list-section",
+              "value": {
+                "type": "network-tree",
+                "chains": {
+                  "A62C853E9F2F3F004B1DBB1E228E6885": {
+                    "url": "http://127.0.0.1:53026/?channel=247169127322484737",
+                    "navStartToEndTime": 56,
+                    "transferSize": 1742,
+                    "isLongest": true,
+                    "children": {
+                      "22452.3": {
+                        "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+                        "navStartToEndTime": 59,
+                        "transferSize": 9038,
+                        "isLongest": true,
+                        "children": {
+                          "22452.17": {
+                            "url": "http://127.0.0.1:53026/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 169,
+                            "transferSize": 659,
+                            "isLongest": true,
+                            "children": {}
+                          },
+                          "22452.18": {
+                            "url": "http://127.0.0.1:53026/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 85,
+                            "transferSize": 19422,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "22452.2": {
+                        "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
+                        "navStartToEndTime": 60,
+                        "transferSize": 2475,
+                        "children": {
+                          "22452.23": {
+                            "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5.js",
+                            "navStartToEndTime": 82,
+                            "transferSize": 8341,
+                            "children": {
+                              "22452.25": {
+                                "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                                "navStartToEndTime": 91,
+                                "transferSize": 8545,
+                                "children": {
+                                  "22452.63": {
+                                    "url": "http://127.0.0.1:53026/api/v1/channels/247169127322484737/history-extent",
+                                    "navStartToEndTime": 166,
+                                    "transferSize": 836,
+                                    "children": {}
+                                  },
+                                  "22452.62": {
+                                    "url": "http://127.0.0.1:53026/api/v1/channels/247169127322484737/messages?limit=50",
+                                    "navStartToEndTime": 166,
+                                    "transferSize": 840,
+                                    "children": {}
+                                  },
+                                  "22452.61": {
+                                    "url": "http://127.0.0.1:53026/api/v1/guilds/247169127322484736/members?limit=50",
+                                    "navStartToEndTime": 166,
+                                    "transferSize": 1103,
+                                    "children": {}
+                                  },
+                                  "22452.30": {
+                                    "url": "http://127.0.0.1:53026/api/v1/browser/capabilities",
+                                    "navStartToEndTime": 120,
+                                    "transferSize": 761,
+                                    "children": {}
+                                  },
+                                  "22452.28": {
+                                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/navigation.js",
+                                    "navStartToEndTime": 99,
+                                    "transferSize": 1777,
+                                    "children": {}
+                                  },
+                                  "22452.27": {
+                                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/preferences.js",
+                                    "navStartToEndTime": 99,
+                                    "transferSize": 1394,
+                                    "children": {}
+                                  }
+                                }
+                              },
+                              "22452.32": {
+                                "url": "http://127.0.0.1:53026/api/v1/meta",
+                                "navStartToEndTime": 129,
+                                "transferSize": 774,
+                                "children": {}
+                              },
+                              "22452.26": {
+                                "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/__wasm_split.js",
+                                "navStartToEndTime": 91,
+                                "transferSize": 2047,
+                                "children": {}
+                              }
+                            }
+                          },
+                          "22452.22": {
+                            "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5_bg.wasm",
+                            "navStartToEndTime": 99,
+                            "transferSize": 442873,
+                            "children": {}
+                          },
+                          "22452.21": {
+                            "url": "http://127.0.0.1:53026/api/v1/browser/session",
+                            "navStartToEndTime": 80,
+                            "transferSize": 1068,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "22452.6": {
+                        "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 60,
+                        "transferSize": 1172,
+                        "children": {}
+                      },
+                      "22452.5": {
+                        "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 59,
+                        "transferSize": 900,
+                        "children": {}
+                      }
+                    }
+                  }
+                },
+                "longestChain": {
+                  "duration": 169
+                }
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnected origins",
+              "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.",
+              "value": {
+                "type": "text",
+                "value": "No origins were preconnected"
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnect candidates",
+              "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4",
+              "value": {
+                "type": "text",
+                "value": "No additional origins are good candidates for preconnecting"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "render-blocking-insight",
+        "title": "Render-blocking requests",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+              "totalBytes": 1172,
+              "wastedMs": 301
+            },
+            {
+              "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+              "totalBytes": 900,
+              "wastedMs": 301
+            },
+            {
+              "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+              "totalBytes": 9038,
+              "wastedMs": 151
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "warmAuthenticatedChatMobile": {
+    "version": "13.6.0",
+    "categories": {
+      "performance": 99,
+      "accessibility": 100,
+      "best-practices": 100
+    },
+    "metrics": {
+      "first-contentful-paint": {
+        "display": "0.2 s",
+        "value": 170.057
+      },
+      "largest-contentful-paint": {
+        "display": "0.7 s",
+        "value": 723.354
+      },
+      "total-blocking-time": {
+        "display": "100 ms",
+        "value": 100.3329999961853
+      },
+      "cumulative-layout-shift": {
+        "display": "0",
+        "value": 0
+      },
+      "interactive": {
+        "display": "0.7 s",
+        "value": 713.9239999961853
+      }
+    },
+    "appReady": [
+      {
+        "name": "sticktalk-chat-ready",
+        "startTime": 868.106,
+        "timingType": "Mark"
+      }
+    ],
+    "failures": [
+      {
+        "id": "valid-source-maps",
+        "title": "Missing source maps for large first-party JavaScript",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "scriptUrl",
+              "valueType": "url",
+              "subItemsHeading": {
+                "key": "error"
+              },
+              "label": "URL"
+            },
+            {
+              "key": "sourceMapUrl",
+              "valueType": "url",
+              "label": "Map URL"
+            }
+          ],
+          "items": [
+            {
+              "scriptUrl": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5_bg.wasm",
+              "subItems": {
+                "type": "subitems",
+                "items": [
+                  {
+                    "error": "Large JavaScript file is missing a source map"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "forced-reflow-insight",
+        "title": "Forced reflow",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "source",
+                  "valueType": "source-location",
+                  "label": "Top function call"
+                },
+                {
+                  "key": "reflowTime",
+                  "valueType": "ms",
+                  "granularity": 1,
+                  "label": "Total reflow time"
+                }
+              ],
+              "items": [
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "urlProvider": "network",
+                    "line": 352,
+                    "column": 35
+                  },
+                  "reflowTime": 39.716
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "headings": [
+                {
+                  "key": "source",
+                  "valueType": "source-location",
+                  "label": "Source"
+                },
+                {
+                  "key": "reflowTime",
+                  "valueType": "ms",
+                  "granularity": 1,
+                  "label": "Total reflow time"
+                }
+              ],
+              "items": [
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
+                    "urlProvider": "network",
+                    "line": 10,
+                    "column": 89
+                  },
+                  "reflowTime": 49.935
+                },
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
+                    "urlProvider": "network",
+                    "line": 11,
+                    "column": 89
+                  },
+                  "reflowTime": 2.649
+                },
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "urlProvider": "network",
+                    "line": 236,
+                    "column": 28
+                  },
+                  "reflowTime": 33.023
+                },
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "urlProvider": "network",
+                    "line": 47,
+                    "column": 39
+                  },
+                  "reflowTime": 3.47
+                },
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "urlProvider": "network",
+                    "line": 42,
+                    "column": 81
+                  },
+                  "reflowTime": 2.622
+                },
+                {
+                  "source": {
+                    "type": "source-location",
+                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "urlProvider": "network",
+                    "line": 278,
+                    "column": 41
+                  },
+                  "reflowTime": 0.601
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "network-dependency-tree-insight",
+        "title": "Network dependency tree",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "list-section",
+              "value": {
+                "type": "network-tree",
+                "chains": {
+                  "F90AFA01E4123EEBC7CEA5344875BE4A": {
+                    "url": "http://127.0.0.1:53026/?channel=247169127322484737",
+                    "navStartToEndTime": 68,
+                    "transferSize": 0,
+                    "isLongest": true,
+                    "children": {
+                      "9472.2": {
+                        "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
+                        "navStartToEndTime": 69,
+                        "transferSize": 0,
+                        "isLongest": true,
+                        "children": {
+                          "9472.24": {
+                            "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5.js",
+                            "navStartToEndTime": 154,
+                            "transferSize": 0,
+                            "isLongest": true,
+                            "children": {
+                              "9472.25": {
+                                "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                                "navStartToEndTime": 196,
+                                "transferSize": 0,
+                                "isLongest": true,
+                                "children": {
+                                  "9472.36": {
+                                    "url": "http://127.0.0.1:53026/api/v1/channels/247169127322484737/history-extent",
+                                    "navStartToEndTime": 868,
+                                    "transferSize": 836,
+                                    "isLongest": true,
+                                    "children": {}
+                                  },
+                                  "9472.35": {
+                                    "url": "http://127.0.0.1:53026/api/v1/channels/247169127322484737/messages?limit=50",
+                                    "navStartToEndTime": 861,
+                                    "transferSize": 840,
+                                    "children": {}
+                                  },
+                                  "9472.34": {
+                                    "url": "http://127.0.0.1:53026/api/v1/guilds/247169127322484736/members?limit=50",
+                                    "navStartToEndTime": 860,
+                                    "transferSize": 1103,
+                                    "children": {}
+                                  },
+                                  "9472.30": {
+                                    "url": "http://127.0.0.1:53026/api/v1/browser/capabilities",
+                                    "navStartToEndTime": 457,
+                                    "transferSize": 761,
+                                    "children": {}
+                                  },
+                                  "9472.28": {
+                                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/navigation.js",
+                                    "navStartToEndTime": 201,
+                                    "transferSize": 0,
+                                    "children": {}
+                                  },
+                                  "9472.27": {
+                                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/preferences.js",
+                                    "navStartToEndTime": 200,
+                                    "transferSize": 0,
+                                    "children": {}
+                                  }
+                                }
+                              },
+                              "9472.32": {
+                                "url": "http://127.0.0.1:53026/api/v1/meta",
+                                "navStartToEndTime": 727,
+                                "transferSize": 774,
+                                "children": {}
+                              },
+                              "9472.26": {
+                                "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/__wasm_split.js",
+                                "navStartToEndTime": 197,
+                                "transferSize": 0,
+                                "children": {}
+                              }
+                            }
+                          },
+                          "9472.22": {
+                            "url": "http://127.0.0.1:53026/api/v1/browser/session",
+                            "navStartToEndTime": 305,
+                            "transferSize": 1068,
+                            "children": {}
+                          },
+                          "9472.23": {
+                            "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5_bg.wasm",
+                            "navStartToEndTime": 191,
+                            "transferSize": 0,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "9472.3": {
+                        "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+                        "navStartToEndTime": 55,
+                        "transferSize": 0,
+                        "children": {
+                          "9472.18": {
+                            "url": "http://127.0.0.1:53026/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 715,
+                            "transferSize": 0,
+                            "children": {}
+                          },
+                          "9472.19": {
+                            "url": "http://127.0.0.1:53026/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 142,
+                            "transferSize": 0,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "9472.6": {
+                        "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 57,
+                        "transferSize": 0,
+                        "children": {}
+                      },
+                      "9472.5": {
+                        "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 57,
+                        "transferSize": 0,
+                        "children": {}
+                      }
+                    }
+                  }
+                },
+                "longestChain": {
+                  "duration": 868
+                }
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnected origins",
+              "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.",
+              "value": {
+                "type": "text",
+                "value": "No origins were preconnected"
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnect candidates",
+              "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4",
+              "value": {
+                "type": "text",
+                "value": "No additional origins are good candidates for preconnecting"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "render-blocking-insight",
+        "title": "Render-blocking requests",
+        "score": 0,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+              "totalBytes": 0,
+              "wastedMs": 110
+            },
+            {
+              "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+              "totalBytes": 0,
+              "wastedMs": 110
+            },
+            {
+              "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+              "totalBytes": 0,
+              "wastedMs": 110
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "desktop": {
+    "version": "13.6.0",
+    "categories": {
+      "performance": 100,
+      "accessibility": 100,
+      "best-practices": 100
+    },
+    "metrics": {
+      "first-contentful-paint": {
+        "display": "0.2 s",
+        "value": 173.96158567504884
+      },
+      "largest-contentful-paint": {
+        "display": "0.2 s",
+        "value": 173.96158567504884
+      },
+      "total-blocking-time": {
+        "display": "0 ms",
+        "value": 0
+      },
+      "cumulative-layout-shift": {
+        "display": "0",
+        "value": 0
+      },
+      "interactive": {
+        "display": "0.2 s",
+        "value": 173.96158567504887
+      }
+    },
+    "appReady": [],
+    "failures": [
+      {
+        "id": "network-dependency-tree-insight",
+        "title": "Network dependency tree",
+        "score": 0,
+        "details": {
+          "type": "list",
+          "items": [
+            {
+              "type": "list-section",
+              "value": {
+                "type": "network-tree",
+                "chains": {
+                  "4970EED6216F8F0EC1069532A56B2ACE": {
+                    "url": "http://127.0.0.1:53026/",
+                    "navStartToEndTime": 41,
+                    "transferSize": 659,
+                    "isLongest": true,
+                    "children": {
+                      "20336.3": {
+                        "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+                        "navStartToEndTime": 40,
+                        "transferSize": 0,
+                        "isLongest": true,
+                        "children": {
+                          "20336.18": {
+                            "url": "http://127.0.0.1:53026/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 59,
+                            "transferSize": 659,
+                            "isLongest": true,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "20336.2": {
+                        "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
+                        "navStartToEndTime": 41,
+                        "transferSize": 0,
+                        "children": {
+                          "20336.20": {
+                            "url": "http://127.0.0.1:53026/api/v1/browser/capabilities",
+                            "navStartToEndTime": 57,
+                            "transferSize": 761,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "20336.6": {
+                        "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 40,
+                        "transferSize": 0,
+                        "children": {}
+                      },
+                      "20336.5": {
+                        "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 40,
+                        "transferSize": 0,
+                        "children": {}
+                      }
+                    }
+                  }
+                },
+                "longestChain": {
+                  "duration": 59
+                }
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnected origins",
+              "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.",
+              "value": {
+                "type": "text",
+                "value": "No origins were preconnected"
+              }
+            },
+            {
+              "type": "list-section",
+              "title": "Preconnect candidates",
+              "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4",
+              "value": {
+                "type": "text",
+                "value": "No additional origins are good candidates for preconnecting"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "render-blocking-insight",
+        "title": "Render-blocking requests",
+        "score": 0.5,
+        "details": {
+          "type": "table",
+          "headings": [
+            {
+              "key": "url",
+              "valueType": "url",
+              "label": "URL"
+            },
+            {
+              "key": "totalBytes",
+              "valueType": "bytes",
+              "label": "Transfer Size"
+            },
+            {
+              "key": "wastedMs",
+              "valueType": "timespanMs",
+              "label": "Duration"
+            }
+          ],
+          "items": [
+            {
+              "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+              "totalBytes": 0
+            },
+            {
+              "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+              "totalBytes": 0
+            },
+            {
+              "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+              "totalBytes": 0
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
