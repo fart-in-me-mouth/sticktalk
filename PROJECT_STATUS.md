@@ -53,6 +53,7 @@ Done, merged into `master`, and tested (608 workspace tests, 0 failures; clippy 
 - **Desktop distribution:** per-user NSIS installer (no admin, about 51 MB), signed auto-update with rollback, crash recovery, tray, window placement memory.
 - **Phone PWA:** Discord-mobile-style navigation, long-press sheet, settings/admin parity, voice + stream viewing, offline shell.
 - **Security:** review in `docs/SECURITY_REVIEW.md`; fixes S1–S10 applied.
+- **AI connector (MCP):** paste `<server>/mcp` into Claude/Cursor/ChatGPT, sign in and approve (read only, or read and send). OAuth 2.1 with dynamic registration and PKCE; 15 tools; connections listed and revocable under Devices. See `docs/MCP.md`.
 - **UI:** a full audit against Discord (190 states). Latest owner fixes: one selected channel row with Discord-style fills (no outline boxes), hover subtler than selected, 22px inline / 48px jumbo emoji, borderless composer.
 
 ## Open items / next steps
@@ -84,5 +85,6 @@ Done, merged into `master`, and tested (608 workspace tests, 0 failures; clippy 
 - `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`
 - `docs/UI_SPEC.md`, `docs/UI_PARITY.md`
 - `docs/PHASE2_REQUIREMENTS.md`, `docs/GOOGLE_LOGIN.md`
+- `docs/MCP.md` (AI assistant connector)
 - QA reports: `docs/QA_TEXT_REPORT.md`, `docs/QA_WEB_REPORT.md`, `docs/QA_CALLS_REPORT.md`, `docs/UI_AUDIT_REPORT.md`, `docs/FEATURES3.md`, `docs/HANDOFF_VALIDATION.md`
 - `crates/client/SCROLL_ENGINE.md`
