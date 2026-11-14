@@ -102,7 +102,19 @@ pub(super) fn participant<'a>(
             .align_y(Center)
             .height(t::BUTTON);
             if has_stream {
-                footer = footer.push(watch());
+                footer = footer.push(icon_button(
+                    "monitor-up",
+                    if Some(p.session) == app.calls.call.own {
+                        "Stream quality"
+                    } else {
+                        "Watch stream"
+                    },
+                    msg(if Some(p.session) == app.calls.call.own {
+                        Action::Picker
+                    } else {
+                        Action::Focus(Some(p.session))
+                    }),
+                ));
             }
             column![
                 super::stream_view::video(
@@ -119,18 +131,23 @@ pub(super) fn participant<'a>(
             container(body).center_x(Fill).center_y(tile_height).into()
         }
     };
-    mouse_area(container(body).width(Fill).style(move |theme| {
-        let mut style = if compact {
-            t::bare(theme)
-        } else {
-            t::elevated(theme)
-        };
-        if speaking && !compact {
-            style.border.color = t::ACCENT;
-            style.border.width = t::FOCUS;
-        }
-        style
-    }))
+    mouse_area(
+        container(body)
+            .padding(if compact { 0. } else { t::FOCUS })
+            .width(Fill)
+            .style(move |theme| {
+                let mut style = if compact {
+                    t::bare(theme)
+                } else {
+                    t::elevated(theme)
+                };
+                if speaking && !compact {
+                    style.border.color = t::ACCENT;
+                    style.border.width = t::FOCUS;
+                }
+                style
+            }),
+    )
     .on_right_press(Msg::Open(Dialog::MemberMenu(p.session.user_id)))
     .into()
 }
