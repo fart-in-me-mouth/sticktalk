@@ -50,6 +50,8 @@ Raw case metrics, binary hash/commit provenance, scripts and archived logs: `cra
 
 ## Voice / resource measurements
 
+DSP/device/hardware measurements below are pre-merge evidence reused per the lead's instruction; the real control-injection test was additionally rerun post-merge.
+
 | Measurement | Result | Limit |
 |---|---|---|
 | Digital clean marker p50/p95, 10 ms packets | Off 25.417/25.438 ms; Standard 35.417/35.417; High 35.417/35.417 | 16/16 markers each; excludes devices/network/acoustics |
@@ -114,3 +116,5 @@ The PowerShell `Start-Process -Wait -PassThru` exit-code pattern was separately 
 - Full four-crate test command reaches an unrelated server upload reservation assertion in unchanged upload code (`audit_tests::http_admission_and_global_upload_reservation_are_bounded`, line 402, left 1/right 0). Reproduced in two pre-merge suites and the post-merge suite. One pre-merge isolated rerun passed, but the post-merge isolated rerun also fails (left 1/right 0); root cause is not established. Unrelated upload code was not changed to hide the failure.
 - Full desktop GUI E2E, physical camera/hotplug, real emergency hotkey exercise, audible application audio, true mouth-to-ear, objective voice quality and viewer count/list remain launch blockers or explicit qualification gaps. The shortened timebox was prioritized for the original SFU freeze and post-merge validation; there is no physical camera, acoustic testing would require audible output, and viewer tracking needs an authoritative protocol projection.
 - All test listeners bind loopback. Owned test windows/processes closed; no browser/OAuth/private data sent outside this PC, no push, no UAC.
+
+Dedicated target removed with `cargo clean --target-dir C:/Users/dwhee/.cargo-target/sticktalk-qa-calls` (exit 0, directory absent). Largest observed size 9.24 GB decimal; final pre-clean size 8.98 GB. Cleanup proof is retained in the evidence directory.
