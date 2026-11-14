@@ -154,7 +154,32 @@ struct Route {
     first_source_seq: Option<u64>,
     // A new subscription starts only on a video keyframe.
     waiting_keyframe: bool,
+    burst: FrameBurst,
+    keyframe_ends: BTreeMap<u16, (u32, u64)>,
     rtx: Option<Ssrc>,
+}
+
+/// Diagnostic frame identity, including H.264 FU continuations. No payload retained.
+#[derive(Clone, Default)]
+struct FrameBurst {
+    timestamp: Option<u32>,
+    keyframe: bool,
+    bytes: u64,
+    keyframe_bytes: u64,
+}
+impl FrameBurst {
+    fn observe(&mut self, timestamp: u32, keyframe: bool, bytes: usize) {
+        if self.timestamp != Some(timestamp) {
+            self.timestamp = Some(timestamp);
+            self.keyframe = false;
+            self.bytes = 0;
+        }
+        self.keyframe |= keyframe;
+        self.bytes = self.bytes.saturating_add(bytes as u64);
+        if self.keyframe {
+            self.keyframe_bytes = self.bytes;
+        }
+    }
 }
 
 struct Peer {
@@ -171,6 +196,8 @@ struct Peer {
     ssrcs: BTreeSet<u32>,
     video_budget: Budget,
     pending_media: BTreeMap<Ssrc, VecDeque<(u16, Instant, usize)>>,
+    queue_resets: u64,
+    queue_trace_at: Instant,
     rtc: Rtc,
     channel: ChannelId,
     capabilities: VoiceCapabilities,
@@ -622,6 +649,9 @@ impl Sfu {
                     .get(&receiver_mid)
                     .cloned()
                     .ok_or(Error::Invalid)?;
+                if self.video_trace {
+                    eprintln!("VIDEO_TRACE viewer_keyframe_request peer={key:?} publisher={:?} fir={fir} reason=signal", r.publisher);
+                }
                 self.keyframe(
                     r.publisher,
                     r.source,
@@ -733,6 +763,8 @@ impl Sfu {
             candidates: BTreeSet::new(),
             ssrcs: BTreeSet::new(),
             pending_media: BTreeMap::new(),
+            queue_resets: 0,
+            queue_trace_at: self.now,
             video_budget: Budget::new(
                 self.config.peer_video_egress_bps,
                 self.config.max_datagram_bytes,
@@ -1176,10 +1208,15 @@ impl Sfu {
                 kind: track.kind,
                 first_source_seq: None,
                 waiting_keyframe: video,
+                burst: FrameBurst::default(),
+                keyframe_ends: BTreeMap::new(),
                 rtx,
             },
         );
         if video {
+            if self.video_trace {
+                eprintln!("VIDEO_TRACE viewer_keyframe_request peer={key:?} publisher={publisher:?} fir=false reason=subscribe_or_reset");
+            }
             self.keyframe(publisher, source_mid, rid, KeyframeRequestKind::Pli)?;
         }
         self.allocate()
@@ -1217,6 +1254,9 @@ impl Sfu {
         rid: Option<Rid>,
         kind: KeyframeRequestKind,
     ) -> Result<(), Error> {
+        if self.video_trace {
+            eprintln!("VIDEO_TRACE keyframe_request publisher={key:?} mid={mid} kind={kind:?}");
+        }
         if self.authorized(key).is_err() {
             return Ok(());
         }
@@ -1520,7 +1560,7 @@ impl Sfu {
                         // Recheck sender and receiver policy at encrypted egress (including RTX/pacer queues).
                         let route = peer
                             .routes
-                            .values()
+                            .values_mut()
                             .find(|r| *r.ssrc == ssrc || r.rtx.is_some_and(|s| *s == ssrc));
                         let Some(route) = route else {
                             continue;
@@ -1540,8 +1580,10 @@ impl Sfu {
                         // Probe padding uses RTX or the RTP padding bit. Preserve
                         // original-media burst headroom without bypassing any cap.
                         let repair = route.rtx.is_some_and(|r| *r == ssrc) || bytes[0] & 0x20 != 0;
+                        let mut sent_keyframe = None;
                         if !repair {
                             let seq = u16::from_be_bytes([bytes[2], bytes[3]]);
+                            sent_keyframe = route.keyframe_ends.remove(&seq);
                             if let Some(pending) = peer.pending_media.get_mut(&route.ssrc) {
                                 if let Some(index) = pending.iter().position(|p| p.0 == seq) {
                                     pending.remove(index);
@@ -1567,6 +1609,11 @@ impl Sfu {
                             peer.video_budget.take(bytes.len(), self.now);
                             room.take(bytes.len(), self.now);
                             self.budget.take(bytes.len(), self.now);
+                        }
+                        if self.video_trace {
+                            if let Some((timestamp, size)) = sent_keyframe {
+                                eprintln!("VIDEO_TRACE keyframe_sent peer={key:?} seconds={:.3} timestamp={timestamp} bytes={size}", self.now.saturating_duration_since(peer.created).as_secs_f64());
+                            }
                         }
                         if video && bytes[1] & 0x80 != 0 {
                             peer.tx_frames += 1;
@@ -1625,12 +1672,22 @@ impl Sfu {
                     .find(|r| r.target == req.mid)
                     .cloned()
                 {
+                    if self.video_trace {
+                        eprintln!("VIDEO_TRACE viewer_keyframe_request peer={key:?} publisher={:?} kind={:?} reason=rtcp", route.publisher, req.kind);
+                    }
                     self.keyframe(route.publisher, route.source, route.rid, req.kind)?;
                 }
             }
-            Event::EgressBitrateEstimate(
-                BweKind::Twcc { estimate, .. } | BweKind::Remb { estimate, .. },
-            ) => {
+            Event::EgressBitrateEstimate(estimate) => {
+                if self.video_trace {
+                    eprintln!(
+                        "VIDEO_TRACE sfu_bwe peer={key:?} seconds={:.3} estimate={estimate:?}",
+                        self.now
+                            .saturating_duration_since(self.peers[&key].created)
+                            .as_secs_f64()
+                    );
+                }
+                let (BweKind::Twcc { estimate, .. } | BweKind::Remb { estimate, .. }) = estimate;
                 self.peers.get_mut(&key).unwrap().bwe = estimate.as_u64();
                 self.allocate()?;
             }
@@ -1770,12 +1827,42 @@ impl Sfu {
             // unsent media. A large probe must never reset a healthy H.264
             // reference chain. Track original media until encrypted egress.
             self.collect(to)?;
+            let keyframe = starts_keyframe(codec_of(&track), &packet.payload);
             let receiver = self.peers.get_mut(&to).unwrap();
+            let r = receiver.routes.get_mut(&target).unwrap();
+            if video {
+                r.burst
+                    .observe(packet.header.timestamp, keyframe, packet.payload.len());
+            }
+            let keyframe_bytes = r.burst.keyframe_bytes;
+            if self.video_trace && video && packet.header.marker && r.burst.keyframe {
+                eprintln!("VIDEO_TRACE keyframe_queued peer={to:?} seconds={:.3} timestamp={} bytes={keyframe_bytes}", self.now.saturating_duration_since(receiver.created).as_secs_f64(), packet.header.timestamp);
+            }
             let pending = receiver.pending_media.entry(route.ssrc).or_default();
             let pending_count = pending.len();
             let overloaded = video
                 && media_queue_overloaded(pending, receiver.bwe, receiver.stats.rtt_ms, self.now);
+            if self.video_trace
+                && video
+                && self.now.saturating_duration_since(receiver.created) <= Duration::from_secs(15)
+                && (overloaded
+                    || self.now.saturating_duration_since(receiver.queue_trace_at)
+                        >= Duration::from_millis(100))
+            {
+                receiver.queue_trace_at = self.now;
+                let horizon_ms =
+                    (u64::from(receiver.stats.rtt_ms.unwrap_or(50)) * 2 + 100).clamp(100, 250);
+                let byte_limit = (receiver.bwe.saturating_mul(horizon_ms) / 8000)
+                    .clamp(256 * 1024, 2 * 1024 * 1024);
+                eprintln!("VIDEO_TRACE startup_queue peer={to:?} seconds={:.3} packets={pending_count} bytes={} age_ms={:.3} resets={} bwe={} allocation={} keyframe_bytes={keyframe_bytes} byte_limit={byte_limit} pacing_budget_bytes={} pacing_ready_us={}",
+                    self.now.saturating_duration_since(receiver.created).as_secs_f64(), pending.iter().map(|p| p.2).sum::<usize>(),
+                    pending.front().map_or(0., |p| self.now.saturating_duration_since(p.1).as_secs_f64()*1000.),
+                    receiver.queue_resets, receiver.bwe, receiver.bwe_target,
+                    receiver.video_budget.available_bytes(self.now),
+                    receiver.video_budget.ready_at(usize::from(self.config.max_datagram_bytes), self.now).saturating_duration_since(self.now).as_micros());
+            }
             if overloaded {
+                receiver.queue_resets += 1;
                 if self.video_trace {
                     eprintln!("VIDEO_TRACE original_queue_reset peer={to:?} packets={pending_count} bytes={} age_ms={:.3} bwe={} rtt_ms={:?}",
                         pending.iter().map(|p| p.2).sum::<usize>(),
@@ -1795,7 +1882,6 @@ impl Sfu {
                 )?;
                 continue;
             }
-            let keyframe = starts_keyframe(codec_of(&track), &packet.payload);
             let config_packet = track.codec == Some(VideoCodec::H264)
                 && matches!(packet.payload.first().map(|b| b & 31), Some(7 | 8));
             if route.waiting_keyframe && !keyframe && !config_packet {
@@ -1813,6 +1899,10 @@ impl Sfu {
                 continue;
             }
             let sequence = source_seq - first + 1;
+            if self.video_trace && video && packet.header.marker && r.burst.keyframe {
+                r.keyframe_ends
+                    .insert(sequence as u16, (packet.header.timestamp, r.burst.bytes));
+            }
             // Per-hop MID/SSRC/TWCC are regenerated, never copied upstream.
             let ext = ExtensionValues {
                 audio_level: packet.header.ext_vals.audio_level,
