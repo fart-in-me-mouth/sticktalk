@@ -531,7 +531,6 @@ impl App {
             .execute(&mut *conn)
             .await?;
         sqlx::query("DELETE FROM mcp_access_tokens WHERE token_hash IN (SELECT token_hash FROM mcp_access_tokens WHERE expires_at<=? LIMIT 1024)").bind(now() as i64).execute(&mut *conn).await?;
-        sqlx::query("DELETE FROM mcp_spent_refresh WHERE refresh_hash IN (SELECT refresh_hash FROM mcp_spent_refresh WHERE spent_at<=? LIMIT 1024)").bind(now().saturating_sub(crate::mcp::GRANT_TTL_MS) as i64).execute(&mut *conn).await?;
         crate::voice::reconcile(self, &mut core, &mut conn).await?;
         crate::commands::expire_invites(&mut conn, &mut core).await?;
         let mut expired_users = vec![];

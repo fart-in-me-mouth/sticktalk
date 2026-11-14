@@ -136,12 +136,14 @@ account settings are deliberately not exposed.
 - **Tokens** (`POST /oauth/token`, form-encoded):
   - `authorization_code` codes are single-use and live 60 s. A code is spent
     when presented, even if a check fails.
-  - `refresh_token` rotates on every use. Replaying a rotated-out refresh token
-    revokes the whole connection.
+  - `refresh_token` rotates on every use. Each token embeds the connection's
+    secret family ID, so replaying any rotated-out token, at any age, revokes the
+    whole connection. That needs no list of spent tokens: one row per
+    connection.
   - Access tokens (`stka_…`) live 1 h; refresh tokens (`stkr_…`) last while the
     connection does. Both are random 256-bit values stored only as SHA-256.
-  - `POST /oauth/revoke` (RFC 7009) accepts either token. A refresh token ends
-    the connection.
+  - `POST /oauth/revoke` (RFC 7009) accepts either token. Any refresh token of
+    the connection ends it.
 - **Scopes:** `chat:read`, `chat:write`. You pick them on the consent page; the
   client's request only sets the default choice.
 - **Storage:** see migration `202611140002_mcp_connector.sql`. Each connection is

@@ -694,6 +694,14 @@ fn basic_client(h: &HeaderMap) -> Option<String> {
         .pop()
         .map(|(_, v)| v)
 }
+/// `stkr_<family>.<secret>`: the family is fixed for a grant's lifetime.
+fn new_refresh(family: &str) -> String {
+    format!("stkr_{family}.{}", state::token())
+}
+fn refresh_family(token: &str) -> Option<&str> {
+    let (family, secret) = token.strip_prefix("stkr_")?.split_once('.')?;
+    (family.len() == 43 && secret.len() == 43).then_some(family)
+}
 fn tokens(access: &str, refresh: &str, scope: &str) -> Response {
     let mut r = Json(json!({
         "access_token": access,
@@ -798,7 +806,8 @@ async fn exchange_code(app: &App, t: &TokenRequest, client_id: &str) -> Reply {
         .map(|c| c.name)
         .unwrap_or_else(|| "MCP client".into());
     let access = super::new_token("stka_");
-    let refresh = super::new_token("stkr_");
+    let family = state::token();
+    let refresh = new_refresh(&family);
     let session = state::hash(&state::random(32));
     let issued = async {
         let mut core = app.0.core.lock().await;
@@ -827,12 +836,13 @@ async fn exchange_code(app: &App, t: &TokenRequest, client_id: &str) -> Reply {
             .bind(&session)
             .execute(&mut *tx)
             .await?;
-        sqlx::query("INSERT INTO mcp_grants(session_hash,user_id,client_id,scope,refresh_hash,created_at) VALUES(?,?,?,?,?,?)")
+        sqlx::query("INSERT INTO mcp_grants(session_hash,user_id,client_id,scope,refresh_hash,family_hash,created_at) VALUES(?,?,?,?,?,?,?)")
             .bind(&session)
             .bind(db::id(user)?)
             .bind(client_id)
             .bind(&scope)
             .bind(super::token_hash(&refresh))
+            .bind(super::token_hash(&family))
             .bind(t)
             .execute(&mut *tx)
             .await?;
@@ -876,33 +886,29 @@ async fn revoke_grant(app: &App, session: &[u8]) -> Result<()> {
     Ok(())
 }
 async fn refresh(app: &App, t: &TokenRequest, client_id: &str) -> Reply {
-    let presented = super::token_hash(t.refresh_token.as_deref().unwrap_or_default());
+    let token = t.refresh_token.as_deref().unwrap_or_default();
+    let gone = || invalid_grant("The refresh token is invalid, expired or revoked. Connect again.");
+    let family = refresh_family(token).ok_or_else(gone)?;
+    let presented = super::token_hash(token);
     let core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await.map_err(|e| busy_box(e.into()))?;
-    let row = sqlx::query("SELECT g.session_hash,g.client_id,g.scope FROM mcp_grants g JOIN sessions s ON s.token_hash=g.session_hash WHERE g.refresh_hash=? AND s.expires_at>? AND NOT EXISTS(SELECT 1 FROM disabled_users d WHERE d.user_id=g.user_id)")
-        .bind(&presented)
+    let row = sqlx::query("SELECT g.session_hash,g.client_id,g.scope,g.refresh_hash FROM mcp_grants g JOIN sessions s ON s.token_hash=g.session_hash WHERE g.family_hash=? AND s.expires_at>? AND NOT EXISTS(SELECT 1 FROM disabled_users d WHERE d.user_id=g.user_id)")
+        .bind(super::token_hash(family))
         .bind(now() as i64)
         .fetch_optional(&mut *c)
         .await
-        .map_err(|e| busy_box(e.into()))?;
-    let Some(row) = row else {
-        // A rotated-out refresh token was replayed: assume theft, end the grant.
-        let reused: Option<Vec<u8>> =
-            sqlx::query_scalar("SELECT session_hash FROM mcp_spent_refresh WHERE refresh_hash=?")
-                .bind(&presented)
-                .fetch_optional(&mut *c)
-                .await
-                .map_err(|e| busy_box(e.into()))?;
+        .map_err(|e| busy_box(e.into()))?
+        .ok_or_else(gone)?;
+    let session: Vec<u8> = row.get("session_hash");
+    let current: Vec<u8> = row.get("refresh_hash");
+    if !bool::from(current.ct_eq(&presented)) {
+        // Any earlier token of this family was replayed, at any age: assume
+        // theft and end the grant, so neither holder keeps access.
         drop(c);
         drop(core);
-        if let Some(session) = reused {
-            revoke_grant(app, &session).await.map_err(busy_box)?;
-        }
-        return Err(invalid_grant(
-            "The refresh token is invalid, expired or revoked. Connect again.",
-        ));
-    };
-    let session: Vec<u8> = row.get("session_hash");
+        revoke_grant(app, &session).await.map_err(busy_box)?;
+        return Err(gone());
+    }
     let scope: String = row.get("scope");
     if row.get::<String, _>("client_id") != client_id {
         return Err(invalid_grant(
@@ -910,7 +916,7 @@ async fn refresh(app: &App, t: &TokenRequest, client_id: &str) -> Reply {
         ));
     }
     let access = super::new_token("stka_");
-    let refresh = super::new_token("stkr_");
+    let refresh = new_refresh(family);
     let rotated = async {
         let mut tx = c.begin().await?;
         let t = now() as i64;
@@ -922,12 +928,6 @@ async fn refresh(app: &App, t: &TokenRequest, client_id: &str) -> Reply {
             .await?
             .rows_affected();
         crate::error::require(n == 1, ErrorCode::Conflict)?;
-        sqlx::query("INSERT INTO mcp_spent_refresh VALUES(?,?,?)")
-            .bind(&presented)
-            .bind(&session)
-            .bind(t)
-            .execute(&mut *tx)
-            .await?;
         // Keep the newest previous access token so in-flight calls finish.
         sqlx::query("DELETE FROM mcp_access_tokens WHERE session_hash=? AND token_hash NOT IN (SELECT token_hash FROM mcp_access_tokens WHERE session_hash=? AND expires_at>? ORDER BY expires_at DESC LIMIT 1)")
             .bind(&session)
@@ -993,13 +993,16 @@ pub(crate) async fn revoke(State(app): State<App>, r: Request<Body>) -> Response
     };
     let h = super::token_hash(&token);
     let done = async {
-        let session: Option<Vec<u8>> = sqlx::query_scalar(
-            "SELECT session_hash FROM mcp_grants WHERE refresh_hash=? UNION SELECT session_hash FROM mcp_spent_refresh WHERE refresh_hash=?",
-        )
-        .bind(&h)
-        .bind(&h)
-        .fetch_optional(&app.0.pool)
-        .await?;
+        // Any refresh token of a family (even a spent one) ends its grant.
+        let session: Option<Vec<u8>> = match refresh_family(&token) {
+            Some(family) => {
+                sqlx::query_scalar("SELECT session_hash FROM mcp_grants WHERE family_hash=?")
+                    .bind(super::token_hash(family))
+                    .fetch_optional(&app.0.pool)
+                    .await?
+            }
+            None => None,
+        };
         if let Some(session) = session {
             revoke_grant(&app, &session).await?;
         } else {
