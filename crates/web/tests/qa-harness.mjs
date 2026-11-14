@@ -164,3 +164,22 @@ export async function shot(page, screen) {
   await page.screenshot({ path });
   return path;
 }
+// Capture transient flows at the same three review sizes without repeating
+// mutations/OAuth tickets. Restore the caller's viewport and scroll positions.
+export async function shotAll(page, screen) {
+  const viewport = page.viewportSize();
+  const scroll = await page.evaluate(() => [...document.querySelectorAll('.settings-main,.settings-nav,.live-modal,#live-messages')]
+    .map(e => [e.id ? `#${e.id}` : `.${e.classList[0]}`, e.scrollTop]));
+  try {
+    for (const [width,height] of [[390,844],[412,915],[1440,900]]) {
+      await page.setViewportSize({width,height});
+      await shot(page, screen);
+    }
+  } finally {
+    await page.setViewportSize(viewport);
+    await page.evaluate(scroll => scroll.forEach(([selector,top]) => {
+      const pane=document.querySelector(selector);if(pane)pane.scrollTop=top;
+    }), scroll);
+  }
+  return `${output}/${screen}-${viewport.width}x${viewport.height}.png`;
+}

@@ -1,0 +1,9 @@
+file:///C:/Users/dwhee/.t3/worktrees/discord%20clone/t3-3688c202-d0d11ccd867be3da/crates/web/tests/qa-harness.mjs:21
+  throw Error(`Async condition did not become true within ${timeout}ms`);
+        ^
+
+Error: Async condition did not become true within 35000ms
+    at until (file:///C:/Users/dwhee/.t3/worktrees/discord%20clone/t3-3688c202-d0d11ccd867be3da/crates/web/tests/qa-harness.mjs:21:9)
+    at async file:///C:/Users/dwhee/.t3/worktrees/discord%20clone/t3-3688c202-d0d11ccd867be3da/crates/web/tests/voice-negotiation.mjs:34:5
+
+Node.js v22.22.3

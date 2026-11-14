@@ -65,16 +65,18 @@ if (new URLSearchParams(location.search).has("mock") || hasCsrf || signup) {
     register = !register;
     document.getElementById("boot-title").textContent = register
       ? "Create an account"
-      : "Log in";
+      : "Welcome back!";
     document.getElementById("boot-submit").textContent = register
       ? "Create Account"
       : "Log In";
     document.getElementById("auth-password").autocomplete = register
       ? "new-password"
       : "current-password";
-    e.target.textContent = register
-      ? "Already have an account? Log in"
-      : "Create an account";
+    document.getElementById('boot-subtitle').textContent = register
+      ? 'Create your StickTalk account.' : 'Log in to catch up with your friends.';
+    document.getElementById('boot-switch-copy').textContent = register
+      ? 'Already have an account? ' : 'Need an account? ';
+    e.currentTarget.textContent = register ? 'Log in' : 'Register';
   };
   form.onsubmit = async (e) => {
     e.preventDefault();

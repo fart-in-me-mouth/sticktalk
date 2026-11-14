@@ -2,9 +2,10 @@
 from pathlib import Path
 from math import ceil
 import json
+import os
 from PIL import Image, ImageDraw, ImageFont
 
-root = Path(__file__).resolve().parents[1] / "screenshots" / "qa"
+root = Path(os.environ.get("STICKTALK_QA_DIR", Path(__file__).resolve().parents[1] / "screenshots" / "qa")).resolve()
 font = ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 13)
 index = {}
 
@@ -36,17 +37,18 @@ for size in ["390x844", "412x915", "820x1180", "1440x900", "1280x800", "1920x108
               height=455 if size.startswith(("390", "412")) else 400 if size.startswith("820") else 220)
 
 featured = [
-    "login-390x844.png", "live/grouped-chat-390x844.png", "message-actions-390x844.png",
-    "screen-share-phone-390x844.png", "settings-390x844.png", "profile-edit-390x844.png",
-    "appearance-390x844.png", "notifications-390x844.png", "server-profile-saved-390x844.png",
-    "roles-reordered-390x844.png", "bans-populated-390x844.png", "offline-shell-390x844.png",
+    "login-google-390x844.png", "live/grouped-chat-390x844.png", "message-actions-390x844.png",
+    "screen-share-phone-390x844.png", "settings-390x844.png", "profile-populated-390x844.png",
+    "profile-dirty-390x844.png", "notifications-390x844.png", "roles-reordered-390x844.png",
+    "role-editor-390x844.png", "voice-focus-390x844.png", "voice-mini-390x844.png",
 ]
+
 sheet([root / p for p in featured if (root / p).exists()], "contact-phone.png")
 (root / "contact-index.json").write_text(json.dumps(index, indent=2), encoding="utf-8")
 print(f"{sum(len(v) for k, v in index.items() if k != 'contact-phone.png')} screenshots, {len(index)} sheets")
 
 # Reproducible comparison chart; raw values remain in the paired JSON files.
-if (root / "lighthouse-summary.json").exists() and (root / "bundle-sizes.json").exists():
+if all((root / name).exists() for name in ["lighthouse-summary.json", "bundle-sizes.json", "baseline/lighthouse-summary.json", "baseline/bundle-sizes.json"]):
     before = json.loads((root / "baseline/lighthouse-summary.json").read_text(encoding="utf-8"))
     after = json.loads((root / "lighthouse-summary.json").read_text(encoding="utf-8"))
     old_sizes = json.loads((root / "baseline/bundle-sizes.json").read_text(encoding="utf-8"))

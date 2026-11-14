@@ -1,0 +1,16 @@
+{
+  "revision": "3808e78aad2e6c680634",
+  "checks": [
+    "mock Google authorization + PKCE/token + RSA JWKS, signup and username collision",
+    "existing Google identity login after logout",
+    "operation-bound Google reauthentication returns to Delete Account and erases account"
+  ],
+  "screenshots": [
+    "screenshots/polish/login-google-390x844.png",
+    "screenshots/polish/register-google-390x844.png",
+    "screenshots/polish/google-username-390x844.png",
+    "screenshots/polish/google-delete-reauth-390x844.png"
+  ],
+  "errors": [],
+  "externalRequests": 0
+}

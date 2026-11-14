@@ -110,3 +110,17 @@ assert.equal(swipeAction('left',120,4),null);
 assert.equal(swipeAction('',120,150),null);
 assert.equal(swipeAction('',30,4),null);
 console.log('Mobile preferences: bounded device-only values; swipes: drawer dismissal, vertical/short gesture rejection: passed');
+
+// H.264 preferences must retain its auxiliary repair codec. str0m needs an
+// RTX stream for padding probes; H.264-only primary preferences disabled it.
+const {h264Codecs}=await import('../public/media.js');
+const codecs=[
+  {mimeType:'video/VP8'},
+  {mimeType:'video/H264',sdpFmtpLine:'packetization-mode=1;profile-level-id=4d001f'},
+  {mimeType:'video/rtx',clockRate:90000},
+  {mimeType:'video/H264',sdpFmtpLine:'packetization-mode=1;profile-level-id=42e01f'},
+  {mimeType:'video/H264',sdpFmtpLine:'packetization-mode=0;profile-level-id=42e01f'},
+];
+assert.deepEqual(h264Codecs(codecs),[codecs[3],codecs[1],codecs[2]]);
+assert.throws(()=>h264Codecs([{mimeType:'video/VP8'},{mimeType:'video/rtx'}]),/H.264/);
+console.log('H.264 codec selection: baseline first, RTX repair/probes retained, no unrelated primary codec: passed');

@@ -1,0 +1,22 @@
+[
+  {
+    "command": "cargo test -p sticktalk-web -p sticktalk-client-core -p sticktalk-proto",
+    "exitCode": 0
+  },
+  {
+    "command": "cargo clippy -p sticktalk-web -p sticktalk-client-core -p sticktalk-proto --all-targets -- -D warnings",
+    "exitCode": 0
+  },
+  {
+    "command": "cargo fmt --all -- --check",
+    "exitCode": 0
+  },
+  {
+    "command": "cargo check -p sticktalk-web --target wasm32-unknown-unknown --profile web-release",
+    "exitCode": 0
+  },
+  {
+    "command": "cargo clippy -p sticktalk-web -p sticktalk-client-core -p sticktalk-proto --target wasm32-unknown-unknown --profile web-release --all-targets -- -D warnings",
+    "exitCode": 0
+  }
+]

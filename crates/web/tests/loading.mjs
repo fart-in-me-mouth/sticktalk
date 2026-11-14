@@ -8,6 +8,7 @@ const inventory=JSON.parse(await readFile(join(dist,'sizes.json'),'utf8'));
 const core=inventory.assets.find(a=>a.file.endsWith('_bg.wasm'));
 const chunks=inventory.assets.filter(a=>a.file.endsWith('.wasm')&&a!==core);
 assert(core && chunks.length>=2, 'production must contain a core and actual lazy WASM chunks');
+assert(core.brotli<=450000, `core WASM exceeds 450 KB Brotli: ${core.brotli} B`);
 const runtime=inventory.assets.filter(a=>/^public\/runtime\/[a-f0-9]{20}\/.*\.js$/.test(a.file));
 assert.equal(runtime.length,8,'all runtime JS modules are release-fingerprinted');
 const alias=await readFile(join(dist,'public/media.js'),'utf8');

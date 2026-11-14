@@ -1,0 +1,3107 @@
+{
+  "error": "Error: Async condition did not become true within 35000ms",
+  "rounds": [],
+  "diagnostics": [
+    {
+      "joined": true,
+      "pendingRequests": 0,
+      "trace": [
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 843853,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 13,
+              "rtt_ms": 15,
+              "rx_bps": 82304,
+              "rx_fps_milli": 12996,
+              "tx_bps": 50817,
+              "tx_fps_milli": 0
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 48794,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 13,
+              "rtt_ms": 17,
+              "rx_bps": 78980,
+              "rx_fps_milli": 18989,
+              "tx_bps": 52466,
+              "tx_fps_milli": 0
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 13,
+              "rtt_ms": 3,
+              "rx_bps": 82656,
+              "rx_fps_milli": 19998,
+              "tx_bps": 52491,
+              "tx_fps_milli": 0
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 51603,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 13,
+              "rtt_ms": 2,
+              "rx_bps": 86908,
+              "rx_fps_milli": 19993,
+              "tx_bps": 51855,
+              "tx_fps_milli": 0
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 54196,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 58610,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 13,
+              "rtt_ms": 20,
+              "rx_bps": 86610,
+              "rx_fps_milli": 19989,
+              "tx_bps": 51388,
+              "tx_fps_milli": 0
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 64481,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 61224,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 13,
+              "rtt_ms": 4,
+              "rx_bps": 81298,
+              "rx_fps_milli": 19992,
+              "tx_bps": 52253,
+              "tx_fps_milli": 0
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 13,
+              "rtt_ms": 19,
+              "rx_bps": 82489,
+              "rx_fps_milli": 19990,
+              "tx_bps": 50544,
+              "tx_fps_milli": 0
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        }
+      ],
+      "localSdp": "v=0\r\no=- 3032075601513283974 5 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1 2 3\r\na=extmap-allow-mixed\r\na=msid-semantic: WMS 37458940-bbad-4714-aa59-c98e4088938f bb48ffa5-7dee-4e9a-8b90-fbaeaf0c9fcc\r\nm=audio 60820 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 127.0.0.1\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=candidate:1986734118 1 udp 2122194687 127.0.0.1 60820 typ host generation 0 network-id 1 network-cost 50\r\na=candidate:3991137708 1 udp 2122129151 100.81.63.83 60821 typ host generation 0 network-id 2 network-cost 50\r\na=candidate:1599426792 1 udp 2122063615 192.168.4.52 60822 typ host generation 0 network-id 4\r\na=candidate:332140793 1 udp 2122265343 fd7a:115c:a1e0::b63b:3f54 60823 typ host generation 0 network-id 3 network-cost 50\r\na=candidate:29769408 1 tcp 1518214911 127.0.0.1 9 typ host tcptype active generation 0 network-id 1 network-cost 50\r\na=candidate:3494705663 1 tcp 1518149375 100.81.63.83 9 typ host tcptype active generation 0 network-id 2 network-cost 50\r\na=candidate:3412345139 1 tcp 1518083839 192.168.4.52 9 typ host tcptype active generation 0 network-id 4\r\na=candidate:117963789 1 tcp 1518285567 fd7a:115c:a1e0::b63b:3f54 9 typ host tcptype active generation 0 network-id 3 network-cost 50\r\na=ice-ufrag:gQ0C\r\na=ice-pwd:HJlWUT7E2/8LauqlZuoxEb6y\r\na=ice-options:trickle\r\na=fingerprint:sha-256 F5:0D:FD:B9:46:18:4A:CA:AC:9D:27:27:D2:4E:EC:6E:2C:9D:2D:76:99:FA:39:89:CA:9A:1C:4C:76:3D:AC:23\r\na=setup:actpass\r\na=mid:0\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=sendonly\r\na=msid:37458940-bbad-4714-aa59-c98e4088938f f49710f1-59ba-44d6-a2bd-e9ece5337328\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtcp-xr:rcvr-rtt=all\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\na=ssrc:4050277511 cname:HHNJDA/u+B7mcGg2\r\na=ssrc:4050277511 msid:37458940-bbad-4714-aa59-c98e4088938f f49710f1-59ba-44d6-a2bd-e9ece5337328\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:gQ0C\r\na=ice-pwd:HJlWUT7E2/8LauqlZuoxEb6y\r\na=ice-options:trickle\r\na=fingerprint:sha-256 F5:0D:FD:B9:46:18:4A:CA:AC:9D:27:27:D2:4E:EC:6E:2C:9D:2D:76:99:FA:39:89:CA:9A:1C:4C:76:3D:AC:23\r\na=setup:actpass\r\na=mid:1\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=recvonly\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtcp-xr:rcvr-rtt=all\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\nm=video 9 UDP/TLS/RTP/SAVPF 102 108 116\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:gQ0C\r\na=ice-pwd:HJlWUT7E2/8LauqlZuoxEb6y\r\na=ice-options:trickle\r\na=fingerprint:sha-256 F5:0D:FD:B9:46:18:4A:CA:AC:9D:27:27:D2:4E:EC:6E:2C:9D:2D:76:99:FA:39:89:CA:9A:1C:4C:76:3D:AC:23\r\na=setup:actpass\r\na=mid:2\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:13 urn:3gpp:video-orientation\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\na=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id\r\na=sendonly\r\na=msid:bb48ffa5-7dee-4e9a-8b90-fbaeaf0c9fcc add21cd7-1344-4758-95a1-b6ec75e23c79\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtcp-xr:rcvr-rtt=all\r\na=rtpmap:102 H264/90000\r\na=rtcp-fb:102 goog-remb\r\na=rtcp-fb:102 transport-cc\r\na=rtcp-fb:102 ccm fir\r\na=rtcp-fb:102 nack\r\na=rtcp-fb:102 nack pli\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=rtpmap:108 H264/90000\r\na=rtcp-fb:108 goog-remb\r\na=rtcp-fb:108 transport-cc\r\na=rtcp-fb:108 ccm fir\r\na=rtcp-fb:108 nack\r\na=rtcp-fb:108 nack pli\r\na=fmtp:108 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\na=rtpmap:116 H264/90000\r\na=rtcp-fb:116 goog-remb\r\na=rtcp-fb:116 transport-cc\r\na=rtcp-fb:116 ccm fir\r\na=rtcp-fb:116 nack\r\na=rtcp-fb:116 nack pli\r\na=fmtp:116 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f\r\na=ssrc:1772204209 cname:HHNJDA/u+B7mcGg2\r\na=ssrc:1772204209 msid:bb48ffa5-7dee-4e9a-8b90-fbaeaf0c9fcc add21cd7-1344-4758-95a1-b6ec75e23c79\r\nm=video 9 UDP/TLS/RTP/SAVPF 102 108 116 41\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:gQ0C\r\na=ice-pwd:HJlWUT7E2/8LauqlZuoxEb6y\r\na=ice-options:trickle\r\na=fingerprint:sha-256 F5:0D:FD:B9:46:18:4A:CA:AC:9D:27:27:D2:4E:EC:6E:2C:9D:2D:76:99:FA:39:89:CA:9A:1C:4C:76:3D:AC:23\r\na=setup:actpass\r\na=mid:3\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:13 urn:3gpp:video-orientation\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\na=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id\r\na=recvonly\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtcp-xr:rcvr-rtt=all\r\na=rtpmap:102 H264/90000\r\na=rtcp-fb:102 goog-remb\r\na=rtcp-fb:102 transport-cc\r\na=rtcp-fb:102 ccm fir\r\na=rtcp-fb:102 nack\r\na=rtcp-fb:102 nack pli\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=rtpmap:108 H264/90000\r\na=rtcp-fb:108 goog-remb\r\na=rtcp-fb:108 transport-cc\r\na=rtcp-fb:108 ccm fir\r\na=rtcp-fb:108 nack\r\na=rtcp-fb:108 nack pli\r\na=fmtp:108 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\na=rtpmap:116 H264/90000\r\na=rtcp-fb:116 goog-remb\r\na=rtcp-fb:116 transport-cc\r\na=rtcp-fb:116 ccm fir\r\na=rtcp-fb:116 nack\r\na=rtcp-fb:116 nack pli\r\na=fmtp:116 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f\r\na=rtpmap:41 H264/90000\r\na=rtcp-fb:41 goog-remb\r\na=rtcp-fb:41 transport-cc\r\na=rtcp-fb:41 ccm fir\r\na=rtcp-fb:41 nack\r\na=rtcp-fb:41 nack pli\r\na=fmtp:41 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=f4001f\r\n",
+      "remoteSdp": "v=0\r\no=- 4478598584027562853 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1 2 3\r\na=extmap-allow-mixed\r\na=msid-semantic: WMS 37458940-bbad-4714-aa59-c98e4088938f bb48ffa5-7dee-4e9a-8b90-fbaeaf0c9fcc\r\na=ice-lite\r\nm=audio 50002 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 127.0.0.1\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=candidate:fffeff7e32c583ef85edbb1a 1 udp 2130706175 127.0.0.1 50002 typ host generation 0\r\na=ice-ufrag:EK2nUFVjDEQNLpvo\r\na=ice-pwd:HKsMxOn2bHT07VcTrhmCaZ\r\na=ice-options:trickle\r\na=fingerprint:sha-256 F1:5B:E0:5A:85:5E:58:B8:DE:A1:A7:0D:5F:02:09:99:C0:AC:28:F8:3A:74:33:2C:F3:F6:97:60:87:93:3B:DD\r\na=setup:passive\r\na=mid:0\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=recvonly\r\na=msid:37458940-bbad-4714-aa59-c98e4088938f f49710f1-59ba-44d6-a2bd-e9ece5337328\r\na=rtcp-mux\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:EK2nUFVjDEQNLpvo\r\na=ice-pwd:HKsMxOn2bHT07VcTrhmCaZ\r\na=ice-options:trickle\r\na=fingerprint:sha-256 F1:5B:E0:5A:85:5E:58:B8:DE:A1:A7:0D:5F:02:09:99:C0:AC:28:F8:3A:74:33:2C:F3:F6:97:60:87:93:3B:DD\r\na=setup:passive\r\na=mid:1\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=sendonly\r\na=msid:Q22SMHdVkrQckYEF3y4Z7lRjDSSjzN hH9sAEIdiZNtXGempxx5gbhogSD3du\r\na=rtcp-mux\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\nm=video 9 UDP/TLS/RTP/SAVPF 102 108 116\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:EK2nUFVjDEQNLpvo\r\na=ice-pwd:HKsMxOn2bHT07VcTrhmCaZ\r\na=ice-options:trickle\r\na=fingerprint:sha-256 F1:5B:E0:5A:85:5E:58:B8:DE:A1:A7:0D:5F:02:09:99:C0:AC:28:F8:3A:74:33:2C:F3:F6:97:60:87:93:3B:DD\r\na=setup:passive\r\na=mid:2\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\na=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id\r\na=extmap:13 urn:3gpp:video-orientation\r\na=recvonly\r\na=msid:bb48ffa5-7dee-4e9a-8b90-fbaeaf0c9fcc add21cd7-1344-4758-95a1-b6ec75e23c79\r\na=rtcp-mux\r\na=rtpmap:102 H264/90000\r\na=rtcp-fb:102 transport-cc\r\na=rtcp-fb:102 goog-remb\r\na=rtcp-fb:102 ccm fir\r\na=rtcp-fb:102 nack\r\na=rtcp-fb:102 nack pli\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=rtpmap:108 H264/90000\r\na=rtcp-fb:108 transport-cc\r\na=rtcp-fb:108 goog-remb\r\na=rtcp-fb:108 ccm fir\r\na=rtcp-fb:108 nack\r\na=rtcp-fb:108 nack pli\r\na=fmtp:108 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\na=rtpmap:116 H264/90000\r\na=rtcp-fb:116 transport-cc\r\na=rtcp-fb:116 goog-remb\r\na=rtcp-fb:116 ccm fir\r\na=rtcp-fb:116 nack\r\na=rtcp-fb:116 nack pli\r\na=fmtp:116 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f\r\nm=video 9 UDP/TLS/RTP/SAVPF 102 108 116\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:EK2nUFVjDEQNLpvo\r\na=ice-pwd:HKsMxOn2bHT07VcTrhmCaZ\r\na=ice-options:trickle\r\na=fingerprint:sha-256 F1:5B:E0:5A:85:5E:58:B8:DE:A1:A7:0D:5F:02:09:99:C0:AC:28:F8:3A:74:33:2C:F3:F6:97:60:87:93:3B:DD\r\na=setup:passive\r\na=mid:3\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\na=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id\r\na=extmap:13 urn:3gpp:video-orientation\r\na=sendonly\r\na=msid:BxilKlL8rKFYEhxG9psnvRtjVl5Rnd Z1Ly7GHoIfdSgAFU6rMfO8AlydsKTO\r\na=rtcp-mux\r\na=rtpmap:102 H264/90000\r\na=rtcp-fb:102 transport-cc\r\na=rtcp-fb:102 goog-remb\r\na=rtcp-fb:102 ccm fir\r\na=rtcp-fb:102 nack\r\na=rtcp-fb:102 nack pli\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=rtpmap:108 H264/90000\r\na=rtcp-fb:108 transport-cc\r\na=rtcp-fb:108 goog-remb\r\na=rtcp-fb:108 ccm fir\r\na=rtcp-fb:108 nack\r\na=rtcp-fb:108 nack pli\r\na=fmtp:108 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\na=rtpmap:116 H264/90000\r\na=rtcp-fb:116 transport-cc\r\na=rtcp-fb:116 goog-remb\r\na=rtcp-fb:116 ccm fir\r\na=rtcp-fb:116 nack\r\na=rtcp-fb:116 nack pli\r\na=fmtp:116 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f\r\n",
+      "state": "connected",
+      "publications": 2,
+      "subscriptions": 2,
+      "tracks": [
+        {
+          "kind": "audio",
+          "own": true,
+          "paused": true,
+          "readyState": 0,
+          "videoWidth": 0
+        },
+        {
+          "kind": "audio",
+          "own": false,
+          "paused": false,
+          "streamTracks": [
+            {
+              "id": "f1e96e51-de94-4f3f-aa10-489f59873f1b",
+              "kind": "audio",
+              "muted": false,
+              "readyState": "live"
+            }
+          ],
+          "readyState": 4,
+          "videoWidth": 0
+        },
+        {
+          "kind": "camera",
+          "own": true,
+          "paused": false,
+          "streamTracks": [
+            {
+              "id": "add21cd7-1344-4758-95a1-b6ec75e23c79",
+              "kind": "video",
+              "muted": false,
+              "readyState": "live"
+            }
+          ],
+          "readyState": 4,
+          "videoWidth": 1280
+        },
+        {
+          "kind": "camera",
+          "own": false,
+          "paused": false,
+          "streamTracks": [
+            {
+              "id": "ae5d5815-655b-4c49-9d7d-7e5ef046d4a0",
+              "kind": "video",
+              "muted": false,
+              "readyState": "live"
+            }
+          ],
+          "readyState": 4,
+          "videoWidth": 320
+        }
+      ],
+      "stats": [
+        {
+          "id": "AP",
+          "timestamp": 1794619116702.525,
+          "type": "media-playout",
+          "kind": "audio",
+          "synthesizedSamplesDuration": 0.00993,
+          "synthesizedSamplesEvents": 1,
+          "totalPlayoutDelay": 70909.84896,
+          "totalSamplesCount": 1691520,
+          "totalSamplesDuration": 35.24993
+        },
+        {
+          "id": "CFF1:5B:E0:5A:85:5E:58:B8:DE:A1:A7:0D:5F:02:09:99:C0:AC:28:F8:3A:74:33:2C:F3:F6:97:60:87:93:3B:DD",
+          "timestamp": 1794619116702.525,
+          "type": "certificate",
+          "base64Certificate": "MIIBQjCB6aADAgECAhEA3Abdjx6OSjKryoaobx3bbTAKBggqhkjOPQQDAjAjMQ0wCwYDVQQKDAREVExTMRIwEAYDVQQDDAlEVExTIFBlZXIwHhcNMjYxMTE0MDExODAxWhcNMjcxMTE0MDExODAxWjAjMQ0wCwYDVQQKDAREVExTMRIwEAYDVQQDDAlEVExTIFBlZXIwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARipFFdr5nJE/GnWpdmyHA59AfKyXCz5E5Lqq9ba5ODX2ZxyIgHL25EOUGHNcfdoMkNupJGYo3YZsuG6k8k0Ux+MAoGCCqGSM49BAMCA0gAMEUCIHuh94lRrNsNfAbtWNYeXPoyPBv+ud/Vy1NtEIu7Q2m2AiEAwgNG29PvkmQYxMuDVk+k34cNtkC2PVqxwupWk+7jLO8=",
+          "fingerprint": "F1:5B:E0:5A:85:5E:58:B8:DE:A1:A7:0D:5F:02:09:99:C0:AC:28:F8:3A:74:33:2C:F3:F6:97:60:87:93:3B:DD",
+          "fingerprintAlgorithm": "sha-256"
+        },
+        {
+          "id": "CFF5:0D:FD:B9:46:18:4A:CA:AC:9D:27:27:D2:4E:EC:6E:2C:9D:2D:76:99:FA:39:89:CA:9A:1C:4C:76:3D:AC:23",
+          "timestamp": 1794619116702.525,
+          "type": "certificate",
+          "base64Certificate": "MIIBFzCBvaADAgECAgkAwRjbR/psul4wCgYIKoZIzj0EAwIwETEPMA0GA1UEAwwGV2ViUlRDMB4XDTI2MTExMzAxMTgwMVoXDTI2MTIxNDAxMTgwMVowETEPMA0GA1UEAwwGV2ViUlRDMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAzNGN5qX7upw5jrDETGavpebdPmHfWEkHpsUNgJ8oopBlteHzudowCLBLbvy5rDg+zMtxgQ/5V2GymTS8LKWNTAKBggqhkjOPQQDAgNJADBGAiEA1Vq8gsj5usRx80M98ZQq3i2iK57K3FWem9iErLsK0LsCIQD4RA3u2mVWjcNyJQd7u876a7P02eIFOPIrf1Y8WdFRwA==",
+          "fingerprint": "F5:0D:FD:B9:46:18:4A:CA:AC:9D:27:27:D2:4E:EC:6E:2C:9D:2D:76:99:FA:39:89:CA:9A:1C:4C:76:3D:AC:23",
+          "fingerprintAlgorithm": "sha-256"
+        },
+        {
+          "id": "CIT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "timestamp": 1794619116702.525,
+          "type": "codec",
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 102,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "transportId": "T01"
+        },
+        {
+          "id": "CIT01_111_minptime=10;useinbandfec=1",
+          "timestamp": 1794619116702.525,
+          "type": "codec",
+          "channels": 2,
+          "clockRate": 48000,
+          "mimeType": "audio/opus",
+          "payloadType": 111,
+          "sdpFmtpLine": "minptime=10;useinbandfec=1",
+          "transportId": "T01"
+        },
+        {
+          "id": "COT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "timestamp": 1794619116702.525,
+          "type": "codec",
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 102,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "transportId": "T01"
+        },
+        {
+          "id": "COT01_111_minptime=10;useinbandfec=1",
+          "timestamp": 1794619116702.525,
+          "type": "codec",
+          "channels": 2,
+          "clockRate": 48000,
+          "mimeType": "audio/opus",
+          "payloadType": 111,
+          "sdpFmtpLine": "minptime=10;useinbandfec=1",
+          "transportId": "T01"
+        },
+        {
+          "id": "CPLGxYA5J0_JlSXTxMU",
+          "timestamp": 1794619116702.525,
+          "type": "candidate-pair",
+          "availableOutgoingBitrate": 84400,
+          "bytesDiscardedOnSend": 0,
+          "bytesReceived": 247068,
+          "bytesSent": 699008,
+          "consentRequestsSent": 16,
+          "currentRoundTripTime": 0,
+          "lastPacketReceivedTimestamp": 1794619116685,
+          "lastPacketSentTimestamp": 1794619116700,
+          "localCandidateId": "ILGxYA5J0",
+          "nominated": true,
+          "packetsDiscardedOnSend": 0,
+          "packetsReceived": 2699,
+          "packetsSent": 3117,
+          "priority": 9114756780671368000,
+          "remoteCandidateId": "IJlSXTxMU",
+          "requestsReceived": 0,
+          "requestsSent": 17,
+          "responsesReceived": 17,
+          "responsesSent": 0,
+          "state": "succeeded",
+          "totalRoundTripTime": 0.008,
+          "transportId": "T01",
+          "writable": true
+        },
+        {
+          "id": "I2tvTrKTH",
+          "timestamp": 1794619116702.525,
+          "type": "local-candidate",
+          "address": "100.81.63.83",
+          "candidateType": "host",
+          "foundation": "3991137708",
+          "ip": "100.81.63.83",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 60821,
+          "priority": 2122129151,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "gQ0C"
+        },
+        {
+          "id": "I35r1k7L3",
+          "timestamp": 1794619116702.525,
+          "type": "local-candidate",
+          "address": "192.168.4.52",
+          "candidateType": "host",
+          "foundation": "1599426792",
+          "ip": "192.168.4.52",
+          "isRemote": false,
+          "networkType": "ethernet",
+          "port": 60822,
+          "priority": 2122063615,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "gQ0C"
+        },
+        {
+          "id": "IH6hp5336",
+          "timestamp": 1794619116702.525,
+          "type": "local-candidate",
+          "address": "127.0.0.1",
+          "candidateType": "host",
+          "foundation": "29769408",
+          "ip": "127.0.0.1",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 9,
+          "priority": 1518214911,
+          "protocol": "tcp",
+          "tcpType": "active",
+          "transportId": "T01",
+          "usernameFragment": "gQ0C"
+        },
+        {
+          "id": "IIG8dI6Bp",
+          "timestamp": 1794619116702.525,
+          "type": "local-candidate",
+          "address": "100.81.63.83",
+          "candidateType": "host",
+          "foundation": "3494705663",
+          "ip": "100.81.63.83",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 9,
+          "priority": 1518149375,
+          "protocol": "tcp",
+          "tcpType": "active",
+          "transportId": "T01",
+          "usernameFragment": "gQ0C"
+        },
+        {
+          "id": "IJlSXTxMU",
+          "timestamp": 1794619116702.525,
+          "type": "remote-candidate",
+          "address": "127.0.0.1",
+          "candidateType": "host",
+          "foundation": "fffeff7e32c583ef85edbb1a",
+          "ip": "127.0.0.1",
+          "isRemote": true,
+          "port": 50002,
+          "priority": 2130706175,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "EK2nUFVjDEQNLpvo"
+        },
+        {
+          "id": "IKspTqgIV",
+          "timestamp": 1794619116702.525,
+          "type": "local-candidate",
+          "address": "192.168.4.52",
+          "candidateType": "host",
+          "foundation": "3412345139",
+          "ip": "192.168.4.52",
+          "isRemote": false,
+          "networkType": "ethernet",
+          "port": 9,
+          "priority": 1518083839,
+          "protocol": "tcp",
+          "tcpType": "active",
+          "transportId": "T01",
+          "usernameFragment": "gQ0C"
+        },
+        {
+          "id": "ILGxYA5J0",
+          "timestamp": 1794619116702.525,
+          "type": "local-candidate",
+          "address": "127.0.0.1",
+          "candidateType": "host",
+          "foundation": "1986734118",
+          "ip": "127.0.0.1",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 60820,
+          "priority": 2122194687,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "gQ0C"
+        },
+        {
+          "id": "IT01A30996034",
+          "timestamp": 1794619116702.525,
+          "type": "inbound-rtp",
+          "codecId": "CIT01_111_minptime=10;useinbandfec=1",
+          "kind": "audio",
+          "mediaType": "audio",
+          "ssrc": 30996034,
+          "transportId": "T01",
+          "jitter": 0.001,
+          "packetsLost": 0,
+          "packetsReceived": 1750,
+          "packetsReceivedWithCe": 0,
+          "packetsReceivedWithEct1": 0,
+          "audioLevel": 0.015594958342234566,
+          "bytesReceived": 107794,
+          "concealedSamples": 1669,
+          "concealmentEvents": 2,
+          "fecPacketsDiscarded": 0,
+          "fecPacketsReceived": 0,
+          "headerBytesReceived": 48996,
+          "insertedSamplesForDeceleration": 4256,
+          "jitterBufferDelay": 83587.2,
+          "jitterBufferEmittedCount": 1676160,
+          "jitterBufferMinimumDelay": 69446.4,
+          "jitterBufferTargetDelay": 69446.4,
+          "lastPacketReceivedTimestamp": 1794619116684.78,
+          "mid": "1",
+          "packetsDiscarded": 0,
+          "playoutId": "AP",
+          "remoteId": "ROA30996034",
+          "removedSamplesForAcceleration": 3891,
+          "silentConcealedSamples": 0,
+          "totalAudioEnergy": 9.5910692997893,
+          "totalProcessingDelay": 70753.2048,
+          "totalSamplesDuration": 34.98000000000161,
+          "totalSamplesReceived": 1678080,
+          "trackIdentifier": "f1e96e51-de94-4f3f-aa10-489f59873f1b"
+        },
+        {
+          "id": "IT01V1017836640",
+          "timestamp": 1794619116702.525,
+          "type": "inbound-rtp",
+          "codecId": "CIT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "kind": "video",
+          "mediaType": "video",
+          "ssrc": 1017836640,
+          "transportId": "T01",
+          "jitter": 0.019,
+          "packetsLost": 0,
+          "packetsReceived": 3,
+          "packetsReceivedWithCe": 0,
+          "packetsReceivedWithEct1": 0,
+          "bytesReceived": 1250,
+          "decoderImplementation": "FFmpeg",
+          "firCount": 0,
+          "frameHeight": 180,
+          "frameWidth": 320,
+          "framesAssembledFromMultiplePackets": 0,
+          "framesDecoded": 3,
+          "framesDropped": 0,
+          "framesReceived": 3,
+          "freezeCount": 0,
+          "headerBytesReceived": 84,
+          "jitterBufferDelay": 0.102834,
+          "jitterBufferEmittedCount": 3,
+          "jitterBufferMinimumDelay": 0.02668,
+          "jitterBufferTargetDelay": 0.02668,
+          "keyFramesDecoded": 1,
+          "lastPacketReceivedTimestamp": 1794619094041.194,
+          "mid": "3",
+          "nackCount": 0,
+          "pauseCount": 0,
+          "pliCount": 1,
+          "powerEfficientDecoder": false,
+          "qpSum": 122,
+          "totalAssemblyTime": 0,
+          "totalDecodeTime": 0.00046899999999999996,
+          "totalFreezesDuration": 0,
+          "totalInterFrameDelay": 0.5,
+          "totalPausesDuration": 0,
+          "totalProcessingDelay": 0.103472,
+          "totalSquaredInterFrameDelay": 0.1492,
+          "trackIdentifier": "ae5d5815-655b-4c49-9d7d-7e5ef046d4a0"
+        },
+        {
+          "id": "IfDfK3v3S",
+          "timestamp": 1794619116702.525,
+          "type": "local-candidate",
+          "address": "fd7a:115c:a1e0::b63b:3f54",
+          "candidateType": "host",
+          "foundation": "332140793",
+          "ip": "fd7a:115c:a1e0::b63b:3f54",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 60823,
+          "priority": 2122265343,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "gQ0C"
+        },
+        {
+          "id": "IzWZ79hhY",
+          "timestamp": 1794619116702.525,
+          "type": "local-candidate",
+          "address": "fd7a:115c:a1e0::b63b:3f54",
+          "candidateType": "host",
+          "foundation": "117963789",
+          "ip": "fd7a:115c:a1e0::b63b:3f54",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 9,
+          "priority": 1518285567,
+          "protocol": "tcp",
+          "tcpType": "active",
+          "transportId": "T01",
+          "usernameFragment": "gQ0C"
+        },
+        {
+          "id": "OT01A4050277511",
+          "timestamp": 1794619116702.525,
+          "type": "outbound-rtp",
+          "codecId": "COT01_111_minptime=10;useinbandfec=1",
+          "kind": "audio",
+          "mediaType": "audio",
+          "ssrc": 4050277511,
+          "transportId": "T01",
+          "bytesSent": 107800,
+          "packetsSent": 1760,
+          "active": true,
+          "headerBytesSent": 49330,
+          "mediaSourceId": "SA1",
+          "mid": "0",
+          "nackCount": 0,
+          "packetsSentWithEct1": 0,
+          "remoteId": "RIA4050277511",
+          "retransmittedBytesSent": 0,
+          "retransmittedPacketsSent": 0,
+          "targetBitrate": 32000,
+          "totalPacketSendDelay": 0.196854
+        },
+        {
+          "id": "OT01V1772204209",
+          "timestamp": 1794619116702.525,
+          "type": "outbound-rtp",
+          "codecId": "COT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "kind": "video",
+          "mediaType": "video",
+          "ssrc": 1772204209,
+          "transportId": "T01",
+          "bytesSent": 413723,
+          "packetsSent": 878,
+          "active": true,
+          "encoderImplementation": "OpenH264",
+          "encodingIndex": 0,
+          "firCount": 0,
+          "frameHeight": 180,
+          "frameWidth": 320,
+          "framesEncoded": 601,
+          "framesPerSecond": 20,
+          "framesSent": 601,
+          "headerBytesSent": 57743,
+          "hugeFramesSent": 3,
+          "keyFramesEncoded": 9,
+          "mediaSourceId": "SV2",
+          "mid": "2",
+          "nackCount": 0,
+          "packetsSentWithEct1": 0,
+          "pliCount": 2,
+          "powerEfficientEncoder": false,
+          "psnrMeasurements": 33,
+          "psnrSum": {
+            "u": 2051.665328979492,
+            "v": 2051.665328979492,
+            "y": 1532.373332977295
+          },
+          "qpSum": 17187,
+          "qualityLimitationDurations": {
+            "bandwidth": 34.972,
+            "cpu": 0,
+            "none": 0.047,
+            "other": 0
+          },
+          "qualityLimitationReason": "bandwidth",
+          "qualityLimitationResolutionChanges": 0,
+          "remoteId": "RIV1772204209",
+          "retransmittedBytesSent": 0,
+          "retransmittedPacketsSent": 0,
+          "scalabilityMode": "L1T1",
+          "targetBitrate": 30000,
+          "totalEncodeTime": 0.613,
+          "totalPacketSendDelay": 4.056429
+        },
+        {
+          "id": "P",
+          "timestamp": 1794619116702.525,
+          "type": "peer-connection",
+          "dataChannelsClosed": 0,
+          "dataChannelsOpened": 0
+        },
+        {
+          "id": "RIA4050277511",
+          "timestamp": 1794619116408.469,
+          "type": "remote-inbound-rtp",
+          "codecId": "COT01_111_minptime=10;useinbandfec=1",
+          "kind": "audio",
+          "mediaType": "audio",
+          "ssrc": 4050277511,
+          "transportId": "T01",
+          "jitter": 0.00045799999999999997,
+          "packetsLost": 0,
+          "fractionLost": 0,
+          "localId": "OT01A4050277511",
+          "roundTripTime": 0.001,
+          "roundTripTimeMeasurements": 7,
+          "totalRoundTripTime": 0.006999999999999999
+        },
+        {
+          "id": "RIV1772204209",
+          "timestamp": 1794619116681.968,
+          "type": "remote-inbound-rtp",
+          "codecId": "COT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "kind": "video",
+          "mediaType": "video",
+          "ssrc": 1772204209,
+          "transportId": "T01",
+          "jitter": 0.000833,
+          "packetsLost": 0,
+          "fractionLost": 0,
+          "localId": "OT01V1772204209",
+          "roundTripTime": 0.001,
+          "roundTripTimeMeasurements": 7,
+          "totalRoundTripTime": 0.006999999999999999
+        },
+        {
+          "id": "ROA30996034",
+          "timestamp": 1794619116460.103,
+          "type": "remote-outbound-rtp",
+          "codecId": "CIT01_111_minptime=10;useinbandfec=1",
+          "kind": "audio",
+          "mediaType": "audio",
+          "ssrc": 30996034,
+          "transportId": "T01",
+          "bytesSent": 107429,
+          "packetsSent": 1747,
+          "localId": "IT01A30996034",
+          "remoteTimestamp": 1794619116459.831,
+          "reportsSent": 7,
+          "roundTripTimeMeasurements": 0,
+          "totalRoundTripTime": 0
+        },
+        {
+          "id": "SA1",
+          "timestamp": 1794619116702.525,
+          "type": "media-source",
+          "kind": "audio",
+          "trackIdentifier": "f49710f1-59ba-44d6-a2bd-e9ece5337328",
+          "audioLevel": 0.015381328775902585,
+          "echoReturnLoss": -30,
+          "echoReturnLossEnhancement": 0.17551203072071075,
+          "totalAudioEnergy": 9.21339550788016,
+          "totalSamplesDuration": 35.43000000000152
+        },
+        {
+          "id": "SV2",
+          "timestamp": 1794619116702.525,
+          "type": "media-source",
+          "kind": "video",
+          "trackIdentifier": "add21cd7-1344-4758-95a1-b6ec75e23c79",
+          "frames": 700,
+          "framesPerSecond": 20,
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "id": "T01",
+          "timestamp": 1794619116702.525,
+          "type": "transport",
+          "bytesReceived": 247068,
+          "bytesSent": 699008,
+          "dtlsCipher": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+          "dtlsRole": "client",
+          "dtlsState": "connected",
+          "iceLocalUsernameFragment": "gQ0C",
+          "iceRole": "controlling",
+          "iceState": "connected",
+          "localCertificateId": "CFF5:0D:FD:B9:46:18:4A:CA:AC:9D:27:27:D2:4E:EC:6E:2C:9D:2D:76:99:FA:39:89:CA:9A:1C:4C:76:3D:AC:23",
+          "packetsReceived": 2699,
+          "packetsSent": 3117,
+          "remoteCertificateId": "CFF1:5B:E0:5A:85:5E:58:B8:DE:A1:A7:0D:5F:02:09:99:C0:AC:28:F8:3A:74:33:2C:F3:F6:97:60:87:93:3B:DD",
+          "selectedCandidatePairChanges": 1,
+          "selectedCandidatePairId": "CPLGxYA5J0_JlSXTxMU",
+          "srtpCipher": "SRTP_AEAD_AES_256_GCM",
+          "tlsVersion": "FEFD"
+        }
+      ]
+    },
+    {
+      "joined": true,
+      "pendingRequests": 0,
+      "trace": [
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 34230,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 0,
+              "rtt_ms": 7,
+              "rx_bps": 84767,
+              "rx_fps_milli": 21993,
+              "tx_bps": 86686,
+              "tx_fps_milli": 12996
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 31789,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 796238,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 0,
+              "rtt_ms": 3,
+              "rx_bps": 82538,
+              "rx_fps_milli": 19988,
+              "tx_bps": 85120,
+              "tx_fps_milli": 18989
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 0,
+              "rtt_ms": 4,
+              "rx_bps": 83080,
+              "rx_fps_milli": 19998,
+              "tx_bps": 88384,
+              "tx_fps_milli": 19998
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 29734,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 0,
+              "rtt_ms": 8,
+              "rx_bps": 82493,
+              "rx_fps_milli": 19993,
+              "tx_bps": 88459,
+              "tx_fps_milli": 19993
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 0,
+              "rtt_ms": 2,
+              "rx_bps": 80549,
+              "rx_fps_milli": 19989,
+              "tx_bps": 87489,
+              "tx_fps_milli": 19989
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 39600,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "bps": 43200,
+              "mid": "2"
+            },
+            "request_nonce": "0",
+            "type": "bitrate"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 0,
+              "rtt_ms": 4,
+              "rx_bps": 86808,
+              "rx_fps_milli": 19992,
+              "tx_bps": 88048,
+              "tx_fps_milli": 19992
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "cap_dropped_packets": 0,
+              "loss_per_million": 0,
+              "mtu_dropped_packets": 0,
+              "path": "unknown",
+              "queue_dropped_packets": 0,
+              "rtt_ms": 3,
+              "rx_bps": 82753,
+              "rx_fps_milli": 19990,
+              "tx_bps": 86807,
+              "tx_fps_milli": 19990
+            },
+            "request_nonce": "0",
+            "type": "stats"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -127,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": false
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157955915776",
+                "user_id": "247168155342864384"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        },
+        {
+          "type": "event",
+          "data": {
+            "data": {
+              "level_dbov": -8,
+              "session": {
+                "connection_id": "247168157888806912",
+                "user_id": "247168152679481344"
+              },
+              "speaking": true
+            },
+            "request_nonce": "0",
+            "type": "speaking"
+          }
+        }
+      ],
+      "localSdp": "v=0\r\no=- 9188840693411399683 5 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1 2 3\r\na=extmap-allow-mixed\r\na=msid-semantic: WMS 2ca8e09a-0b75-4efe-9e73-23a38b5b28f3 5cdb22a8-8c1a-46c3-8778-b227fff46ad1\r\nm=audio 60816 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 127.0.0.1\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=candidate:123940456 1 udp 2122194687 127.0.0.1 60816 typ host generation 0 network-id 1 network-cost 50\r\na=candidate:1651575724 1 udp 2122129151 100.81.63.83 60817 typ host generation 0 network-id 2 network-cost 50\r\na=candidate:3611346649 1 udp 2122063615 192.168.4.52 60818 typ host generation 0 network-id 4\r\na=candidate:3187038720 1 udp 2122265343 fd7a:115c:a1e0::b63b:3f54 60819 typ host generation 0 network-id 3 network-cost 50\r\na=candidate:3066991515 1 tcp 1518214911 127.0.0.1 9 typ host tcptype active generation 0 network-id 1 network-cost 50\r\na=candidate:79034738 1 tcp 1518149375 100.81.63.83 9 typ host tcptype active generation 0 network-id 2 network-cost 50\r\na=candidate:1008293791 1 tcp 1518083839 192.168.4.52 9 typ host tcptype active generation 0 network-id 4\r\na=candidate:88458864 1 tcp 1518285567 fd7a:115c:a1e0::b63b:3f54 9 typ host tcptype active generation 0 network-id 3 network-cost 50\r\na=ice-ufrag:5dht\r\na=ice-pwd:5Wu3jjVuL+WhgbN6iy47q+ul\r\na=ice-options:trickle\r\na=fingerprint:sha-256 56:AF:DD:F6:43:1B:11:22:E9:BD:1C:FB:D9:B8:CF:EC:A0:F7:92:5F:3F:0D:90:D6:B4:4F:94:87:3C:49:A1:8F\r\na=setup:actpass\r\na=mid:0\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=sendonly\r\na=msid:5cdb22a8-8c1a-46c3-8778-b227fff46ad1 41f6c4e1-2f2b-491f-8884-2ed8c560bb70\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtcp-xr:rcvr-rtt=all\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\na=ssrc:1159446591 cname:rk5zkYyz+02+zU/d\r\na=ssrc:1159446591 msid:5cdb22a8-8c1a-46c3-8778-b227fff46ad1 41f6c4e1-2f2b-491f-8884-2ed8c560bb70\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:5dht\r\na=ice-pwd:5Wu3jjVuL+WhgbN6iy47q+ul\r\na=ice-options:trickle\r\na=fingerprint:sha-256 56:AF:DD:F6:43:1B:11:22:E9:BD:1C:FB:D9:B8:CF:EC:A0:F7:92:5F:3F:0D:90:D6:B4:4F:94:87:3C:49:A1:8F\r\na=setup:actpass\r\na=mid:1\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=recvonly\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtcp-xr:rcvr-rtt=all\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\nm=video 9 UDP/TLS/RTP/SAVPF 102 108 116\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:5dht\r\na=ice-pwd:5Wu3jjVuL+WhgbN6iy47q+ul\r\na=ice-options:trickle\r\na=fingerprint:sha-256 56:AF:DD:F6:43:1B:11:22:E9:BD:1C:FB:D9:B8:CF:EC:A0:F7:92:5F:3F:0D:90:D6:B4:4F:94:87:3C:49:A1:8F\r\na=setup:actpass\r\na=mid:2\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:13 urn:3gpp:video-orientation\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\na=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id\r\na=sendonly\r\na=msid:2ca8e09a-0b75-4efe-9e73-23a38b5b28f3 205bd238-f2e7-4a6d-ac4d-13e54904c1f4\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtcp-xr:rcvr-rtt=all\r\na=rtpmap:102 H264/90000\r\na=rtcp-fb:102 goog-remb\r\na=rtcp-fb:102 transport-cc\r\na=rtcp-fb:102 ccm fir\r\na=rtcp-fb:102 nack\r\na=rtcp-fb:102 nack pli\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=rtpmap:108 H264/90000\r\na=rtcp-fb:108 goog-remb\r\na=rtcp-fb:108 transport-cc\r\na=rtcp-fb:108 ccm fir\r\na=rtcp-fb:108 nack\r\na=rtcp-fb:108 nack pli\r\na=fmtp:108 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\na=rtpmap:116 H264/90000\r\na=rtcp-fb:116 goog-remb\r\na=rtcp-fb:116 transport-cc\r\na=rtcp-fb:116 ccm fir\r\na=rtcp-fb:116 nack\r\na=rtcp-fb:116 nack pli\r\na=fmtp:116 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f\r\na=ssrc:1993950064 cname:rk5zkYyz+02+zU/d\r\na=ssrc:1993950064 msid:2ca8e09a-0b75-4efe-9e73-23a38b5b28f3 205bd238-f2e7-4a6d-ac4d-13e54904c1f4\r\nm=video 9 UDP/TLS/RTP/SAVPF 102 108 116 41\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:5dht\r\na=ice-pwd:5Wu3jjVuL+WhgbN6iy47q+ul\r\na=ice-options:trickle\r\na=fingerprint:sha-256 56:AF:DD:F6:43:1B:11:22:E9:BD:1C:FB:D9:B8:CF:EC:A0:F7:92:5F:3F:0D:90:D6:B4:4F:94:87:3C:49:A1:8F\r\na=setup:actpass\r\na=mid:3\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:13 urn:3gpp:video-orientation\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\na=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id\r\na=recvonly\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtcp-xr:rcvr-rtt=all\r\na=rtpmap:102 H264/90000\r\na=rtcp-fb:102 goog-remb\r\na=rtcp-fb:102 transport-cc\r\na=rtcp-fb:102 ccm fir\r\na=rtcp-fb:102 nack\r\na=rtcp-fb:102 nack pli\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=rtpmap:108 H264/90000\r\na=rtcp-fb:108 goog-remb\r\na=rtcp-fb:108 transport-cc\r\na=rtcp-fb:108 ccm fir\r\na=rtcp-fb:108 nack\r\na=rtcp-fb:108 nack pli\r\na=fmtp:108 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\na=rtpmap:116 H264/90000\r\na=rtcp-fb:116 goog-remb\r\na=rtcp-fb:116 transport-cc\r\na=rtcp-fb:116 ccm fir\r\na=rtcp-fb:116 nack\r\na=rtcp-fb:116 nack pli\r\na=fmtp:116 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f\r\na=rtpmap:41 H264/90000\r\na=rtcp-fb:41 goog-remb\r\na=rtcp-fb:41 transport-cc\r\na=rtcp-fb:41 ccm fir\r\na=rtcp-fb:41 nack\r\na=rtcp-fb:41 nack pli\r\na=fmtp:41 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=f4001f\r\n",
+      "remoteSdp": "v=0\r\no=- 4427015516218874480 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1 2 3\r\na=extmap-allow-mixed\r\na=msid-semantic: WMS 2ca8e09a-0b75-4efe-9e73-23a38b5b28f3 5cdb22a8-8c1a-46c3-8778-b227fff46ad1\r\na=ice-lite\r\nm=audio 50002 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 127.0.0.1\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=candidate:fffeff7e32c583ef85edbb1a 1 udp 2130706175 127.0.0.1 50002 typ host generation 0\r\na=ice-ufrag:A9kBVv35oHzdUHcS\r\na=ice-pwd:lXTGDN7KbBdS8MCYB1YdYG\r\na=ice-options:trickle\r\na=fingerprint:sha-256 51:B8:7E:6C:14:02:35:E4:4D:9F:73:E8:32:F6:C3:8D:D9:EB:91:A9:2F:E5:41:A2:46:A2:F1:9F:85:A9:83:90\r\na=setup:passive\r\na=mid:0\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=recvonly\r\na=msid:5cdb22a8-8c1a-46c3-8778-b227fff46ad1 41f6c4e1-2f2b-491f-8884-2ed8c560bb70\r\na=rtcp-mux\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:A9kBVv35oHzdUHcS\r\na=ice-pwd:lXTGDN7KbBdS8MCYB1YdYG\r\na=ice-options:trickle\r\na=fingerprint:sha-256 51:B8:7E:6C:14:02:35:E4:4D:9F:73:E8:32:F6:C3:8D:D9:EB:91:A9:2F:E5:41:A2:46:A2:F1:9F:85:A9:83:90\r\na=setup:passive\r\na=mid:1\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=sendonly\r\na=msid:6A3GJhcnJZz5r2gU2cSLN5ISKggDkb 2MQnufGlTect0FRLH14OQvuheMKkZm\r\na=rtcp-mux\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\nm=video 9 UDP/TLS/RTP/SAVPF 102 108 116\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:A9kBVv35oHzdUHcS\r\na=ice-pwd:lXTGDN7KbBdS8MCYB1YdYG\r\na=ice-options:trickle\r\na=fingerprint:sha-256 51:B8:7E:6C:14:02:35:E4:4D:9F:73:E8:32:F6:C3:8D:D9:EB:91:A9:2F:E5:41:A2:46:A2:F1:9F:85:A9:83:90\r\na=setup:passive\r\na=mid:2\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\na=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id\r\na=extmap:13 urn:3gpp:video-orientation\r\na=recvonly\r\na=msid:2ca8e09a-0b75-4efe-9e73-23a38b5b28f3 205bd238-f2e7-4a6d-ac4d-13e54904c1f4\r\na=rtcp-mux\r\na=rtpmap:102 H264/90000\r\na=rtcp-fb:102 transport-cc\r\na=rtcp-fb:102 goog-remb\r\na=rtcp-fb:102 ccm fir\r\na=rtcp-fb:102 nack\r\na=rtcp-fb:102 nack pli\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=rtpmap:108 H264/90000\r\na=rtcp-fb:108 transport-cc\r\na=rtcp-fb:108 goog-remb\r\na=rtcp-fb:108 ccm fir\r\na=rtcp-fb:108 nack\r\na=rtcp-fb:108 nack pli\r\na=fmtp:108 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\na=rtpmap:116 H264/90000\r\na=rtcp-fb:116 transport-cc\r\na=rtcp-fb:116 goog-remb\r\na=rtcp-fb:116 ccm fir\r\na=rtcp-fb:116 nack\r\na=rtcp-fb:116 nack pli\r\na=fmtp:116 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f\r\nm=video 9 UDP/TLS/RTP/SAVPF 102 108 116\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:A9kBVv35oHzdUHcS\r\na=ice-pwd:lXTGDN7KbBdS8MCYB1YdYG\r\na=ice-options:trickle\r\na=fingerprint:sha-256 51:B8:7E:6C:14:02:35:E4:4D:9F:73:E8:32:F6:C3:8D:D9:EB:91:A9:2F:E5:41:A2:46:A2:F1:9F:85:A9:83:90\r\na=setup:passive\r\na=mid:3\r\na=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:3 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\na=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\na=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id\r\na=extmap:13 urn:3gpp:video-orientation\r\na=sendonly\r\na=msid:kXia2p0neIHMAAaKQXEjpG3JCOzh86 ki660JT5XhTPVifNniiUFkPukJImgv\r\na=rtcp-mux\r\na=rtpmap:102 H264/90000\r\na=rtcp-fb:102 transport-cc\r\na=rtcp-fb:102 goog-remb\r\na=rtcp-fb:102 ccm fir\r\na=rtcp-fb:102 nack\r\na=rtcp-fb:102 nack pli\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=rtpmap:108 H264/90000\r\na=rtcp-fb:108 transport-cc\r\na=rtcp-fb:108 goog-remb\r\na=rtcp-fb:108 ccm fir\r\na=rtcp-fb:108 nack\r\na=rtcp-fb:108 nack pli\r\na=fmtp:108 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\na=rtpmap:116 H264/90000\r\na=rtcp-fb:116 transport-cc\r\na=rtcp-fb:116 goog-remb\r\na=rtcp-fb:116 ccm fir\r\na=rtcp-fb:116 nack\r\na=rtcp-fb:116 nack pli\r\na=fmtp:116 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f\r\n",
+      "state": "connected",
+      "publications": 2,
+      "subscriptions": 2,
+      "tracks": [
+        {
+          "kind": "audio",
+          "own": true,
+          "paused": true,
+          "readyState": 0,
+          "videoWidth": 0
+        },
+        {
+          "kind": "audio",
+          "own": false,
+          "paused": false,
+          "streamTracks": [
+            {
+              "id": "4ef9200d-157c-481a-b92d-015cc631083e",
+              "kind": "audio",
+              "muted": false,
+              "readyState": "live"
+            }
+          ],
+          "readyState": 4,
+          "videoWidth": 0
+        },
+        {
+          "kind": "camera",
+          "own": true,
+          "paused": false,
+          "streamTracks": [
+            {
+              "id": "205bd238-f2e7-4a6d-ac4d-13e54904c1f4",
+              "kind": "video",
+              "muted": false,
+              "readyState": "live"
+            }
+          ],
+          "readyState": 4,
+          "videoWidth": 1280
+        },
+        {
+          "kind": "camera",
+          "own": false,
+          "paused": false,
+          "streamTracks": [
+            {
+              "id": "12e23b92-063c-47d1-b9e0-0b6d3a15df50",
+              "kind": "video",
+              "muted": false,
+              "readyState": "live"
+            }
+          ],
+          "readyState": 4,
+          "videoWidth": 320
+        }
+      ],
+      "stats": [
+        {
+          "id": "AP",
+          "timestamp": 1794619116683.774,
+          "type": "media-playout",
+          "kind": "audio",
+          "synthesizedSamplesDuration": 0.009912,
+          "synthesizedSamplesEvents": 1,
+          "totalPlayoutDelay": 70866.96144,
+          "totalSamplesCount": 1690560,
+          "totalSamplesDuration": 35.229912
+        },
+        {
+          "id": "CF51:B8:7E:6C:14:02:35:E4:4D:9F:73:E8:32:F6:C3:8D:D9:EB:91:A9:2F:E5:41:A2:46:A2:F1:9F:85:A9:83:90",
+          "timestamp": 1794619116683.774,
+          "type": "certificate",
+          "base64Certificate": "MIIBQjCB6KADAgECAhA0ENf54mMORqwgxSfNjsviMAoGCCqGSM49BAMCMCMxDTALBgNVBAoMBERUTFMxEjAQBgNVBAMMCURUTFMgUGVlcjAeFw0yNjExMTQwMTE4MDFaFw0yNzExMTQwMTE4MDFaMCMxDTALBgNVBAoMBERUTFMxEjAQBgNVBAMMCURUTFMgUGVlcjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJOdx4/4ajgrYEoaXPs/Gn9PaekpygF6F9QVvrqs9UVbrOwXmZtPbEChB9xJ1Nyrljd+ywtlcYjWe1bit4jnu5YwCgYIKoZIzj0EAwIDSQAwRgIhAMrD1n2IThs6WKsHJlwh4TBX83v8AangUpDKULn299k8AiEAwlpzjoraTP4zAHsTID+7OFL8v9YVMOGh+uIuytDcBWY=",
+          "fingerprint": "51:B8:7E:6C:14:02:35:E4:4D:9F:73:E8:32:F6:C3:8D:D9:EB:91:A9:2F:E5:41:A2:46:A2:F1:9F:85:A9:83:90",
+          "fingerprintAlgorithm": "sha-256"
+        },
+        {
+          "id": "CF56:AF:DD:F6:43:1B:11:22:E9:BD:1C:FB:D9:B8:CF:EC:A0:F7:92:5F:3F:0D:90:D6:B4:4F:94:87:3C:49:A1:8F",
+          "timestamp": 1794619116683.774,
+          "type": "certificate",
+          "base64Certificate": "MIIBFjCBvaADAgECAgkAhMblJrZKHxcwCgYIKoZIzj0EAwIwETEPMA0GA1UEAwwGV2ViUlRDMB4XDTI2MTExMzAxMTgwMVoXDTI2MTIxNDAxMTgwMVowETEPMA0GA1UEAwwGV2ViUlRDMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBDxSLmN7u/Z8Tc94HHaNwy/oGIXo+gN9YrfreSCtbEKdMlZ2Fjg7VP+RfKzRs3QfrVTDuW4RMzcsehw6P8JCOTAKBggqhkjOPQQDAgNIADBFAiEAkWCfPK+q1bp+ABUsavImwjXBHsTiZGRDuY2RCbAbufMCIHeIA5bi4osRYczZbmRUx++D88AhdzK4CY+ciyg+MTgM",
+          "fingerprint": "56:AF:DD:F6:43:1B:11:22:E9:BD:1C:FB:D9:B8:CF:EC:A0:F7:92:5F:3F:0D:90:D6:B4:4F:94:87:3C:49:A1:8F",
+          "fingerprintAlgorithm": "sha-256"
+        },
+        {
+          "id": "CIT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "timestamp": 1794619116683.774,
+          "type": "codec",
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 102,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "transportId": "T01"
+        },
+        {
+          "id": "CIT01_111_minptime=10;useinbandfec=1",
+          "timestamp": 1794619116683.774,
+          "type": "codec",
+          "channels": 2,
+          "clockRate": 48000,
+          "mimeType": "audio/opus",
+          "payloadType": 111,
+          "sdpFmtpLine": "minptime=10;useinbandfec=1",
+          "transportId": "T01"
+        },
+        {
+          "id": "COT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "timestamp": 1794619116683.774,
+          "type": "codec",
+          "clockRate": 90000,
+          "mimeType": "video/H264",
+          "payloadType": 102,
+          "sdpFmtpLine": "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "transportId": "T01"
+        },
+        {
+          "id": "COT01_111_minptime=10;useinbandfec=1",
+          "timestamp": 1794619116683.774,
+          "type": "codec",
+          "channels": 2,
+          "clockRate": 48000,
+          "mimeType": "audio/opus",
+          "payloadType": 111,
+          "sdpFmtpLine": "minptime=10;useinbandfec=1",
+          "transportId": "T01"
+        },
+        {
+          "id": "CPzfH0HZ59_Sbwbgaij",
+          "timestamp": 1794619116683.774,
+          "type": "candidate-pair",
+          "availableOutgoingBitrate": 84400,
+          "bytesDiscardedOnSend": 0,
+          "bytesReceived": 542382,
+          "bytesSent": 340016,
+          "consentRequestsSent": 16,
+          "currentRoundTripTime": 0,
+          "lastPacketReceivedTimestamp": 1794619116681,
+          "lastPacketSentTimestamp": 1794619116670,
+          "localCandidateId": "IzfH0HZ59",
+          "nominated": true,
+          "packetsDiscardedOnSend": 0,
+          "packetsReceived": 3244,
+          "packetsSent": 2687,
+          "priority": 9114756780671368000,
+          "remoteCandidateId": "ISbwbgaij",
+          "requestsReceived": 0,
+          "requestsSent": 17,
+          "responsesReceived": 17,
+          "responsesSent": 0,
+          "state": "succeeded",
+          "totalRoundTripTime": 0.008,
+          "transportId": "T01",
+          "writable": true
+        },
+        {
+          "id": "IJ18souJO",
+          "timestamp": 1794619116683.774,
+          "type": "local-candidate",
+          "address": "127.0.0.1",
+          "candidateType": "host",
+          "foundation": "3066991515",
+          "ip": "127.0.0.1",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 9,
+          "priority": 1518214911,
+          "protocol": "tcp",
+          "tcpType": "active",
+          "transportId": "T01",
+          "usernameFragment": "5dht"
+        },
+        {
+          "id": "ILCjUSzqZ",
+          "timestamp": 1794619116683.774,
+          "type": "local-candidate",
+          "address": "192.168.4.52",
+          "candidateType": "host",
+          "foundation": "1008293791",
+          "ip": "192.168.4.52",
+          "isRemote": false,
+          "networkType": "ethernet",
+          "port": 9,
+          "priority": 1518083839,
+          "protocol": "tcp",
+          "tcpType": "active",
+          "transportId": "T01",
+          "usernameFragment": "5dht"
+        },
+        {
+          "id": "IOaGh54eC",
+          "timestamp": 1794619116683.774,
+          "type": "local-candidate",
+          "address": "100.81.63.83",
+          "candidateType": "host",
+          "foundation": "79034738",
+          "ip": "100.81.63.83",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 9,
+          "priority": 1518149375,
+          "protocol": "tcp",
+          "tcpType": "active",
+          "transportId": "T01",
+          "usernameFragment": "5dht"
+        },
+        {
+          "id": "ISbwbgaij",
+          "timestamp": 1794619116683.774,
+          "type": "remote-candidate",
+          "address": "127.0.0.1",
+          "candidateType": "host",
+          "foundation": "fffeff7e32c583ef85edbb1a",
+          "ip": "127.0.0.1",
+          "isRemote": true,
+          "port": 50002,
+          "priority": 2130706175,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "A9kBVv35oHzdUHcS"
+        },
+        {
+          "id": "IT01A1829948955",
+          "timestamp": 1794619116683.774,
+          "type": "inbound-rtp",
+          "codecId": "CIT01_111_minptime=10;useinbandfec=1",
+          "kind": "audio",
+          "mediaType": "audio",
+          "ssrc": 1829948955,
+          "transportId": "T01",
+          "jitter": 0,
+          "packetsLost": 0,
+          "packetsReceived": 999,
+          "packetsReceivedWithCe": 0,
+          "packetsReceivedWithEct1": 0,
+          "audioLevel": 0.06247138889736625,
+          "bytesReceived": 62136,
+          "concealedSamples": 120,
+          "concealmentEvents": 1,
+          "fecPacketsDiscarded": 0,
+          "fecPacketsReceived": 0,
+          "headerBytesReceived": 27972,
+          "insertedSamplesForDeceleration": 4339,
+          "jitterBufferDelay": 42105.6,
+          "jitterBufferEmittedCount": 955200,
+          "jitterBufferMinimumDelay": 35136,
+          "jitterBufferTargetDelay": 35136,
+          "lastPacketReceivedTimestamp": 1794619116681.4531,
+          "mid": "1",
+          "packetsDiscarded": 0,
+          "playoutId": "AP",
+          "remoteId": "ROA1829948955",
+          "removedSamplesForAcceleration": 2365,
+          "silentConcealedSamples": 0,
+          "totalAudioEnergy": 5.5198888257090335,
+          "totalProcessingDelay": 38267.42496,
+          "totalSamplesDuration": 19.96000000000032,
+          "totalSamplesReceived": 957120,
+          "trackIdentifier": "4ef9200d-157c-481a-b92d-015cc631083e"
+        },
+        {
+          "id": "IT01V159197244",
+          "timestamp": 1794619116683.774,
+          "type": "inbound-rtp",
+          "codecId": "CIT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "kind": "video",
+          "mediaType": "video",
+          "ssrc": 159197244,
+          "transportId": "T01",
+          "jitter": 0,
+          "packetsLost": 0,
+          "packetsReceived": 329,
+          "packetsReceivedWithCe": 0,
+          "packetsReceivedWithEct1": 0,
+          "bytesReceived": 98158,
+          "decoderImplementation": "FFmpeg",
+          "firCount": 0,
+          "frameHeight": 180,
+          "frameWidth": 320,
+          "framesAssembledFromMultiplePackets": 3,
+          "framesDecoded": 303,
+          "framesDropped": 0,
+          "framesPerSecond": 20,
+          "framesReceived": 304,
+          "freezeCount": 0,
+          "headerBytesReceived": 7960,
+          "jitterBufferDelay": 12.39911,
+          "jitterBufferEmittedCount": 303,
+          "jitterBufferMinimumDelay": 11.881089999999999,
+          "jitterBufferTargetDelay": 11.881089999999999,
+          "keyFramesDecoded": 4,
+          "lastPacketReceivedTimestamp": 1794619116671.045,
+          "mid": "3",
+          "nackCount": 0,
+          "pauseCount": 0,
+          "pliCount": 1,
+          "powerEfficientDecoder": false,
+          "qpSum": 12137,
+          "remoteId": "ROV159197244",
+          "totalAssemblyTime": 0.466132,
+          "totalDecodeTime": 0.064592,
+          "totalFreezesDuration": 0,
+          "totalInterFrameDelay": 19.722,
+          "totalPausesDuration": 0,
+          "totalProcessingDelay": 12.472071999999999,
+          "totalSquaredInterFrameDelay": 1.6220879999999973,
+          "trackIdentifier": "12e23b92-063c-47d1-b9e0-0b6d3a15df50"
+        },
+        {
+          "id": "IVfIsTYVb",
+          "timestamp": 1794619116683.774,
+          "type": "local-candidate",
+          "address": "fd7a:115c:a1e0::b63b:3f54",
+          "candidateType": "host",
+          "foundation": "3187038720",
+          "ip": "fd7a:115c:a1e0::b63b:3f54",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 60819,
+          "priority": 2122265343,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "5dht"
+        },
+        {
+          "id": "IpmtQQNhc",
+          "timestamp": 1794619116683.774,
+          "type": "local-candidate",
+          "address": "100.81.63.83",
+          "candidateType": "host",
+          "foundation": "1651575724",
+          "ip": "100.81.63.83",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 60817,
+          "priority": 2122129151,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "5dht"
+        },
+        {
+          "id": "IsfGa3xEt",
+          "timestamp": 1794619116683.774,
+          "type": "local-candidate",
+          "address": "192.168.4.52",
+          "candidateType": "host",
+          "foundation": "3611346649",
+          "ip": "192.168.4.52",
+          "isRemote": false,
+          "networkType": "ethernet",
+          "port": 60818,
+          "priority": 2122063615,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "5dht"
+        },
+        {
+          "id": "It9FC5/L3",
+          "timestamp": 1794619116683.774,
+          "type": "local-candidate",
+          "address": "fd7a:115c:a1e0::b63b:3f54",
+          "candidateType": "host",
+          "foundation": "88458864",
+          "ip": "fd7a:115c:a1e0::b63b:3f54",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 9,
+          "priority": 1518285567,
+          "protocol": "tcp",
+          "tcpType": "active",
+          "transportId": "T01",
+          "usernameFragment": "5dht"
+        },
+        {
+          "id": "IzfH0HZ59",
+          "timestamp": 1794619116683.774,
+          "type": "local-candidate",
+          "address": "127.0.0.1",
+          "candidateType": "host",
+          "foundation": "123940456",
+          "ip": "127.0.0.1",
+          "isRemote": false,
+          "networkType": "unknown",
+          "port": 60816,
+          "priority": 2122194687,
+          "protocol": "udp",
+          "transportId": "T01",
+          "usernameFragment": "5dht"
+        },
+        {
+          "id": "OT01A1159446591",
+          "timestamp": 1794619116683.774,
+          "type": "outbound-rtp",
+          "codecId": "COT01_111_minptime=10;useinbandfec=1",
+          "kind": "audio",
+          "mediaType": "audio",
+          "ssrc": 1159446591,
+          "transportId": "T01",
+          "bytesSent": 108102,
+          "packetsSent": 1758,
+          "active": true,
+          "headerBytesSent": 49270,
+          "mediaSourceId": "SA1",
+          "mid": "0",
+          "nackCount": 0,
+          "packetsSentWithEct1": 0,
+          "remoteId": "RIA1159446591",
+          "retransmittedBytesSent": 0,
+          "retransmittedPacketsSent": 0,
+          "targetBitrate": 32000,
+          "totalPacketSendDelay": 0.43649
+        },
+        {
+          "id": "OT01V1993950064",
+          "timestamp": 1794619116683.774,
+          "type": "outbound-rtp",
+          "codecId": "COT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "kind": "video",
+          "mediaType": "video",
+          "ssrc": 1993950064,
+          "transportId": "T01",
+          "bytesSent": 99525,
+          "packetsSent": 570,
+          "active": true,
+          "encoderImplementation": "OpenH264",
+          "encodingIndex": 0,
+          "firCount": 0,
+          "frameHeight": 180,
+          "frameWidth": 320,
+          "framesEncoded": 541,
+          "framesPerSecond": 20,
+          "framesSent": 541,
+          "headerBytesSent": 22606,
+          "hugeFramesSent": 2,
+          "keyFramesEncoded": 2,
+          "mediaSourceId": "SV2",
+          "mid": "2",
+          "nackCount": 0,
+          "packetsSentWithEct1": 0,
+          "pliCount": 1,
+          "powerEfficientEncoder": false,
+          "psnrMeasurements": 28,
+          "psnrSum": {
+            "u": 1203.2437629699707,
+            "v": 1203.2437629699707,
+            "y": 1048.0908584594727
+          },
+          "qpSum": 20870,
+          "qualityLimitationDurations": {
+            "bandwidth": 27.471,
+            "cpu": 0,
+            "none": 0.029,
+            "other": 0
+          },
+          "qualityLimitationReason": "bandwidth",
+          "qualityLimitationResolutionChanges": 0,
+          "remoteId": "RIV1993950064",
+          "retransmittedBytesSent": 0,
+          "retransmittedPacketsSent": 0,
+          "scalabilityMode": "L1T1",
+          "targetBitrate": 30000,
+          "totalEncodeTime": 0.378,
+          "totalPacketSendDelay": 39.021214
+        },
+        {
+          "id": "P",
+          "timestamp": 1794619116683.774,
+          "type": "peer-connection",
+          "dataChannelsClosed": 0,
+          "dataChannelsOpened": 0
+        },
+        {
+          "id": "RIA1159446591",
+          "timestamp": 1794619116394.891,
+          "type": "remote-inbound-rtp",
+          "codecId": "COT01_111_minptime=10;useinbandfec=1",
+          "kind": "audio",
+          "mediaType": "audio",
+          "ssrc": 1159446591,
+          "transportId": "T01",
+          "jitter": 0.000625,
+          "packetsLost": 0,
+          "fractionLost": 0,
+          "localId": "OT01A1159446591",
+          "roundTripTime": 0.001,
+          "roundTripTimeMeasurements": 7,
+          "totalRoundTripTime": 0.006999999999999999
+        },
+        {
+          "id": "RIV1993950064",
+          "timestamp": 1794619116681.986,
+          "type": "remote-inbound-rtp",
+          "codecId": "COT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "kind": "video",
+          "mediaType": "video",
+          "ssrc": 1993950064,
+          "transportId": "T01",
+          "jitter": 0.001222,
+          "packetsLost": 0,
+          "fractionLost": 0,
+          "localId": "OT01V1993950064",
+          "roundTripTime": 0.001,
+          "roundTripTimeMeasurements": 6,
+          "totalRoundTripTime": 0.006
+        },
+        {
+          "id": "ROA1829948955",
+          "timestamp": 1794619116445.375,
+          "type": "remote-outbound-rtp",
+          "codecId": "CIT01_111_minptime=10;useinbandfec=1",
+          "kind": "audio",
+          "mediaType": "audio",
+          "ssrc": 1829948955,
+          "transportId": "T01",
+          "bytesSent": 107048,
+          "packetsSent": 1747,
+          "localId": "IT01A1829948955",
+          "remoteTimestamp": 1794619116445,
+          "reportsSent": 4,
+          "roundTripTimeMeasurements": 0,
+          "totalRoundTripTime": 0
+        },
+        {
+          "id": "ROV159197244",
+          "timestamp": 1794619116212.244,
+          "type": "remote-outbound-rtp",
+          "codecId": "CIT01_102_level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+          "kind": "video",
+          "mediaType": "video",
+          "ssrc": 159197244,
+          "transportId": "T01",
+          "bytesSent": 285973,
+          "packetsSent": 624,
+          "localId": "IT01V159197244",
+          "remoteTimestamp": 1794619116211.981,
+          "reportsSent": 20,
+          "roundTripTimeMeasurements": 0,
+          "totalRoundTripTime": 0
+        },
+        {
+          "id": "SA1",
+          "timestamp": 1794619116683.774,
+          "type": "media-source",
+          "kind": "audio",
+          "trackIdentifier": "41f6c4e1-2f2b-491f-8884-2ed8c560bb70",
+          "audioLevel": 0.015381328775902585,
+          "echoReturnLoss": -30,
+          "echoReturnLossEnhancement": 0.17551203072071075,
+          "totalAudioEnergy": 9.427329588061738,
+          "totalSamplesDuration": 35.42000000000152
+        },
+        {
+          "id": "SV2",
+          "timestamp": 1794619116683.774,
+          "type": "media-source",
+          "kind": "video",
+          "trackIdentifier": "205bd238-f2e7-4a6d-ac4d-13e54904c1f4",
+          "frames": 550,
+          "framesPerSecond": 21,
+          "height": 720,
+          "width": 1280
+        },
+        {
+          "id": "T01",
+          "timestamp": 1794619116683.774,
+          "type": "transport",
+          "bytesReceived": 542382,
+          "bytesSent": 340016,
+          "dtlsCipher": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+          "dtlsRole": "client",
+          "dtlsState": "connected",
+          "iceLocalUsernameFragment": "5dht",
+          "iceRole": "controlling",
+          "iceState": "connected",
+          "localCertificateId": "CF56:AF:DD:F6:43:1B:11:22:E9:BD:1C:FB:D9:B8:CF:EC:A0:F7:92:5F:3F:0D:90:D6:B4:4F:94:87:3C:49:A1:8F",
+          "packetsReceived": 3244,
+          "packetsSent": 2687,
+          "remoteCertificateId": "CF51:B8:7E:6C:14:02:35:E4:4D:9F:73:E8:32:F6:C3:8D:D9:EB:91:A9:2F:E5:41:A2:46:A2:F1:9F:85:A9:83:90",
+          "selectedCandidatePairChanges": 1,
+          "selectedCandidatePairId": "CPzfH0HZ59_Sbwbgaij",
+          "srtpCipher": "SRTP_AEAD_AES_256_GCM",
+          "tlsVersion": "FEFD"
+        }
+      ]
+    }
+  ]
+}

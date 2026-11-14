@@ -1,0 +1,121 @@
+{
+  "cause": "H.264 codec preferences discarded the auxiliary RTX codec. str0m only enables stream padding probes when RTX is negotiated; without repair/probes, startup feedback loss can collapse the estimate and expire the keyframe queue.",
+  "scope": "Web adapter only; no SFU, server, protocol, bandwidth budgets or decoder assertions relaxed. Original full-suite timeout is unchanged. Focused delayed test allows 35 seconds, including injected delay; the no-RTX negative control uses the same deadline.",
+  "injection": "Delay one Chromium peer setRemoteDescription for video answers by 7500 ms. Real independent browser processes, real SFU and synthetic capture tracks.",
+  "before": {
+    "revision": "83e503bc1c7dac774f10",
+    "rtxNegotiated": false,
+    "result": "Error: Async condition did not become true within 35000ms",
+    "peers": [
+      {
+        "state": "connected",
+        "inboundVideo": [
+          {
+            "packetsReceived": 3,
+            "bytesReceived": 1250,
+            "framesDecoded": 3,
+            "pliCount": 1
+          }
+        ],
+        "serverStats": [
+          {
+            "cap_dropped_packets": 0,
+            "loss_per_million": 0,
+            "mtu_dropped_packets": 0,
+            "path": "unknown",
+            "queue_dropped_packets": 13,
+            "rtt_ms": 19,
+            "rx_bps": 82489,
+            "rx_fps_milli": 19990,
+            "tx_bps": 50544,
+            "tx_fps_milli": 0
+          }
+        ]
+      },
+      {
+        "state": "connected",
+        "inboundVideo": [
+          {
+            "packetsReceived": 329,
+            "bytesReceived": 98158,
+            "framesDecoded": 303,
+            "pliCount": 1
+          }
+        ],
+        "serverStats": [
+          {
+            "cap_dropped_packets": 0,
+            "loss_per_million": 0,
+            "mtu_dropped_packets": 0,
+            "path": "unknown",
+            "queue_dropped_packets": 0,
+            "rtt_ms": 3,
+            "rx_bps": 82753,
+            "rx_fps_milli": 19990,
+            "tx_bps": 86807,
+            "tx_fps_milli": 19990
+          }
+        ]
+      }
+    ]
+  },
+  "after": {
+    "revision": "3808e78aad2e6c680634",
+    "realServer": true,
+    "independentBrowserProcesses": 2,
+    "remoteAnswerDelayMs": 7500,
+    "rounds": [
+      {
+        "round": 1,
+        "decodedDelta": [
+          156,
+          10
+        ],
+        "states": [
+          "connected",
+          "connected"
+        ],
+        "remoteWidths": [
+          480,
+          960
+        ]
+      },
+      {
+        "round": 2,
+        "decodedDelta": [
+          31,
+          11
+        ],
+        "states": [
+          "connected",
+          "connected"
+        ],
+        "remoteWidths": [
+          1280,
+          1280
+        ]
+      },
+      {
+        "round": 3,
+        "decodedDelta": [
+          11,
+          105
+        ],
+        "states": [
+          "connected",
+          "connected"
+        ],
+        "remoteWidths": [
+          1280,
+          1280
+        ]
+      }
+    ]
+  },
+  "primaryCodeEvidence": [
+    "crates/web/public/media.js: h264Codecs",
+    "str0m 0.25.0 src/streams/send.rs: padding_enabled requires RTX",
+    "crates/sfu/src/engine.rs: subscribe declares RTX only if negotiated; allocate/queue recovery"
+  ],
+  "negativeControlExpectation": "Intentionally fails the same decoder progress condition after 35 seconds with RTX absent. Positive run uses the same 7500 ms injection and deadline."
+}

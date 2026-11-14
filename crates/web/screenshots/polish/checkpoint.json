@@ -1,0 +1,9 @@
+{
+  "phase": "pre-master-merge checkpoint",
+  "sourceHead": "09771966386f07fb7d5ad05447681d81e3d71066",
+  "artifactRevision": "1c569ada4e7b53ce46e4",
+  "coreWasmBrotliBytes": 442051,
+  "qa": "passed including three 7500 ms delayed camera activation/reuse cycles",
+  "rust": "12 tests, native and wasm clippy with warnings denied, workspace fmt passed",
+  "note": "Final merged validation will supersede this checkpoint."
+}

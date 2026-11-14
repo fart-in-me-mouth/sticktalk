@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFile,writeFile} from 'node:fs/promises';
-import {harness,register,form,act,shot,output} from './qa-harness.mjs';
+import {harness,register,form,act,shotAll as shot,output} from './qa-harness.mjs';
 const h=await harness(),checks=[],screenshots=[],errors=[];
 let owner,guest;
 try {
@@ -33,8 +33,12 @@ try {
   await owner.locator('#f-name').fill('Beta');await owner.locator('[type=submit]').click();
   await owner.waitForSelector('[data-live^="role:"]:has-text("Beta")');
   const alpha=(await owner.locator('[data-live^="role:"]:has-text("Alpha")').getAttribute('data-live')).slice(5);
-  await owner.getByRole('button',{name:'Move Alpha up',exact:true}).click();
-  await owner.waitForFunction(()=>document.querySelector('[data-live^="role:"]')?.textContent==='Alpha');
+  await owner.getByRole('button',{name:'Reorder',exact:true}).click();
+  await owner.getByLabel('Position for Alpha',{exact:true}).selectOption('1');
+  await owner.waitForFunction(()=>document.querySelector('[data-live^="role:"] strong')?.textContent==='Alpha');
+  await owner.waitForFunction(()=>[...document.querySelectorAll('[data-role-position]')].every((select,index)=>select.value===String(index+1)));
+  assert.deepEqual(await owner.locator('[data-role-position]').evaluateAll(selects=>selects.map(s=>s.value)),['1','2','3']);
+
   screenshots.push(await shot(owner,'roles-reordered'));
   await act(owner,'dialog:member-role');await owner.locator('#f-name').selectOption(guestId);
   await owner.locator(`[data-member-role="${alpha}"]`).check();await owner.locator('[type=submit]').click();

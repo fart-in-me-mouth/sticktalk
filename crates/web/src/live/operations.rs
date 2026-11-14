@@ -2,6 +2,42 @@ use super::*;
 use sha2::{Digest, Sha256};
 use sticktalk_client_core::{http::decode_json, upload::UploadSource, web::BlobSource};
 
+// Read the submitted surface synchronously, before loading the lazy command
+// builder. Navigation may replace these shared field IDs while it downloads.
+struct Submission {
+    fields: BTreeMap<&'static str, String>,
+    epoch: u64,
+    guild: Option<Id>,
+    channel: Option<Id>,
+    editing: Option<Id>,
+}
+impl Submission {
+    fn capture(a: &App) -> Self {
+        let mut fields = [
+            "f-name",
+            "f-value",
+            "f-extra",
+            "f-permissions",
+            "f-target",
+            "server-description",
+            "server-banner",
+        ]
+        .into_iter()
+        .map(|key| (key, value(key)))
+        .collect::<BTreeMap<_, _>>();
+        for key in ["f-hoist", "f-mentionable", "f-muted", "f-suppress"] {
+            fields.insert(key, checked(key).to_string());
+        }
+        Self {
+            fields,
+            epoch: a.epoch,
+            guild: a.guild,
+            channel: a.channel,
+            editing: a.editing,
+        }
+    }
+}
+
 pub(super) fn action(app: Shared, raw: &str) {
     let (kind, arg) = raw.split_once(':').unwrap_or((raw, ""));
     match kind {
@@ -307,9 +343,10 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.touch();
         }
         "submit" => {
+            let submission = Submission::capture(&app.borrow());
             let form = arg.to_owned();
             spawn_local(async move {
-                submit(app, form).await;
+                submit(app, form, submission).await;
             });
         }
         "admin-more" => {
@@ -952,10 +989,26 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
                     if let Some(me) = me {
                         let p: Snapshot<ProfileDetail> =
                             http.json(&format!("/users/{}/profile", me.0)).await?;
-                        if app.borrow().privacy_generation == privacy
-                            && app.borrow().model.snapshot_valid(&p.cursor)
+                        let mut a = app.borrow_mut();
+                        if a.epoch == epoch
+                            && a.dialog_generation == generation
+                            && a.privacy_generation == privacy
+                            && a.model.snapshot_valid(&p.cursor)
                         {
-                            app.borrow_mut().profile = Some(p.data);
+                            // A save can commit while this snapshot is in flight.
+                            // Replay the model's journal rather than resurrecting
+                            // the previous bio/banner in the live preview.
+                            a.model.merge_settings(Snapshot {
+                                cursor: p.cursor,
+                                data: sticktalk_client_core::settings::SnapshotData::Profile(
+                                    p.data.clone(),
+                                ),
+                            });
+                            let mut detail = p.data;
+                            if let Some(profile) = a.model.settings.profiles.get(&me) {
+                                detail.profile = profile.clone();
+                            }
+                            a.profile = Some(detail);
                         }
                     }
                 }
@@ -1106,13 +1159,23 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
 }
 
 #[lazy]
-fn submit(app: Shared, form: String) {
-    let name = value("f-name");
-    let text = value("f-value");
-    let extra = value("f-extra");
+fn submit(app: Shared, form: String, submission: Submission) {
+    let Submission {
+        mut fields,
+        epoch,
+        guild,
+        channel,
+        editing,
+    } = submission;
+    let name = fields.remove("f-name").unwrap_or_default();
+    let text = fields.remove("f-value").unwrap_or_default();
+    let extra = fields.remove("f-extra").unwrap_or_default();
+    let value = |key: &str| fields.get(key).cloned().unwrap_or_default();
+    let checked = |key: &str| fields.get(key).is_some_and(|value| value == "true");
     let mut a = app.borrow_mut();
-    let channel = a.channel;
-    let guild = a.guild;
+    if a.epoch != epoch {
+        return;
+    }
     let cmd = match form.as_str() {
         "server-profile" => guild.map(|guild_id| {
             Command::Launch(LaunchCommand::UpdateGuildProfile {
@@ -1259,7 +1322,7 @@ fn submit(app: Shared, form: String) {
             })
         }),
         "edit" => {
-            if let (Some(channel_id), Some(message_id)) = (channel, a.editing) {
+            if let (Some(channel_id), Some(message_id)) = (channel, editing) {
                 let (content, mention_ids) = mentions(&a.model, &name);
                 Some(Command::EditMessage(MessageEdit {
                     channel_id,
@@ -1428,6 +1491,9 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
         CommandOutcome::Ok(result) => {
             let operation = pending.map(|(c, _)| c);
             a.error.clear();
+            if matches!(operation, Some(Command::UpdateProfile(_))) {
+                media_action("profile-saved");
+            }
             if matches!(
                 operation,
                 Some(Command::Launch(
@@ -1546,12 +1612,16 @@ fn move_role(app: Shared, arg: String, epoch: u64) {
     let next = match direction {
         "up" if index + 1 < roles.len() => index + 1,
         "down" if index > 1 => index - 1,
-        _ => return,
+        position => match position.parse::<usize>() {
+            Ok(position) if position > 0 && position < roles.len() => roles.len() - position,
+            _ => return,
+        },
     };
     if index == 0 {
         return;
     }
-    roles.swap(index, next);
+    let moved = roles.remove(index);
+    roles.insert(next, moved);
     let role_ids = roles.into_iter().map(|r| r.id).collect();
     a.command(Command::Launch(LaunchCommand::ReorderRoles {
         guild_id,

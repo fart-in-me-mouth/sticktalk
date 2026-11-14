@@ -1,0 +1,35 @@
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+   Compiling sticktalk-web v0.1.0 (C:\Users\dwhee\.t3\worktrees\discord clone\t3-3688c202-d0d11ccd867be3da\crates\web)
+    Finished `web-release` profile [optimized] target(s) in 53.89s
+warning: unknown name subsection with id 3 at 8266
+warning: unknown name subsection with id 3 at 2023
+warning: unknown name subsection with id 3 at 122242
+warning: unknown name subsection with id 3 at 1439
+warning: unknown name subsection with id 3 at 772
+warning: unknown name subsection with id 3 at 2217
+warning: unknown name subsection with id 3 at 1417
+warning: unknown name subsection with id 3 at 27529
+warning: unknown name subsection with id 3 at 1112
+warning: unknown name subsection with id 3 at 902
+warning: unknown name subsection with id 3 at 804
+warning: unknown name subsection with id 3 at 2511
+warning: unknown name subsection with id 3 at 1226
+warning: unknown name subsection with id 3 at 3653
+warning: unknown name subsection with id 3 at 1120
+warning: unknown name subsection with id 3 at 1320
+warning: unknown name subsection with id 3 at 10253
+warning: unknown name subsection with id 3 at 757
+warning: unknown name subsection with id 3 at 6967
+warning: unknown name subsection with id 3 at 130848
+warning: unknown name subsection with id 3 at 3986
+warning: unknown name subsection with id 3 at 555145
+warning: unknown name subsection with id 3 at 39955
+warning: unknown name subsection with id 3 at 18716
+warning: unknown name subsection with id 3 at 698350
+warning: unknown name subsection with id 3 at 42601
+warning: unknown name subsection with id 3 at 14773
+warning: unknown name subsection with id 3 at 6841
+warning: unknown name subsection with id 3 at 39341
+warning: unknown name subsection with id 3 at 50514
+warning: unknown name subsection with id 3 at 213458
+{"revision":"3808e78aad2e6c680634","raw":3208426,"compressed":863614,"firstLoadBytes":617977,"wasm":[{"file":"pkg/e23cb39194ef56822853/chunk_14.wasm","bytes":5390,"brotli":3194},{"file":"pkg/e23cb39194ef56822853/chunk_15.wasm","bytes":1154,"brotli":727},{"file":"pkg/e23cb39194ef56822853/chunk_16.wasm","bytes":119614,"brotli":32926},{"file":"pkg/e23cb39194ef56822853/chunk_17.wasm","bytes":433,"brotli":284},{"file":"pkg/e23cb39194ef56822853/chunk_18.wasm","bytes":274,"brotli":184},{"file":"pkg/e23cb39194ef56822853/chunk_19.wasm","bytes":735,"brotli":484},{"file":"pkg/e23cb39194ef56822853/chunk_20.wasm","bytes":623,"brotli":424},{"file":"pkg/e23cb39194ef56822853/chunk_21.wasm","bytes":11863,"brotli":4785},{"file":"pkg/e23cb39194ef56822853/chunk_22.wasm","bytes":394,"brotli":266},{"file":"pkg/e23cb39194ef56822853/chunk_23.wasm","bytes":404,"brotli":261},{"file":"pkg/e23cb39194ef56822853/chunk_24.wasm","bytes":306,"brotli":194},{"file":"pkg/e23cb39194ef56822853/chunk_25.wasm","bytes":1267,"brotli":825},{"file":"pkg/e23cb39194ef56822853/chunk_26.wasm","bytes":641,"brotli":422},{"file":"pkg/e23cb39194ef56822853/chunk_27.wasm","bytes":1159,"brotli":733},{"file":"pkg/e23cb39194ef56822853/chunk_28.wasm","bytes":399,"brotli":290},{"file":"pkg/e23cb39194ef56822853/chunk_29.wasm","bytes":557,"brotli":359},{"file":"pkg/e23cb39194ef56822853/chunk_30.wasm","bytes":4433,"brotli":2199},{"file":"pkg/e23cb39194ef56822853/chunk_31.wasm","bytes":259,"brotli":181},{"file":"pkg/e23cb39194ef56822853/split_completion_rows_5978672509362051469.wasm","bytes":2533,"brotli":1304},{"file":"pkg/e23cb39194ef56822853/split_dialog_data_12255410610544353596.wasm","bytes":67757,"brotli":19710},{"file":"pkg/e23cb39194ef56822853/split_expand_shortcodes_16379291074120312911.wasm","bytes":1719,"brotli":1012},{"file":"pkg/e23cb39194ef56822853/split_forward_voice_4276725397903336863.wasm","bytes":287068,"brotli":43780},{"file":"pkg/e23cb39194ef56822853/split_gif_search_11529232171733829628.wasm","bytes":18142,"brotli":5378},{"file":"pkg/e23cb39194ef56822853/split_load_call_9356238192695981583.wasm","bytes":4578,"brotli":2330},{"file":"pkg/e23cb39194ef56822853/split_load_dialog_4524596250009857420.wasm","bytes":219533,"brotli":70116},{"file":"pkg/e23cb39194ef56822853/split_load_message_encoder_4436574240319803330.wasm","bytes":26295,"brotli":4698},{"file":"pkg/e23cb39194ef56822853/split_move_role_3318804396413156333.wasm","bytes":6286,"brotli":2944},{"file":"pkg/e23cb39194ef56822853/split_profile_request_15824503257277016727.wasm","bytes":1847,"brotli":1048},{"file":"pkg/e23cb39194ef56822853/split_submit_2406918278729266756.wasm","bytes":18148,"brotli":8008},{"file":"pkg/e23cb39194ef56822853/split_upload_18413170400225886621.wasm","bytes":23286,"brotli":9789},{"file":"pkg/e23cb39194ef56822853/split_voice_action_11390799848968674979.wasm","bytes":95650,"brotli":23620},{"file":"pkg/e23cb39194ef56822853/sticktalk-web-ce26c723ca5ebabaeb8d_bg.wasm","bytes":1934640,"brotli":449946}]}

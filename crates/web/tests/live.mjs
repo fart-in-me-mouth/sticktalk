@@ -662,6 +662,10 @@ try {
     video,
     `two-browser video failed: ${JSON.stringify(await Promise.all([diagnostic(alice), diagnostic(bob)]))}; errors=${errors}; server=${log}`,
   );
+  for (const d of video) {
+    assert.match(d.localSdp,/a=rtpmap:\d+ rtx\/90000/i,'camera offer retains H.264 repair');
+    assert.match(d.remoteSdp,/a=rtpmap:\d+ rtx\/90000/i,'SFU answer negotiates repair/probe transport');
+  }
   checks.push(
     "two independent Chromium processes decode remote H.264 camera frames",
   );
@@ -674,6 +678,7 @@ try {
         publications: d.publications,
         subscriptions: d.subscriptions,
         tracks: d.tracks,
+        rtxNegotiated: /a=rtpmap:\d+ rtx\/90000/i.test(d.remoteSdp),
         stats: d.stats.filter((r) =>
           ["inbound-rtp", "outbound-rtp", "codec"].includes(r.type),
         ),
