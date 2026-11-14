@@ -35,6 +35,21 @@ def summarize():
                 private_mib=data["private_bytes"] / 1048576,
                 payload_mbps=data["payload_bytes"] * 8 / data["seconds"] / 1e6,
             )
+        # A PowerShell wrapper losing a native ExitCode must never turn a
+        # failed media assertion into a green report. Validate every metric.
+        failures = []
+        for role in ("sharer", "viewer_b", "viewer_c"):
+            data = row.get(role)
+            if not data:
+                failures.append(f"{role}: missing metrics")
+            elif (data["avg_fps"] < spec["fps"] * 58 / 60
+                  or data["min_fps"] < spec["fps"] * 45 / 60
+                  or abs(data["drift_ms"]) >= 20):
+                failures.append(f"{role}: FPS/drift gate")
+        if row.get("sharer", {}).get("reconfigurations") != 0:
+            failures.append("encoder reconfigurations")
+        row["metric_failures"] = failures
+        row["passed"] = run["ExitCode"] == 0 and not failures
         rows.append(row)
     (ROOT / "acceptance-summary.json").write_text(
         json.dumps(rows, indent=2) + "\n", encoding="utf-8"
@@ -52,7 +67,7 @@ def summarize():
         lines.append(
             f'| {row["source"]} | {row["quality"]}p/{row["fps"]} | {row["seconds"]} '
             f'| {fps(b)} | {fps(c)} | {drift(b)}/{drift(c)} '
-            f'| {s.get("reconfigurations", "missing")} | {"PASS" if row["exit_code"] == 0 else "FAIL"} |'
+            f'| {s.get("reconfigurations", "missing")} | {"PASS" if row["passed"] else "FAIL"} |'
         )
     (ROOT / "acceptance-table.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))

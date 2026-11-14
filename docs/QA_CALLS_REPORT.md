@@ -33,7 +33,16 @@ Branch: `t3/calls-qa-polish`. **Launch qualification is incomplete; do not read 
 
 ## Video acceptance
 
-<!-- ACCEPTANCE_TABLE -->
+| Source | Preset | Seconds | B avg/min fps | C avg/min fps | B/C drift ms | Reconfigs | Result |
+|---|---|---:|---:|---:|---:|---:|---|
+| synthetic | 1080p/60 | 600 | 59.999/59 | 60.000/59 | +0.079/+0.074 | 0 | PASS |
+| synthetic | 1440p/60 | 600 | 59.981/56 | 59.898/11 | -1.805/-1.829 | 0 | FAIL |
+
+**1440p FAIL remains a launch blocker.** Viewer C's first measured one-second bin was 11 fps; the remaining 599 bins were ≥56 fps. Original-media cap drops were zero, but original queue guards reset near the start of measurement (about 8–9 s after connection). Do not discard the first bin or extend warmup to turn this into a pass. The interrupted-run exit-code collector was false-green; the summary and runner now independently validate FPS/drift/reconfiguration metrics.
+
+Short diagnostics (not acceptance replacements): final SFU synthetic 1440p/60 for 60 s yielded B/C 60.014/60.015 average, minima 59/59, drift +0.074/+0.155 ms; real moving-WGC 1440p/60 for 30 s yielded 60.033/60.033, minima 59/59, drift +0.797/+0.795 ms, zero repeats/reconfigurations.
+
+**Not run:** both 600 s moving-WGC cases and all fifteen 120 s preset cases. The lead shortened the schedule, instructed a master merge and prohibited new ten-minute runs after that merge. The table above is pre-merge data-path evidence, not a full-duration qualification of the merged client.
 
 Each case has two hardware-decoding viewers, 8 s warmup, and then the stated measured interval. FPS is decoder output, not renderer presentation. Drift is change in receive-vs-RTP timing offset, **not glass-to-glass latency**. Minimum FPS is the minimum complete one-second bin. Source fixture is 2560×1440, not 4K. WGC captures an owned moving D3D11 window on the secondary monitor, never personal desktop pixels. Moving-WGC runs reject static-repeat substitutes. Preset gates scale the 60 fps thresholds proportionally; 60 fps targets are average ≥58, minimum ≥45, absolute drift <20 ms, zero encoder reconfigurations.
 
@@ -56,6 +65,17 @@ Raw case metrics, binary hash/commit provenance, scripts and archived logs: `cra
 
 Full iced-app in-call CPU/RAM was not qualified; process-level decoder/DSP numbers below must not be substituted for it. No acoustic mouth-to-ear measurement, PESQ/DNSMOS, competitor comparison or audible live conversational acceptance was obtained. “Better than Discord” audio quality is therefore **not established**.
 
+| Video case | Process | CPU % machine | Working set / private MiB |
+|---|---|---:|---:|
+| 1080p60 synthetic / 600 s | sharer | 0.462 | 78.33 / 111.54 |
+| 1080p60 synthetic / 600 s | viewer_b | 0.565 | 78.76 / 94.25 |
+| 1080p60 synthetic / 600 s | viewer_c | 0.567 | 81.62 / 98.11 |
+| 1440p60 synthetic / 600 s | sharer | 0.496 | 79.74 / 121.25 |
+| 1440p60 synthetic / 600 s | viewer_b | 0.633 | 99.27 / 120.20 |
+| 1440p60 synthetic / 600 s | viewer_c | 0.658 | 99.45 / 118.90 |
+
+These are whole native capture/transport/decoder test processes without an iced window, not full-UI memory acceptance.
+
 ## Web evidence
 
 Two independent headless Chromium processes, fake media devices and a real loopback native server exchanged audio and decoded 17 remote H.264 frames each (audio packets 205/206). Mute/deafen/leave released publications, subscriptions and tracks. This used the other web agent’s prebuilt bundle revision `9afc59fa41f8d85ff553`, not a claim that this branch’s unbuilt web sources are qualified. No edits to `crates/web`.
@@ -69,5 +89,5 @@ All 72 headless PNGs were inspected in contact sheets, with critical states insp
 <!-- VALIDATION -->
 
 - Full four-crate test command reaches an unrelated server upload reservation assertion in unchanged upload code (`audit_tests::http_admission_and_global_upload_reservation_are_bounded`, line 402, left 1/right 0). Reproduced in two suite runs; isolated rerun passes. Unrelated upload code was not changed to hide this race.
-- Full desktop GUI E2E, physical camera/hotplug, real emergency hotkey exercise, audible application audio, true mouth-to-ear, objective voice quality and viewer count/list remain launch blockers or explicit qualification gaps. The timebox was prioritized for the original SFU freeze and uninterrupted video matrix; there is no physical camera, acoustic testing would require audible output, and viewer tracking needs an authoritative protocol projection.
+- Full desktop GUI E2E, physical camera/hotplug, real emergency hotkey exercise, audible application audio, true mouth-to-ear, objective voice quality and viewer count/list remain launch blockers or explicit qualification gaps. The shortened timebox was prioritized for the original SFU freeze and post-merge validation; there is no physical camera, acoustic testing would require audible output, and viewer tracking needs an authoritative protocol projection.
 - All test listeners bind loopback. Owned test windows/processes closed; no browser/OAuth/private data sent outside this PC, no push, no UAC.

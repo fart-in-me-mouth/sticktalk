@@ -54,9 +54,9 @@ if ($Source -eq 'wgc-motion') {
     if ($fixture.HasExited) { throw 'Motion fixture failed; inspect fixture.stderr.log' }
 }
 try {
-$process = Start-Process -FilePath $binary.FullName -ArgumentList @('--exact', 'live_calls2_two_viewers_ten_minutes', '--ignored', '--nocapture') -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-$process.WaitForExit()
+$process = Start-Process -FilePath $binary.FullName -ArgumentList @('--exact', 'live_calls2_two_viewers_ten_minutes', '--ignored', '--nocapture') -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 $result = $process.ExitCode
+if ($null -eq $result) { throw 'Native test ExitCode unavailable; refusing false-green acceptance' }
 $process.Dispose()
 } finally { if ($fixture) { if (-not $fixture.HasExited) { Stop-Process -Id $fixture.Id }; $fixture.Dispose() } }
 Get-Content -LiteralPath $stdout, $stderr | Set-Content -LiteralPath $log
@@ -66,6 +66,9 @@ if ($result -eq 0) {
         if (-not (Test-Path -LiteralPath $metrics)) { throw "Missing $role measurements" }
         $data = Get-Content -LiteralPath $metrics -Raw | ConvertFrom-Json
         if ($data.role -ne $role -or $data.seconds -lt $Seconds) { throw "Incomplete $role measurement" }
+        $minimum = ($data.fps_by_second | Measure-Object -Minimum).Minimum
+        if (($data.frames / $data.seconds) -lt ($Fps * 58 / 60) -or $minimum -lt ($Fps * 45 / 60) -or [math]::Abs($data.drift_ms) -ge 20) { throw "FPS/drift gate failed for $role" }
+        if ($role -eq 'sharer' -and $data.encoder_reconfigurations -ne 0) { throw 'Encoder reconfiguration thrash' }
     }
 }
 Get-ChildItem -LiteralPath $env:STICKTALK_CALLS2_OUTPUT -Filter '*.log' |
