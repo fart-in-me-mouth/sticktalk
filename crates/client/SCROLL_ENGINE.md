@@ -32,7 +32,7 @@ Build with the default wgpu feature. Use **one** task target directory outside
 OneDrive; delete it after validation. No server or real account is used.
 
 ```powershell
-$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-scroll'
+$env:CARGO_TARGET_DIR = '$env:USERPROFILE/.cargo-target/sticktalk-scroll'
 $env:STICKTALK_AGENT_WINDOW = 'secondary'
 $env:CARGO_PROFILE_RELEASE_LTO = 'false'
 $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS = '16'

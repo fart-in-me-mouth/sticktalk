@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory)][string]$Output
 )
 $ErrorActionPreference = 'Stop'
-$target = 'C:/Users/dwhee/.cargo-target/sticktalk-polish2'
+$target = $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { (Join-Path $PSScriptRoot '../../../target') })
 $null = New-Item -ItemType Directory -Path (Split-Path $Output) -Force
 $null = New-Item -ItemType Directory -Path "$target/probe-binaries" -Force
 $hash = (Get-FileHash -LiteralPath $Exe -Algorithm SHA256).Hash

@@ -34,10 +34,9 @@ as part of the initial implementation.
   install an ARM GNU linker, Linux sysroot, or cross C compiler. Prefer building
   the server natively on the Oracle ARM VM (`cargo build --release -p
   sticktalk-server`). SQLite/image dependencies may require native build tools.
-* OneDrive holds sources only: `.cargo/config.toml` forces artifacts into
-  `C:/Users/dwhee/.cargo-target/sticktalk`. On Linux override with
-  `CARGO_TARGET_DIR="$HOME/.cache/sticktalk-target"`; do not use the Windows
-  literal as a relative Linux output path. Never sync databases/uploads/caches.
+* Cargo defaults to the ignored `./target` directory. Keep the checkout outside
+  OneDrive, or set `CARGO_TARGET_DIR` to a local non-synced directory. See
+  `HANDOFF.md` for native build prerequisites. Never sync databases/uploads/caches.
 * `crates/proto`: serde + bitflags only at runtime, no tokio, HTTP, GUI, database,
   or cryptography. `rmp-serde` and JSON are test dependencies here; applications
   should opt into the workspace dependencies when implementing transport.

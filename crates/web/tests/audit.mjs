@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 // Current Lighthouse only; real loopback server and headless Chromium.
 import { chromium } from "playwright";
 import lighthouse from "lighthouse";
@@ -10,8 +11,9 @@ import assert from "node:assert/strict";
 const output = process.env.STICKTALK_QA_DIR ?? "screenshots/live";
 const target = resolve(
   process.env.CARGO_TARGET_DIR ??
-    "C:/Users/dwhee/.cargo-target/sticktalk-web-live",
+    fileURLToPath(new URL("../../../target/", import.meta.url)),
 );
+await mkdir(target, { recursive: true });
 const data = await mkdtemp(join(target, "audit-data-"));
 const profile = await mkdtemp(join(target, "audit-browser-"));
 async function freePort() {
@@ -27,7 +29,7 @@ const port = await freePort(),
 const origin = `http://127.0.0.1:${port}`;
 const server = spawn(
   process.env.STICKTALK_SERVER_EXE ??
-    join(target, "debug/sticktalk-server.exe"),
+    join(target, `debug/sticktalk-server${process.platform === "win32" ? ".exe" : ""}`),
   [
     "--bind",
     `127.0.0.1:${port}`,

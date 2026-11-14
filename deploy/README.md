@@ -106,8 +106,8 @@ export CARGO_TARGET_DIR="$HOME/.cache/sticktalk-server-target"
 cargo build --locked --profile server -p sticktalk-server
 ```
 
-The target-dir override is essential: the repository's default is a Windows
-path. Don't compile the GUI on this VM. Keep persistent data on local disk.
+The target-dir override is optional; Cargo defaults to `./target`. Don't compile
+the GUI on this VM. Keep persistent data on local disk.
 
 ## 4. Free DuckDNS hostname
 

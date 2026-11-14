@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 // Real local server. No fixture API routes, mock websocket, external service,
 // visible window, hardware device, notification, or non-loopback listener.
 import { chromium } from "playwright";
@@ -12,8 +13,9 @@ const output = process.env.STICKTALK_QA_DIR ?? "screenshots/live";
 await rm(`${output}/results.json`, {force:true});
 const target = resolve(
   process.env.CARGO_TARGET_DIR ??
-    "C:/Users/dwhee/.cargo-target/sticktalk-web-live",
+    fileURLToPath(new URL("../../../target/", import.meta.url)),
 );
+await mkdir(target, { recursive: true });
 const data = await mkdtemp(join(target, "live-test-"));
 const reserve = createServer();
 reserve.listen(0, "127.0.0.1");
@@ -23,7 +25,7 @@ await new Promise((r) => reserve.close(r));
 const origin = `http://127.0.0.1:${port}`;
 const server = spawn(
   process.env.STICKTALK_SERVER_EXE ??
-    join(target, "debug/sticktalk-server.exe"),
+    join(target, `debug/sticktalk-server${process.platform === "win32" ? ".exe" : ""}`),
   [
     "--bind",
     `127.0.0.1:${port}`,

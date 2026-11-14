@@ -96,7 +96,7 @@ case has fresh RTC/ICE state; parser tests share a DTLS certificate, not a
 session. The longer local mode (6144 cases/suite, 43,008 total) is:
 
 ```powershell
-$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-sfu-robust'
+$env:CARGO_TARGET_DIR = '$env:USERPROFILE/.cargo-target/sticktalk-sfu-robust'
 $env:CARGO_INCREMENTAL = '0'
 $env:PROPTEST_CASES = '6144'
 cargo --config crates/sfu/robustness-ci.toml test -p sticktalk-sfu --lib prop_ -- --test-threads=1
@@ -223,7 +223,7 @@ The SFU cannot inspect the sharer's actual desktop or inject OS input.
 ## Validation / benchmark
 
 ```powershell
-$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-sfu'
+$env:CARGO_TARGET_DIR = '$env:USERPROFILE/.cargo-target/sticktalk-sfu'
 cargo test -p sticktalk-sfu -p sticktalk-proto
 cargo clippy -p sticktalk-sfu -p sticktalk-proto --all-targets -- -D warnings
 cargo fmt --all -- --check

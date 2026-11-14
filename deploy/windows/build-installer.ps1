@@ -3,7 +3,7 @@
 param(
     [string]$Version,
     [string]$Output = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng-out",
-    [string]$TargetDir = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng",
+    [string]$TargetDir = $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PSScriptRoot '../../target' }),
     [string]$MakeNsis,
     [string]$RuntimeDir,
     [switch]$SkipBuild,
@@ -34,7 +34,7 @@ try {
             if (![Uri]::TryCreate($value,[UriKind]::Absolute,[ref]$uri) -or $uri.AbsolutePath -ne '/' -or $uri.Query -or $uri.Fragment -or $uri.UserInfo) { throw 'Server/update origin must be an absolute origin, without path, credentials, query or fragment.' }
             if ($uri.Scheme -ne 'https' -and !($TestFixture -and $uri.Scheme -eq 'http' -and $uri.IsLoopback)) { throw 'Production release origins require HTTPS. Loopback HTTP requires -TestFixture.' }
         }
-        & cargo build --release -p sticktalk --bin sticktalk -p sticktalk-desktop-platform --bin sticktalk-maintenance --bin sticktalk-package
+        & cargo build --locked --release -p sticktalk --bin sticktalk -p sticktalk-desktop-platform --bin sticktalk-maintenance --bin sticktalk-package
         CheckExit 'Release build'
     }
     if (!$MakeNsis) {
@@ -65,7 +65,7 @@ try {
     if (!$RuntimeDir) {
         $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
         if (!(Test-Path -LiteralPath $vswhere)) { throw 'MSVC redistributable directory required; pass -RuntimeDir.' }
-        $vs = & $vswhere -latest -products '*' -property installationPath
+        $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
         $candidates = Get-ChildItem -LiteralPath "$vs/VC/Redist/MSVC" -Directory | Where-Object Name -Match '^14\.' | Sort-Object Name -Descending
         foreach ($candidate in $candidates) {
             $found = Get-ChildItem -LiteralPath "$($candidate.FullName)/x64" -Directory -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue | Select-Object -First 1

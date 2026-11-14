@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../../..')).Path
 Set-Location -LiteralPath $root
-$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-share-fix'
+$env:CARGO_TARGET_DIR = $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { (Join-Path $PSScriptRoot '../../../../target') })
 $env:CARGO_INCREMENTAL = '0'
 if (Test-Path -LiteralPath (Join-Path $env:CARGO_TARGET_DIR 'debug')) {
     throw 'Clean the debug profile before optimized qualification; never retain both trees.'

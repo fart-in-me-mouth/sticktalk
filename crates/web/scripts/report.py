@@ -1,5 +1,6 @@
 """Summarize the actual checked build and headless measurements."""
 from pathlib import Path
+import os
 import json
 
 root = Path(__file__).resolve().parents[1]
@@ -84,7 +85,7 @@ node tests/audit.mjs
 python scripts/gallery.py
 ```
 
-Rust build output used `C:/Users/dwhee/.cargo-target/sticktalk-web`; native
+Rust build output used `{os.environ.get("CARGO_TARGET_DIR", root.parents[1] / "target")}`; native
 test/dev debug symbols and incremental compilation were disabled to avoid
 exhausting the owner's disk. No other task's cache was touched.
 

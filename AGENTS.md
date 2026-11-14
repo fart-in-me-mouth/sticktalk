@@ -16,9 +16,9 @@ Project: StickTalk, a Discord-like chat app in Rust. Contracts:
 - Screen-capture benchmarks are fine, because capturing is invisible, but they must not open preview windows.
 
 ## Build hygiene
-- Build output must stay out of OneDrive. Use your own target dir per task, for example `$env:CARGO_TARGET_DIR = "C:/Users/dwhee/.cargo-target/sticktalk-<task>"`.
+- Build output must stay out of OneDrive. Use your own target dir per task, for example `$env:CARGO_TARGET_DIR = "<CARGO_TARGET_DIR root>/sticktalk-<task>"`.
 - Git: if you were given your own worktree/branch, commit your work there with clear messages when done (never push, never rewrite history). In the shared main checkout, do not commit; the lead does.
-- **Disk space is limited.** Use exactly ONE target dir for your whole task, `C:/Users/dwhee/.cargo-target/sticktalk-<task>`, for all crates. **Delete it when your task is finished**, after the final validation; the lead's merges rebuild anyway. Never leave per-crate target dirs behind.
+- **Disk space is limited.** Use exactly ONE target dir for your whole task, `<CARGO_TARGET_DIR root>/sticktalk-<task>`, for all crates. **Delete it when your task is finished**, after the final validation; the lead's merges rebuild anyway. Never leave per-crate target dirs behind.
 - **Hard disk budget: 10 GB per task.**
   - Set `$env:CARGO_INCREMENTAL = "0"`.
   - Use the workspace dev profile, which has minimal debug info. Don't override it.

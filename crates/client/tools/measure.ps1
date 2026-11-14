@@ -7,7 +7,7 @@ $previousAgentWindow=$env:STICKTALK_AGENT_WINDOW
 $env:STICKTALK_AGENT_WINDOW='secondary'
 # Profile an immutable, hash-named copy so a concurrent build cannot relabel counters or lock linking.
 $hash=(Get-FileHash -LiteralPath $Exe -Algorithm SHA256).Hash
-$target=if($env:CARGO_TARGET_DIR){$env:CARGO_TARGET_DIR}else{Join-Path $env:USERPROFILE '.cargo-target/sticktalk-client'}
+$target=if($env:CARGO_TARGET_DIR){$env:CARGO_TARGET_DIR}else{Join-Path $PSScriptRoot '../../../target'}
 $binDir=Join-Path $target 'perf-binaries'
 $null=New-Item -ItemType Directory -Path $binDir -Force
 $runExe=Join-Path $binDir "sticktalk-$hash.exe"

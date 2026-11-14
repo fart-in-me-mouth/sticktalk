@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../../..')).Path
-$binary = 'C:/Users/dwhee/.cargo-target/sticktalk-qa-calls/server/sticktalk.exe'
+$binary = (Join-Path $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { (Join-Path $PSScriptRoot '../../../../target') }) 'server/sticktalk.exe')
 $output = Join-Path $root 'crates/client/screenshots/qa-calls'
 $scenes = 'focused-stream,stream-stats,share-picker-windows,share-quality,controlling-banner,request-control,camera-tiles,camera-chooser,voice-call,share-picker,voice-consent,call-empty,call-solo,call-nine,call-muted,call-streaming,voice-quality,call-controls-hover,camera-grid-1,camera-grid-2,camera-grid-3,camera-grid-4,camera-grid-5,camera-grid-6,camera-grid-7,camera-grid-8,camera-grid-9'
 function Render($dir, $extra) {

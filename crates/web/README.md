@@ -69,7 +69,7 @@ wasm-bindgen matching Cargo.lock, wasm-opt, Rust's wasm32 target, Node and
 headless Playwright Chromium must be available per-user; no admin install needed.
 
 ```powershell
-$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-web2'
+$env:CARGO_TARGET_DIR = '$env:USERPROFILE/.cargo-target/sticktalk-web2'
 $env:TRUNK_BUILD_DIST = Join-Path $env:CARGO_TARGET_DIR 'web-dist'
 $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $env:CARGO_TARGET_DIR 'browsers'
 $env:CARGO_INCREMENTAL = '0'

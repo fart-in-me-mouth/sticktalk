@@ -3,11 +3,11 @@ param([switch]$SkipPassedTests)
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../../..')).Path
 Set-Location -LiteralPath $root
-$env:CARGO_TARGET_DIR = 'C:/Users/dwhee/.cargo-target/sticktalk-calls2'
+$env:CARGO_TARGET_DIR = $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { (Join-Path $PSScriptRoot '../../../../target') })
 $env:CARGO_INCREMENTAL = '0'
 $env:CARGO_BUILD_JOBS = '2'
 $target = [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
-if ($target -ne 'C:\Users\dwhee\.cargo-target\sticktalk-calls2') { throw 'Unexpected task target' }
+if ($target -eq [IO.Path]::GetPathRoot($target)) { throw 'Target must not be a filesystem root' }
 if (Test-Path -LiteralPath (Join-Path $target 'debug')) { throw 'Remove the debug tree before release qualification' }
 $cargo = (Get-Command cargo).Source
 $script:peak = 0L
