@@ -101,7 +101,16 @@ impl Budget {
             + now.saturating_duration_since(self.last).as_secs_f64() * self.bps as f64 / 8.0)
             .min(self.capacity);
         let missing = (bytes as f64 - tokens).max(0.0);
-        now + Duration::from_nanos((missing * 8_000_000_000.0 / self.bps as f64).ceil() as u64)
+        if missing == 0.0 {
+            now
+        } else {
+            // Refill uses floating-point seconds. One conservative nanosecond
+            // avoids re-arming an already-expired deadline when roundoff puts
+            // the balance just below a complete datagram at the exact boundary.
+            now + Duration::from_nanos(
+                (missing * 8_000_000_000.0 / self.bps as f64).ceil() as u64 + 1,
+            )
+        }
     }
     /// Preflight without spending: peer/room/global admission must be atomic.
     /// Reserve 90% of the burst for original media, so capacity probes/RTX cannot
@@ -148,8 +157,8 @@ mod budget_tests {
         let mut b = Budget::new(32_000_000, 1232, now);
         assert!(b.take(400_000, now));
         let ready = b.ready_at(1232, now);
-        assert_eq!(ready - now, Duration::from_micros(308));
-        assert!(!b.available(1232, false, ready - Duration::from_nanos(1)));
+        assert_eq!(ready - now, Duration::from_nanos(308_001));
+        assert!(!b.available(1232, false, ready - Duration::from_nanos(2)));
         assert!(b.available(1232, false, ready));
         assert!(b.take(1232, ready));
         assert!(!b.available(1, false, ready));
