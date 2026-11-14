@@ -115,6 +115,7 @@ pub async fn erase(c: &mut SqliteConnection, user: Id) -> Result<Vec<String>> {
         "DELETE FROM oauth_signup_tickets WHERE subject IN(SELECT subject FROM oauth_identities WHERE user_id=?)",
         "DELETE FROM oauth_identities WHERE user_id=?",
         "DELETE FROM password_resets WHERE user_id=?",
+        "DELETE FROM mcp_codes WHERE user_id=?",
         "DELETE FROM partial_uploads WHERE owner_id=?",
         "DELETE FROM upload_reservations WHERE user_id=?",
         "DELETE FROM uploads WHERE owner_id=?",
