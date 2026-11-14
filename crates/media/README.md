@@ -213,6 +213,11 @@ capture and actual camera CPU remain unverified, not replaced by synthetic data.
 
 ## Building and safe qualification
 
+> Historical pre-integration qualification notes follow. For a fresh Windows PC,
+> use `deploy/dev-env.ps1 -InstallTools` (dot-sourced) and `HANDOFF.md` at the repo
+> root, **not** the legacy `tools/build-env.ps1` / `C:/mhq` setup below. The normal
+> desktop release uses the app-local CRT packaging described in `deploy/RELEASING.md`.
+
 MSVC/Windows SDK, Rust stable, Windows 10 2004+ (process loopback20348+).
 Native APM is source-bundled/static; the Windows portability sys package is pinned
 at 2.1.1. The high-level wrapper is vendored under `vendor` with its original
