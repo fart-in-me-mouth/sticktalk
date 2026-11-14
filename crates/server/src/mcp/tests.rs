@@ -751,6 +751,8 @@ async fn password_sign_in_on_consent_page() {
     .await;
     let page = text(r).await;
     assert!(page.contains("name=\"password\""));
+    // Read and send is preselected even though the client asked for chat:read.
+    assert!(page.contains("value=\"write\" checked"));
     let csrf = hidden(&page, "csrf");
     let post = |password: &'static str| {
         let body = format!(

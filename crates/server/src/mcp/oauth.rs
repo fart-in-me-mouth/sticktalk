@@ -299,7 +299,6 @@ pub(crate) struct Valid {
     pub redirect_uri: String,
     pub code_challenge: String,
     pub state: Option<String>,
-    pub default_write: bool,
 }
 enum Invalid {
     /// Never redirect to an unverified client/redirect pair.
@@ -366,14 +365,11 @@ fn validate(
     {
         return Err(fail("invalid_target", "unknown resource"));
     }
-    let scopes: Vec<&str> = p.scope.as_deref().unwrap_or_default().split(' ').collect();
-    let default_write = scopes.contains(&SCOPE_WRITE) || !scopes.contains(&SCOPE_READ);
     Ok(Valid {
         client,
         redirect_uri,
         code_challenge: challenge,
         state,
-        default_write,
     })
 }
 pub(crate) fn redirect_with(redirect_uri: &str, params: &[(&str, &str)]) -> Response {
@@ -459,7 +455,8 @@ async fn render(
     let write = match p.access.as_deref() {
         Some("write") => true,
         Some("read") => false,
-        _ => v.default_write,
+        // Owner decision: "Read and send" is preselected whatever the client asks.
+        _ => true,
     };
     pages::consent(pages::Consent {
         client_name: &v.client.name,

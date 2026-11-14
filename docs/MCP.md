@@ -39,8 +39,8 @@ browser to see these instructions with the exact URL filled in.
    Otherwise, sign in with your username and password on that page. Google-only
    accounts: sign in to the StickTalk web app in the same browser first, then
    reload the page.
-3. Choose **Read only** or **Read and send**, then select **Allow**. You return to
-   the AI app, which is now connected.
+3. **Read and send** is preselected; switch to **Read only** if you prefer, then
+   select **Allow**. You return to the AI app, which is now connected.
 
 The app's name on that page is what the app calls itself; StickTalk cannot verify
 it. Only approve a request you just started.
@@ -144,8 +144,8 @@ account settings are deliberately not exposed.
     connection does. Both are random 256-bit values stored only as SHA-256.
   - `POST /oauth/revoke` (RFC 7009) accepts either token. Any refresh token of
     the connection ends it.
-- **Scopes:** `chat:read`, `chat:write`. You pick them on the consent page; the
-  client's request only sets the default choice.
+- **Scopes:** `chat:read`, `chat:write`. You pick them on the consent page, where
+  Read and send is preselected; the client's requested scope is ignored.
 - **Storage:** see migration `202611140002_mcp_connector.sql`. Each connection is
   a row in `mcp_grants` backed by an ordinary `sessions` row. The session's own
   token is never issued. The row exists so the connection appears under Devices,
