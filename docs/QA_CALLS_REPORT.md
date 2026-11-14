@@ -22,7 +22,7 @@ Branch: `t3/calls-qa-polish`. **Launch qualification is incomplete; do not read 
 | Network drop/reconnect | Real chat/socket replay and voice transport fail-closed tests pass; long real-audio network-drop/rejoin not qualified. |
 | Cameras | Two headless Chromium processes decode H.264 fake-camera frames. Synthetic native HW encode/decode passes. **No physical cameras enumerate on this PC**, so native camera hardware acceptance is blocked. |
 | 1–9 tiles, focus/fullscreen/pop-out | Headless visual fixtures and ownership/visibility teardown tests pass; real OS fullscreen/pop-out interaction not qualified. |
-| Multiple simultaneous streams | PASS: two native screen publications delivered in both directions through real SFU. |
+| Multiple simultaneous streams | PASS: generated-RTP screen publications from two native peers delivered in both directions through real SFU; not two GUI-operated WGC publishers. |
 | Preview thumbnails / application audio | Bounded preview lifecycle tests pass; process-loopback activation/stop passes, but captured zero packets from a silent owned process. Audible application-stream E2E not qualified. |
 | Stream stats | Headless overlay reviewed; measurement harness records decoded frames, timing, CPU, working set and private bytes. |
 | Viewer count/list | **NOT DONE:** no authoritative per-stream viewer projection in current protocol; roster members were not misrepresented as viewers. |
@@ -54,16 +54,20 @@ Raw case metrics, binary hash/commit provenance, scripts and archived logs: `cra
 | Synthetic NV12 720p30 → HW codec, 10 s | 300 frames, 30.00 fps; CPU 0.0879% machine, WS 77.53 MiB | Not camera capture |
 | Native GPU import | D3D11→NT handle/fence→DX12/iced pixel check passes; zero production CPU pixel copies | Integration fixture, not full UI presentation |
 
-No acoustic mouth-to-ear measurement, PESQ/DNSMOS, competitor comparison or audible live conversational acceptance was obtained. “Better than Discord” audio quality is therefore **not established**.
+Full iced-app in-call CPU/RAM was not qualified; process-level decoder/DSP numbers below must not be substituted for it. No acoustic mouth-to-ear measurement, PESQ/DNSMOS, competitor comparison or audible live conversational acceptance was obtained. “Better than Discord” audio quality is therefore **not established**.
 
 ## Web evidence
 
 Two independent headless Chromium processes, fake media devices and a real loopback native server exchanged audio and decoded 17 remote H.264 frames each (audio packets 205/206). Mute/deafen/leave released publications, subscriptions and tracks. This used the other web agent’s prebuilt bundle revision `9afc59fa41f8d85ff553`, not a claim that this branch’s unbuilt web sources are qualified. No edits to `crates/web`.
 
+## Visual review
+
+All 72 headless PNGs were inspected in contact sheets, with critical states inspected full-size. That review caught an obscured camera speaking border, a wrapping tile action, a stretched incomplete camera row, and a minimum-size share dialog whose primary action scrolled offscreen. These were corrected; the final PNG hashes are recorded with renderer/binary provenance.
+
 ## Validation / remaining blockers
 
 <!-- VALIDATION -->
 
-- Full four-crate test command reaches an unrelated existing server upload reservation assertion (`audit_tests::http_admission_and_global_upload_reservation_are_bounded`, line 402, left 1/right 0). Reproduced in two suite runs; isolated rerun passes. Unrelated upload code was not changed to hide this race.
-- Full desktop GUI E2E, physical camera/hotplug, real emergency hotkey exercise, audible application audio, true mouth-to-ear, objective voice quality and viewer count/list remain launch blockers or explicit qualification gaps.
+- Full four-crate test command reaches an unrelated server upload reservation assertion in unchanged upload code (`audit_tests::http_admission_and_global_upload_reservation_are_bounded`, line 402, left 1/right 0). Reproduced in two suite runs; isolated rerun passes. Unrelated upload code was not changed to hide this race.
+- Full desktop GUI E2E, physical camera/hotplug, real emergency hotkey exercise, audible application audio, true mouth-to-ear, objective voice quality and viewer count/list remain launch blockers or explicit qualification gaps. The timebox was prioritized for the original SFU freeze and uninterrupted video matrix; there is no physical camera, acoustic testing would require audible output, and viewer tracking needs an authoritative protocol projection.
 - All test listeners bind loopback. Owned test windows/processes closed; no browser/OAuth/private data sent outside this PC, no push, no UAC.
