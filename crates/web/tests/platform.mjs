@@ -74,6 +74,11 @@ console.log(
 // The SFU changes forwarding SSRCs after Subscribe. A stale SDP SSRC can decode
 // RTP in Chromium without ever delivering frames to its HTML video track.
 const { normalizeAnswer } = await import("../public/media.js");
+const { normalizeOffer } = await import("../public/media.js");
+const browserOffer='v=0\r\na=fingerprint:sha-256 KEEP\r\na=candidate:udp 1 udp 123 127.0.0.1 5000 typ host\r\na=candidate:tcp 1 tcp 122 127.0.0.1 9 typ host tcptype active\r\n';
+assert(normalizeOffer(browserOffer).includes('a=candidate:udp'));
+assert(!normalizeOffer(browserOffer).includes('a=candidate:tcp'));
+assert(normalizeOffer(browserOffer).includes('a=fingerprint:sha-256 KEEP'));
 const answer =
   "v=0\r\na=msid-semantic: WMS old\r\na=fingerprint:sha-256 KEEP\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\na=mid:3\r\na=ssrc:42 cname:obsolete\r\na=ssrc-group:FID 42 43\r\n";
 const normalized = normalizeAnswer(answer);
@@ -91,3 +96,17 @@ assert.equal(active.size,64);
 retainSpeaking(active,'0',false);
 assert(!active.has('0'));
 console.log('Speaking state: bounded, retains known active speakers at capacity, releases on silence: passed');
+
+const {normalizePreferences}=await import('../public/preferences.js');
+assert.deepEqual(normalizePreferences(null),{density:'cozy',fontScale:1,underlineLinks:false});
+assert.deepEqual(normalizePreferences({density:'compact',fontScale:'1.25',underlineLinks:true}),{density:'compact',fontScale:1.25,underlineLinks:true});
+assert.deepEqual(normalizePreferences({density:'injected',fontScale:Infinity,underlineLinks:'true',token:'not retained'}),{density:'cozy',fontScale:1,underlineLinks:false});
+const {swipeAction}=await import('../public/navigation.js');
+assert.equal(swipeAction('',120,4),'panel:left');
+assert.equal(swipeAction('',-120,4),'panel:right');
+assert.equal(swipeAction('left',-120,4),'panel:');
+assert.equal(swipeAction('right',120,4),'panel:');
+assert.equal(swipeAction('left',120,4),null);
+assert.equal(swipeAction('',120,150),null);
+assert.equal(swipeAction('',30,4),null);
+console.log('Mobile preferences: bounded device-only values; swipes: drawer dismissal, vertical/short gesture rejection: passed');

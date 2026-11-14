@@ -1,0 +1,68 @@
+{
+  "branch": "t3/web-mobile-qa-polish",
+  "artifactRevision": "a520c4ee8c84107af622",
+  "codeCommits": [
+    "5910edb",
+    "31a6d1b",
+    "8d6fece",
+    "43d4bcd",
+    "3c19bfc"
+  ],
+  "realServer": true,
+  "headless": true,
+  "binds": "loopback only",
+  "commands": [
+    {
+      "command": "cargo test -p sticktalk-web",
+      "status": "passed",
+      "tests": 12
+    },
+    {
+      "command": "cargo clippy -p sticktalk-web --all-targets -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "command": "cargo clippy -p sticktalk-web --target wasm32-unknown-unknown --profile web-release --all-targets -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "status": "passed"
+    },
+    {
+      "command": "cargo test -p sticktalk-server -- --test-threads=1",
+      "status": "passed",
+      "tests": 127,
+      "ignored": 1
+    },
+    {
+      "command": "npm test",
+      "status": "failed: intermittent H264 camera reception",
+      "passedChecksBeforeFailure": 23
+    },
+    {
+      "command": "npm run test:qa",
+      "status": "passed",
+      "groupedChecks": 43,
+      "cameraCycles": 3,
+      "platformAndLoadingRegressions": "passed",
+      "javascriptErrors": 0,
+      "cspViolations": 0
+    },
+    {
+      "command": "npm run audit",
+      "status": "passed"
+    },
+    {
+      "command": "npm run test:idle",
+      "status": "passed"
+    }
+  ],
+  "observedTargetGiB": 5.91182210482657,
+  "cleanup": "blocked by tool execution policy: guarded native PowerShell Remove-Item of the exact verified task target was rejected; no alternate deletion attempted",
+  "cameraReleaseBlocker": "known-camera-flake.json",
+  "screenshots": 178,
+  "contactSheets": 18,
+  "logs": "validation-logs/",
+  "remainingTarget": "C:/Users/dwhee/.cargo-target/sticktalk-qa-web"
+}

@@ -1,0 +1,239 @@
+{
+  "revision": "15275f8e65328dd1cb91",
+  "raw": 2890808,
+  "compressed": 776634,
+  "firstLoadBytes": 598745,
+  "firstLoadMeaning": "Complete installable shell cache, not cold-login network transfer",
+  "assets": [
+    {
+      "file": "boot-c066202c08c28b10f232.css",
+      "bytes": 124,
+      "brotli": 90
+    },
+    {
+      "file": "bootstrap-4b86a4389b5d67a34f58.js",
+      "bytes": 4032,
+      "brotli": 1352
+    },
+    {
+      "file": "index.html",
+      "bytes": 2976,
+      "brotli": 865
+    },
+    {
+      "file": "live-fb62ce29d3c289790108.css",
+      "bytes": 29892,
+      "brotli": 5376
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/chunk_11.wasm",
+      "bytes": 5700,
+      "brotli": 3368
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/chunk_12.wasm",
+      "bytes": 296,
+      "brotli": 204
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/chunk_13.wasm",
+      "bytes": 119622,
+      "brotli": 33102
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/chunk_14.wasm",
+      "bytes": 433,
+      "brotli": 285
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/chunk_15.wasm",
+      "bytes": 11684,
+      "brotli": 4647
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/chunk_16.wasm",
+      "bytes": 1259,
+      "brotli": 819
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/chunk_17.wasm",
+      "bytes": 641,
+      "brotli": 424
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/chunk_18.wasm",
+      "bytes": 1151,
+      "brotli": 733
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_completion_rows_17580725781467015415.wasm",
+      "bytes": 2546,
+      "brotli": 1301
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_dialog_data_9825084930712454533.wasm",
+      "bytes": 25884,
+      "brotli": 8016
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_expand_shortcodes_1530331590284276038.wasm",
+      "bytes": 1719,
+      "brotli": 1010
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_forward_voice_5392279635404703558.wasm",
+      "bytes": 286229,
+      "brotli": 43520
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_gif_search_15868172216007626765.wasm",
+      "bytes": 18158,
+      "brotli": 5448
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_load_call_9184150017308272660.wasm",
+      "bytes": 3338,
+      "brotli": 1751
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_load_dialog_14693333342568000996.wasm",
+      "bytes": 114625,
+      "brotli": 38113
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_profile_request_15562236596481320949.wasm",
+      "bytes": 1840,
+      "brotli": 1033
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_upload_14131329710176623491.wasm",
+      "bytes": 22911,
+      "brotli": 9676
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/split_voice_action_15940084043898123834.wasm",
+      "bytes": 95455,
+      "brotli": 23427
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/sticktalk-web-e3485e34c566161df333.d.ts",
+      "bytes": 5130,
+      "brotli": 1122
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/sticktalk-web-e3485e34c566161df333.js",
+      "bytes": 50609,
+      "brotli": 7467
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/sticktalk-web-e3485e34c566161df333_bg.wasm",
+      "bytes": 1879425,
+      "brotli": 440238
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/sticktalk-web-e3485e34c566161df333_bg.wasm.d.ts",
+      "bytes": 3204,
+      "brotli": 604
+    },
+    {
+      "file": "pkg/e3485e34c566161df333/__wasm_split.js",
+      "bytes": 7715,
+      "brotli": 1111
+    },
+    {
+      "file": "public/fonts/Inter-Medium.woff2",
+      "bytes": 18568,
+      "brotli": 18563
+    },
+    {
+      "file": "public/fonts/Inter-OFL.txt",
+      "bytes": 4380,
+      "brotli": 1419
+    },
+    {
+      "file": "public/fonts/Inter-Regular.woff2",
+      "bytes": 18264,
+      "brotli": 18250
+    },
+    {
+      "file": "public/fonts/Inter-SemiBold.woff2",
+      "bytes": 18656,
+      "brotli": 18660
+    },
+    {
+      "file": "public/fonts/JetBrainsMono-OFL.txt",
+      "bytes": 4399,
+      "brotli": 1413
+    },
+    {
+      "file": "public/fonts/JetBrainsMono-Regular.woff2",
+      "bytes": 28656,
+      "brotli": 28660
+    },
+    {
+      "file": "public/gifs.js",
+      "bytes": 2418,
+      "brotli": 1047
+    },
+    {
+      "file": "public/google-g.svg",
+      "bytes": 7483,
+      "brotli": 5621
+    },
+    {
+      "file": "public/icons/apple-touch-icon.png",
+      "bytes": 4779,
+      "brotli": 4689
+    },
+    {
+      "file": "public/icons/icon-192.png",
+      "bytes": 5072,
+      "brotli": 4947
+    },
+    {
+      "file": "public/icons/icon-512.png",
+      "bytes": 12256,
+      "brotli": 11357
+    },
+    {
+      "file": "public/icons/LICENSE",
+      "bytes": 3208,
+      "brotli": 1146
+    },
+    {
+      "file": "public/icons/maskable-512.png",
+      "bytes": 12256,
+      "brotli": 11357
+    },
+    {
+      "file": "public/live.js",
+      "bytes": 18906,
+      "brotli": 4867
+    },
+    {
+      "file": "public/manifest.webmanifest",
+      "bytes": 638,
+      "brotli": 239
+    },
+    {
+      "file": "public/media.js",
+      "bytes": 24579,
+      "brotli": 6137
+    },
+    {
+      "file": "public/push.js",
+      "bytes": 1424,
+      "brotli": 583
+    },
+    {
+      "file": "public/viewer.js",
+      "bytes": 7491,
+      "brotli": 2216
+    },
+    {
+      "file": "ui-tokens-500c88b5b36ff764fdd6.css",
+      "bytes": 777,
+      "brotli": 361
+    }
+  ]
+}

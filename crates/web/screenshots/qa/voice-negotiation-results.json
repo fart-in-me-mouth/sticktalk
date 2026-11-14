@@ -1,0 +1,52 @@
+{
+  "revision": "a520c4ee8c84107af622",
+  "realServer": true,
+  "independentBrowserProcesses": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "decodedDelta": [
+        10,
+        10
+      ],
+      "states": [
+        "connected",
+        "connected"
+      ],
+      "remoteWidths": [
+        320,
+        320
+      ]
+    },
+    {
+      "round": 2,
+      "decodedDelta": [
+        10,
+        10
+      ],
+      "states": [
+        "connected",
+        "connected"
+      ],
+      "remoteWidths": [
+        1280,
+        1280
+      ]
+    },
+    {
+      "round": 3,
+      "decodedDelta": [
+        10,
+        10
+      ],
+      "states": [
+        "connected",
+        "connected"
+      ],
+      "remoteWidths": [
+        1280,
+        1280
+      ]
+    }
+  ]
+}

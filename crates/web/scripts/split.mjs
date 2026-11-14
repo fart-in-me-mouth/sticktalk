@@ -3,6 +3,7 @@
 import { readdir, readFile, writeFile, rm, mkdir, cp } from 'node:fs/promises';
 import { join, resolve, basename, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import {hostGraphFingerprint} from './version-runtime.mjs';
 const target = resolve(process.env.CARGO_TARGET_DIR);
 const dist = resolve(process.env.TRUNK_STAGING_DIR);
 const run = (tool, args) => execFileSync(tool, args, { stdio: 'inherit', windowsHide: true, env: {...process.env, BINARYEN_CORES: '2'} });
@@ -22,7 +23,9 @@ if (!bindgen || !opt) throw Error('Set WASM_BINDGEN and WASM_OPT to the matching
 let html = await readFile(join(dist,'index.html'),'utf8');
 const entryPath = html.match(/import init, \* as bindings from ['"]\.\/([^'"]+)\.js['"]/)[1];
 const entry = basename(entryPath);
-const folder = dirname(entryPath)==='.' ? `pkg/${entry}` : dirname(entryPath);
+const folder = dirname(entryPath)==='.'
+  ? `pkg/${await hostGraphFingerprint(await readFile(join(target,'wasm32-unknown-unknown','web-release','sticktalk-web.wasm')),'public')}`
+  : dirname(entryPath);
 if (dirname(entryPath)==='.') {
   html=html.replaceAll(`./${entry}.js`,`./${folder}/${entry}.js`).replaceAll(`./${entry}_bg.wasm`,`./${folder}/${entry}_bg.wasm`);
   await writeFile(join(dist,'index.html'),html);

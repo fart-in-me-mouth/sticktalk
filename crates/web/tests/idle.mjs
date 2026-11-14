@@ -7,6 +7,7 @@ import { once } from "node:events";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 import assert from "node:assert/strict";
+const output = process.env.STICKTALK_QA_DIR ?? "screenshots/live";
 const target = resolve(
   process.env.CARGO_TARGET_DIR ??
     "C:/Users/dwhee/.cargo-target/sticktalk-web-live",
@@ -122,7 +123,7 @@ try {
     note: "Whole separate headless Chromium process-tree totals; working-set sum double-counts shared pages. Not native-client or physical-phone memory.",
   };
   await writeFile(
-    "screenshots/live/idle.json",
+    `${output}/idle.json`,
     JSON.stringify(report, null, 2),
   );
   console.log(JSON.stringify(report));

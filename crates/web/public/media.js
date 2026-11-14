@@ -28,6 +28,19 @@ let publications = new Map(),
   queue = Promise.resolve(),
   status = "Disconnected";
 const trace = [];
+let wantCall=false;
+const requests=new Map();
+let nextRequest=crypto.getRandomValues(new Uint32Array(1))[0]||1;
+function requestSignal(type,data) {
+  if(requests.size>=32)return Promise.reject(new Error('Too many pending media operations.'));
+  while(requests.has(String(nextRequest)))nextRequest=(nextRequest+1)>>>0||1;
+  const id=String(nextRequest);nextRequest=(nextRequest+1)>>>0||1;
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{requests.delete(id);reject(new Error('Media subscription timed out.'));},5000);
+    requests.set(id,{resolve:()=>{clearTimeout(timer);requests.delete(id);resolve();},reject:error=>{clearTimeout(timer);requests.delete(id);reject(error);}});
+    emit(`signal-request:${id}:${JSON.stringify({type,data})}`);
+  });
+}
 const speaking = new Set();
 export function retainSpeaking(states, sessionKey, active) {
   if (!active) states.delete(sessionKey);
@@ -70,7 +83,14 @@ function preferH264(transceiver) {
   if (!h264.length) throw Error("This browser does not support H.264 video.");
   transceiver.setCodecPreferences(h264);
 }
-async function negotiate() {
+function preferOpus(transceiver) {
+  // Match the SFU's Opus-only audio contract; do not offer RED/G.722/DTMF
+  // codecs whose extra fmtp mappings differ across browser versions.
+  const codecs=RTCRtpReceiver.getCapabilities('audio')?.codecs.filter(c=>c.mimeType.toLowerCase()==='audio/opus')??[];
+  if(!codecs.length)throw Error('This browser does not support Opus audio.');
+  transceiver.setCodecPreferences(codecs);
+}
+async function negotiate(beforeRemote) {
   const current = pc;
   if (!current || !joined) return;
   const offer = await current.createOffer();
@@ -120,8 +140,12 @@ async function negotiate() {
             : "window"
           : null,
     }));
-  signal("offer", { sdp: current.localDescription.sdp, tracks });
+  signal("offer", { sdp: normalizeOffer(current.localDescription.sdp), tracks });
   const sdp = await answer;
+  if (current !== pc) return;
+  // Subscribe before enabling a new receiver. Otherwise the SFU's temporary
+  // answer stream can bind Chromium to an SSRC which Subscribe discards.
+  await beforeRemote?.();
   if (current !== pc) return;
   // The SFU allocates a fresh forwarding SSRC *after* answering Subscribe.
   // Do not pin Chromium's video receiver to the answer's discarded default SSRC.
@@ -129,6 +153,12 @@ async function negotiate() {
   const browserSdp = normalizeAnswer(sdp);
   await current.setRemoteDescription({ type: "answer", sdp: browserSdp });
   bindRemote();
+}
+export function normalizeOffer(sdp) {
+  // Chromium also gathers TCP host candidates. StickTalk's SFU is UDP-only
+  // and correctly rejects those at ingress. Advertise only usable candidates;
+  // leave the browser's local description and its DTLS/codec fields unchanged.
+  return sdp.split(/\r?\n/).filter(line=>!line.startsWith('a=candidate:')||line.split(/\s+/)[2]?.toLowerCase()==='udp').join('\r\n');
 }
 export function normalizeAnswer(sdp) {
   return sdp
@@ -166,6 +196,7 @@ async function publish(track, kind, stream) {
     senders.set(kind, transceiver);
   }
   if (track.kind === "video") preferH264(transceiver);
+  else preferOpus(transceiver);
   publications.set(kind, { kind, track, stream, transceiver });
   return transceiver;
 }
@@ -249,6 +280,7 @@ async function start(data) {
     mount();
   } catch (e) {
     stop(true);
+    if(e.name==='NotAllowedError')throw new Error('Microphone access was denied. Allow it in your browser’s site settings, then rejoin.');
     throw e;
   }
 }
@@ -317,6 +349,7 @@ async function updateParticipant(participant) {
         : idleReceivers.splice(reusable, 1)[0];
     transceiver.direction = "recvonly";
     if (track.codec) preferH264(transceiver);
+    else preferOpus(transceiver);
     const subscription = {
       key: id,
       participant,
@@ -335,24 +368,24 @@ async function updateParticipant(participant) {
     }
   }
   if (added.length) {
-    await negotiate();
-    for (const s of added) {
-      signal("subscribe", {
+    await negotiate(()=>Promise.all(added.map(s=>requestSignal("subscribe", {
         publisher: participant.session,
         source_mid: s.source_mid,
         receiver_mid: s.transceiver.mid,
         rid: null,
-      });
-    }
+      }))));
   }
   mount();
 }
 export function event(event) {
   const data = event.data;
   record("event", event.type === "answer" ? { type: "answer" } : event);
+  const request=requests.get(String(event.request_nonce));
+  if(request&&event.type==='ack'){request.resolve();return;}
+  if(request&&event.type==='error'){request.reject(new Error(data.message??'Media subscription failed.'));return;}
   switch (event.type) {
     case "joined":
-      enqueue(() => start(data));
+      if(wantCall)enqueue(() => start(data));
       break;
     case "answer":
       pendingAnswer?.resolve(data.sdp);
@@ -396,8 +429,9 @@ export function event(event) {
       break;
     }
     case "error":
+      if(!wantCall&&!joined)break; // Late signaling acknowledgments after Leave.
       report(data.message ?? "The server rejected a media operation.");
-      pendingAnswer?.reject();
+      pendingAnswer?.reject(new Error(data.message ?? 'Media operation failed.'));
       pendingAnswer = null;
       break;
     case "guild_left":
@@ -550,10 +584,12 @@ function showShareOptions() {
   dialog.showModal();
 }
 function stop(notify) {
+  if(notify)wantCall=false;
   ++epoch;
+  for(const request of [...requests.values()])request.reject(new Error('Call ended.'));
   clearTimeout(levelsTimer);
   levelsTimer = null;
-  pendingAnswer?.reject();
+  pendingAnswer?.reject(new Error('Call ended.'));
   pendingAnswer = null;
   for (const p of publications.values())
     p.stream.getTracks().forEach((t) => t.stop());
@@ -716,6 +752,9 @@ async function setOutput(id) {
 }
 export function action(action) {
   switch (action) {
+    case "joining":
+      wantCall=true;
+      break;
     case "mute":
       muted = !muted;
       if (joined) applyState();
@@ -736,6 +775,7 @@ export function action(action) {
       stop(true);
       break;
     case "transport-lost":
+      wantCall=false;
       stop(false);
       break;
     case "reconnected":
@@ -758,6 +798,7 @@ export async function diagnostics() {
     : [];
   return {
     joined,
+    pendingRequests:requests.size,
     trace,
     localSdp: pc?.localDescription?.sdp,
     remoteSdp: pc?.remoteDescription?.sdp,

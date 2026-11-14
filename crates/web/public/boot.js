@@ -5,6 +5,15 @@ let register = false,
 const root = document.getElementById("boot");
 const form = root.querySelector("form"),
   status = document.getElementById("boot-status");
+// Login is usable before WASM, including when the iOS keyboard shrinks/pans
+// only the visual viewport. The live host takes over these listeners on mount.
+const viewport=()=>{
+  document.documentElement.style.setProperty('--viewport-height',`${window.visualViewport?.height??innerHeight}px`);
+  document.documentElement.style.setProperty('--viewport-offset',`${window.visualViewport?.offsetTop??0}px`);
+};
+window.visualViewport?.addEventListener('resize',viewport);
+window.visualViewport?.addEventListener('scroll',viewport);
+viewport();
 // Never allow the fallback HTML form to serialize a password into a URL.
 form.addEventListener("submit", (event) => event.preventDefault());
 const hasCsrf = document.cookie
@@ -22,9 +31,12 @@ async function loadApp() {
     .then(r => r.ok ? r.text() : '').catch(() => '');
   try {
     __WASM_BOOTSTRAP__;
+    window.visualViewport?.removeEventListener('resize',viewport);
+    window.visualViewport?.removeEventListener('scroll',viewport);
   } catch {
     loading = false;
     root.replaceChildren(form);
+    form.querySelectorAll('input,button').forEach(element=>element.disabled=false);
     status.textContent =
       "Could not load the app. Check your connection and try again.";
   }

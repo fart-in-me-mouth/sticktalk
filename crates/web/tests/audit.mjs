@@ -7,6 +7,7 @@ import { once } from "node:events";
 import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 import assert from "node:assert/strict";
+const output = process.env.STICKTALK_QA_DIR ?? "screenshots/live";
 const target = resolve(
   process.env.CARGO_TARGET_DIR ??
     "C:/Users/dwhee/.cargo-target/sticktalk-web-live",
@@ -61,7 +62,7 @@ try {
     server.stderr.on("data", collect);
     server.once("error", fail);
   });
-  await mkdir("screenshots/live", { recursive: true });
+  await mkdir(output, { recursive: true });
   context = await chromium.launchPersistentContext(profile, {
     headless: true,
     args: [
@@ -81,7 +82,7 @@ try {
     disableStorageReset: true,
   };
   const mobile = await lighthouse(origin, options);
-  await writeFile("screenshots/live/lighthouse-mobile.json", mobile.report);
+  await writeFile(`${output}/lighthouse-mobile.json`, mobile.report);
   const desktop = await lighthouse(origin, {
     ...options,
     formFactor: "desktop",
@@ -94,7 +95,7 @@ try {
     },
     throttling: { rttMs: 40, throughputKbps: 10240, cpuSlowdownMultiplier: 1 },
   });
-  await writeFile("screenshots/live/lighthouse-desktop.json", desktop.report);
+  await writeFile(`${output}/lighthouse-desktop.json`, desktop.report);
   // Do not conflate a fast progressive login with a cold authenticated chat.
   const page = await context.newPage();
   await page.goto(origin);
@@ -130,7 +131,7 @@ try {
   for (const open of context.pages()) await open.close();
   await context.newPage();
   const chat = await lighthouse(`${origin}/?channel=${channel}`, options);
-  await writeFile("screenshots/live/lighthouse-chat-mobile.json", chat.report);
+  await writeFile(`${output}/lighthouse-chat-mobile.json`, chat.report);
   for (const open of context.pages()) {
     if (open.url().startsWith(origin)) await open.evaluate(async()=>{
       if ('serviceWorker' in navigator) await Promise.race([navigator.serviceWorker.ready,new Promise(done=>setTimeout(done,2000))]);
@@ -144,7 +145,7 @@ try {
     ...options, throttlingMethod:"devtools",
     throttling:{rttMs:150,throughputKbps:1638.4,cpuSlowdownMultiplier:4,requestLatencyMs:150,downloadThroughputKbps:1638.4,uploadThroughputKbps:750},
   });
-  await writeFile("screenshots/live/lighthouse-chat-warm-mobile.json", warm.report);
+  await writeFile(`${output}/lighthouse-chat-warm-mobile.json`, warm.report);
 
   const summarize = (r) => ({
     version: r.lighthouseVersion,
@@ -194,7 +195,7 @@ try {
     desktop: summarize(desktop.lhr),
   };
   await writeFile(
-    "screenshots/live/lighthouse-summary.json",
+    `${output}/lighthouse-summary.json`,
     JSON.stringify(summary, null, 2),
   );
   console.log(
