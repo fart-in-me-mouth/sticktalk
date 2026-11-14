@@ -33,7 +33,8 @@ $env:STICKTALK_CALLS2_FPS = "$Fps"
 $env:STICKTALK_CALLS2_OUTPUT = Join-Path $PSScriptRoot $Name
 if (Test-Path -LiteralPath $env:STICKTALK_CALLS2_OUTPUT) { throw 'Refusing to overwrite a previous case' }
 New-Item -ItemType Directory -Path $env:STICKTALK_CALLS2_OUTPUT | Out-Null
-git diff HEAD -- crates/sfu crates/media crates/client/src crates/client/tests | Set-Content -LiteralPath (Join-Path $env:STICKTALK_CALLS2_OUTPUT 'source.diff')
+$sourceDiff = git diff HEAD -- crates/sfu crates/media crates/client/src crates/client/tests | Out-String
+[System.IO.File]::WriteAllText((Join-Path $env:STICKTALK_CALLS2_OUTPUT 'source.diff'), $sourceDiff, [System.Text.UTF8Encoding]::new($false))
 @{
     compiler_processes = @(Get-Process -Name cargo,rustc,cl,link -ErrorAction SilentlyContinue | Select-Object Name,Id,CPU)
     source = $Source; quality = $Quality; fps = $Fps; seconds = $Seconds; viewers = 2

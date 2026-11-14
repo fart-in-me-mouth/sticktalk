@@ -65,3 +65,8 @@ keyframe enqueue/send size, guard resets, allocation, token balance and admissio
 wait for both viewers during the first 15 seconds.
 
 Final implementation, validation and cleanup status will be appended at handoff.
+
+Harness-only preflight failure: an empty `git diff | Set-Content` did not create
+the clean-tree snapshot file. The native test never launched. The failed runner
+log and exit are retained as `harness-empty-diff-failure`; explicit file writing
+now handles empty snapshots. This is not a measured media case.
