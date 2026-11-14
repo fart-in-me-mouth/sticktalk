@@ -1687,7 +1687,10 @@ impl Sfu {
                             .as_secs_f64()
                     );
                 }
-                let (BweKind::Twcc { estimate, .. } | BweKind::Remb { estimate, .. }) = estimate;
+                let (BweKind::Twcc { estimate, .. } | BweKind::Remb { estimate, .. }) = estimate
+                else {
+                    return Ok(());
+                };
                 self.peers.get_mut(&key).unwrap().bwe = estimate.as_u64();
                 self.allocate()?;
             }
