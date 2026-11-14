@@ -157,6 +157,7 @@ pub async fn run<R: MaybeSend + 'static, H: MaybeSend + 'static, Lease>(
                                         if send(
                                             &mut socket,
                                             &ClientMsg::Identify(Identify {
+                                                text_features: true,
                                                 version: PROTOCOL_VERSION,
                                                 launch_features: true,
                                                 token: config.token.clone(),

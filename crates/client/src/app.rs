@@ -24,6 +24,7 @@ pub enum Msg {
     Call(crate::voice_ui::Action),
     Main(crate::main_window::Message),
     Feature(Box<crate::features::Event>),
+    TextFeature(Box<crate::features3::Event>),
     Settings(crate::settings_controller::Action),
     SettingsStored(Result<(), String>),
     SettingsPersist(u64),
@@ -175,6 +176,7 @@ pub struct App {
     pub main: crate::main_window::State,
     pub extent: crate::history_extent::Window,
     pub features: crate::features::State,
+    pub text_features: crate::features3::State,
     pub settings: crate::settings_controller::State,
     pub state: ClientState,
     trace: Option<PathBuf>,
@@ -295,6 +297,7 @@ impl App {
             None
         };
         let state = Self {
+            text_features: crate::features3::State::default(),
             calls: crate::voice_ui::State::default(),
             main: crate::main_window::State::default(),
             extent: crate::history_extent::Window::default(),
@@ -462,6 +465,7 @@ impl App {
     pub fn subscription(&self) -> Subscription<Msg> {
         let mut subs = vec![
             crate::features::subscription(self),
+            crate::features3::subscription(self),
             iced::event::listen_with(|event, _status, _id| match event {
                 UiEvent::Window(window::Event::CloseRequested) => {
                     Some(Msg::Call(crate::voice_ui::Action::WindowClosed(_id)))
@@ -668,12 +672,19 @@ impl App {
             self.calls.recording_key = false;
         }
         if reconcile {
-            Task::batch([task, crate::features::reconcile(self)])
+            Task::batch([
+                task,
+                crate::features::reconcile(self),
+                crate::features3::reconcile(self),
+            ])
         } else {
             task
         }
     }
     fn update_main(&mut self, message: Msg) -> Task<Msg> {
+        if matches!(message, Msg::Escape) && self.text_features.folder_dialog.take().is_some() {
+            return Task::none();
+        }
         if matches!(message, Msg::Escape) && self.calls.recording_key {
             self.calls.recording_key = false;
             self.call_command(sticktalk::voice::Command::Configure(
@@ -708,6 +719,7 @@ impl App {
         match message {
             Msg::Call(action) => return self.call_update(action),
             Msg::Main(m) => return self.main_update(m),
+            Msg::TextFeature(event) => return crate::features3::update(self, *event),
             Msg::Feature(event) => return crate::features::update(self, *event),
             Msg::Settings(action) => return self.settings_update(action),
             Msg::Keyboard(key, modifiers, status) => {
@@ -1568,7 +1580,15 @@ impl App {
             }
             Msg::Send => {
                 if let Screen::Channel(channel_id) = self.state.screen {
-                    let content = sticktalk_client_core::emoji::prepare_send(&self.editor.text());
+                    if self.state.editing.is_none()
+                        && crate::features3::remaining(self, channel_id) > 0
+                    {
+                        return Task::none();
+                    }
+                    let content = sticktalk_client_core::features3::prepare_send(
+                        &self.editor.text(),
+                        crate::features3::entries(self),
+                    );
                     if content.chars().count() > MAX_MESSAGE_CHARS {
                         self.error = "Messages can have up to 4,000 characters.".into();
                         return Task::none();
@@ -1683,7 +1703,7 @@ impl App {
                 let count = self
                     .mention_candidates()
                     .len()
-                    .max(self.emoji_candidates().len());
+                    .max(crate::features3::completion_count(self));
                 if count > 0 {
                     self.suggestion =
                         (self.suggestion as i32 + delta).rem_euclid(count as i32) as usize;
@@ -1700,7 +1720,18 @@ impl App {
                 }
             }
             Msg::CompleteMention => {
-                if let Some(e) = self.emoji_candidates().get(self.suggestion) {
+                if let Some(e) = crate::features3::candidates(self).get(self.suggestion) {
+                    let token = e.token();
+                    return crate::features::update(
+                        self,
+                        crate::features::Event::EmojiComplete(token),
+                    );
+                }
+                let custom = crate::features3::candidates(self).len();
+                if let Some(e) = self
+                    .emoji_candidates()
+                    .get(self.suggestion.saturating_sub(custom))
+                {
                     return crate::features::update(
                         self,
                         crate::features::Event::EmojiComplete(e.emoji().into()),
@@ -2311,6 +2342,7 @@ impl App {
                 if generation == self.state.generation
                     && self.state.model.snapshot_valid(data.cursor())
                 {
+                    crate::features3::snapshot(self, &data);
                     if let sticktalk_client_core::launch::SnapshotData::Extent(v) = &data {
                         self.extent_snapshot(&v.data);
                     }
@@ -2383,6 +2415,7 @@ impl App {
             }
             Data::Frame(frame) => match frame {
                 ServerMsg::Ready(ready) => {
+                    crate::features3::ready(self);
                     self.features.desktop.settings = ready.notification_settings.clone();
                     let old = self.state.screen;
                     self.main.popover = None;
@@ -2581,6 +2614,8 @@ impl App {
                         self.features.desktop.observe(&envelope.event);
                         if let Event::MessageCreated { message, .. } = &envelope.event {
                             crate::features::committed(self, message);
+                            self.features.desktop.disabled =
+                                !self.settings.preferences.desktop_notifications;
                             self.features.desktop.default_level =
                                 Some(self.settings.preferences.notification_level);
                             if let Some(toast) = self.features.desktop.notification(
@@ -2633,6 +2668,15 @@ impl App {
                         {
                             self.history_slots.borrow_mut().remove(message_id);
                         }
+                    }
+                    if self
+                        .state
+                        .model
+                        .cursor
+                        .as_ref()
+                        .is_some_and(|c| envelope.seq > c.seq)
+                    {
+                        crate::features3::live_event(self, &envelope.event);
                     }
                     self.main_live_event(&envelope.event);
                     let sessions_changed = matches!(envelope.event, Event::SessionsUpdated);
@@ -2716,6 +2760,16 @@ impl App {
                         .unwrap_or_default();
                     match response.outcome {
                         CommandOutcome::Err(e) => {
+                            crate::features3::command_failed(self, command.as_ref());
+                            if e.field.as_deref() == Some("slowmode") {
+                                if let Some(Command::SendMessage(d)) = &command {
+                                    crate::features3::rejected(
+                                        self,
+                                        d.channel_id,
+                                        e.retry_after_ms.unwrap_or(0),
+                                    );
+                                }
+                            }
                             self.error = format!(
                                 "{}{}",
                                 e.message,
@@ -3514,6 +3568,7 @@ impl App {
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         m.content.hash(&mut hash);
         m.edited_at.hash(&mut hash);
+        self.state.model.launch.emoji_revision.hash(&mut hash);
         m.attachments.len().hash(&mut hash);
         m.reactions.len().hash(&mut hash);
         self.row_decorations(m).hash(&mut hash);
@@ -4805,6 +4860,7 @@ impl App {
         app.mock_call_screen(screen);
         crate::features::fixture(&mut app, screen);
         crate::ui::audit::configure(&mut app, screen);
+        crate::features3::fixture(&mut app, screen);
         app
     }
     pub(crate) fn headless_scroll(&mut self) {
@@ -5332,6 +5388,49 @@ mod qa_notification_defaults {
         let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
             seq: seq + 1,
             event: Event::MessageCreated { message, author },
+        }))));
+        assert!(app.features.desktop.last_toast.is_some());
+    }
+}
+#[cfg(test)]
+mod features3_notification_tests {
+    use super::*;
+    #[tokio::test]
+    async fn master_switch_blocks_real_message_toast_path_without_changing_unreads() {
+        let mut app = App::headless("guild-chat", iced::Size::new(1280., 800.));
+        app.focused = false;
+        app.features.desktop.dry_run = true;
+        app.settings.preferences.notification_level = NotificationLevel::All;
+        app.settings.preferences.desktop_notifications = false;
+        let mut message = app.state.model.messages[&Id(12)]
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        message.id = Id(9_900_000);
+        message.author_id = Id(2);
+        message.content = "A notification test".into();
+        message.attachments.clear();
+        message.reactions.clear();
+        message.mention_ids.clear();
+        let cursor = app.state.model.cursor.as_ref().unwrap().seq;
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq: cursor + 1,
+            event: Event::MessageCreated {
+                message: message.clone(),
+                author: app.state.model.users[&Id(2)].clone(),
+            },
+        }))));
+        assert!(app.features.desktop.last_toast.is_none());
+        assert!(app.state.model.messages[&Id(12)].contains_key(&message.id));
+        app.settings.preferences.desktop_notifications = true;
+        message.id = Id(9_900_001);
+        let _ = app.network(Data::Frame(ServerMsg::Event(Box::new(EventEnvelope {
+            seq: cursor + 2,
+            event: Event::MessageCreated {
+                message,
+                author: app.state.model.users[&Id(2)].clone(),
+            },
         }))));
         assert!(app.features.desktop.last_toast.is_some());
     }

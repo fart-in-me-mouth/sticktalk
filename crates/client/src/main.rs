@@ -4,6 +4,7 @@ mod app;
 mod audio_settings;
 mod desktop_host;
 mod features;
+mod features3;
 mod video;
 use sticktalk::backend;
 use sticktalk::{animated, gifs, platform_glue, uploads};

@@ -2,6 +2,8 @@
 use iced::{widget::svg, Color};
 pub fn icon(name: &str, size: f32, color: Color) -> svg::Svg<'static> {
     let path = match name {
+        "clock"=>Some("M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0 M12 6v6l4 2"),
+        "folder-open"=>Some("M6 14l1.5-3h14L18 20H2V5a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v3"),
         "play"=>Some("m6 3 14 9-14 9V3Z"),
         "pause"=>Some("M6 4h4v16H6V4Z M14 4h4v16h-4V4Z"),
         "maximize"=>Some("M8 3H3v5 M16 3h5v5 M21 16v5h-5 M8 21H3v-5"),

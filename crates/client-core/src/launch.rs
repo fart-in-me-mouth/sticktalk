@@ -4,33 +4,46 @@ use sticktalk_proto::*;
 
 #[derive(Debug, Clone)]
 pub enum Read {
+    Folders,
     Profile(Id),
     Pins(Id),
     Overwrites(Id),
     Permissions(Id),
     Extent(Id),
+    Emoji(Id),
+    Slowmode(Id),
 }
 #[derive(Debug, Clone)]
 pub enum SnapshotData {
+    Folders(Snapshot<Vec<ServerFolder>>),
     Profile(Snapshot<ProfileDetail>),
     Pins(Id, Snapshot<Vec<Message>>),
     Overwrites(Id, Snapshot<Vec<PermissionOverwrite>>),
     Permissions(Id, Snapshot<Permissions>),
     Extent(Snapshot<HistoryExtent>),
+    Emoji(Id, Snapshot<Vec<GuildEmoji>>),
+    Slowmode(Snapshot<SlowmodeStatus>),
 }
 impl SnapshotData {
     pub fn cursor(&self) -> &ResumeCursor {
         match self {
+            Self::Folders(v) => &v.cursor,
             Self::Profile(v) => &v.cursor,
             Self::Pins(_, v) => &v.cursor,
             Self::Overwrites(_, v) => &v.cursor,
             Self::Permissions(_, v) => &v.cursor,
             Self::Extent(v) => &v.cursor,
+            Self::Emoji(_, v) => &v.cursor,
+            Self::Slowmode(v) => &v.cursor,
         }
     }
 }
 #[derive(Default)]
 pub struct Projection {
+    pub server_folders: Vec<ServerFolder>,
+    pub slowmode: BTreeMap<Id, SlowmodeStatus>,
+    pub emoji: BTreeMap<Id, Vec<GuildEmoji>>,
+    pub emoji_revision: u64,
     pub roles: BTreeMap<Id, Vec<Role>>,
     pub memberships: BTreeMap<(Id, Id), Member>,
     pub notifications: BTreeMap<(Option<Id>, Option<Id>), NotificationSettings>,
@@ -68,6 +81,22 @@ impl Projection {
     }
     pub fn event(&mut self, e: &Event) {
         match e {
+            Event::ServerFoldersUpdated(folders) => self.server_folders = folders.clone(),
+            Event::SlowmodeUpdated {
+                channel_id,
+                seconds,
+            } => {
+                if let Some(s) = self.slowmode.get_mut(channel_id) {
+                    s.seconds = *seconds;
+                    if *seconds == 0 {
+                        s.retry_after_ms = 0;
+                    }
+                }
+            }
+            Event::GuildEmojiUpdated { guild_id, emoji } => {
+                self.emoji_revision = self.emoji_revision.wrapping_add(1);
+                self.emoji.insert(*guild_id, emoji.clone());
+            }
             Event::ChannelUpsert(c) => {
                 self.effective_permissions.remove(&c.summary.id);
             }
@@ -119,6 +148,12 @@ impl Projection {
                 }
             }
             Event::GuildRemoved { guild_id, .. } => {
+                for folder in &mut self.server_folders {
+                    folder.guild_ids.retain(|g| g != guild_id);
+                }
+                self.server_folders.retain(|f| !f.guild_ids.is_empty());
+                self.emoji_revision = self.emoji_revision.wrapping_add(1);
+                self.emoji.remove(guild_id);
                 self.roles.remove(guild_id);
                 self.memberships.retain(|(g, _), _| g != guild_id);
                 self.voice.retain(|_, v| v.guild_id != *guild_id);
@@ -130,6 +165,7 @@ impl Projection {
         }
     }
     pub fn purge_channel(&mut self, id: Id) {
+        self.slowmode.remove(&id);
         self.effective_permissions.remove(&id);
         self.profiles.clear();
         self.pins.remove(&id);
@@ -180,6 +216,14 @@ impl Projection {
     }
     pub fn snapshot(&mut self, data: SnapshotData) {
         match data {
+            SnapshotData::Folders(v) => self.server_folders = v.data,
+            SnapshotData::Slowmode(v) => {
+                bounded_insert(&mut self.slowmode, v.data.channel_id, v.data, 320)
+            }
+            SnapshotData::Emoji(id, v) => {
+                self.emoji_revision = self.emoji_revision.wrapping_add(1);
+                bounded_insert(&mut self.emoji, id, v.data, 10)
+            }
             SnapshotData::Profile(v) => {
                 bounded_insert(&mut self.profiles, v.data.profile.user.id, v.data, 32);
             }

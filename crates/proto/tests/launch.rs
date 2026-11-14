@@ -146,6 +146,7 @@ fn legacy_identify_has_no_new_required_wire_fields() {
 #[test]
 fn default_scaffolding_preserves_legacy_identify_and_safe_empty_extensions() {
     let identify = Identify {
+        text_features: false,
         token: "legacy".into(),
         ..Default::default()
     };

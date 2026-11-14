@@ -386,6 +386,7 @@ pub struct Preferences {
     pub friend_requests: bool,
     pub notification_level: NotificationLevel,
     pub notification_sounds: bool,
+    pub desktop_notifications: bool,
     pub start_with_windows: bool,
     pub keybinds: BTreeMap<String, String>,
 }
@@ -402,6 +403,7 @@ impl Default for Preferences {
             friend_requests: true,
             notification_level: NotificationLevel::Mentions,
             notification_sounds: false,
+            desktop_notifications: true,
             start_with_windows: false,
             keybinds: [
                 ("Toggle Mute".into(), "Ctrl+Shift+M".into()),

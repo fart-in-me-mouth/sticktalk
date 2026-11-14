@@ -171,6 +171,16 @@ fn inline(
         return;
     }
     while !s.is_empty() {
+        if s.starts_with("<:") {
+            if let Some(end) = s.find('>') {
+                let token = &s[..=end];
+                if sticktalk_proto::custom_emoji_id(token).is_some() {
+                    push(out, token.into(), style, None, hidden);
+                    s = &s[end + 1..];
+                    continue;
+                }
+            }
+        }
         if let Some(rest) = s.strip_prefix('\\') {
             if let Some(c) = rest.chars().next() {
                 push(out, c.to_string(), style, None, hidden);

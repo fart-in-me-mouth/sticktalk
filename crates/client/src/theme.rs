@@ -40,6 +40,7 @@ pub const HAIRLINE: f32 = 1.;
 pub const FOCUS: f32 = 2.;
 pub const CONTINUATION: f32 = 2.;
 pub const ROUND: f32 = 999.;
+pub const SEARCH_RESULTS: f32 = 400.;
 pub const RAIL: f32 = 72.;
 pub const SIDEBAR: f32 = 240.;
 pub const MEMBERS: f32 = 240.;
