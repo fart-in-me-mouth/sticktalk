@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 if (-not $env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = Join-Path $PSScriptRoot '../../../target' }
 $target = [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
+$env:CARGO_TARGET_DIR = $target
 $dist = [IO.Path]::GetFullPath((Join-Path $target 'web-dist'))
 if (-not $dist.StartsWith($target.TrimEnd('\','/') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Distribution escaped task target directory.' }
 Push-Location (Join-Path $PSScriptRoot '..')

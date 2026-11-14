@@ -2,6 +2,7 @@
 param([switch]$InstallTools)
 $ErrorActionPreference='Stop'
 if (!$env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../target')) }
+$env:CARGO_TARGET_DIR = [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
 $env:CARGO_INCREMENTAL = '0'
 # A Windows CMake generator must not leak into Linux-target native builds.
 $env:CMAKE_GENERATOR = 'Ninja'

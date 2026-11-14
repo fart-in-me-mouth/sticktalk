@@ -41,7 +41,7 @@ the prior hook outside them. This is a last-resort boundary, not validation.
 
 ```powershell
 $env:CARGO_PROFILE_RELEASE_PANIC = 'unwind'
-cargo build --release -p sticktalk-server
+cargo build --profile server -p sticktalk-server
 ```
 
 The workspace's existing default release profile uses `panic=abort`, which

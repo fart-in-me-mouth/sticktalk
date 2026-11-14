@@ -3,6 +3,7 @@
 [CmdletBinding()]
 param([switch]$InstallTools)
 $ErrorActionPreference = 'Stop'
+if ($env:OS -ne 'Windows_NT') { throw 'This helper is Windows-only; use the Linux/macOS commands in HANDOFF.md.' }
 if (!$env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = Join-Path $PSScriptRoot '../target' }
 $env:CARGO_TARGET_DIR = [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
 $env:CARGO_INCREMENTAL = '0'

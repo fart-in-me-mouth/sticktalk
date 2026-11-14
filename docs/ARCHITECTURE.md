@@ -32,7 +32,7 @@ as part of the initial implementation.
   SDK suffice; successful native linking is the final capability check.
 * `aarch64-unknown-linux-gnu` standard library is installed. This **does not**
   install an ARM GNU linker, Linux sysroot, or cross C compiler. Prefer building
-  the server natively on the Oracle ARM VM (`cargo build --release -p
+  the server natively on the Oracle ARM VM (`cargo build --profile server -p
   sticktalk-server`). SQLite/image dependencies may require native build tools.
 * Cargo defaults to the ignored `./target` directory. Keep the checkout outside
   OneDrive, or set `CARGO_TARGET_DIR` to a local non-synced directory. See
@@ -46,10 +46,11 @@ as part of the initial implementation.
   Use reactive rendering and the lean `tiny-skia` renderer first, with defaults
   disabled. Enable image codecs/fonts only as actually needed. Benchmark any
   GPU backend before enabling it; software rendering is not always cheaper.
-* Release: optimization 3, fat LTO, one codegen unit, abort-on-panic, stripping.
+* Desktop release: optimization 3, fat LTO, one codegen unit, abort-on-panic, stripping.
   `cargo build -p sticktalk --profile release-small` chooses size optimization
   `s`; compare binary size/idle RAM/startup before choosing distribution builds.
-  Aborting means server tasks must not rely on panic recovery for validation.
+  The server must use `--profile server`, which retains unwinding for the SFU's
+  per-peer panic containment. Validation must never rely on panics.
 
 Sources verified when establishing this contract: [iced release/API](https://docs.rs/iced/0.14.0/iced/),
 [iced reactive rendering FAQ](https://book.iced.rs/faq),

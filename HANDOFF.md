@@ -95,6 +95,20 @@ can take tens of minutes. Do not sync live databases, uploads or build trees.
   `$HOME/Tools/node`, and add the directory containing `node.exe` to this shell:
   `$env:PATH = "$HOME/Tools/node;$env:PATH"`. Check `node --version` and `npm.cmd --version`.
   The tests use modern Node APIs; use Node 22 or newer LTS, not an old system Node.
+  For an exact per-user ZIP recipe using the latest maintained Node 22 LTS:
+
+  ```powershell
+  $v = (Invoke-RestMethod https://nodejs.org/dist/index.json | Where-Object { $_.lts -and $_.version -match '^v22\.' } | Select-Object -First 1).version
+  if (!$v) { throw 'No Node 22 LTS found; select a supported LTS from the official downloads page.' }
+  $name = "node-$v-win-x64.zip"
+  Invoke-WebRequest "https://nodejs.org/dist/$v/$name" -OutFile "$env:TEMP/$name"
+  $sums = (Invoke-WebRequest "https://nodejs.org/dist/$v/SHASUMS256.txt").Content
+  $hash = (($sums -split "`n" | Where-Object { $_.TrimEnd().EndsWith("  $name") }) -split '\s+')[0]
+  if (!$hash -or (Get-FileHash "$env:TEMP/$name" -Algorithm SHA256).Hash -ne $hash) { throw 'Node archive checksum mismatch.' }
+  Expand-Archive "$env:TEMP/$name" "$HOME/Tools/node" -Force
+  $env:PATH = "$HOME/Tools/node/node-$v-win-x64;$env:PATH"
+  ```
+
 - **Python 3.11+ with pip**: `winget install --id Python.Python.3.11 --exact --scope user`.
   Reopen PowerShell if its PATH changed. Check `python -m pip --version`.
 - **NSIS**: no manual install: the installer script downloads a SHA-256-pinned
