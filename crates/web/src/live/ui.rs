@@ -57,13 +57,13 @@ fn auth(a: &App) -> AnyView {
 
     let signup = a.signup;
     let register = a.register;
-    view!{<main class="auth-page"><form class="auth-card" data-live-form="auth"><img class="auth-logo" src="/public/icons/icon-192.png" alt="StickTalk" width="48" height="48"/><h1>{if signup{"Choose a username"}else if register{"Create an account"}else{"Log in"}}</h1>
+    view!{<main class="auth-page"><form class="auth-card" data-live-form="auth"><div class="auth-brand"><img class="auth-logo" src="/public/icons/icon-192.png" alt="" width="48" height="48"/><span>"StickTalk"</span></div><h1>{if signup{"Choose a username"}else if register{"Create an account"}else{"Welcome back!"}}</h1><p class="auth-subtitle">{if signup{"Choose how people will find you on StickTalk."}else if register{"Create your StickTalk account."}else{"Log in to catch up with your friends."}}</p>
         <div class="field"><label for="auth-username">"Username"</label><input id="auth-username" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required minlength="3" maxlength="32" autofocus /></div>
         {if signup{().into_any()}else{view!{<div class="field"><label for="auth-password">"Password"</label><input id="auth-password" name="password" type="password" autocomplete=if register{"new-password"}else{"current-password"} required minlength="12" maxlength="128"/></div>}.into_any()}}
         <button class="button primary" type="submit" disabled=!a.status.is_empty()>{if signup{"Continue"}else if register{"Create Account"}else{"Log In"}}</button>
-        <p role="status">{a.status.clone()}</p>
+        <p class="auth-status" role="status">{a.status.clone()}</p>
         {if a.google&&!signup {view!{<a class="button secondary google-button" href="/api/v1/browser/google/start"><img src="/public/google-g.svg" alt="" width="20" height="20"/>"Continue with Google"</a>}.into_any()}else{().into_any()}}
-        {if signup{().into_any()}else{button(if register{"Already have an account? Log in"}else{"Create an account"},"register","link-button")}}
+        {if signup{().into_any()}else{view!{<p class="auth-switch">{if register{"Already have an account? "}else{"Need an account? "}}<button type="button" data-live="register">{if register{"Log in"}else{"Register"}}</button></p>}.into_any()}}
     </form></main>}.into_any()
 }
 fn shell(a: &App) -> AnyView {
@@ -205,8 +205,8 @@ fn attachment(f: &Attachment) -> AnyView {
         view!{<a class="file-card" href=original download=f.filename.clone()>{icon("file")}<span>{f.filename.clone()}<small>{format!("{} bytes",f.byte_size)}</small></span>{icon("download")}</a>}.into_any()
     }
 }
-fn voice(_a: &App) -> AnyView {
-    view!{<div class="voice-view"><div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share">{ib("monitor","Share Screen","media:share")}</span>{ib("volume-2","Audio Output","media:output")}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection" role="status">"Connecting…"</p></div>}.into_any()
+fn voice(a: &App) -> AnyView {
+    view!{<div class="voice-view" data-call-channel=a.voice_channel.map_or(String::new(),|id|id.0.to_string())><button class="call-minimize" data-live="media:minimize" aria-label="Minimize call">{icon("chevron-down")}<span>"Voice Connected"</span></button><div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share">{ib("monitor","Share Screen","media:share")}</span>{ib("volume-2","Audio Output","media:output")}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection" role="status">"Connecting…"</p></div>}.into_any()
 }
 fn form(title: &str, kind: &str, fields: AnyView) -> AnyView {
     let (label, class) = match kind {
@@ -243,7 +243,7 @@ fn dialog(a: &App) -> AnyView {
         "channel"=>form("Create Channel","channel",view!{{field("f-name","Name","","text")}<label class="field">"Type"<select id="f-extra"><option value="text">"Text"</option><option value="voice">"Voice"</option><option value="category">"Category"</option></select></label><label class="field">"Category"<select id="f-value"><option value="">"None"</option>{a.model.channels.values().filter(|c|c.guild_id==a.guild&&c.kind==ChannelKind::Category).map(|c|view!{<option value=c.id.0.to_string()>{c.name.clone().unwrap_or_default()}</option>}).collect_view()}</select></label>}.into_any()),
         "invite"=>settings::invites(a),
         "profile-edit"=>profile_editor(a),
-        "about"=>form("About Me","about",view!{{field("f-name","Pronouns",a.profile.as_ref().map_or("",|p|p.profile.pronouns.as_str()),"text")}{field("f-value","About Me",a.profile.as_ref().map_or("",|p|p.profile.about_me.as_str()),"text")}{field("f-extra","Banner Color",&format!("#{:06x}",a.profile.as_ref().map_or(0x496c63,|p|p.profile.banner_color)),"color")}}.into_any()),
+        "about"=>form("About Me","about",view!{{field("f-name","Pronouns",a.profile.as_ref().map_or("",|p|p.profile.pronouns.as_str()),"text")}<p class="muted-copy">"Optional. Let people know how to refer to you."</p><label class="field"><span>"About Me"</span><textarea id="f-value" rows="4" maxlength="190" aria-describedby="bio-help">{a.profile.as_ref().map_or("",|p|p.profile.about_me.as_str()).to_owned()}</textarea><small id="bio-help">"A little about you, up to 190 characters."</small></label>{field("f-extra","Banner Color",&format!("#{:06x}",a.profile.as_ref().map_or(0x496c63,|p|p.profile.banner_color)),"color")}<p class="muted-copy">"Choose the color at the top of your profile."</p>}.into_any()),
         "password"=>form("Password & Security","password",view!{{field("f-name",if a.google{"Current Password (or verify with Google below)"}else{"Current Password"},"","password")}{field("f-value","New Password","","password")}{if a.google{button("Verify with Google","reauth-google:password","secondary")}else{().into_any()}}{if a.google{view!{<p class="muted-copy">"Google proof is valid for one password change within 5 minutes. Re-enter the new password after returning."</p>}.into_any()}else{().into_any()}}}.into_any()),
         "delete-account"=>form("Delete Account Permanently","delete-account",view!{<p>"This erases your messages and attachments and signs out all devices. Encrypted backups expire after 14 days. Your username is held for 30 days."</p>{field("f-name",if a.google{"Current Password (or verify with Google)"}else{"Current Password"},"","password")}{field("f-value","Type DELETE to confirm","","text")}{if a.google{button("Verify with Google","reauth-google:delete_account","secondary")}else{().into_any()}}}.into_any()),
         "devices"=>view!{<h2>"Devices"</h2>{a.devices.iter().map(|d|view!{<div class="device-row"><span><strong>{d.device_name.clone()}</strong><small>{format!("{} {}",d.platform,if d.current{"· Current Device"}else{""})}</small></span>{button("Log Out",&format!("device-revoke:{}",d.id),"secondary")}</div>}).collect_view()}{button("Log Out All Other Devices","logout-others","danger-text")}}.into_any(),
@@ -259,7 +259,7 @@ fn dialog(a: &App) -> AnyView {
         "gif" if matches!(a.gif_capability,GifCapability::Disabled)=>view!{<h2>"GIFs"</h2><p class="muted-copy">"GIF search is not enabled on this server. You can still upload an image or use emoji."</p>}.into_any(),
         "gif"=>view!{<h2>"GIFs"</h2><form data-gif-search><label class="field"><span>"Search GIFs"</span><input id="gif-query" type="search"/></label><button class="button secondary" type="submit">"Search"</button></form><div class="live-gif-results">{a.gifs.iter().map(|g|view!{<button data-live=format!("gif-send:{}",g.id)><video src=g.preview.url.clone() preload="none" muted loop playsinline controls width=g.preview.width height=g.preview.height aria-label=g.title.clone()></video><span>{g.title.clone()}</span></button>}).collect_view()}</div>}.into_any(),
         "profile"=>if let Some(p)=&a.profile{let u=&p.profile.user;view!{<div class="profile-banner"></div>{avatar(u,"large")}<h2>{name(u)}</h2><p>{format!("@{}",u.username)}</p><p>{p.profile.pronouns.clone()}</p><p>{p.profile.about_me.clone()}</p><p>{format!("{} mutual servers · {} mutual friends",p.mutual_servers.len(),p.mutual_friends.len())}</p>{button("Message",&format!("friend:dm,{}",u.id.0),"primary")}{button("Block",&format!("friend:block,{}",u.id.0),"danger-text")}}.into_any()}else{().into_any()},
-        value if value.starts_with("role:")=>{let r=id(value.trim_start_matches("role:")).and_then(|id|a.roles.get(&id));if let Some(r)=r{form("Edit Role","role-save",view!{{field("f-name","Role Name",&r.name,"text")}{field("f-value","Color",&format!("#{:06x}",r.color),"color")}<input id="f-permissions" type="hidden" value=r.permissions.bits().to_string()/><div class="live-permissions">{role_permissions(r)}</div><label class="live-checkbox"><input id="f-hoist" type="checkbox" checked=r.hoist/>"Display role members separately"</label><label class="live-checkbox"><input id="f-mentionable" type="checkbox" checked=r.mentionable/>"Allow anyone to mention this role"</label><input id="f-extra" type="hidden" value=r.id.0.to_string()/>{button("Delete Role",&format!("role-delete:{}",r.id.0),"danger-text")}}.into_any())}else{().into_any()}},
+        value if value.starts_with("role:")=>{let r=id(value.trim_start_matches("role:")).and_then(|id|a.roles.get(&id));if let Some(r)=r{form("Edit Role","role-save",view!{<fieldset disabled=!settings::can(a,Permissions::MANAGE_ROLES)>{field("f-name","Role Name",&r.name,"text")}{field("f-value","Color",&format!("#{:06x}",r.color),"color")}<input id="f-permissions" type="hidden" value=r.permissions.bits().to_string()/><div class="live-permissions">{role_permissions(r)}</div><label class="live-checkbox"><input id="f-hoist" type="checkbox" checked=r.hoist/>"Display role members separately"</label><label class="live-checkbox"><input id="f-mentionable" type="checkbox" checked=r.mentionable/>"Allow anyone to mention this role"</label><input id="f-extra" type="hidden" value=r.id.0.to_string()/>{if r.id!=r.guild_id{button("Delete Role",&format!("role-delete:{}",r.id.0),"danger-text")}else{().into_any()}}</fieldset>}.into_any())}else{().into_any()}},
         value if value.starts_with("channel-edit:")=>settings::channel_editor(a,value),
         value if value.starts_with("channel-delete:")=>settings::channel_delete(a,value),
         value if value.starts_with("invite-revoke:")=>form("Revoke Invite","invite-revoke",view!{<p>"This invite link will stop working immediately."</p><input id="f-name" type="hidden" value=value.trim_start_matches("invite-revoke:").to_owned()/>}.into_any()),
@@ -306,27 +306,47 @@ fn timestamp(ms: u64) -> String {
 }
 
 fn role_permissions(role: &Role) -> AnyView {
-    let permissions = [
-        ("View Channels", Permissions::VIEW_CHANNEL),
-        ("Send Messages", Permissions::SEND_MESSAGES),
-        ("Read History", Permissions::READ_HISTORY),
-        ("Attach Files", Permissions::ATTACH_FILES),
-        ("Add Reactions", Permissions::ADD_REACTIONS),
-        ("Manage Messages", Permissions::MANAGE_MESSAGES),
-        ("Manage Channels", Permissions::MANAGE_CHANNELS),
-        ("Manage Server", Permissions::MANAGE_GUILD),
-        ("Create Invites", Permissions::CREATE_INVITES),
-        ("Manage Roles", Permissions::MANAGE_ROLES),
-        ("Kick Members", Permissions::KICK_MEMBERS),
-        ("Ban Members", Permissions::BAN_MEMBERS),
-        ("Connect", Permissions::CONNECT),
-        ("Speak", Permissions::SPEAK),
-        ("Share Screen", Permissions::STREAM),
-        ("Video", Permissions::VIDEO),
-        ("Voice Activity", Permissions::USE_VOICE_ACTIVITY),
-        ("Administrator", Permissions::ADMINISTRATOR),
+    let groups = [
+        (
+            "General",
+            vec![
+                ("View Channels", Permissions::VIEW_CHANNEL),
+                ("Read History", Permissions::READ_HISTORY),
+                ("Manage Server", Permissions::MANAGE_GUILD),
+                ("Manage Channels", Permissions::MANAGE_CHANNELS),
+                ("Manage Roles", Permissions::MANAGE_ROLES),
+                ("Create Invites", Permissions::CREATE_INVITES),
+            ],
+        ),
+        (
+            "Text",
+            vec![
+                ("Send Messages", Permissions::SEND_MESSAGES),
+                ("Attach Files", Permissions::ATTACH_FILES),
+                ("Add Reactions", Permissions::ADD_REACTIONS),
+                ("Manage Messages", Permissions::MANAGE_MESSAGES),
+            ],
+        ),
+        (
+            "Voice & Video",
+            vec![
+                ("Connect", Permissions::CONNECT),
+                ("Speak", Permissions::SPEAK),
+                ("Share Screen", Permissions::STREAM),
+                ("Video", Permissions::VIDEO),
+                ("Voice Activity", Permissions::USE_VOICE_ACTIVITY),
+            ],
+        ),
+        (
+            "Moderation",
+            vec![
+                ("Kick Members", Permissions::KICK_MEMBERS),
+                ("Ban Members", Permissions::BAN_MEMBERS),
+                ("Administrator", Permissions::ADMINISTRATOR),
+            ],
+        ),
     ];
-    view!{{permissions.into_iter().map(|(label,bit)|view!{<label class="live-checkbox"><span>{label}</span><input type="checkbox" checked=role.permissions.contains(bit) data-role-bit=bit.bits().to_string()/></label>}).collect_view()}}.into_any()
+    view!{{groups.into_iter().map(|(title,permissions)|view!{<section class="permission-group"><h3>{title}</h3>{permissions.into_iter().map(|(label,bit)|view!{<label class="live-checkbox"><span>{label}</span><input type="checkbox" checked=role.permissions.contains(bit) data-role-bit=bit.bits().to_string()/></label>}).collect_view()}</section>}).collect_view()}}.into_any()
 }
 
 #[lazy]
@@ -404,14 +424,13 @@ fn user_settings(page: &str) -> bool {
 }
 fn settings_nav(a: &App) -> AnyView {
     let u = &a.model.me.as_ref().unwrap().user;
-    view!{<div class="settings-identity">{avatar(u,"small")}<span><strong>{name(u)}</strong><button class="muted-copy" data-live="dialog:profile-edit">"Edit Profiles"</button></span></div>
+    view!{<div class="settings-identity">{avatar(u,"settings-avatar")}<span><strong>{name(u)}</strong><small>{format!("@{}",u.username)}</small><button class="muted-copy" data-live="dialog:profile-edit">"Edit Profile"</button></span></div>
         <label class="settings-search"><span class="sr-only">"Search settings"</span><input type="search" placeholder="Search settings" data-settings-search/></label>
         <h2 class="category">"User Settings"</h2>
         {[( "user-round","My Account","account"),("user-round","Profiles","profile-edit"),("shield","Privacy & Safety","privacy"),("shield","Password & Security","password"),("monitor","Sessions","devices"),("bell","Notifications","notifications")].into_iter().map(|(glyph,label,page)|view!{<button class=format!("settings-nav-row {}",if a.dialog==page{"selected"}else{""}) data-live=format!("dialog:{page}")>{icon(glyph)}<span>{label}</span>{icon("chevron-right")}</button>}).collect_view()}
         <h2 class="category">"App Settings"</h2>
         <button class=format!("settings-nav-row {}",if a.dialog=="media-settings"{"selected"}else{""}) data-live="dialog:media-settings">{icon("headphones")}<span>"Voice & Video"</span>{icon("chevron-right")}</button>
         <button class=format!("settings-nav-row {}",if a.dialog=="appearance"{"selected"}else{""}) data-live="dialog:appearance">{icon("monitor")}<span>"Appearance"</span>{icon("chevron-right")}</button>
-        {button("Delete Account","dialog:delete-account","danger-text settings-nav-row")}
         <div class="settings-divider"></div>{button("Log Out","logout","danger-text settings-nav-row")}<small class="muted-copy">"StickTalk 0.1.0"</small>
     }.into_any()
 }
@@ -438,15 +457,24 @@ fn settings_layout(a: &App, body: AnyView) -> AnyView {
 }
 fn account(a: &App) -> AnyView {
     let me = &a.model.me.as_ref().unwrap().user;
-    view!{<h2>"My Account"</h2><section class="account-card"><div class="profile-banner"></div><div class="account-identity">{avatar(me,"large")}<div><strong>{name(me)}</strong><p>{format!("@{}",me.username)}</p></div>{button("Edit Profile","dialog:profile-edit","secondary")}</div><div class="settings-field-row"><span><strong>"Display Name"</strong><p>{name(me)}</p></span>{button("Edit","dialog:profile-edit","secondary")}</div><div class="settings-field-row"><span><strong>"Username"</strong><p>{me.username.clone()}</p></span></div></section><div class="settings-divider"></div><h2>"Password & Security"</h2>{button("Change Password","dialog:password","secondary")}{if a.google{view!{<h2>"Google Sign-in"</h2>{field("google-current-password","Current Password (or verify with Google first)","","password")}{button("Verify with Google to Link","reauth-google:link","secondary")}{button("Link Google","google-link","secondary")}{button("Verify with Google to Unlink","reauth-google:unlink","secondary")}{button("Unlink Google","google-unlink","secondary")}}.into_any()}else{().into_any()}}{button("Delete Account","dialog:delete-account","danger-text")}<div class="settings-divider"></div><h2>"Devices"</h2><p class="muted-copy">"Manage where you’re signed in."</p>{button("Manage Devices","dialog:devices","secondary")}}.into_any()
+    view!{<h2>"My Account"</h2><section class="account-card"><div class="profile-banner"></div><div class="account-identity">{avatar(me,"large")}<div><strong>{name(me)}</strong><p>{format!("@{}",me.username)}</p></div>{button("Edit Profile","dialog:profile-edit","secondary")}</div><div class="settings-field-row"><span><strong>"Display Name"</strong><p>{name(me)}</p></span>{button("Edit","dialog:profile-edit","secondary")}</div><div class="settings-field-row"><span><strong>"Username"</strong><p>{me.username.clone()}</p></span></div></section><div class="settings-divider"></div><h2>"Password & Security"</h2>{button("Change Password","dialog:password","secondary")}{if a.google{view!{<h2>"Google Sign-in"</h2>{field("google-current-password","Current Password (or verify with Google first)","","password")}{button("Verify with Google to Link","reauth-google:link","secondary")}{button("Link Google","google-link","secondary")}{button("Verify with Google to Unlink","reauth-google:unlink","secondary")}{button("Unlink Google","google-unlink","secondary")}}.into_any()}else{().into_any()}}<div class="settings-divider"></div><h2>"Devices"</h2><p class="muted-copy">"Manage where you’re signed in."</p>{button("Manage Devices","dialog:devices","secondary")}<section class="danger-zone"><h3>"Danger Zone"</h3><p class="muted-copy">"Permanently delete your account and messages. This cannot be undone."</p>{button("Delete Account","dialog:delete-account","danger-text")}</section>}.into_any()
 }
 fn profile_editor(a: &App) -> AnyView {
     let me = &a.model.me.as_ref().unwrap().user;
-    view!{<h2>"Profiles"</h2><div class="profile-editor"><div><div class="avatar-edit">{avatar(me,"large")}<div><label class="button primary" for="live-avatar">"Change Avatar"</label><input type="file" id="live-avatar" accept="image/png,image/jpeg,image/webp" hidden/>{button("Remove Avatar","avatar-remove","danger-text")}</div></div>
+    let profile = a
+        .profile
+        .as_ref()
+        .filter(|p| p.profile.user.id == me.id)
+        .map(|p| &p.profile);
+    let banner = profile.map_or(0x496c63, |p| p.banner_color);
+    let banner = if banner == 0 { 0x496c63 } else { banner };
+    view!{<h2>"Profiles"</h2><div class="profile-editor">
+        <aside class="profile-preview" aria-label="Profile preview"><div class="profile-banner" style=format!("background:#{banner:06x}")></div>{avatar(me,"large")}<div class="profile-preview-copy"><h2 data-preview-name>{name(me)}</h2><p class="profile-username">{format!("@{}",me.username)}</p><p data-preview-status>{me.status_text.clone().unwrap_or_default()}</p><div class="settings-divider"></div><h3>"About Me"</h3><p>{profile.map_or("",|p|p.about_me.as_str()).to_owned()}</p></div></aside>
+        <div><div class="avatar-edit">{avatar(me,"large")}<div><label class="button secondary" for="live-avatar">"Change Avatar"</label><input type="file" id="live-avatar" accept="image/png,image/jpeg,image/webp" hidden/>{if me.avatar_id.is_some(){button("Remove Avatar","avatar-remove","danger-text")}else{().into_any()}}</div></div>
         {if a.uploading{view!{<p role="status">{a.upload_progress.clone()}</p>}.into_any()}else{().into_any()}}
-        {form("Profile","profile",view!{{field("f-name","Display Name",me.display_name.as_deref().unwrap_or(""),"text")}{field("f-value","Status",me.status_text.as_deref().unwrap_or(""),"text")}}.into_any())}
-        <div class="settings-divider"></div>{button("Edit About Me","dialog:about","secondary")}</div>
-        <aside class="profile-preview"><div class="profile-banner" style=format!("background:#{:06x}",a.profile.as_ref().map_or(0x496c63,|p|p.profile.banner_color))></div>{avatar(me,"large")}<div class="profile-preview-copy"><h2>{name(me)}</h2><p>{format!("@{}",me.username)}</p><p>{me.status_text.clone().unwrap_or_default()}</p><div class="settings-divider"></div><h3>"About Me"</h3><p>{a.profile.as_ref().map_or("",|p|p.profile.about_me.as_str()).to_owned()}</p></div></aside></div>
+        <form data-live-form="profile" data-profile-editor data-fallback-name=me.username.clone()><div class="field"><label for="f-name">"Display Name"</label><input id="f-name" type="text" maxlength="64" value=me.display_name.clone().unwrap_or_default() aria-describedby="display-name-help"/><small id="display-name-help">"How you appear in conversations. Leave blank to use your username."</small></div><div class="field"><label for="f-value">"Status"</label><input id="f-value" type="text" maxlength="128" value=me.status_text.clone().unwrap_or_default() aria-describedby="status-help"/><small id="status-help">"Let friends know what you’re up to."</small></div>
+        <div class="profile-save-bar" hidden><span role="status">"You have unsaved changes."</span><button type="button" class="button link-button" data-profile-reset>"Reset"</button><button type="submit" class="button primary">"Save changes"</button></div></form>
+        <div class="settings-divider"></div><h3>"About Me & Banner"</h3><p class="muted-copy">"Add a bio, pronouns and a splash of color to your profile."</p>{button("Edit About Me","dialog:about","secondary")}</div></div>
     }.into_any()
 }
 

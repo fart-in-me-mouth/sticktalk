@@ -29,6 +29,7 @@ let publications = new Map(),
   status = "Disconnected";
 const trace = [];
 let wantCall=false;
+let callChannel = '', focusedTile = null;
 const requests=new Map();
 let nextRequest=crypto.getRandomValues(new Uint32Array(1))[0]||1;
 function requestSignal(type,data) {
@@ -287,6 +288,16 @@ async function start(data) {
 function createTile(id, p, kind) {
   const tile = document.createElement("div");
   tile.className = "participant-tile";
+  tile.tabIndex = 0;
+  tile.setAttribute('role', 'button');
+  const focus = () => {
+    focusedTile = focusedTile === id ? null : id;
+    mount();
+  };
+  tile.addEventListener('click', focus);
+  tile.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focus(); }
+  });
   tile.dataset.participant = key(p.session);
   tile.classList.toggle('is-speaking', speaking.has(key(p.session)));
   tile.dataset.kind = kind;
@@ -297,6 +308,7 @@ function createTile(id, p, kind) {
     $(`[data-member-name="${p.session.user_id}"]`)?.textContent ??
     (p.session.user_id === self() ? "You" : "Participant");
   label.textContent = `${user}${kind === "screen" ? "'s screen" : ""}`;
+  tile.setAttribute('aria-label', `Focus ${label.textContent}`);
   const media = document.createElement(
     kind === "audio" || kind === "system_audio" ? "audio" : "video",
   );
@@ -601,6 +613,8 @@ function stop(notify) {
   senders.clear();
   idleReceivers = [];
   joined = false;
+  callChannel = "";
+  focusedTile = null;
   status = "Disconnected";
   participants.clear();
   subscriptions.clear();
@@ -635,7 +649,40 @@ async function levels() {
 }
 export function mount() {
   bindRemote();
+  const voiceView = $('.voice-view');
+  if (voiceView) {
+    callChannel = voiceView.dataset.callChannel;
+    if (!voiceView.dataset.gesture) {
+      voiceView.dataset.gesture = 'true';
+      let start;
+      voiceView.addEventListener('touchstart', e => {
+        if (e.touches.length === 1 && !e.target.closest('.call-controls'))
+          start = {x:e.touches[0].clientX,y:e.touches[0].clientY};
+      }, {passive:true});
+      voiceView.addEventListener('touchend', e => {
+        const end = e.changedTouches[0];
+        if (start && end.clientY-start.y>96 && Math.abs(end.clientX-start.x)<64) action('minimize');
+        start = undefined;
+      }, {passive:true});
+    }
+  }
+  let mini = $('#live-call-mini');
+  if (joined && !voiceView && !$('.live-modal')) {
+    if (!mini) {
+      mini = document.createElement('aside'); mini.id='live-call-mini'; mini.className='call-mini-bar';
+      const restore=document.createElement('button');restore.dataset.live=`voice:${callChannel}`;restore.textContent='Voice Connected · Return to call';
+      mini.append(restore);
+      for (const [glyph,label,command] of [['mic','Mute','mute'],['phone-off','Disconnect','leave']]) {
+        const button=document.createElement('button');button.className='icon-button';button.dataset.live=`media:${command}`;button.setAttribute('aria-label',label);
+        const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.classList.add('icon');svg.setAttribute('aria-hidden','true');
+        const use=document.createElementNS(svg.namespaceURI,'use');use.setAttribute('href',`#i-${glyph}`);svg.append(use);button.append(svg);mini.append(button);
+      }
+      document.body.append(mini);
+    }
+  } else mini?.remove();
   const stage = $("#live-media-stage");
+  if (focusedTile && !elements.has(focusedTile)) focusedTile = null;
+  stage?.classList.toggle('has-focus', !!focusedTile);
   if (stage)
     for (const e of elements.values()) {
       const audio = e.tile.dataset.kind === "audio";
@@ -645,6 +692,8 @@ export function mount() {
           v.tile.dataset.kind === "camera",
       );
       e.tile.hidden = audio && hasCamera;
+      e.tile.classList.toggle('is-focused', e.tile === elements.get(focusedTile)?.tile);
+      e.tile.setAttribute('aria-pressed', String(e.tile.classList.contains('is-focused')));
       if (e.tile.parentElement !== stage) stage.append(e.tile);
     }
   const connected = $("#live-connected");
@@ -752,6 +801,11 @@ async function setOutput(id) {
 }
 export function action(action) {
   switch (action) {
+    case 'minimize': {
+      const chat = $('.channel-header [aria-label="Open Chat"]');
+      emit(chat?.dataset.live ?? 'home');
+      break;
+    }
     case "joining":
       wantCall=true;
       break;

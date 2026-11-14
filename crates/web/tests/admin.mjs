@@ -33,8 +33,9 @@ try {
   await owner.locator('#f-name').fill('Beta');await owner.locator('[type=submit]').click();
   await owner.waitForSelector('[data-live^="role:"]:has-text("Beta")');
   const alpha=(await owner.locator('[data-live^="role:"]:has-text("Alpha")').getAttribute('data-live')).slice(5);
-  await owner.getByRole('button',{name:'Move Alpha up',exact:true}).click();
-  await owner.waitForFunction(()=>document.querySelector('[data-live^="role:"]')?.textContent==='Alpha');
+  await owner.getByRole('button',{name:'Reorder',exact:true}).click();
+  await owner.getByLabel('Position for Alpha',{exact:true}).selectOption('1');
+  await owner.waitForFunction(()=>document.querySelector('[data-live^="role:"] strong')?.textContent==='Alpha');
   screenshots.push(await shot(owner,'roles-reordered'));
   await act(owner,'dialog:member-role');await owner.locator('#f-name').selectOption(guestId);
   await owner.locator(`[data-member-role="${alpha}"]`).check();await owner.locator('[type=submit]').click();

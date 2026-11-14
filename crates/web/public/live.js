@@ -16,6 +16,7 @@ let saved,
   media;
 let viewer;
 let messageMenu;
+let lastDialog;
 const openMessageMenu=async row=>{
   const id=typeof row==='string'?row:row.dataset.liveMessage;
   messageMenu??=await import('/public/message-menu.js');
@@ -132,6 +133,18 @@ export function mediaEvent(raw) {
   withMedia((m) => m.event(JSON.parse(raw)));
 }
 export function mediaAction(action) {
+  if (action === 'profile-saved') {
+    const form = $('[data-profile-editor]');
+    if (form) {
+      for (const input of form.querySelectorAll('input')) {
+        input.defaultValue = input.value;
+        delete input.dataset.dirty;
+      }
+      delete form.dataset.dirty;
+      syncProfile();
+    }
+    return;
+  }
   if(action.startsWith('history-jump:')) {
     const [channel,message]=action.slice(13).split(':');pendingHistoryJump={channel,message};return;
   }
@@ -265,6 +278,14 @@ function restore() {
   }
   if(list)list.__sticktalkScrollTop=list.scrollTop;
   const modal = $('.live-modal');
+  const dialog = modal?.dataset.dialog;
+  if (dialog !== lastDialog) {
+    if (modal) {
+      modal.scrollTop = 0;
+      for (const pane of modal.querySelectorAll('.settings-main,.settings-nav')) pane.scrollTop = 0;
+    }
+    lastDialog = dialog;
+  }
   if (modal && !modal.contains(document.activeElement)) modal.focus({preventScroll:true});
   const shell=$('.live-shell');
   if(shell)shell.inert=!!modal||!!$('#live-viewer,#live-message-menu');
@@ -284,6 +305,34 @@ function restore() {
     $('#f-name').value=invite;$('#f-name').dataset.dirty='true';invite=null;
   }
   media?.mount();
+  syncProfile();
+  syncRolePositions();
+}
+function syncProfile() {
+  const form = $('[data-profile-editor]');
+  if (!form) return;
+  const inputs = [...form.querySelectorAll('input')];
+  const dirty = inputs.some(input => input.value !== input.defaultValue);
+  form.querySelector('.profile-save-bar').hidden = !dirty;
+  form.dataset.dirty = String(dirty);
+  for (const input of inputs) input.dataset.dirty = String(dirty);
+  $('[data-preview-name]').textContent = form.querySelector('#f-name').value || form.dataset.fallbackName;
+  $('[data-preview-status]').textContent = form.querySelector('#f-value').value;
+}
+let reorderingRoles = false;
+function syncRolePositions() {
+  const toggle = $('[data-role-reorder]');
+  if (!toggle) { reorderingRoles = false; return; }
+  toggle.textContent = reorderingRoles ? 'Done' : 'Reorder';
+  toggle.setAttribute('aria-pressed', String(reorderingRoles));
+  const selects = [...document.querySelectorAll('[data-role-position]')];
+  selects.forEach((select, index) => {
+    if (select.options.length !== selects.length) {
+      select.replaceChildren(...selects.map((_, i) => new Option(`Position ${i + 1}`, String(i + 1))));
+    }
+    select.value = String(index + 1);
+    select.hidden = !reorderingRoles;
+  });
 }
 function send() {
   const input = $("#live-input");
@@ -323,6 +372,16 @@ export function installPlatform() {
   // the newly visible drawer stays inert and Back never receives its entry.
   observer.observe(document.body, { childList: true, subtree: true, attributes:true, attributeFilter:['class','data-screen'] });
   document.addEventListener("click", (e) => {
+    if (e.target.closest('[data-profile-reset]')) {
+      $('[data-profile-editor]').reset();
+      syncProfile();
+      return;
+    }
+    if (e.target.closest('[data-role-reorder]')) {
+      reorderingRoles = !reorderingRoles;
+      syncRolePositions();
+      return;
+    }
     if(lastSwipe&&performance.now()<lastSwipe.until&&Math.hypot(e.clientX-lastSwipe.x,e.clientY-lastSwipe.y)<32) {
       lastSwipe=null;e.preventDefault();return;
     }
@@ -388,6 +447,7 @@ export function installPlatform() {
       e.target.dataset.dirty='true';
       if(e.target.form)e.target.form.dataset.dirty='true';
     }
+    if (e.target.closest('[data-profile-editor]')) syncProfile();
     if (e.target.matches('[data-settings-search]')) {
       const query = e.target.value.toLowerCase();
       document.querySelectorAll('.settings-nav-row').forEach(row => row.hidden = !row.textContent.toLowerCase().includes(query));
@@ -410,6 +470,9 @@ export function installPlatform() {
     }
   });
   document.addEventListener("change", (e) => {
+    if (e.target.matches('[data-role-position]')) {
+      emit(`role-move:${e.target.dataset.rolePosition},${e.target.value}`);
+    }
     if(e.target.closest('.live-modal')) {
       e.target.dataset.dirty='true';
       if(e.target.form)e.target.form.dataset.dirty='true';

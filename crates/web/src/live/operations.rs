@@ -1428,6 +1428,9 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
         CommandOutcome::Ok(result) => {
             let operation = pending.map(|(c, _)| c);
             a.error.clear();
+            if matches!(operation, Some(Command::UpdateProfile(_))) {
+                media_action("profile-saved");
+            }
             if matches!(
                 operation,
                 Some(Command::Launch(
@@ -1546,12 +1549,16 @@ fn move_role(app: Shared, arg: String, epoch: u64) {
     let next = match direction {
         "up" if index + 1 < roles.len() => index + 1,
         "down" if index > 1 => index - 1,
-        _ => return,
+        position => match position.parse::<usize>() {
+            Ok(position) if position > 0 && position < roles.len() => roles.len() - position,
+            _ => return,
+        },
     };
     if index == 0 {
         return;
     }
-    roles.swap(index, next);
+    let moved = roles.remove(index);
+    roles.insert(next, moved);
     let role_ids = roles.into_iter().map(|r| r.id).collect();
     a.command(Command::Launch(LaunchCommand::ReorderRoles {
         guild_id,

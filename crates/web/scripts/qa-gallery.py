@@ -2,9 +2,10 @@
 from pathlib import Path
 from math import ceil
 import json
+import os
 from PIL import Image, ImageDraw, ImageFont
 
-root = Path(__file__).resolve().parents[1] / "screenshots" / "qa"
+root = Path(os.environ.get("STICKTALK_QA_DIR", Path(__file__).resolve().parents[1] / "screenshots" / "qa")).resolve()
 font = ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 13)
 index = {}
 
@@ -39,7 +40,7 @@ featured = [
     "login-390x844.png", "live/grouped-chat-390x844.png", "message-actions-390x844.png",
     "screen-share-phone-390x844.png", "settings-390x844.png", "profile-edit-390x844.png",
     "appearance-390x844.png", "notifications-390x844.png", "server-profile-saved-390x844.png",
-    "roles-reordered-390x844.png", "bans-populated-390x844.png", "offline-shell-390x844.png",
+    "roles-reordered-390x844.png", "role-editor-390x844.png", "profile-dirty-390x844.png",
 ]
 sheet([root / p for p in featured if (root / p).exists()], "contact-phone.png")
 (root / "contact-index.json").write_text(json.dumps(index, indent=2), encoding="utf-8")

@@ -47,10 +47,14 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
         ("shield", "Bans", "server-bans"),
         ("smile", "Emoji", "server-emoji"),
     ];
-    let title = pages
-        .iter()
-        .find(|(_, _, page)| *page == a.dialog)
-        .map_or("Server Settings", |(_, label, _)| *label);
+    let title = pages.iter().find(|(_, _, page)| *page == a.dialog).map_or(
+        if a.dialog.starts_with("role:") {
+            "Edit Role"
+        } else {
+            "Server Settings"
+        },
+        |(_, label, _)| *label,
+    );
     view!{<section class=format!("live-modal settings-page {}",if a.dialog=="server"{"settings-root"}else{"settings-subpage"}) data-dialog=a.dialog.clone() role="dialog" aria-modal="true" aria-label="Server Settings" tabindex="-1">
         <nav class="settings-nav" aria-label="Server settings"><h2>{name.to_owned()}</h2><h3 class="category">"Server Settings"</h3>
             {pages.into_iter().map(|(glyph,label,page)|view!{<button class=format!("settings-nav-row {}",if a.dialog==page{"selected"}else{""}) data-live=format!("dialog:{page}")>{icon(glyph)}<span>{label}</span>{icon("chevron-right")}</button>}).collect_view()}
@@ -168,11 +172,22 @@ pub(super) fn roles(a: &App) -> AnyView {
         .filter(|r| Some(r.guild_id) == a.guild)
         .collect::<Vec<_>>();
     roles.sort_by_key(|r| (std::cmp::Reverse(r.position), r.id));
-    let count = roles.len();
-    view!{<h2>"Roles"</h2>{roles.into_iter().enumerate().map(|(i,r)|view!{<div class="settings-list-row"><button class="settings-row-copy" data-live=format!("role:{}",r.id.0)>{r.name.clone()}</button>{if r.id!=r.guild_id{view!{<button class="icon-button" disabled={!allowed||i==0} aria-label=format!("Move {} up",r.name) data-live=format!("role-move:{},up",r.id.0)>{icon("arrow-up")}</button><button class="icon-button" disabled={!allowed||i+2>=count} aria-label=format!("Move {} down",r.name) data-live=format!("role-move:{},down",r.id.0)>{icon("arrow-down")}</button>}.into_any()}else{().into_any()}}</div>}).collect_view()}
+    let loaded = a
+        .model
+        .members
+        .values()
+        .filter(|m| Some(m.guild_id) == a.guild)
+        .count();
+    let total = a
+        .guild
+        .and_then(|g| a.model.guilds.get(&g))
+        .map_or(loaded, |g| g.guild.member_count as usize);
+    view!{<div class="section-heading"><h2>"Roles"</h2><button class="button secondary" data-role-reorder disabled=!allowed aria-pressed="false">"Reorder"</button></div><p class="muted-copy roles-help">"Tap a role to edit its permissions. Higher roles take priority."</p><div class="role-list">
+        {roles.into_iter().map(|r|{let count=a.model.members.values().filter(|m|Some(m.guild_id)==a.guild&&(r.id==r.guild_id||m.role_ids.contains(&r.id))).count();view!{<div class="role-list-row" data-role-id=r.id.0.to_string()><button class="role-editor-link" data-live=format!("role:{}",r.id.0)><span class="role-color" style=format!("background:#{:06x}",if r.color==0{0xa8a8b0}else{r.color})></span><span class="settings-row-copy"><strong>{r.name.clone()}</strong><small>{format!("{}{} member{}",if r.id==r.guild_id{total}else{count},if r.id!=r.guild_id&&loaded<total{"+"}else{""},if count==1&&loaded>=total{""}else{"s"})}</small></span>{icon("chevron-right")}</button>{if r.id!=r.guild_id{view!{<select class="role-position" aria-label=format!("Position for {}",r.name) data-role-position=r.id.0.to_string() disabled=!allowed hidden></select>}.into_any()}else{().into_any()}}</div>}}).collect_view()}</div>
         <fieldset disabled=!allowed>{form("Create Role","role-create",field("f-name","Role Name","","text"))}</fieldset>
     }.into_any()
 }
+
 pub(super) fn member_roles(a: &App) -> AnyView {
     let members = a
         .model
@@ -208,10 +223,9 @@ pub(super) fn privacy(a: &App) -> AnyView {
         .values()
         .filter(|r| r.kind == RelationshipKind::Blocked)
         .collect::<Vec<_>>();
-    view!{<h2>"Privacy & Safety"</h2><h3>"Server Privacy Defaults"</h3><label class="live-checkbox"><span>"Allow direct messages from server members"</span><input type="checkbox" disabled checked aria-describedby="privacy-policy-note"/></label><label class="live-checkbox"><span>"Allow friend requests"</span><input type="checkbox" disabled checked aria-describedby="privacy-policy-note"/></label><p id="privacy-policy-note" class="muted-copy">"Privacy policy controls are not available on this server yet."</p>
-        <div class="settings-divider"></div><h2>"Blocked Users"</h2>{if blocked.is_empty(){view!{<p class="muted-copy">"You haven’t blocked anyone."</p>}.into_any()}else{().into_any()}}
+    view!{<h2>"Privacy & Safety"</h2><h2>"Blocked Users"</h2>{if blocked.is_empty(){view!{<p class="muted-copy">"You haven’t blocked anyone."</p>}.into_any()}else{().into_any()}}
         {blocked.into_iter().map(|r|view!{<div class="settings-list-row">{avatar(&r.user,"small")}<span class="settings-row-copy">{name(&r.user)}</span>{button("Unblock",&format!("friend:unblock,{}",r.user.id.0),"secondary")}</div>}).collect_view()}
-        <div class="settings-divider"></div><h2>"Your Data"</h2><p class="muted-copy">"Messages are not stored in the offline app cache. Browser notifications never show message text on your lock screen."</p>{button("Manage Sessions","dialog:devices","secondary")}{button("Delete Account","dialog:delete-account","danger-text")}
+        <div class="settings-divider"></div><h2>"Your Data"</h2><p class="muted-copy">"Messages are not stored in the offline app cache. Browser notifications never show message text on your lock screen."</p>{button("Manage Sessions","dialog:devices","secondary")}
     }.into_any()
 }
 pub(super) fn notifications(a: &App) -> AnyView {
@@ -252,11 +266,11 @@ pub(super) fn notifications(a: &App) -> AnyView {
     );
     let n = a.model.settings.notifications.get(&(guild, channel));
     let level = n.map_or(NotificationLevel::Mentions, |n| n.level);
-    view!{<fieldset disabled=target.is_empty()>{form("Notifications","notifications",view!{
+    view!{<fieldset hidden=target.is_empty()>{form("Notifications","notifications",view!{
         <label class="field"><span>"Server or Conversation"</span><select id="f-target" data-notification-target><option value="" disabled selected=target.is_empty()>"Choose a conversation"</option>
         {a.model.guilds.values().map(|g|view!{<option value=format!("guild:{}",g.guild.id.0) selected=target==format!("guild:{}",g.guild.id.0)>{g.guild.name.clone()}</option>}).collect_view()}
         {a.model.channels.values().filter(|c|matches!(c.kind,ChannelKind::Text|ChannelKind::Direct|ChannelKind::GroupDm)).map(|c|view!{<option value=format!("channel:{}",c.id.0) selected=target==format!("channel:{}",c.id.0)>{format!("#{}",a.model.channel_name(c))}</option>}).collect_view()}</select></label>
         <label class="field"><span>"Notify Me About"</span><select id="f-name"><option value="all" selected=level==NotificationLevel::All>"All messages"</option><option value="mentions" selected=level==NotificationLevel::Mentions>"Only @mentions"</option><option value="nothing" selected=level==NotificationLevel::Nothing>"Nothing"</option></select></label>
         <label class="live-checkbox"><span>"Mute notifications"</span><input id="f-muted" type="checkbox" checked=n.is_some_and(|n|n.muted)/></label><label class="live-checkbox"><span>"Suppress @everyone and @here"</span><input id="f-suppress" type="checkbox" checked=n.is_some_and(|n|n.suppress_everyone)/></label>
-    }.into_any())}</fieldset><p class="muted-copy">"Global notification defaults are not available on this server yet."</p><section class="push-explainer"><h3>"Notifications when you’re away"</h3><p>"Allow StickTalk to notify you about DMs and mentions. No message text appears on your lock screen. You can turn this off in your browser settings."</p><button class="button secondary" data-push-enable disabled=!a.push>"Enable Browser Notifications"</button>{if !a.push{view!{<p class="muted-copy">"Browser notifications are not enabled on this server."</p>}.into_any()}else{().into_any()}}</section>}.into_any()
+    }.into_any())}</fieldset>{if target.is_empty(){view!{<p class="muted-copy">"Choose a server or start a conversation to customize notifications."</p>{button("Add Friend","dialog:friend","secondary")}{button("Create a Server","dialog:create","secondary")}}.into_any()}else{().into_any()}}{if a.push{view!{<section class="push-explainer"><h3>"Notifications when you’re away"</h3><p>"Allow StickTalk to notify you about DMs and mentions. No message text appears on your lock screen. You can turn this off in your browser settings."</p><button class="button secondary" data-push-enable disabled=!a.push>"Enable Browser Notifications"</button>{if !a.push{view!{<p class="muted-copy">"Browser notifications are not enabled on this server."</p>}.into_any()}else{().into_any()}}</section>}.into_any()}else{().into_any()}}}.into_any()
 }
