@@ -5391,7 +5391,16 @@ mod tests {
         app.tx = Some(handle.clone());
         app.reorder(Id(12), false);
         assert!(app.state.pending.is_empty());
-        app.reorder(Id(14), true);
+        // The desktop fixture adds voice/private rows after the three text rows.
+        let last = app
+            .sorted_channels()
+            .into_iter()
+            .rfind(|c| c.parent_id == Some(Id(11)))
+            .unwrap()
+            .id;
+        app.reorder(last, true);
+        app.reorder(Id(999), false);
+        app.reorder(Id(31), false); // another guild must never be reordered
         assert!(app.state.pending.is_empty());
         app.reorder(Id(13), true);
         let Command::ReorderChannels {
