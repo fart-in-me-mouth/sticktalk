@@ -3,7 +3,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Installer,
-    [string]$TargetDir = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng"
+    [string]$TargetDir = $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PSScriptRoot '../../target' })
 )
 $ErrorActionPreference = 'Stop'
 function Assert([bool]$Condition, [string]$Message) { if (!$Condition) { throw $Message } }

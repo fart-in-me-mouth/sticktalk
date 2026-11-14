@@ -2,9 +2,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$TestKey,
-    [string]$TargetDir = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng",
+    [string]$TargetDir = $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PSScriptRoot '../../target' }),
     [switch]$RealClient,
-    [string]$MakeNsis = "$env:USERPROFILE/.cargo-target/sticktalk-release-eng/tools/nsis-3.13/makensis.exe"
+    [string]$MakeNsis = (Join-Path $TargetDir 'tools/nsis-3.13/makensis.exe')
 )
 $ErrorActionPreference = 'Stop'
 $env:PYTHONUTF8 = '1'

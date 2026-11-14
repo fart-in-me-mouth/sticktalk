@@ -1,16 +1,16 @@
 param(
-    [string]$Binary = "$env:USERPROFILE/.cargo-target/sticktalk-server/release/sticktalk-server.exe",
+    [string]$Binary = (Join-Path $(if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PSScriptRoot '../../../target' }) 'server/sticktalk-server.exe'),
     [int]$Seconds = 60
 )
 $ErrorActionPreference = 'Stop'
-$root = Join-Path $env:USERPROFILE '.cargo-target/sticktalk-server'
+$root = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $PSScriptRoot '../../../target' }
 $data = Join-Path $root ('rss-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $data | Out-Null
 $probe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
 $probe.Start()
 $port = $probe.LocalEndpoint.Port
 $probe.Stop()
-$server = Start-Process -FilePath $Binary -ArgumentList @('--bind',"127.0.0.1:$port",'--data-dir',$data) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $data 'stdout.log') -RedirectStandardError (Join-Path $data 'stderr.log')
+$server = Start-Process -FilePath $Binary -ArgumentList @('--bind',"127.0.0.1:$port",'--voice-bind-ip','127.0.0.1','--voice-advertised-ip','127.0.0.1','--data-dir',('"'+$data+'"')) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $data 'stdout.log') -RedirectStandardError (Join-Path $data 'stderr.log')
 try {
     $ready = $false
     for ($i=0; $i -lt 150; $i++) {
