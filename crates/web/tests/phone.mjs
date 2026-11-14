@@ -262,7 +262,10 @@ try {
       page.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/auth/account/delete'),
       page.locator('[type=submit]').click(),
     ]);
-    assert.equal(deletion.status(),204,`Account deletion must commit on the first attempt: ${await deletion.text()}`);
+      // A successful 204 has no body. WebKit discards its response resource
+      // during the immediate login navigation; do not read it just to format
+      // an assertion message on the successful path.
+      assert.equal(deletion.status(),204,'Account deletion must commit on the first attempt');
     await page.waitForSelector('#auth-username');
     await page.getByRole('status').filter({hasText:'Your account was deleted.'}).waitFor();
     screenshots.push(await shot(page,'account-deleted-login'));
