@@ -1486,7 +1486,7 @@ impl Sfu {
                     .ready_at(bytes, self.now)
                     .max(room.ready_at(bytes, self.now))
                     .max(self.budget.ready_at(bytes, self.now));
-                if ready > self.now {
+                if let Some(ready) = bounded_admission_deadline(ready, self.now) {
                     // Keep originals in str0m's bounded, BWE-paced queue until
                     // ALL wire budgets can admit a full datagram atomically.
                     // Do not poll and drop: that breaks H.264 reference chains
@@ -2429,6 +2429,14 @@ fn media_queue_overloaded(
             .is_some_and(|p| now.saturating_duration_since(p.1) > Duration::from_millis(250))
 }
 
+/// RTC also carries voice, consent/revocation and RTCP. At extremely low video
+/// allocations, prefer explicit video loss to holding those behind a full-MTU
+/// token refill. Normal two-viewer pacing is sub-millisecond; never defer the
+/// whole RTC for more than 10 ms to protect a video packet.
+fn bounded_admission_deadline(ready: Instant, now: Instant) -> Option<Instant> {
+    (ready > now && ready - now <= Duration::from_millis(10)).then_some(ready)
+}
+
 #[cfg(test)]
 mod policy_queue_tests {
     use super::*;
@@ -2440,6 +2448,17 @@ mod policy_queue_tests {
         fn generation(&self) -> u64 {
             self.0.load(std::sync::atomic::Ordering::Acquire)
         }
+    }
+    #[test]
+    fn a_tiny_video_quota_cannot_stall_voice_or_control_for_a_full_packet_refill() {
+        let now = Instant::now();
+        assert_eq!(bounded_admission_deadline(now, now), None);
+        let normal = now + Duration::from_micros(617);
+        assert_eq!(bounded_admission_deadline(normal, now), Some(normal));
+        assert_eq!(
+            bounded_admission_deadline(now + Duration::from_millis(103), now),
+            None
+        );
     }
     #[test]
     fn original_media_queue_is_bounded_by_rate_rtt_and_age_not_probe_padding() {
