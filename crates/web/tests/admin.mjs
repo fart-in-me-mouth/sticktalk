@@ -36,6 +36,9 @@ try {
   await owner.getByRole('button',{name:'Reorder',exact:true}).click();
   await owner.getByLabel('Position for Alpha',{exact:true}).selectOption('1');
   await owner.waitForFunction(()=>document.querySelector('[data-live^="role:"] strong')?.textContent==='Alpha');
+  await owner.waitForFunction(()=>[...document.querySelectorAll('[data-role-position]')].every((select,index)=>select.value===String(index+1)));
+  assert.deepEqual(await owner.locator('[data-role-position]').evaluateAll(selects=>selects.map(s=>s.value)),['1','2','3']);
+
   screenshots.push(await shot(owner,'roles-reordered'));
   await act(owner,'dialog:member-role');await owner.locator('#f-name').selectOption(guestId);
   await owner.locator(`[data-member-role="${alpha}"]`).check();await owner.locator('[type=submit]').click();

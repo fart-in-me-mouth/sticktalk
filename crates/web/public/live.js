@@ -353,7 +353,7 @@ export function installPlatform() {
     if (
       records.some(
         (r) =>
-          (r.type === 'attributes' && (r.target.matches('.live-shell') || r.target.id==='sticktalk')) ||
+          (r.type === 'attributes' && (r.target.matches('.live-shell,[data-role-id]') || r.target.id==='sticktalk')) ||
           r.type === "childList" &&
           !r.target.closest?.('#live-media-stage,#live-device-settings,#live-viewer') &&
           [...r.addedNodes,...r.removedNodes].some(
@@ -370,7 +370,7 @@ export function installPlatform() {
   });
   // Drawer toggles can update only a class (no child nodes). Without this,
   // the newly visible drawer stays inert and Back never receives its entry.
-  observer.observe(document.body, { childList: true, subtree: true, attributes:true, attributeFilter:['class','data-screen'] });
+  observer.observe(document.body, { childList: true, subtree: true, attributes:true, attributeFilter:['class','data-screen','data-role-id'] });
   document.addEventListener("click", (e) => {
     if (e.target.closest('[data-profile-reset]')) {
       $('[data-profile-editor]').reset();

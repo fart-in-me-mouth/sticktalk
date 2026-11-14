@@ -47,6 +47,7 @@ try {
     }),'first lazy save captures the original bio/pronouns even after immediate navigation');
 
     screenshots.push(await shot(page,'profile-edit'));
+    screenshots.push(await shot(page,'profile-populated'));
     await page.locator('#f-name').fill('Alex Morgan — Design & Engineering');
     await page.locator('#f-value').fill('Reviewing the phone experience');
     await page.waitForSelector('.profile-save-bar:not([hidden])');
