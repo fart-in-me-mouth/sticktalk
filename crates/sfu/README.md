@@ -65,6 +65,21 @@ OOM/process termination cannot be recovered by an unwind boundary.
 Audio/control are deliberately outside the **video** bitrate buckets. Bitrate
 feedback is capped per peer/room too, but final encrypted wire enforcement
 remains authoritative, including RTX. Room quota maps disappear when empty.
+Each viewer's video bucket is additionally paced at its current fair global/
+room allocation, capped by the configured peer ceiling. Changing an allocation
+never refills tokens. The encoder receives the slowest subscribed BWE ceiling
+with 25% wire headroom for RTP/SRTP, repairs and bursts (two 1440p60 viewers:
+12 Mbps payload each within the unchanged 32 Mbps aggregate wire limit).
+
+Original-media backlog is tracked until encrypted egress, independently of
+str0m's probe-padding/RTX snapshot. Its byte bound follows bitrate times a
+100-250 ms two-RTT horizon, with a 256 KiB IDR floor, a 2 MiB/2048-packet hard
+ceiling, and a 250 ms age limit. A full wire bucket defers RTC draining to a
+one-shot token-refill deadline instead of popping and discarding an original.
+Whole-RTC deferral is limited to 10 ms: an extremely low video quota must not
+stall voice, RTCP or remote-control traffic for a full-packet refill. Existing
+permission checks and generation fencing remain at encrypted egress.
+
 Lifetime MID/SSRC/ICE limits intentionally require a fresh join when exhausted;
 repeated offers cannot grow str0m's retained session state indefinitely.
 
@@ -255,7 +270,7 @@ and fail closed if the command queue is full. Generation invalidates queued UDP
 output, including a driver batch. Offers, forwarding and encrypted RTP/RTX egress
 recheck track-specific permissions. Unmapped/withdrawn SSRCs are never sent.
 
-### Robustness validation — 2026-11-12
+### Robustness validation â€” 2026-11-12
 
 - CI mode (`CI=true`, `PROPTEST_CASES=3072`): 134 tests passed across SFU/server;
   seven property suites, **21,504 cases**. Existing global egress cap, RTX and

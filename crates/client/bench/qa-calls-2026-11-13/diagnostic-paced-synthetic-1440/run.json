@@ -1,0 +1,12 @@
+{
+  "viewers": 2,
+  "profile": "server",
+  "quality": "1440",
+  "source": "synthetic",
+  "binary": "voice-f31c3035531e617d.exe",
+  "binary_sha256": "0EBADB5C958359FDC61C379A7233D6514C63CEA56447F77DF10530ABBC3CB550",
+  "fps": 60,
+  "seconds": 60,
+  "utc_started": "2026-11-14T00:03:46.0318836Z",
+  "commit": "a607ef180d44823277ea9f3f3218c499499da77b"
+}

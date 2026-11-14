@@ -1,0 +1,492 @@
+{
+  "renderer": "iced-tiny-skia",
+  "screens": [
+    {
+      "file": "focused-stream-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "4c6f0e39cc3d7228c063e06729c03078201d5f10428be51b5b95c43d83a859be",
+      "width": 1280
+    },
+    {
+      "file": "stream-stats-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "bbb4bd9fe273ee4067aaaaf10ea89885501b66e16f1def2fe5a30b613d463c86",
+      "width": 1280
+    },
+    {
+      "file": "share-picker-windows-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "12b79e259dcf44c3517a7ed38d49ce4e48662860fbf1c149a17fe9c881203785",
+      "width": 1280
+    },
+    {
+      "file": "share-quality-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "00664354742703ecfe7e45a693ac9ebfbc71a4c8c0c76a7e974bddd06935e373",
+      "width": 1280
+    },
+    {
+      "file": "controlling-banner-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "1d8f21264e59bd01229eb08404bb83a2c7cfc23b76dcae22439bc9d3384a250d",
+      "width": 1280
+    },
+    {
+      "file": "request-control-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "ded4f83eaa16c7c8be8f7fbb72c05b065f750780d8f766516380ca1a86c483a8",
+      "width": 1280
+    },
+    {
+      "file": "camera-tiles-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "c32bb3807454f3346b45f67b247d6f8f022ebcb0e48263c2f70e510fddd66ab0",
+      "width": 1280
+    },
+    {
+      "file": "camera-chooser-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "fbbe908634579ad30841070ee95fe47776a3c685cb6a119a65343e471341d2fb",
+      "width": 1280
+    },
+    {
+      "file": "voice-call-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "cb339767ba52c155cc680e6d3eba00f7fadb2ce9903c03c757ce4c5ce38ec5cb",
+      "width": 1280
+    },
+    {
+      "file": "share-picker-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "5d48e42a9bee9eaa93e5c664d1d9941db1c60a8f03d5aa0ba9f68d5f54f5b90f",
+      "width": 1280
+    },
+    {
+      "file": "voice-consent-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "4d2d380d44395c9c22148968476c462349a141f58138a0deb7032e3c42e51287",
+      "width": 1280
+    },
+    {
+      "file": "call-empty-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "19a0bae080b3f85e489a2df3a95b823c16a4b7273c666a527758c3c03073f80b",
+      "width": 1280
+    },
+    {
+      "file": "call-solo-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "3ef231def98e36e521e19fd01cd3fa749dd52d0f49bc85c21a08d1dd5c2644ef",
+      "width": 1280
+    },
+    {
+      "file": "call-nine-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "88f989d68da87872762b2cc75ace7df967636521ecf30df1686039da917e9651",
+      "width": 1280
+    },
+    {
+      "file": "call-muted-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "2c33ce4d1a93ef1aa1114ed2746b537b954df7e8fe12b42ea42795c481e04960",
+      "width": 1280
+    },
+    {
+      "file": "call-streaming-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "cfd4204277ee226d793a7a5360c7b5f96f9655c5f2be24d8ac4d328ea75ec623",
+      "width": 1280
+    },
+    {
+      "file": "voice-quality-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "b711f6c97d81645ca589126bc9630c4db9ce66a89dbb03eef90c7c97e48e038d",
+      "width": 1280
+    },
+    {
+      "file": "call-controls-hover-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "82f714e5e32e448635ef166c19d7e670bb3664582ffafe70c61475e155762027",
+      "width": 1280
+    },
+    {
+      "file": "camera-grid-1-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "8a91d2bb38241cf02d95f439e9ccd97db7c02b43437ebf66bbef6afd82f162b0",
+      "width": 1280
+    },
+    {
+      "file": "camera-grid-2-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "42c4bb601d99247d71daf011fce053db9dd4994c4cc13a21dc4067d092f598c0",
+      "width": 1280
+    },
+    {
+      "file": "camera-grid-3-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "c32bb3807454f3346b45f67b247d6f8f022ebcb0e48263c2f70e510fddd66ab0",
+      "width": 1280
+    },
+    {
+      "file": "camera-grid-4-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "b2500a11369172133f00e0830269ffd231df61329ed158ddd03461685accdc95",
+      "width": 1280
+    },
+    {
+      "file": "camera-grid-5-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "b5920efd37b203c1840b298261fb10fee866c769b7e6b89ac9f099678ac0430a",
+      "width": 1280
+    },
+    {
+      "file": "camera-grid-6-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "867cc3fa2cbe9f834ee39735536941b6f3807996b93bd1d274808c7726eeca73",
+      "width": 1280
+    },
+    {
+      "file": "camera-grid-7-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "a08da40dea2cc08b961930dd14cd80eeb27f932eabb998dea0888d702f40ad6f",
+      "width": 1280
+    },
+    {
+      "file": "camera-grid-8-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "399082f283f6b71363cf83faa24b971b37063d9ed2b69bd2a03afbea9244328b",
+      "width": 1280
+    },
+    {
+      "file": "camera-grid-9-1280x800.png",
+      "height": 800,
+      "logical_height": 800,
+      "logical_width": 1280,
+      "scale_factor": 1.0,
+      "sha256": "88f989d68da87872762b2cc75ace7df967636521ecf30df1686039da917e9651",
+      "width": 1280
+    },
+    {
+      "file": "focused-stream-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "528946e69346b5da9bfa761a7df666f897cff108220ce8f5ea847ea41958d252",
+      "width": 1920
+    },
+    {
+      "file": "stream-stats-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "5cbb78abed80853e14f13e77edcd2bfb76d83270dc3058dd9c87862061a4c790",
+      "width": 1920
+    },
+    {
+      "file": "share-picker-windows-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "f870425df08fc8f9e2a4b42f73a77b2f7b4fb3ac877568c3422568fba02d9b05",
+      "width": 1920
+    },
+    {
+      "file": "share-quality-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "d1b589e9510482129c27889ea68628cbb6933b213ca834e626fea68ff53caa46",
+      "width": 1920
+    },
+    {
+      "file": "controlling-banner-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "5e6200f52d570218e07e337d6fca9acc7f61c00c5ad0258a3a8284f2a763edf8",
+      "width": 1920
+    },
+    {
+      "file": "request-control-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "00dfbf89f16226e674071bdc508d5bf6145fd241443fe32d55742d8317fba732",
+      "width": 1920
+    },
+    {
+      "file": "camera-tiles-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "5f4e45ee1d35ab66b1fecd94ef4650904ae1908ce658b5c31d6ab641ae7387de",
+      "width": 1920
+    },
+    {
+      "file": "camera-chooser-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "8a43e4894ed779bd7ac1a768a084b8cd3a9c1144857bc0454a4bf5c7febc3b4d",
+      "width": 1920
+    },
+    {
+      "file": "voice-call-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "7a805f37c79834f884e668b13fdae5eef844dc4c5aeb68823dd06f2ac50d5c21",
+      "width": 1920
+    },
+    {
+      "file": "share-picker-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "29c62d5704083b4de0fb10623bf4ea94ef6aad22abc9030e2da67d266d7c6a98",
+      "width": 1920
+    },
+    {
+      "file": "voice-consent-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "97b787062f79d779cecdc30d5690460430da2226d85b597c60e9ddaddc25bde0",
+      "width": 1920
+    },
+    {
+      "file": "call-empty-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "3d871e88e3dc50729382731b00b94faf459960ba06120ac154ad7b60218283a1",
+      "width": 1920
+    },
+    {
+      "file": "call-solo-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "230374636cc8ce77ca4f5587705bb59928810e1b0208611c1a479d685890faf5",
+      "width": 1920
+    },
+    {
+      "file": "call-nine-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "eaa5eb89784f6170b6f2e1dec3b9735216366d80f3eb0a7c89f7fe83250ee240",
+      "width": 1920
+    },
+    {
+      "file": "call-muted-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "2c07139bf3fd7021ffc61652b915ff789a56f9fea4cf5ecc1c5a4ffd02db929e",
+      "width": 1920
+    },
+    {
+      "file": "call-streaming-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "48661ae2b48f87a8723bf111e4044c127e17bb3d7f9e25cce87afa17dee37d39",
+      "width": 1920
+    },
+    {
+      "file": "voice-quality-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "89a6ca67b19ec138ea8d34982f14b2e862b940e965fc2b8da4d0cb2ad054885c",
+      "width": 1920
+    },
+    {
+      "file": "call-controls-hover-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "e9f564b9e0b4809284bfcc4b52323f32ecbc044c09db0e50564b8641e5c55f59",
+      "width": 1920
+    },
+    {
+      "file": "camera-grid-1-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "4fb81c2997dd35edc8df9cd45bd0eb132662ea10d68d56faa7fc7b4ea61f4da7",
+      "width": 1920
+    },
+    {
+      "file": "camera-grid-2-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "6fde6c3de5b0a584c2004cff1b9bc98cca32f8dd9640b8586272d6aa3b667a96",
+      "width": 1920
+    },
+    {
+      "file": "camera-grid-3-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "5f4e45ee1d35ab66b1fecd94ef4650904ae1908ce658b5c31d6ab641ae7387de",
+      "width": 1920
+    },
+    {
+      "file": "camera-grid-4-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "739995907f39fd2c1ad1d13f1a9e0a9eaddfe08c104fafc23d0b5f9c45cbe8bc",
+      "width": 1920
+    },
+    {
+      "file": "camera-grid-5-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "df6f8e1d0241fd30c5cc6b00b60840893e6b1de3709372892a8e4de9c1268455",
+      "width": 1920
+    },
+    {
+      "file": "camera-grid-6-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "1a3f66895bf0d78b498d4cb898b36157bce6eda0ac4a63e9fd29ff46066308b8",
+      "width": 1920
+    },
+    {
+      "file": "camera-grid-7-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "88e626a9fe26e92631465d15f1c17a16baa4bb882c734ff4fc87b166345fee51",
+      "width": 1920
+    },
+    {
+      "file": "camera-grid-8-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "6baf8bdcd7221ff33603c36ef612c2b5ab0eec20539694884da26e1db806c201",
+      "width": 1920
+    },
+    {
+      "file": "camera-grid-9-1920x1080.png",
+      "height": 1080,
+      "logical_height": 1080,
+      "logical_width": 1920,
+      "scale_factor": 1.0,
+      "sha256": "eaa5eb89784f6170b6f2e1dec3b9735216366d80f3eb0a7c89f7fe83250ee240",
+      "width": 1920
+    }
+  ],
+  "window_backend": "none"
+}

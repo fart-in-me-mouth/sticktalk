@@ -1,0 +1,7 @@
+{
+  "rendering": "offscreen iced / tiny-skia; no OS window",
+  "binary_sha256": "1BB55D502FB8127257DD6B4602DFE3EB7C108A3092AD417D5FD5E2BD713750AD",
+  "png_count": 72,
+  "utc": "2026-11-14T02:07:38.0792344Z",
+  "commit": "b2af4bebe2eea3811af0194bbd3bd15cbfd59191"
+}

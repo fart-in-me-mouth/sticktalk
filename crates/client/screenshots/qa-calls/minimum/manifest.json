@@ -1,0 +1,42 @@
+{
+  "renderer": "iced-tiny-skia",
+  "screens": [
+    {
+      "file": "camera-grid-9-940x600.png",
+      "height": 600,
+      "logical_height": 600,
+      "logical_width": 940,
+      "scale_factor": 1.0,
+      "sha256": "3f8532db6aa919f944e21bf4621223577de43f86c28f2bccb5e9a14c1b9e3c3e",
+      "width": 940
+    },
+    {
+      "file": "request-control-940x600.png",
+      "height": 600,
+      "logical_height": 600,
+      "logical_width": 940,
+      "scale_factor": 1.0,
+      "sha256": "58dff478f78afee0ca8b89dc73a73e091417845f4e16cd7e71532f40def524d3",
+      "width": 940
+    },
+    {
+      "file": "call-streaming-940x600.png",
+      "height": 600,
+      "logical_height": 600,
+      "logical_width": 940,
+      "scale_factor": 1.0,
+      "sha256": "38183cf4a50d93602db970657e78f122273435e69e5ccc72a1eabfe6a1b0a71c",
+      "width": 940
+    },
+    {
+      "file": "share-quality-940x600.png",
+      "height": 600,
+      "logical_height": 600,
+      "logical_width": 940,
+      "scale_factor": 1.0,
+      "sha256": "3293bf52a8c8fb6a29bbab20aaa568a7b197de4200eaa731d1ebcdb59ba0e202",
+      "width": 940
+    }
+  ],
+  "window_backend": "none"
+}

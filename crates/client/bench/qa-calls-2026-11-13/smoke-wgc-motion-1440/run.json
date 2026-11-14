@@ -1,0 +1,12 @@
+{
+  "fps": 60,
+  "profile": "server",
+  "source": "wgc-motion",
+  "binary_sha256": "E817641C0ACC8A5431A08AC2B550F1168CD6254E548FE024E23C17013F10137C",
+  "utc_started": "2026-11-14T00:55:09.3790117Z",
+  "seconds": 30,
+  "commit": "e1726e3a3dfbfbac1419ae2d7c83ec250e54b82d",
+  "viewers": 2,
+  "binary": "voice-f31c3035531e617d.exe",
+  "quality": "1440"
+}

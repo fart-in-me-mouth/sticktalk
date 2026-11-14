@@ -190,9 +190,15 @@ impl Injector for NativeInjector {
                 if self.source.kind == SourceKind::Window {
                     let window = self.source.id as HWND;
                     let foreground = GetForegroundWindow();
-                    if foreground != window && IsChild(window, foreground) == 0 {
-                        // This is a product action AFTER explicit consent, never
-                        // exercised by tests. Only the shared window may be raised.
+                    if matches!(input, ControlInput::Key { .. } | ControlInput::Wheel { .. })
+                        && foreground != window
+                        && IsChild(window, foreground) == 0
+                    {
+                        // A click below can activate the unoccluded shared
+                        // window through normal Windows input routing. Requiring
+                        // SetForegroundWindow BEFORE that click incorrectly
+                        // rejects legitimate control under the foreground lock.
+                        // Keys/wheel must still fail closed unless focus is here.
                         if SetForegroundWindow(window) == 0 || GetForegroundWindow() != window {
                             return Err("Could not focus the shared window".into());
                         }
@@ -209,8 +215,8 @@ impl Injector for NativeInjector {
                 }
             }
             let events = build(input, surface, desktop)?;
-            // This is the sole real injection call. No automated test constructs NativeInjector
-            // or SafetyUnit; tests validate build() above with a recording Receiver instead.
+            // The sole real injection call. Ordinary tests only validate build();
+            // the explicit ignored E2E test targets its own secondary HWND only.
             if SendInput(
                 events.len() as u32,
                 events.as_ptr(),

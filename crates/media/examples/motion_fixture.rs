@@ -11,6 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Direct3D::*,
                 Direct3D11::*,
                 Dxgi::{Common::*, *},
+                Gdi::*,
             },
             System::LibraryLoader::GetModuleHandleW,
             UI::WindowsAndMessaging::*,
@@ -32,7 +33,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .unwrap_or_else(|| "180".into())
         .parse::<u64>()?;
+    if std::env::var("STICKTALK_AGENT_WINDOW").as_deref() != Ok("secondary") {
+        return Err(
+            "set STICKTALK_AGENT_WINDOW=secondary; primary-monitor fixtures are forbidden".into(),
+        );
+    }
+    unsafe extern "system" fn monitor(
+        handle: HMONITOR,
+        _: HDC,
+        _: *mut RECT,
+        data: LPARAM,
+    ) -> windows::core::BOOL {
+        let mut info = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if GetMonitorInfoW(handle, &mut info).as_bool() && info.dwFlags & MONITORINFOF_PRIMARY == 0
+        {
+            *(data.0 as *mut Option<RECT>) = Some(info.rcMonitor);
+            return false.into();
+        }
+        true.into()
+    }
     unsafe {
+        let mut secondary = None::<RECT>;
+        let _ = EnumDisplayMonitors(
+            None,
+            None,
+            Some(monitor),
+            LPARAM((&mut secondary as *mut Option<RECT>) as isize),
+        );
+        let secondary = secondary.ok_or("no secondary monitor; refusing primary fallback")?;
         let instance = GetModuleHandleW(None)?;
         let class = w!("StickTalkMediaBenchMotion");
         let wc = WNDCLASSW {
@@ -51,14 +82,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             class,
             w!("StickTalk GPU benchmark pattern (closes automatically)"),
             WS_POPUP | WS_VISIBLE,
-            0,
-            0,
+            secondary.left,
+            secondary.top,
             width,
             height,
             None,
             None,
             Some(instance.into()),
             None,
+        )?;
+        SetWindowPos(
+            window,
+            None,
+            secondary.left,
+            secondary.top,
+            width,
+            height,
+            SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW,
         )?;
         let desc = DXGI_SWAP_CHAIN_DESC {
             BufferDesc: DXGI_MODE_DESC {

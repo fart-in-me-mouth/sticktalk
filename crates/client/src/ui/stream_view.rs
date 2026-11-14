@@ -46,7 +46,12 @@ pub(super) fn video(
         if kind == TrackKind::Camera {
             return container(
                 column![
-                    avatar(app, session.user_id, t::CALL_AVATAR, false),
+                    avatar(
+                        app,
+                        session.user_id,
+                        (height - t::S32).clamp(t::S24, t::CALL_AVATAR),
+                        false
+                    ),
                     hint(app.state.model.name(session.user_id))
                 ]
                 .spacing(t::S12)
@@ -151,7 +156,12 @@ pub(super) fn view_at(app: &App, session: VoiceSession, available: f32) -> Eleme
         );
     }
     let control: Element<'_, Msg> = if Some(session) == app.calls.call.own {
-        action("Stream quality", Msg::Call(Action::Picker)).into()
+        row![
+            action("Stream quality", Msg::Call(Action::Picker)),
+            action("Stop streaming", Msg::Call(Action::StopShare)).style(t::danger)
+        ]
+        .spacing(t::S8)
+        .into()
     } else if let Some(grant) = app.calls.call.control.grant.filter(|g| g.sharer == session) {
         if Some(grant.controller) == app.calls.call.own {
             tooltip(
@@ -167,6 +177,14 @@ pub(super) fn view_at(app: &App, session: VoiceSession, available: f32) -> Eleme
             ))
             .into()
         }
+    } else if app
+        .calls
+        .control_request
+        .is_some_and(|(sharer, _)| sharer == session)
+    {
+        hint("Request sent · awaiting consent")
+            .color(t::WARNING)
+            .into()
     } else {
         action(
             "Request control",
@@ -178,14 +196,20 @@ pub(super) fn view_at(app: &App, session: VoiceSession, available: f32) -> Eleme
         column![
             row![
                 icon("monitor-up", t::ICON, t::TEXT_SECONDARY),
-                txt(format!(
-                    "{}'s screen",
-                    app.state.model.name(session.user_id)
-                ))
+                txt(if Some(session) == app.calls.call.own {
+                    "You're streaming".into()
+                } else {
+                    format!("{}'s screen", app.state.model.name(session.user_id))
+                })
                 .font(t::semibold())
                 .width(Fill),
                 control,
                 icon_button("signal", "Stream statistics", Msg::Call(Action::Stats)),
+                icon_button(
+                    "maximize",
+                    "Fullscreen (double-click video)",
+                    Msg::Call(Action::Fullscreen)
+                ),
                 icon_button("external-link", "Pop out", Msg::Call(Action::Popout)),
                 icon_button("x", "Close stream", Msg::Call(Action::Focus(None)))
             ]

@@ -50,8 +50,24 @@ pub const SCREENS: &[&str] = &[
     "controlling-banner",
     "request-control",
     "camera-tiles",
+    "camera-grid-1",
+    "camera-grid-2",
+    "camera-grid-3",
+    "camera-grid-4",
+    "camera-grid-5",
+    "camera-grid-6",
+    "camera-grid-7",
+    "camera-grid-8",
+    "camera-grid-9",
+    "call-controls-hover",
     "camera-chooser",
     "voice-call",
+    "call-empty",
+    "call-solo",
+    "call-nine",
+    "call-muted",
+    "call-streaming",
+    "voice-quality",
     "share-picker",
     "voice-consent",
     "voice-settings",
@@ -462,6 +478,11 @@ fn render_scaled(screen: &str, w: u32, h: u32, scale: f32, path: &Path) -> Resul
             mouse::Cursor::Available(iced::Point::new(
                 t::RAIL + t::SIDEBAR - t::S16,
                 h as f32 - t::USER_HEIGHT / 2.,
+            ))
+        } else if screen == "call-controls-hover" {
+            mouse::Cursor::Available(iced::Point::new(
+                (w as f32 + t::RAIL + t::SIDEBAR) / 2. - 2. * (t::GUILD_ICON + t::S12),
+                h as f32 - t::S16 - t::GUILD_ICON / 2.,
             ))
         } else if screen.starts_with("main-history-") {
             mouse::Cursor::Available(iced::Point::new(
@@ -992,6 +1013,48 @@ mod tests {
             m,
             Msg::Settings(crate::settings_controller::Action::Server(_))
         )));
+    }
+    #[test]
+    fn request_pending_and_sharer_consent_are_distinct_from_focused_stream() {
+        load_fonts();
+        let dir =
+            std::env::temp_dir().join(format!("sticktalk-call-states-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut rasters = Vec::new();
+        for screen in ["focused-stream", "request-control", "voice-consent"] {
+            let path = dir.join(format!("{screen}.png"));
+            render(screen, 1280, 800, &path).unwrap();
+            rasters.push(image::open(&path).unwrap().into_rgba8());
+            std::fs::remove_file(path).unwrap();
+        }
+        assert_ne!(
+            rasters[0], rasters[1],
+            "viewer request must visibly acknowledge pending consent"
+        );
+        assert_ne!(
+            rasters[0], rasters[2],
+            "sharer consent must render above the call"
+        );
+        std::fs::remove_dir(dir).unwrap();
+    }
+    #[test]
+    fn minimum_share_quality_keeps_primary_action_visible_without_scrolling() {
+        load_fonts();
+        let path =
+            std::env::temp_dir().join(format!("sticktalk-share-footer-{}.png", std::process::id()));
+        render("share-quality", 940, 600, &path).unwrap();
+        let png = image::open(&path).unwrap().into_rgba8();
+        let mut primary = 0;
+        for y in 500..576 {
+            for x in 600..780 {
+                let [r, g, b, _] = png.get_pixel(x, y).0;
+                if r < 100 && g > 150 && b > 80 {
+                    primary += 1;
+                }
+            }
+        }
+        assert!(primary > 500, "Go Live must remain visible at minimum size");
+        std::fs::remove_file(path).unwrap();
     }
     #[test]
     fn offscreen_png_has_exact_size_and_neutral_rgba_tokens() {
