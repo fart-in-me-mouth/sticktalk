@@ -1,3 +1,5 @@
+import {swipe} from './gestures.mjs';
+import {device} from './engines.mjs';
 // Repeated real SFU receiver activation, including reuse of inactive video MIDs.
 import assert from 'node:assert/strict';
 import {writeFile} from 'node:fs/promises';
@@ -46,15 +48,12 @@ try {
       assert(await alice.locator('.call-controls [data-live="media:leave"]').evaluate(e=>e.getBoundingClientRect().width>=80));
       await alice.locator('.participant-tile[data-kind=camera]:not([data-self])').click();
       await alice.waitForSelector('.participant-grid.has-focus .is-focused');
-      for(const [width,height] of [[390,844],[412,915],[1440,900]]){await alice.setViewportSize({width,height});await shot(alice,'voice-focus');}
+      for(const [width,height] of (process.env.STICKTALK_QA_ENGINE ? [[device.viewport.width,device.viewport.height]] : [[390,844],[412,915],[1440,900]])){await alice.setViewportSize({width,height});await shot(alice,'voice-focus');}
       await alice.setViewportSize({width:390,height:844});
-      const cdp=await alice.context().newCDPSession(alice);
-      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:190,y:85,id:1}]});
-      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:190,y:240,id:1}]});
-      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      await swipe(alice,{x:190,y:85},{x:190,y:240});
       await alice.waitForSelector('#live-call-mini');await alice.waitForSelector('#live-input');
       assert.equal((await diagnostic(alice)).publications,2,'swipe minimization must not end camera');
-      for(const [width,height] of [[390,844],[412,915],[1440,900]]){await alice.setViewportSize({width,height});await shot(alice,'voice-mini');}
+      for(const [width,height] of (process.env.STICKTALK_QA_ENGINE ? [[device.viewport.width,device.viewport.height]] : [[390,844],[412,915],[1440,900]])){await alice.setViewportSize({width,height});await shot(alice,'voice-mini');}
       await alice.setViewportSize({width:390,height:844});
       await alice.locator('#live-call-mini > button').first().click();await alice.waitForSelector('.voice-view');
       assert.equal(await alice.locator('#live-call-mini').count(),0);

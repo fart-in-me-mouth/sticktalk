@@ -1,5 +1,5 @@
 // All traffic/data in this harness is synthetic and loopback-only.
-import { chromium } from 'playwright';
+import { engines, engine, device, launchOptions, contextOptions } from './engines.mjs';
 import { spawn, execFileSync } from 'node:child_process';
 import { createServer, connect } from 'node:net';
 import { createServer as createHttpsServer } from 'node:https';
@@ -80,19 +80,11 @@ export async function harness(extra = [], {tls=false,dist}={}) {
       server.once('error', e => { clearTimeout(timer); fail(e); });
       server.once('exit', code => { clearTimeout(timer); fail(Error(`Server exit ${code}: ${log}`)); });
     });
-    const browser = await chromium.launch({ headless: true, args: [
-      '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
-      '--allow-loopback-in-peer-connection', '--disable-features=WebRtcHideLocalIpsWithMdns',
-      '--mute-audio', '--disable-notifications',
-      '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost',
-      ...(tls?['--ignore-certificate-errors']:[]),
-    ] });
+    const browser = await engines[engine].browser.launch(launchOptions);
     const contexts = [];
     return { origin, data, browser, revision, log: () => log,
-      async phone(width = 390, height = 844) {
-        const context = await browser.newContext({ viewport: { width, height },
-          hasTouch: width < 1000, isMobile: width < 768, deviceScaleFactor: 1,
-          permissions: ['microphone', 'camera'],ignoreHTTPSErrors:tls });
+      async phone(width = device.viewport.width, height = device.viewport.height) {
+        const context = await browser.newContext(contextOptions(width, height, tls));
         // Never permit an external request or OS notification during QA.
         await context.route('**/*', route => {
           const url = new URL(route.request().url());
@@ -173,7 +165,7 @@ export async function shotAll(page, screen) {
   const scroll = await page.evaluate(() => [...document.querySelectorAll('.settings-main,.settings-nav,.live-modal,#live-messages')]
     .map(e => [e.id ? `#${e.id}` : `.${e.classList[0]}`, e.scrollTop]));
   try {
-    for (const [width,height] of [[390,844],[412,915],[1440,900]]) {
+    for (const [width,height] of process.env.STICKTALK_QA_ENGINE ? [[viewport.width,viewport.height]] : [[390,844],[412,915],[1440,900]]) {
       await page.setViewportSize({width,height});
       await shot(page, screen);
     }

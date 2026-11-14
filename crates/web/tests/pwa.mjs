@@ -32,7 +32,7 @@ try {
   const poisoned=Buffer.from("throw new Error('new release alias must not load in an old tab');");
   await writeFile(join(dist,'public/media.js'),poisoned);
   await writeFile(join(dist,'public/media.js.br'),brotliCompressSync(poisoned));
-  await act(page,'dialog:media-settings');await page.waitForSelector('#live-device-settings select');
+  await act(page,'dialog:media-settings');await page.waitForSelector('#live-device-settings select, #live-device-settings [data-media-unavailable]');
   await act(page,'close');
   await writeFile(join(dist,'public/media.js'),mediaAlias);
   await writeFile(join(dist,'public/media.js.br'),brotliCompressSync(mediaAlias));

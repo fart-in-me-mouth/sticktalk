@@ -209,6 +209,11 @@ async function publish(track, kind, stream) {
 }
 async function start(data) {
   stop(false);
+  if (!globalThis.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) {
+    signal('leave');
+    wantCall = false;
+    throw Error('Voice and video are unavailable in this browser. Use Safari, Chrome or Firefox with media support.');
+  }
   joined = true;
   const generation = ++epoch;
   participants = new Map(data.participants.map((p) => [key(p.session), p]));
@@ -320,6 +325,12 @@ function createTile(id, p, kind) {
   );
   media.autoplay = true;
   media.playsInline = true;
+  // Set these before attaching a stream: iOS requires inline, muted video for
+  // gesture-free remote video playback (audio remains a separate media track).
+  if (media.tagName === 'VIDEO') {
+    media.setAttribute('playsinline', '');
+    media.muted = true;
+  }
   if (media.tagName === "VIDEO") media.className = "call-video";
   else {
     const placeholder = document.createElement("span");
@@ -723,6 +734,14 @@ export function mount() {
 async function devices() {
   const root = $("#live-device-settings");
   if (!root) return;
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    const note = document.createElement('p');
+    note.dataset.mediaUnavailable = '';
+    note.setAttribute('role', 'status');
+    note.textContent = 'Voice and video are unavailable in this browser. Device settings require browser media support and a secure connection.';
+    root.replaceChildren(note);
+    return;
+  }
   const all = await navigator.mediaDevices.enumerateDevices();
   root.replaceChildren();
   for (const [kind, label, current, change] of [

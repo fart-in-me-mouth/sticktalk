@@ -1,3 +1,5 @@
+import {swipe} from './gestures.mjs';
+import {phoneViewports} from './engines.mjs';
 import assert from 'node:assert/strict';
 import { writeFile, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -8,7 +10,7 @@ let h;
 const checks = [], screenshots = [], errors = [], csp = [], layout = [];
 let page;
 try {
-  for (const [width, height] of [[390,844],[412,915],[820,1180],[1440,900]]) {
+  for (const [width, height] of phoneViewports) {
     h=await harness();
     page = await h.phone(width, height);
     page.on('pageerror', e => errors.push(String(e)));
@@ -52,8 +54,7 @@ try {
       await page.getByRole('button',{name:'Open Channels',exact:true}).tap();
       await page.waitForSelector('.panel-left');
       screenshots.push(await shot(page,'channels-drawer'));
-      const cdp = await page.context().newCDPSession(page);
-      await cdp.send('Input.synthesizeScrollGesture',{x:280,y:400,xDistance:-180,yDistance:0,speed:600,gestureSourceType:'touch',preventFling:true});
+      await swipe(page,{x:280,y:400},{x:100,y:400});
       await page.waitForFunction(()=>!document.querySelector('.panel-left,.panel-right'));
       await page.getByRole('button',{name:'Member List',exact:true}).tap();
       await page.waitForSelector('.panel-right');
@@ -83,7 +84,7 @@ try {
       await act(page,`dialog:${screen}`);
       await page.waitForSelector(`.live-modal[data-dialog="${screen}"]`);
       if(screen==='devices') await page.waitForSelector('.device-row');
-      if(screen==='media-settings') await page.waitForSelector('#live-device-settings select');
+      if(screen==='media-settings') await page.waitForSelector('#live-device-settings select, #live-device-settings [data-media-unavailable]');
       screenshots.push(await shot(page,screen));
       const overflowing = await page.evaluate(()=>[...document.querySelectorAll('.settings-main,.settings-content,.settings-nav,.live-modal')]
         .filter(e=>e.getClientRects().length && e.scrollWidth>e.clientWidth+2).map(e=>({class:e.className,client:e.clientWidth,scroll:e.scrollWidth})));
@@ -99,7 +100,7 @@ try {
     await page.locator('[data-preference=fontScale]').selectOption('1');
     await act(page,'close');
     checks.push(`${width}: settings/admin screens, responsive layout, local appearance preferences`);
-    if (width===390) {
+    if (width===phoneViewports[0][0]) {
       await form(page,'about',{'f-name':'they/them','f-value':'Mobile QA profile','f-extra':'#496c63'});
       await until(()=>page.evaluate(async()=>{
         const id=document.querySelector('[data-self-id]').dataset.selfId;
@@ -214,7 +215,7 @@ try {
       checks.push('10000-row real history extent/seek, bounded 50 DOM rows, rAF scroll measurement');
       await act(page,`channel:${channel}`);
     }
-    if(width===390) {
+    if(width===phoneViewports[0][0]) {
       const other=await h.phone();
       await other.goto(h.origin);
       await other.locator('#auth-username').fill(`qa_phone_${width}`);
@@ -234,7 +235,7 @@ try {
       checks.push('session-specific and all-other-device logout invalidate a second live browser');
     }
     let password='synthetic-qa-password-1234';
-    if(width===390) {
+    if(width===phoneViewports[0][0]) {
       await act(page,'dialog:password');
       await page.locator('#f-name').fill(password);
       password='updated-synthetic-qa-password-5678';

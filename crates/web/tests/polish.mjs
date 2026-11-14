@@ -1,3 +1,5 @@
+import {phoneViewports} from './engines.mjs';
+import {swipe} from './gestures.mjs';
 // Phone polish contracts against real CSR/server state; no fixture API routes.
 import assert from 'node:assert/strict';
 import {writeFile,rm} from 'node:fs/promises';
@@ -7,7 +9,7 @@ let h,page;
 const revisions=[];
 await rm(`${output}/polish-results.json`,{force:true});
 try {
-  for(const [width,height] of [[390,844],[412,915],[1440,900]]) {
+  for(const [width,height] of (process.env.STICKTALK_QA_ENGINE ? phoneViewports : [[390,844],[412,915],[1440,900]])) {
     h=await harness();revisions.push(h.revision);page=await h.phone(width,height);
     page.on('pageerror',e=>errors.push(String(e)));
     await page.goto(h.origin);await page.evaluate(()=>document.fonts.ready);
@@ -96,11 +98,9 @@ try {
       await page.locator('[data-live-message]').last().focus();await page.keyboard.press('Shift+F10');
       await page.waitForSelector('.sheet-handle');
       assert.equal(await page.locator('.quick-reactions button').first().textContent(),'😂','recent reaction moves to the front');
-      const handle=await page.locator('.sheet-handle').boundingBox(),cdp=await page.context().newCDPSession(page);
+      const handle=await page.locator('.sheet-handle').boundingBox();
       const x=handle.x+handle.width/2,y=handle.y+handle.height/2;
-      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1}]});
-      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:y+100,id:1}]});
-      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      await swipe(page,{x,y},{x,y:y+100});
       await page.waitForSelector('#live-message-menu',{state:'detached'});
     }
 
@@ -111,7 +111,7 @@ try {
     for(const screen of ['settings','account','about','appearance','privacy','devices','media-settings','password','server','server-overview','server-channels','member-role','invite','server-bans','create','join','friend','group','channel','pins','gif','emoji']) {
       await act(page,`dialog:${screen}`);await page.waitForSelector(`.live-modal[data-dialog="${screen}"]`);
       if(screen==='devices')await page.waitForSelector('.device-row');
-      if(screen==='media-settings')await page.waitForSelector('#live-device-settings select');
+      if(screen==='media-settings')await page.waitForSelector('#live-device-settings select, #live-device-settings [data-media-unavailable]');
       screenshots.push(await shot(page,screen));
       assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('.live-modal,.settings-main,.settings-content,.settings-nav')].filter(e=>e.getClientRects().length&&e.scrollWidth>e.clientWidth+2).map(e=>e.className)),[],`${width}: ${screen} horizontal overflow`);
     }
