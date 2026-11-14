@@ -39,6 +39,21 @@ if ($Exposure -ne 'Local' -or $Voice -eq 'Tailnet') {
     $tsIp = @($status.Self.TailscaleIPs | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })[0]
 }
 $backend = "http://127.0.0.1:$Port"
+# Routes this install published before that the new settings no longer use: an
+# old -Port's route, or ours at all when switching to Local or -PublicUrl.
+$stateFile = Join-Path $InstallDir 'install.json'
+$stale = @()
+if (Test-Path -LiteralPath $stateFile) {
+    $previous = (Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json).Backend
+    if ($previous -and $previous -ne $backend) { $stale += $previous }
+}
+if ($PublicUrl -or $Exposure -eq 'Local') { $stale += $backend }
+if ($stale) {
+    try {
+        if (!$ts) { $ts = Get-Tailscale; $tsHost = ((& $ts status --json | ConvertFrom-Json).Self.DNSName).TrimEnd('.') }
+        foreach ($b in $stale) { Remove-TailscaleRoutes $ts $tsHost $b }
+    } catch { Write-Warning "Could not check Tailscale for old StickTalk routes: $($_.Exception.Message)" }
+}
 $tsPort = $null
 if ($PublicUrl) {
     $u = [Uri]$PublicUrl
@@ -113,6 +128,8 @@ rem Restart after a crash (a few seconds' pause). Stopping the task ends this lo
 waitfor /t 5 StickTalkRestartDelay >nul 2>&1
 goto run
 "@ | Set-Content -LiteralPath $launcher -Encoding Ascii
+# Remembered so re-runs and uninstall-windows.ps1 find this install's own routes.
+@{ Backend = $backend; Port = $Port; TaskName = $TaskName; PublicUrl = $PublicUrl } | ConvertTo-Json | Set-Content -LiteralPath $stateFile -Encoding Ascii
 
 # ---- Keep it running ----------------------------------------------------------
 $user = "$env:USERDOMAIN\$env:USERNAME"
@@ -151,4 +168,4 @@ Write-Host "  Data: $(Join-Path $InstallDir 'data')   Logs: $(Join-Path $Install
 if ($PSBoundParameters.ContainsKey('PublicUrl') -or ($tsPort -and $Exposure -eq 'Funnel')) {
     Write-Host '  Registration is open: anyone with the address can create an account. Share it only with friends.' -ForegroundColor Yellow
 }
-Write-Host "  Stop or remove: powershell -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'uninstall-windows.ps1')`""
+Write-Host "  Stop or remove: powershell -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'uninstall-windows.ps1')`" -InstallDir `"$InstallDir`""

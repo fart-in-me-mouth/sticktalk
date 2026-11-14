@@ -42,15 +42,22 @@ BACKEND="http://127.0.0.1:$PORT"
 say() { printf '==> %s\n' "$*"; }
 
 TS_HOST="" TS_IP=""
-if [ "$EXPOSURE" != local ] || [ "$VOICE" = tailnet ] || [ "$UNINSTALL" = 1 ]; then
-  command -v tailscale >/dev/null || { echo "Install Tailscale (https://tailscale.com/download/linux) and run 'sudo tailscale up' first." >&2; exit 1; }
+# Sets TS_HOST/TS_IP; returns non-zero when Tailscale is missing or disconnected.
+tailscale_info() {
+  command -v tailscale >/dev/null || { echo "Tailscale is not installed (https://tailscale.com/download/linux)." >&2; return 1; }
   read -r TS_HOST TS_IP < <(tailscale status --json | python3 -c '
 import json, sys
 s = json.load(sys.stdin)
 if s.get("BackendState") != "Running": sys.exit("Tailscale is not connected; run: sudo tailscale up")
 ips = [ip for ip in s["Self"].get("TailscaleIPs", []) if "." in ip]
-print(s["Self"]["DNSName"].rstrip("."), ips[0] if ips else "-")')
-  [ -n "$TS_HOST" ] || exit 1
+print(s["Self"]["DNSName"].rstrip("."), ips[0] if ips else "-")') || true
+  [ -n "$TS_HOST" ]
+}
+# The backend this machine's install last published (from its managed env file).
+PREV_BIND=$(sudo sed -n 's/^STICKTALK_BIND=//p' /etc/sticktalk.env 2>/dev/null | tail -1 || true)
+PREV_BACKEND=${PREV_BIND:+http://$PREV_BIND}
+if [ "$UNINSTALL" = 0 ] && { [ "$EXPOSURE" != local ] || [ "$VOICE" = tailnet ]; }; then
+  tailscale_info || exit 1
 fi
 # Prints the HTTPS port to use (ours if already configured, else the first free
 # Funnel port), or "remove" lists for uninstall. Never picks a port in use.
@@ -74,15 +81,28 @@ for p in cands:
 sys.exit("Tailscale HTTPS ports %s are used by other services; free one or pass --public-url" % cands)' "$@"
 }
 
-if [ "$UNINSTALL" = 1 ]; then
-  sudo systemctl disable --now sticktalk 2>/dev/null || true
-  for p in $(serve_ports remove "$TS_HOST" "$BACKEND" 0); do
+remove_routes() { # backend
+  for p in $(serve_ports remove "$TS_HOST" "$1" 0); do
     sudo tailscale funnel --https="$p" off >/dev/null 2>&1 || true
     sudo tailscale serve --https="$p" off >/dev/null 2>&1 || true
     say "Removed Tailscale HTTPS port $p"
   done
-  say "Stopped StickTalk. Data kept in /var/lib/sticktalk."
+}
+if [ "$UNINSTALL" = 1 ]; then
+  sudo systemctl disable --now sticktalk 2>/dev/null || true
+  say "Stopped and disabled the sticktalk service. Data kept in /var/lib/sticktalk."
+  if tailscale_info; then remove_routes "${PREV_BACKEND:-$BACKEND}"
+  else echo "Warning: Tailscale routes not changed (see 'tailscale serve status')." >&2; fi
   exit 0
+fi
+# Routes this install published that the new settings no longer use.
+STALE=""
+[ -n "$PREV_BACKEND" ] && [ "$PREV_BACKEND" != "$BACKEND" ] && STALE="$PREV_BACKEND"
+{ [ -n "$PUBLIC_URL" ] || [ "$EXPOSURE" = local ]; } && STALE="$STALE $BACKEND"
+if [ -n "${STALE// }" ]; then
+  if [ -n "$TS_HOST" ] || tailscale_info 2>/dev/null; then
+    for b in $STALE; do remove_routes "$b"; done
+  fi
 fi
 
 TS_PORT=""
