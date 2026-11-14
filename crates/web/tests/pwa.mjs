@@ -3,6 +3,7 @@ import {cp,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {brotliCompressSync} from 'node:zlib';
 import {harness,register,form,act,shotAll as shot,output,target} from './qa-harness.mjs';
+import {engine} from './engines.mjs';
 const dist=await mkdtemp(join(target,'pwa-dist-'));
 await cp(join(target,'web-dist'),dist,{recursive:true});
 const h=await harness([],{dist}),checks=[],screenshots=[],errors=[];
@@ -42,13 +43,25 @@ try {
   });
   assert(!keys.some(url=>new URL(url).pathname.startsWith('/api/')));
   assert(keys.some(url=>url.endsWith('_bg.wasm')));
-  await page.context().setOffline(true);await page.reload();
+  await page.evaluate(()=>window.__qaBeforeOfflineReload=true);
+  await page.context().setOffline(true);
+  await page.reload().catch(error=>{
+    if(engine!=='firefox'||!String(error).includes('NS_ERROR_OFFLINE'))throw error;
+  });
   await page.waitForSelector('#offline-banner');
+  assert(!await page.evaluate(()=>window.__qaBeforeOfflineReload),'offline shell must be a NEW document, not the old chat');
   await page.waitForFunction(()=>document.body.textContent.includes('Reconnecting…'));
   assert(!await page.locator('body').innerText().then(t=>t.includes('Private QA message')));
   screenshots.push(await shot(page,'offline-shell'));
   checks.push('real service-worker offline reload boots cached shell/core; private messages and API excluded');
   await page.context().setOffline(false);
+  // Playwright Firefox changes navigator.onLine after an offline navigation but
+  // does not deliver its online event. Inject just that platform edge; network,
+  // service-worker reload, cookie recovery and WS/history remain real.
+  if(engine==='firefox')await page.evaluate(()=>{
+    if(!navigator.onLine)throw Error('Firefox did not restore network state');
+    dispatchEvent(new Event('online'));
+  });
   await page.waitForSelector('.markdown', {timeout:45000});
   checks.push('online recovery restores cookie session, websocket and authenticated history');
 
@@ -78,5 +91,5 @@ try {
   await writeFile(`${output}/pwa-results.json`,JSON.stringify({revision:h.revision,checks,screenshots,errors,manifest,cachedAssets:keys.length},null,2));
   console.log(JSON.stringify({checks,errors}));
 } catch(e) {
-  await writeFile(`${output}/pwa-failure.json`,JSON.stringify({error:String(e),checks,errors,body:await page?.locator('body').innerText().catch(()=>'' )},null,2));throw e;
+  await writeFile(`${output}/pwa-failure.json`,JSON.stringify({error:String(e),checks,errors,network:await page?.evaluate(()=>({online:navigator.onLine,ready:document.readyState,offline:document.documentElement.dataset.offline})).catch(()=>null),body:await page?.locator('body').innerText().catch(()=>'' )},null,2));throw e;
 } finally {await h.close();}

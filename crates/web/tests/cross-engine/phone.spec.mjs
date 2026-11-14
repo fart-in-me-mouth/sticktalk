@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 
 // Keep the real-server suites runnable directly, while reporting every engine,
 // feature and repetition independently. No retries or mock REST/WS transport.
-for (const suite of ['polish', 'phone', 'session-revocation', 'admin', 'oauth', 'pwa', 'phone-messaging', 'phone-media', 'voice-negotiation']) {
+for (const suite of ['compatibility', 'uploads', 'inline-video', 'polish', 'phone', 'session-revocation', 'admin', 'oauth', 'pwa', 'phone-messaging', 'phone-media', 'voice-negotiation']) {
   test(suite, async ({}, info) => {
     test.skip(process.platform === 'win32' && info.project.name === 'webkit' && ['phone-media','voice-negotiation'].includes(suite), 'Windows Playwright WebKit has no WebRTC/mediaDevices; run on macOS/iPhone for real H.264/voice.');
     const output = resolve('screenshots/engines', info.project.name, `run-${info.repeatEachIndex + 1}`, suite);

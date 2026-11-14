@@ -1222,6 +1222,8 @@ h3 {
 .live-viewer footer a { color: var(--text-muted); text-decoration: underline; }
 .live-viewer img { cursor: grab; user-select: none; }
 .live-viewer img:active { cursor: grabbing; }
+.participant-tile[data-kind=screen].is-focused { overflow: hidden; }
+.participant-tile[data-kind=screen].is-focused video { touch-action: none; }
 /* Keep iOS selection/callout from stealing the phone message long-press. Copy
    remains available in Message Actions; desktop text selection is unchanged. */
 @media (pointer: coarse) {

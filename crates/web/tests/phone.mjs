@@ -1,5 +1,5 @@
 import {swipe} from './gestures.mjs';
-import {phoneViewports} from './engines.mjs';
+import {phoneViewports, engine} from './engines.mjs';
 import assert from 'node:assert/strict';
 import { writeFile, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -54,8 +54,12 @@ try {
       await page.getByRole('button',{name:'Open Channels',exact:true}).tap();
       await page.waitForSelector('.panel-left');
       screenshots.push(await shot(page,'channels-drawer'));
-      await swipe(page,{x:280,y:400},{x:100,y:400});
+      if(engine==='chromium') {
+        const cdp=await page.context().newCDPSession(page);
+        await cdp.send('Input.synthesizeScrollGesture',{x:280,y:400,xDistance:-180,yDistance:0,speed:600,gestureSourceType:'touch',preventFling:true});
+      } else await swipe(page,{x:280,y:400},{x:100,y:400});
       await page.waitForFunction(()=>!document.querySelector('.panel-left,.panel-right'));
+      await page.waitForFunction(()=>!history.state?.sticktalkOverlay?.panel);
       await page.getByRole('button',{name:'Member List',exact:true}).tap();
       await page.waitForSelector('.panel-right');
       screenshots.push(await shot(page,'members-drawer'));

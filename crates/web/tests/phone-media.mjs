@@ -1,4 +1,3 @@
-import {engine, device} from './engines.mjs';
 import {gesture} from './gestures.mjs';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
@@ -111,7 +110,7 @@ try {
   await alice.waitForSelector('.live-upload:has-text("phone-video.webm")');await message(alice,'Inline video');
   await alice.waitForSelector('.attachment-video video');
   const inline=alice.locator('.attachment-video video').first();
-  assert(await inline.evaluate(e=>e.playsInline));
+  assert(await inline.evaluate(e=>e.hasAttribute('playsinline')));
   await inline.evaluate(e=>e.play());await alice.waitForFunction(()=>document.querySelector('.attachment-video video')?.videoWidth>0);
   screenshots.push(await shot(alice,'inline-video'));
   checks.push('image/video file picker upload, two-pointer pinch gesture, inline playsinline decoding');
@@ -138,10 +137,27 @@ try {
   await act(publisher,'media:share');await publisher.locator('.live-share-options button').first().click();
   await alice.waitForFunction(()=>[...document.querySelectorAll('[data-kind=screen] video')].some(v=>v.videoWidth>0&&v.readyState>=2),null,{timeout:45000});
   await until(async()=>(await diagnostic(alice)).stats.some(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>=10),45000);
+  const remoteVideo=alice.locator('[data-kind=screen] video').first();
+  assert(await remoteVideo.evaluate(v=>v.playsInline&&v.muted&&v.autoplay));
+  await alice.locator('[data-kind=screen]').first().tap();
+  await alice.waitForSelector('.participant-grid.has-focus [data-kind=screen].is-focused');
+  const screenBounds=await remoteVideo.boundingBox(),sx=screenBounds.x+screenBounds.width/2,sy=screenBounds.y+screenBounds.height/2;
+  await gesture(alice,[
+    {type:'touchStart',points:[{x:sx-20,y:sy-10,id:1},{x:sx+20,y:sy+10,id:2}]},
+    {type:'touchMove',points:[{x:sx-50,y:sy-25,id:1},{x:sx+50,y:sy+25,id:2}]},
+    {type:'touchEnd'},
+  ]);
+  assert(await remoteVideo.evaluate(v=>Number(v.dataset.zoom)>1));
+  screenshots.push(await shot(alice,'screen-share-zoom'));
+  checks.push('H.264 screen video is muted/autoplay/playsinline, focuses in-app fullscreen and pinch-zooms');
   screenshots.push(await shot(alice,'screen-share-phone'));
   const stats=await diagnostic(alice);
   assert(stats.stats.some(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>=10));
-  await writeFile(`${output}/phone-share-stats.json`,JSON.stringify({state:stats.state,tracks:stats.tracks,inbound:stats.stats.filter(r=>r.type==='inbound-rtp')},null,2));
+  const videoReport=stats.stats.find(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>=10);
+  const negotiatedCodec=stats.stats.find(r=>r.type==='codec'&&r.id===videoReport.codecId);
+  assert.match(negotiatedCodec?.mimeType??'',/video\/h264/i,'actual receiver must decode H.264, not VP8');
+  await until(async()=>(await diagnostic(alice)).stats.some(r=>r.type==='inbound-rtp'&&r.kind==='audio'&&r.packetsReceived>0));
+  await writeFile(`${output}/phone-share-stats.json`,JSON.stringify({state:stats.state,tracks:stats.tracks,negotiatedCodec,inbound:stats.stats.filter(r=>r.type==='inbound-rtp')},null,2));
   await alice.getByRole('button',{name:'Mute',exact:true}).last().tap();
   await alice.getByRole('button',{name:'Deafen',exact:true}).last().tap();
   await alice.getByRole('button',{name:'Leave Call',exact:true}).tap();await act(publisher,'media:leave');

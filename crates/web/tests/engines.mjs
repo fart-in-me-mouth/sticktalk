@@ -1,4 +1,5 @@
 import { chromium, webkit, firefox, devices } from 'playwright';
+import { resolve } from 'node:path';
 
 export const engines = {
   webkit: { browser: webkit, device: devices['iPhone 15'] },
@@ -18,9 +19,16 @@ export const launchOptions = engine === 'chromium' ? { headless: true, args: [
   '--allow-loopback-in-peer-connection', '--disable-features=WebRtcHideLocalIpsWithMdns',
   '--mute-audio', '--disable-notifications',
   '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost',
-] } : engine === 'firefox' ? { headless: true, firefoxUserPrefs: {
+] } : engine === 'firefox' ? { headless: true,
+  env: {...process.env, MOZ_GMP_PATH:process.env.MOZ_GMP_PATH ?? resolve(process.env.CARGO_TARGET_DIR ?? '../../../target','tools/gmp-gmpopenh264/2.6.0')},
+  firefoxUserPrefs: {
   'media.navigator.streams.fake': true, 'media.navigator.permission.disabled': true,
-  'media.peerconnection.ice.loopback': true, 'media.peerconnection.ice.obfuscate_host_addresses': false,
+  // Fake capture alone does not count as an origin media grant for Firefox ICE
+  // privacy. Grant only in this disposable fake-device browser so it can gather
+  // loopback candidates instead of restricting capture to the default LAN route.
+  'permissions.default.microphone': 1, 'permissions.default.camera': 1,
+  'media.peerconnection.ice.loopback': true, 'media.peerconnection.ice.default_address_only': false,
+  'media.peerconnection.ice.obfuscate_host_addresses': false,
   'media.volume_scale': '0.0', 'dom.webnotifications.enabled': false,
 } } : { headless: true };
 

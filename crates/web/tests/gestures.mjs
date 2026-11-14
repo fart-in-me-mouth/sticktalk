@@ -1,18 +1,20 @@
 import { engine } from './engines.mjs';
 import { setTimeout as wait } from 'node:timers/promises';
+const sessions = new WeakMap();
 
 // Chromium exposes native multi-touch through CDP. Playwright's public WebKit /
 // Firefox API only exposes tap: dispatch DOM pointer/touch sequences there.
 // These test handler behavior, NOT OS gesture recognition or iOS callout policy.
 export async function gesture(page, frames) {
   if (engine === 'chromium') {
-    const cdp = await page.context().newCDPSession(page);
-    try {
-      for (const { type, points = [], delay = 0 } of frames) {
-        await cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
-        if (delay) await wait(delay);
-      }
-    } finally { await cdp.detach(); }
+    let cdp = sessions.get(page);
+    if (!cdp) { cdp = await page.context().newCDPSession(page); sessions.set(page, cdp); }
+    for (const { type, points = [], delay = 0 } of frames) {
+      await cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+      if (delay) await wait(delay);
+    }
+    // Keep the session for this page: detaching resets Chromium touch state and
+    // suppresses the next touchscreen.tap click. Context teardown owns cleanup.
     return;
   }
   for (const { type, points = [], delay = 0 } of frames) {
@@ -38,10 +40,14 @@ export async function gesture(page, frames) {
         else active.set(point.id, { ...point, target });
       }
       const target = changed[0] && (active.get(changed[0].id)?.target ?? document.elementFromPoint(changed[0].x, changed[0].y));
-      if (target && typeof Touch === 'function') {
-        const touch = p => new Touch({ identifier: p.id, target, clientX: p.x, clientY: p.y });
-        target.dispatchEvent(new TouchEvent(type.toLowerCase(), { bubbles: true, cancelable: true,
-          touches: [...active.values()].map(touch), changedTouches: changed.map(touch) }));
+      if (target) {
+        const touch = p => ({ identifier: p.id, target, clientX: p.x, clientY: p.y });
+        const event = new Event(type.toLowerCase(), { bubbles: true, cancelable: true });
+        Object.defineProperties(event, {
+          touches: { value: [...active.values()].map(touch) },
+          changedTouches: { value: changed.map(touch) },
+        });
+        target.dispatchEvent(event);
       }
     }, { type, points });
     if (delay) await wait(delay);

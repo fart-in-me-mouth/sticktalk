@@ -7,15 +7,15 @@ import {harness,register,login,form,act,until,wait,output,target} from './qa-har
 const checks=[];
 for(const mode of ['delete','password','admin-disable']) {
   const h=await harness(),errors=[];
-  let owner;
+  let owner,online,offline;
   try {
     const username=`qa_session_${mode.replaceAll('-','_')}`;
-    owner=await h.phone();owner.on('pageerror',e=>errors.push(String(e)));
+    owner=await h.phone();owner.on('pageerror',e=>errors.push({page:'owner',error:String(e)}));
     await register(owner,h.origin,username);
     await form(owner,'create',{'f-name':'Private session regression'});
     await owner.waitForSelector('#live-input');
     const channel=await owner.locator('#live-messages').getAttribute('data-channel');
-    const online=await h.phone(),offline=await h.phone();
+    online=await h.phone();offline=await h.phone();
     // Playwright's HTTP offline switch does not reliably sever an established
     // WebSocket. Close the browser-owned transport while offline as well, so
     // this device cannot receive the server's later 4001 close notification.
@@ -29,7 +29,7 @@ for(const mode of ['delete','password','admin-disable']) {
     const counts=new Map();
     for(const page of [online,offline]) {
       counts.set(page,0);page.on('websocket',()=>counts.set(page,counts.get(page)+1));
-      page.on('pageerror',e=>errors.push(String(e)));
+      page.on('pageerror',e=>errors.push({page:page===online?'online':'offline',error:String(e)}));
       await page.goto(h.origin);await login(page,username,'synthetic-qa-password-1234');
       await act(page,`channel:${channel}`);await page.waitForSelector('#live-input');
       await page.locator('#live-input').fill('private draft must be erased');
@@ -99,7 +99,7 @@ for(const mode of ['delete','password','admin-disable']) {
     assert(!h.log().includes('housekeeping failed'),h.log());
     checks.push(`${mode}: live and offline devices return to login, clear cookies/private caches/drafts and stop reconnecting`);
   } catch(error) {
-    await writeFile(`${output}/session-revocation-failure.json`,JSON.stringify({mode,error:String(error),log:h.log(),body:await owner?.locator('body').innerText().catch(()=>''),errors},null,2));
+    await writeFile(`${output}/session-revocation-failure.json`,JSON.stringify({mode,error:String(error),log:h.log(),body:await owner?.locator('body').innerText().catch(()=>''),onlineBody:await online?.locator('body').innerText().catch(()=>''),offlineBody:await offline?.locator('body').innerText().catch(()=>''),errors},null,2));
     throw error;
   } finally {await h.close();}
 }

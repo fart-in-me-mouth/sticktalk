@@ -664,7 +664,14 @@ export function installPlatform() {
     },
     true,
   );
-  const focus = () => emit(`focus:${!document.hidden && document.hasFocus()}`);
+  const focus = () => {
+    // Mobile documents may be frozen while connectivity changes. Reconcile on
+    // foreground/pageshow too, without an idle polling loop.
+    const wasOffline=document.documentElement.dataset.offline==='true';
+    network();
+    if(wasOffline&&navigator.onLine)emit('recover');
+    emit(`focus:${!document.hidden && document.hasFocus()}`);
+  };
   const network = () => {
     document.documentElement.dataset.offline=String(!navigator.onLine);
     let banner=$('#offline-banner');
@@ -675,11 +682,15 @@ export function installPlatform() {
   };
   addEventListener('online',network);addEventListener('offline',network);network();
   window.addEventListener("online", () => emit("recover"));
+  window.addEventListener('pageshow',focus);
   window.addEventListener("focus", focus);
   window.addEventListener("blur", focus);
   document.addEventListener("visibilitychange", focus);
   window.addEventListener("pagehide", () => {
-    media?.action("leave");
+    // The closing WebSocket already releases the SFU session. Do not signal
+    // Leave here: it can start a lazy WASM fetch during document teardown,
+    // which WebKit rejects with an unhandled access-control error.
+    media?.action("transport-lost");
     emit("focus:false");
   });
   const viewport = () => {

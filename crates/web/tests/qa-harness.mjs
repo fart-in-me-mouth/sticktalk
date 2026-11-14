@@ -29,7 +29,7 @@ export async function freePort() {
   await new Promise(done => socket.close(done));
   return port;
 }
-export async function harness(extra = [], {tls=false,dist}={}) {
+export async function harness(extra = [], {tls=engine === 'webkit',dist,beforeRequest}={}) {
   await mkdir(target, { recursive: true });
   await mkdir(output, { recursive: true });
   const data = await mkdtemp(join(target, 'qa-data-'));
@@ -37,7 +37,7 @@ export async function harness(extra = [], {tls=false,dist}={}) {
   const origin = `${tls?'https':'http'}://127.0.0.1:${publicPort}`;
   const webRoot=dist??process.env.STICKTALK_WEB_DIST??join(target,'web-dist');
   const revision=JSON.parse(await readFile(join(webRoot,'sizes.json'),'utf8')).revision;
-  let proxy;
+  let proxy, denyProxy;
   const sockets=new Set();
   if(tls) {
     // Ephemeral cert files only: never install a certificate or change an OS store.
@@ -46,11 +46,18 @@ export async function harness(extra = [], {tls=false,dist}={}) {
       'req','-x509','-newkey','rsa:2048','-nodes','-keyout',key,'-out',cert,
       '-subj','/CN=127.0.0.1','-days','1','-addext','subjectAltName=IP:127.0.0.1',
     ],{windowsHide:true,stdio:'ignore'});
-    proxy=createHttpsServer({key:await readFile(key),cert:await readFile(cert)},(req,res)=>{
+    proxy=createHttpsServer({key:await readFile(key),cert:await readFile(cert)},async(req,res)=>{
+      await beforeRequest?.(req);
       const upstream=httpRequest({hostname:'127.0.0.1',port,path:req.url,method:req.method,headers:req.headers},response=>{
         res.writeHead(response.statusCode,response.headers);response.pipe(res);
       });
-      upstream.on('error',()=>{res.writeHead(502);res.end();});req.pipe(upstream);
+      upstream.on('error',()=>{
+        if(res.destroyed)return;
+        if(res.headersSent){res.destroy();return;}
+        res.writeHead(502);res.end();
+      });
+      res.on('close',()=>upstream.destroy());
+      req.pipe(upstream);
     });
     proxy.on('connection',socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket));});
     proxy.on('upgrade',(req,socket,head)=>{
@@ -80,13 +87,21 @@ export async function harness(extra = [], {tls=false,dist}={}) {
       server.once('error', e => { clearTimeout(timer); fail(e); });
       server.once('exit', code => { clearTimeout(timer); fail(Error(`Server exit ${code}: ${log}`)); });
     });
-    const browser = await engines[engine].browser.launch(launchOptions);
+    // Firefox request interception defeats native service-worker offline reload.
+    // Block non-loopback HTTP(S) through a loopback-only rejecting proxy instead.
+    let browserOptions=launchOptions;
+    if(engine==='firefox') {
+      denyProxy=createServer(socket=>socket.destroy());
+      denyProxy.listen(0,'127.0.0.1');await once(denyProxy,'listening');
+      browserOptions={...launchOptions,proxy:{server:`http://127.0.0.1:${denyProxy.address().port}`,bypass:'127.0.0.1,localhost,[::1]'}};
+    }
+    const browser = await engines[engine].browser.launch(browserOptions);
     const contexts = [];
     return { origin, data, browser, revision, log: () => log,
       async phone(width = device.viewport.width, height = device.viewport.height) {
         const context = await browser.newContext(contextOptions(width, height, tls));
         // Never permit an external request or OS notification during QA.
-        await context.route('**/*', route => {
+        if(engine!=='firefox')await context.route('**/*', route => {
           const url = new URL(route.request().url());
           return ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)
             ? route.continue() : route.abort('blockedbyclient');
@@ -102,12 +117,13 @@ export async function harness(extra = [], {tls=false,dist}={}) {
       },
       async close() {
         await browser.close();
+        if(denyProxy)await new Promise(done=>denyProxy.close(done));
         if(proxy){for(const socket of sockets)socket.destroy();await new Promise(done=>proxy.close(done));}
         if (server.exitCode === null) { const exit = once(server, 'exit'); server.kill(); await exit; }
         // Test DBs stay under the one task target and are removed with that dir.
       },
     };
-  } catch (e) { server.kill();if(proxy){for(const socket of sockets)socket.destroy();proxy.close();}throw e; }
+  } catch (e) { server.kill();denyProxy?.close();if(proxy){for(const socket of sockets)socket.destroy();proxy.close();}throw e; }
 }
 export async function register(page, origin, username) {
   await page.goto(origin);
