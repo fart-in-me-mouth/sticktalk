@@ -1,0 +1,4 @@
+dhat: Total:     17,855,776 bytes in 122,955 blocks
+dhat: At t-gmax: 3,822,709 bytes in 12,308 blocks
+dhat: At t-end:  3,326,594 bytes in 8,880 blocks
+dhat: The data has been saved to C:\Users\dwhee\.t3\worktrees\discord clone\t3-7237cbab-faa7c40978537b9b/crates/client/bench/polish2/heap-before.json, and is viewable with dhat/dh_view.html

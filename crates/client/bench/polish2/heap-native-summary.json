@@ -1,0 +1,512 @@
+{
+  "method": "DHAT native daemon Rust allocations. Peak includes the live mock backend, 2000-message walk and emoji/GIF pickers; end is after daemon shutdown. Native driver allocations and mapped pages are excluded. Instrumented RAM/CPU is not shipping performance.",
+  "live_bytes": 5036713,
+  "peak_live_bytes": 9715780,
+  "allocation_sites": 9654,
+  "largest_live_sites": [
+    {
+      "live_bytes": 1780000,
+      "peak_live_bytes": 1780000,
+      "total_bytes": 1780000,
+      "live_blocks": 5000,
+      "stack": []
+    },
+    {
+      "live_bytes": 848684,
+      "peak_live_bytes": 848684,
+      "total_bytes": 848684,
+      "live_blocks": 7,
+      "stack": []
+    },
+    {
+      "live_bytes": 775424,
+      "peak_live_bytes": 775424,
+      "total_bytes": 775424,
+      "live_blocks": 416,
+      "stack": []
+    },
+    {
+      "live_bytes": 635544,
+      "peak_live_bytes": 423696,
+      "total_bytes": 635544,
+      "live_blocks": 6,
+      "stack": []
+    },
+    {
+      "live_bytes": 336128,
+      "peak_live_bytes": 336128,
+      "total_bytes": 336128,
+      "live_blocks": 16,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 111840,
+      "peak_live_bytes": 111840,
+      "total_bytes": 130480,
+      "live_blocks": 60,
+      "stack": []
+    },
+    {
+      "live_bytes": 74496,
+      "peak_live_bytes": 74496,
+      "total_bytes": 74496,
+      "live_blocks": 1,
+      "stack": []
+    },
+    {
+      "live_bytes": 70560,
+      "peak_live_bytes": 70560,
+      "total_bytes": 70560,
+      "live_blocks": 36,
+      "stack": []
+    },
+    {
+      "live_bytes": 65536,
+      "peak_live_bytes": 65536,
+      "total_bytes": 130688,
+      "live_blocks": 1,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 34832,
+      "peak_live_bytes": 34832,
+      "total_bytes": 34832,
+      "live_blocks": 1,
+      "stack": [
+        "<hashbrown::raw::RawTable<(&str, ())>>::reserve_rehash::<hashbrown::map::make_hasher<&str, (), core::hash::BuildHasherDefault<rustc_hash::FxHasher>>::{closure#0}>+0x152",
+        "naga::back::hlsl::keywords::RESERVED_SET::{closure#0}+0x36",
+        "<naga::back::hlsl::keywords::RESERVED_SET::{closure#0} as core::ops::function::FnOnce<()>>::call_once+0xd",
+        "<once_cell::race::once_box::OnceBox<naga::proc::keyword_set::KeywordSet>>::init::<<once_cell::race::once_box::OnceBox<_>>::get_or_init::Void, <once_cell::race::once_box::OnceBox<naga::proc::keyword_set::KeywordSet>>::get_or_init<<naga::racy_lock::RacyLock<naga::proc::keyword_set::KeywordSet> as core::ops::deref::Deref>::deref::{closure#0}>::{closure#0}>+0x10"
+      ]
+    },
+    {
+      "live_bytes": 32768,
+      "peak_live_bytes": 32768,
+      "total_bytes": 32768,
+      "live_blocks": 1,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::initialize::<<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::get_or_init<sticktalk::platform_glue::runtime::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 30208,
+      "peak_live_bytes": 30208,
+      "total_bytes": 30208,
+      "live_blocks": 236,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(alloc::string::String, ttf_parser::language::Language)>>::grow_one+0x40",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 27840,
+      "peak_live_bytes": 27840,
+      "total_bytes": 33600,
+      "live_blocks": 464,
+      "stack": []
+    },
+    {
+      "live_bytes": 21648,
+      "peak_live_bytes": 21648,
+      "total_bytes": 39600,
+      "live_blocks": 57,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x4f",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>+0x4f"
+      ]
+    },
+    {
+      "live_bytes": 16384,
+      "peak_live_bytes": 16384,
+      "total_bytes": 16384,
+      "live_blocks": 1,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::initialize::<<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::get_or_init<sticktalk::platform_glue::runtime::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 11760,
+      "peak_live_bytes": 11760,
+      "total_bytes": 13720,
+      "live_blocks": 6,
+      "stack": []
+    },
+    {
+      "live_bytes": 11184,
+      "peak_live_bytes": 11184,
+      "total_bytes": 13048,
+      "live_blocks": 6,
+      "stack": []
+    },
+    {
+      "live_bytes": 9508,
+      "peak_live_bytes": 9508,
+      "total_bytes": 9508,
+      "live_blocks": 290,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 6912,
+      "peak_live_bytes": 6912,
+      "total_bytes": 6912,
+      "live_blocks": 54,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(alloc::string::String, ttf_parser::language::Language)>>::grow_one+0x40",
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 6240,
+      "peak_live_bytes": 6240,
+      "total_bytes": 6240,
+      "live_blocks": 1,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::initialize::<<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::get_or_init<sticktalk::platform_glue::runtime::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 6144,
+      "peak_live_bytes": 6144,
+      "total_bytes": 12192,
+      "live_blocks": 2,
+      "stack": []
+    },
+    {
+      "live_bytes": 5880,
+      "peak_live_bytes": 5880,
+      "total_bytes": 5880,
+      "live_blocks": 3,
+      "stack": []
+    },
+    {
+      "live_bytes": 5184,
+      "peak_live_bytes": 5184,
+      "total_bytes": 5184,
+      "live_blocks": 2,
+      "stack": []
+    },
+    {
+      "live_bytes": 5184,
+      "peak_live_bytes": 5184,
+      "total_bytes": 5184,
+      "live_blocks": 2,
+      "stack": []
+    },
+    {
+      "live_bytes": 4801,
+      "peak_live_bytes": 4801,
+      "total_bytes": 4801,
+      "live_blocks": 290,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 4608,
+      "peak_live_bytes": 4608,
+      "total_bytes": 4608,
+      "live_blocks": 6,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gpos::GposMarker>>::{closure#0}>::{closure#0}, !>+0x4f"
+      ]
+    },
+    {
+      "live_bytes": 4480,
+      "peak_live_bytes": 4480,
+      "total_bytes": 4480,
+      "live_blocks": 5,
+      "stack": []
+    },
+    {
+      "live_bytes": 4104,
+      "peak_live_bytes": 4104,
+      "total_bytes": 4104,
+      "live_blocks": 57,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::initialize::<<std::sync::once_lock::OnceLock<core::option::Option<alloc::boxed::Box<harfrust::hb::ot::lookup::LookupInfo>>>>::get_or_init<<harfrust::hb::ot::lookup::cache::LookupCache>::get<read_fonts::table_ref::TableRef<read_fonts::tables::gsub::GsubMarker>>::{closure#0}>::{closure#0}, !>+0x4f"
+      ]
+    },
+    {
+      "live_bytes": 4096,
+      "peak_live_bytes": 4096,
+      "total_bytes": 4096,
+      "live_blocks": 2,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::initialize::<<std::sync::once_lock::OnceLock<tokio::runtime::runtime::Runtime>>::get_or_init<sticktalk::platform_glue::runtime::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 3952,
+      "peak_live_bytes": 3952,
+      "total_bytes": 4233,
+      "live_blocks": 314,
+      "stack": [
+        "<std::sys::sync::once::futex::Once>::call+0xd5",
+        "<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::initialize::<<std::sync::once_lock::OnceLock<std::sync::poison::rwlock::RwLock<iced_graphics::text::FontSystem>>>::get_or_init<iced_graphics::text::font_system::{closure#0}>::{closure#0}, !>+0x54"
+      ]
+    },
+    {
+      "live_bytes": 3872,
+      "peak_live_bytes": 3872,
+      "total_bytes": 3872,
+      "live_blocks": 1,
+      "stack": []
+    },
+    {
+      "live_bytes": 3872,
+      "peak_live_bytes": 3872,
+      "total_bytes": 3872,
+      "live_blocks": 1,
+      "stack": []
+    },
+    {
+      "live_bytes": 3232,
+      "peak_live_bytes": 3232,
+      "total_bytes": 3232,
+      "live_blocks": 1,
+      "stack": []
+    },
+    {
+      "live_bytes": 3096,
+      "peak_live_bytes": 0,
+      "total_bytes": 3096,
+      "live_blocks": 1,
+      "stack": []
+    },
+    {
+      "live_bytes": 3072,
+      "peak_live_bytes": 3072,
+      "total_bytes": 6096,
+      "live_blocks": 1,
+      "stack": []
+    },
+    {
+      "live_bytes": 3072,
+      "peak_live_bytes": 3072,
+      "total_bytes": 6096,
+      "live_blocks": 1,
+      "stack": []
+    },
+    {
+      "live_bytes": 2816,
+      "peak_live_bytes": 2816,
+      "total_bytes": 4224,
+      "live_blocks": 1,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<(usize, tract_core::axes::Axis)>>::grow_one+0x40",
+        "<alloc::collections::vec_deque::VecDeque<(fontdb::ID, harfrust::hb::ot_shape_plan::hb_ot_shape_plan_t)>>::grow+0x12"
+      ]
+    },
+    {
+      "live_bytes": 2528,
+      "peak_live_bytes": 2528,
+      "total_bytes": 2528,
+      "live_blocks": 2,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x4f"
+      ]
+    },
+    {
+      "live_bytes": 2040,
+      "peak_live_bytes": 2040,
+      "total_bytes": 2040,
+      "live_blocks": 1,
+      "stack": []
+    },
+    {
+      "live_bytes": 1904,
+      "peak_live_bytes": 1904,
+      "total_bytes": 1904,
+      "live_blocks": 2,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x4f"
+      ]
+    }
+  ],
+  "largest_peak_sites": [
+    {
+      "live_bytes": 1780000,
+      "peak_live_bytes": 1780000,
+      "total_bytes": 1780000,
+      "live_blocks": 5000,
+      "stack": []
+    },
+    {
+      "live_bytes": 848684,
+      "peak_live_bytes": 848684,
+      "total_bytes": 848684,
+      "live_blocks": 7,
+      "stack": []
+    },
+    {
+      "live_bytes": 775424,
+      "peak_live_bytes": 775424,
+      "total_bytes": 775424,
+      "live_blocks": 416,
+      "stack": []
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 622592,
+      "total_bytes": 3600384,
+      "live_blocks": 0,
+      "stack": []
+    },
+    {
+      "live_bytes": 635544,
+      "peak_live_bytes": 423696,
+      "total_bytes": 635544,
+      "live_blocks": 6,
+      "stack": []
+    },
+    {
+      "live_bytes": 336128,
+      "peak_live_bytes": 336128,
+      "total_bytes": 336128,
+      "live_blocks": 16,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)",
+        "0x7ff8f52f5dbd: IsWindowUnicode (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 264688,
+      "total_bytes": 520056,
+      "live_blocks": 0,
+      "stack": []
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 185808,
+      "total_bytes": 309680,
+      "live_blocks": 0,
+      "stack": []
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 182000,
+      "total_bytes": 354900,
+      "live_blocks": 0,
+      "stack": []
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 174080,
+      "total_bytes": 1044480,
+      "live_blocks": 0,
+      "stack": []
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 174080,
+      "total_bytes": 174080,
+      "live_blocks": 0,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner>::grow_exact+0x32"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 158400,
+      "total_bytes": 158400,
+      "live_blocks": 0,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 139232,
+      "total_bytes": 794616,
+      "live_blocks": 0,
+      "stack": []
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 120000,
+      "total_bytes": 120000,
+      "live_blocks": 0,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 119680,
+      "total_bytes": 234080,
+      "live_blocks": 0,
+      "stack": []
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 112640,
+      "total_bytes": 221760,
+      "live_blocks": 0,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVec<harfrust::hb::ot::lookup::SubtableInfo>>::grow_one+0x40"
+      ]
+    },
+    {
+      "live_bytes": 111840,
+      "peak_live_bytes": 111840,
+      "total_bytes": 130480,
+      "live_blocks": 60,
+      "stack": []
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 104000,
+      "total_bytes": 104000,
+      "live_blocks": 0,
+      "stack": [
+        "0x7ff8f52f52e6: CallWindowProcW (???:0:0)"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 103680,
+      "total_bytes": 103680,
+      "live_blocks": 0,
+      "stack": [
+        "<alloc::raw_vec::RawVecInner>::finish_grow+0x7c",
+        "<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>+0x5a"
+      ]
+    },
+    {
+      "live_bytes": 0,
+      "peak_live_bytes": 102672,
+      "total_bytes": 102672,
+      "live_blocks": 0,
+      "stack": []
+    }
+  ]
+}

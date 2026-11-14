@@ -1,0 +1,3047 @@
+{
+  "allocator": "system",
+  "method": "release native iced daemon, wgpu/DX12 swapchain, 1280x800 secondary noactivate window; mock transport; 60s idle samples; no working-set eviction",
+  "samples": [
+    {
+      "audio_active": false,
+      "cpu_percent_one_core": 0.07810911781271142,
+      "font_faces": 298,
+      "image_cache": {
+        "decoded_bytes": 0,
+        "entries": 0,
+        "pending": 0
+      },
+      "messages_seen": 50,
+      "page_faults": 66417,
+      "private_bytes": 169385984,
+      "retained_message_bytes": 17100,
+      "retained_messages": 50,
+      "scenario": "idle",
+      "seconds": 60.0122,
+      "vm_regions": [
+        {
+          "committed_bytes": 81121280,
+          "name": "image:\\Device\\HarddiskVolume3\\Users\\dwhee\\.cargo-target\\sticktalk-polish2\\probe-binaries\\sticktalk-00C6664043ED46634517253A3359AF3C01A2B70FCA46E7CF772B871522521668.exe",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 21254144
+        },
+        {
+          "committed_bytes": 147456,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 3481600,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12Core.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 1523712
+        },
+        {
+          "committed_bytes": 4718592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DCompiler_47.dll",
+          "private_resident_bytes": 81920,
+          "resident_bytes": 2273280
+        },
+        {
+          "committed_bytes": 917504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DSCache.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 761856
+        },
+        {
+          "committed_bytes": 307200,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DXCore.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 294912
+        },
+        {
+          "committed_bytes": 376832,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DataExchange.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 1290240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\NvMemMapStoragex.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 561152
+        },
+        {
+          "committed_bytes": 98623488,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvgpucomp64.dll",
+          "private_resident_bytes": 1785856,
+          "resident_bytes": 15556608
+        },
+        {
+          "committed_bytes": 827392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvldumdx.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 7499776,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvppex.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 339968
+        },
+        {
+          "committed_bytes": 89804800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvwgf2umx.dll",
+          "private_resident_bytes": 983040,
+          "resident_bytes": 11599872
+        },
+        {
+          "committed_bytes": 3309568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ExplorerFrame.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 348160
+        },
+        {
+          "committed_bytes": 4235264,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\KernelBase.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 1118208
+        },
+        {
+          "committed_bytes": 634880,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\MMDevAPI.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 110592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\Microsoft.Internal.WarpPal.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 49152
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\RTWorkQ.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1019904,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\SHCore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 774144,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\advapi32.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 331776
+        },
+        {
+          "committed_bytes": 176128,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcrypt.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 114688
+        },
+        {
+          "committed_bytes": 708608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcryptprimitives.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 167936
+        },
+        {
+          "committed_bytes": 339968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cfgmgr32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 126976
+        },
+        {
+          "committed_bytes": 720896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\clbcatq.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 233472
+        },
+        {
+          "committed_bytes": 3825664,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\combase.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 1503232
+        },
+        {
+          "committed_bytes": 1568768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\crypt32.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 598016
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptbase.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 40960
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptnet.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptsp.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 2490368,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\d3d11.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 2314240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dcomp.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 307200
+        },
+        {
+          "committed_bytes": 196608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\devobj.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 393216,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\directxdatabasehelper.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 1556480,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\drvstore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 192512,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dwmapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1327104,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxgi.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 675840
+        },
+        {
+          "committed_bytes": 1458176,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxilconv.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 970752
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 155648
+        },
+        {
+          "committed_bytes": 1220608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32full.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 270336
+        },
+        {
+          "committed_bytes": 233472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\glu32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 135168,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imagehlp.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 69632
+        },
+        {
+          "committed_bytes": 204800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imm32.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel.appcore.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 65536
+        },
+        {
+          "committed_bytes": 835584,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel32.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 626688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mf.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 4304896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfcore.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 233472
+        },
+        {
+          "committed_bytes": 2260992,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfplat.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 286720
+        },
+        {
+          "committed_bytes": 876544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfreadwrite.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 122880
+        },
+        {
+          "committed_bytes": 81920,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msasn1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 1429504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msctf.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 643072,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp140.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 671744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp_win.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 323584
+        },
+        {
+          "committed_bytes": 696320,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcrt.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 229376
+        },
+        {
+          "committed_bytes": 2543616,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntdll.dll",
+          "private_resident_bytes": 53248,
+          "resident_bytes": 1961984
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntmarta.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 1339392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\nvspcap64.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 479232
+        },
+        {
+          "committed_bytes": 1679360,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ole32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 323584
+        },
+        {
+          "committed_bytes": 897024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\oleaut32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 151552
+        },
+        {
+          "committed_bytes": 1101824,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\opengl32.dll",
+          "private_resident_bytes": 122880,
+          "resident_bytes": 208896
+        },
+        {
+          "committed_bytes": 364544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\pdh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 389120,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\powrprof.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 172032,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\profapi.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 1003520,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\propsys.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\psapi.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1150976,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rpcrt4.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 667648
+        },
+        {
+          "committed_bytes": 237568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rsaenh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 110592
+        },
+        {
+          "committed_bytes": 692224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\sechost.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 196608
+        },
+        {
+          "committed_bytes": 8065024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shell32.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 610304
+        },
+        {
+          "committed_bytes": 430080,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shlwapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 2428928,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\twinapi.appcore.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 430080
+        },
+        {
+          "committed_bytes": 1363968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ucrtbase.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 720896
+        },
+        {
+          "committed_bytes": 90112,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\umpdc.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 1961984,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\user32.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 552960
+        },
+        {
+          "committed_bytes": 217088,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\userenv.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 700416,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\uxtheme.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 348160
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140_1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\version.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 159744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\win32u.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 9179136,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\windows.storage.dll",
+          "private_resident_bytes": 69632,
+          "resident_bytes": 925696
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\winmm.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 94208
+        },
+        {
+          "committed_bytes": 540672,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wintrust.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 462848,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wldp.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 180224
+        },
+        {
+          "committed_bytes": 528384,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ws2_32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 106496
+        },
+        {
+          "committed_bytes": 745472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\WinSxS\\amd64_microsoft.windows.common-controls_6595b64144ccf1df_5.82.26100.8328_none_87eede957a2ccddd\\comctl32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 5394432,
+          "name": "mapped",
+          "private_resident_bytes": 0,
+          "resident_bytes": 643072
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\6F75932F-7DFC-4FB0-B4B8-12DE1AC415DA_VEN_10DE&DEV_24C9&SUBSYS_88AE&REV_A1.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\F4EB2D6C-ED2B-4BDD-AD9D-F913287E6768.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\0002a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\fc52a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 3387392,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\Globalization\\Sorting\\SortDefault.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 36864
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_1252.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 12288
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_437.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 45056,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\crypt32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 20480,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\user32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 24576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\l_intl.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 864256,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\locale.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 749568
+        },
+        {
+          "committed_bytes": 1646592,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\apppatch\\DirectXApps.sdb",
+          "private_resident_bytes": 0,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 132927488,
+          "name": "private",
+          "private_resident_bytes": 78766080,
+          "resident_bytes": 78774272
+        }
+      ],
+      "working_set_bytes": 154136576
+    },
+    {
+      "audio_active": false,
+      "cpu_percent_one_core": 0.026037072902499358,
+      "font_faces": 298,
+      "image_cache": {
+        "decoded_bytes": 0,
+        "entries": 0,
+        "pending": 0
+      },
+      "messages_seen": 2000,
+      "page_faults": 66917,
+      "private_bytes": 171126784,
+      "retained_message_bytes": 342000,
+      "retained_messages": 1000,
+      "scenario": "after-2000-messages",
+      "seconds": 60.0105859,
+      "vm_regions": [
+        {
+          "committed_bytes": 81121280,
+          "name": "image:\\Device\\HarddiskVolume3\\Users\\dwhee\\.cargo-target\\sticktalk-polish2\\probe-binaries\\sticktalk-00C6664043ED46634517253A3359AF3C01A2B70FCA46E7CF772B871522521668.exe",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 21278720
+        },
+        {
+          "committed_bytes": 147456,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 3481600,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12Core.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 1523712
+        },
+        {
+          "committed_bytes": 4718592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DCompiler_47.dll",
+          "private_resident_bytes": 81920,
+          "resident_bytes": 2273280
+        },
+        {
+          "committed_bytes": 917504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DSCache.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 761856
+        },
+        {
+          "committed_bytes": 307200,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DXCore.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 294912
+        },
+        {
+          "committed_bytes": 376832,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DataExchange.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 1290240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\NvMemMapStoragex.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 561152
+        },
+        {
+          "committed_bytes": 98623488,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvgpucomp64.dll",
+          "private_resident_bytes": 1785856,
+          "resident_bytes": 15556608
+        },
+        {
+          "committed_bytes": 827392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvldumdx.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 7499776,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvppex.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 339968
+        },
+        {
+          "committed_bytes": 89804800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvwgf2umx.dll",
+          "private_resident_bytes": 983040,
+          "resident_bytes": 11603968
+        },
+        {
+          "committed_bytes": 3309568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ExplorerFrame.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 348160
+        },
+        {
+          "committed_bytes": 4235264,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\KernelBase.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 1118208
+        },
+        {
+          "committed_bytes": 634880,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\MMDevAPI.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 110592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\Microsoft.Internal.WarpPal.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 49152
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\RTWorkQ.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1019904,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\SHCore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 774144,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\advapi32.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 331776
+        },
+        {
+          "committed_bytes": 176128,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcrypt.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 114688
+        },
+        {
+          "committed_bytes": 708608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcryptprimitives.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 167936
+        },
+        {
+          "committed_bytes": 339968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cfgmgr32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 126976
+        },
+        {
+          "committed_bytes": 720896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\clbcatq.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 233472
+        },
+        {
+          "committed_bytes": 3825664,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\combase.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 1507328
+        },
+        {
+          "committed_bytes": 1568768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\crypt32.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 598016
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptbase.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 40960
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptnet.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptsp.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 2490368,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\d3d11.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 2314240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dcomp.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 307200
+        },
+        {
+          "committed_bytes": 196608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\devobj.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 393216,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\directxdatabasehelper.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 1556480,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\drvstore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 192512,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dwmapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1327104,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxgi.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 675840
+        },
+        {
+          "committed_bytes": 1458176,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxilconv.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 970752
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 155648
+        },
+        {
+          "committed_bytes": 1220608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32full.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 270336
+        },
+        {
+          "committed_bytes": 233472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\glu32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 135168,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imagehlp.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 69632
+        },
+        {
+          "committed_bytes": 204800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imm32.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel.appcore.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 65536
+        },
+        {
+          "committed_bytes": 835584,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel32.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 626688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mf.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 4304896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfcore.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 233472
+        },
+        {
+          "committed_bytes": 2260992,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfplat.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 286720
+        },
+        {
+          "committed_bytes": 876544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfreadwrite.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 122880
+        },
+        {
+          "committed_bytes": 81920,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msasn1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 1429504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msctf.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 643072,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp140.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 671744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp_win.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 323584
+        },
+        {
+          "committed_bytes": 696320,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcrt.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 229376
+        },
+        {
+          "committed_bytes": 2543616,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntdll.dll",
+          "private_resident_bytes": 53248,
+          "resident_bytes": 1961984
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntmarta.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 1339392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\nvspcap64.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 479232
+        },
+        {
+          "committed_bytes": 1679360,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ole32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 327680
+        },
+        {
+          "committed_bytes": 897024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\oleaut32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 151552
+        },
+        {
+          "committed_bytes": 1101824,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\opengl32.dll",
+          "private_resident_bytes": 122880,
+          "resident_bytes": 208896
+        },
+        {
+          "committed_bytes": 364544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\pdh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 389120,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\powrprof.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 172032,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\profapi.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 1003520,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\propsys.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\psapi.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1150976,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rpcrt4.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 671744
+        },
+        {
+          "committed_bytes": 237568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rsaenh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 110592
+        },
+        {
+          "committed_bytes": 692224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\sechost.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 196608
+        },
+        {
+          "committed_bytes": 8065024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shell32.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 610304
+        },
+        {
+          "committed_bytes": 430080,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shlwapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 2428928,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\twinapi.appcore.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 430080
+        },
+        {
+          "committed_bytes": 1363968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ucrtbase.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 720896
+        },
+        {
+          "committed_bytes": 90112,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\umpdc.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 1961984,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\user32.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 552960
+        },
+        {
+          "committed_bytes": 217088,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\userenv.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 700416,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\uxtheme.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 348160
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140_1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\version.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 159744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\win32u.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 9179136,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\windows.storage.dll",
+          "private_resident_bytes": 69632,
+          "resident_bytes": 925696
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\winmm.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 94208
+        },
+        {
+          "committed_bytes": 540672,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wintrust.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 462848,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wldp.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 180224
+        },
+        {
+          "committed_bytes": 528384,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ws2_32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 106496
+        },
+        {
+          "committed_bytes": 745472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\WinSxS\\amd64_microsoft.windows.common-controls_6595b64144ccf1df_5.82.26100.8328_none_87eede957a2ccddd\\comctl32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 5394432,
+          "name": "mapped",
+          "private_resident_bytes": 0,
+          "resident_bytes": 643072
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\6F75932F-7DFC-4FB0-B4B8-12DE1AC415DA_VEN_10DE&DEV_24C9&SUBSYS_88AE&REV_A1.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\F4EB2D6C-ED2B-4BDD-AD9D-F913287E6768.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\0002a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\fc52a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 3387392,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\Globalization\\Sorting\\SortDefault.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 36864
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_1252.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 12288
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_437.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 45056,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\crypt32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 20480,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\user32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 24576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\l_intl.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 864256,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\locale.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 749568
+        },
+        {
+          "committed_bytes": 1646592,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\apppatch\\DirectXApps.sdb",
+          "private_resident_bytes": 0,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 134615040,
+          "name": "private",
+          "private_resident_bytes": 80654336,
+          "resident_bytes": 80662528
+        }
+      ],
+      "working_set_bytes": 156127232
+    },
+    {
+      "audio_active": false,
+      "cpu_percent_one_core": 0.26034615841831305,
+      "font_faces": 298,
+      "image_cache": {
+        "decoded_bytes": 0,
+        "entries": 0,
+        "pending": 0
+      },
+      "messages_seen": 2000,
+      "page_faults": 68332,
+      "private_bytes": 186261504,
+      "retained_message_bytes": 342000,
+      "retained_messages": 1000,
+      "scenario": "emoji-open",
+      "seconds": 60.0162495,
+      "vm_regions": [
+        {
+          "committed_bytes": 81121280,
+          "name": "image:\\Device\\HarddiskVolume3\\Users\\dwhee\\.cargo-target\\sticktalk-polish2\\probe-binaries\\sticktalk-00C6664043ED46634517253A3359AF3C01A2B70FCA46E7CF772B871522521668.exe",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 21794816
+        },
+        {
+          "committed_bytes": 147456,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 3481600,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12Core.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 1523712
+        },
+        {
+          "committed_bytes": 4718592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DCompiler_47.dll",
+          "private_resident_bytes": 81920,
+          "resident_bytes": 2273280
+        },
+        {
+          "committed_bytes": 917504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DSCache.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 761856
+        },
+        {
+          "committed_bytes": 307200,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DXCore.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 294912
+        },
+        {
+          "committed_bytes": 376832,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DataExchange.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 1290240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\NvMemMapStoragex.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 561152
+        },
+        {
+          "committed_bytes": 98623488,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvgpucomp64.dll",
+          "private_resident_bytes": 1785856,
+          "resident_bytes": 15556608
+        },
+        {
+          "committed_bytes": 827392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvldumdx.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 7499776,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvppex.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 339968
+        },
+        {
+          "committed_bytes": 89804800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvwgf2umx.dll",
+          "private_resident_bytes": 983040,
+          "resident_bytes": 11603968
+        },
+        {
+          "committed_bytes": 3309568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ExplorerFrame.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 348160
+        },
+        {
+          "committed_bytes": 4235264,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\KernelBase.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 1118208
+        },
+        {
+          "committed_bytes": 634880,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\MMDevAPI.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 110592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\Microsoft.Internal.WarpPal.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 49152
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\RTWorkQ.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1019904,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\SHCore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 774144,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\advapi32.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 331776
+        },
+        {
+          "committed_bytes": 176128,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcrypt.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 114688
+        },
+        {
+          "committed_bytes": 708608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcryptprimitives.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 167936
+        },
+        {
+          "committed_bytes": 339968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cfgmgr32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 126976
+        },
+        {
+          "committed_bytes": 720896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\clbcatq.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 233472
+        },
+        {
+          "committed_bytes": 3825664,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\combase.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 1507328
+        },
+        {
+          "committed_bytes": 1568768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\crypt32.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 598016
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptbase.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 40960
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptnet.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptsp.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 2490368,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\d3d11.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 2314240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dcomp.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 307200
+        },
+        {
+          "committed_bytes": 196608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\devobj.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 393216,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\directxdatabasehelper.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 1556480,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\drvstore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 192512,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dwmapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1327104,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxgi.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 675840
+        },
+        {
+          "committed_bytes": 1458176,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxilconv.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 970752
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 155648
+        },
+        {
+          "committed_bytes": 1220608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32full.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 270336
+        },
+        {
+          "committed_bytes": 233472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\glu32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 135168,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imagehlp.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 69632
+        },
+        {
+          "committed_bytes": 204800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imm32.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel.appcore.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 65536
+        },
+        {
+          "committed_bytes": 835584,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel32.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 626688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mf.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 4304896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfcore.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 233472
+        },
+        {
+          "committed_bytes": 2260992,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfplat.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 286720
+        },
+        {
+          "committed_bytes": 876544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfreadwrite.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 122880
+        },
+        {
+          "committed_bytes": 81920,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msasn1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 1429504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msctf.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 643072,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp140.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 671744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp_win.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 323584
+        },
+        {
+          "committed_bytes": 696320,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcrt.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 229376
+        },
+        {
+          "committed_bytes": 2543616,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntdll.dll",
+          "private_resident_bytes": 53248,
+          "resident_bytes": 1961984
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntmarta.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 1339392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\nvspcap64.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 479232
+        },
+        {
+          "committed_bytes": 1679360,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ole32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 327680
+        },
+        {
+          "committed_bytes": 897024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\oleaut32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 151552
+        },
+        {
+          "committed_bytes": 1101824,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\opengl32.dll",
+          "private_resident_bytes": 122880,
+          "resident_bytes": 208896
+        },
+        {
+          "committed_bytes": 364544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\pdh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 389120,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\powrprof.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 172032,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\profapi.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 1003520,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\propsys.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\psapi.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1150976,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rpcrt4.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 671744
+        },
+        {
+          "committed_bytes": 237568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rsaenh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 110592
+        },
+        {
+          "committed_bytes": 692224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\sechost.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 196608
+        },
+        {
+          "committed_bytes": 8065024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shell32.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 610304
+        },
+        {
+          "committed_bytes": 430080,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shlwapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 2428928,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\twinapi.appcore.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 430080
+        },
+        {
+          "committed_bytes": 1363968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ucrtbase.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 720896
+        },
+        {
+          "committed_bytes": 90112,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\umpdc.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 1961984,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\user32.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 552960
+        },
+        {
+          "committed_bytes": 217088,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\userenv.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 700416,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\uxtheme.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 348160
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140_1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\version.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 159744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\win32u.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 9179136,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\windows.storage.dll",
+          "private_resident_bytes": 69632,
+          "resident_bytes": 925696
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\winmm.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 94208
+        },
+        {
+          "committed_bytes": 540672,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wintrust.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 462848,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wldp.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 180224
+        },
+        {
+          "committed_bytes": 528384,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ws2_32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 106496
+        },
+        {
+          "committed_bytes": 745472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\WinSxS\\amd64_microsoft.windows.common-controls_6595b64144ccf1df_5.82.26100.8328_none_87eede957a2ccddd\\comctl32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 5394432,
+          "name": "mapped",
+          "private_resident_bytes": 0,
+          "resident_bytes": 643072
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\6F75932F-7DFC-4FB0-B4B8-12DE1AC415DA_VEN_10DE&DEV_24C9&SUBSYS_88AE&REV_A1.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\F4EB2D6C-ED2B-4BDD-AD9D-F913287E6768.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\0002a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\fc52a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 3387392,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\Globalization\\Sorting\\SortDefault.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 36864
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_1252.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 12288
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_437.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 45056,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\crypt32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 20480,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\user32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 24576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\l_intl.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 864256,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\locale.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 749568
+        },
+        {
+          "committed_bytes": 1646592,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\apppatch\\DirectXApps.sdb",
+          "private_resident_bytes": 0,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 149733376,
+          "name": "private",
+          "private_resident_bytes": 85917696,
+          "resident_bytes": 85925888
+        }
+      ],
+      "working_set_bytes": 161906688
+    },
+    {
+      "audio_active": false,
+      "cpu_percent_one_core": 0.18225878171468188,
+      "font_faces": 298,
+      "image_cache": {
+        "decoded_bytes": 0,
+        "entries": 0,
+        "pending": 0
+      },
+      "messages_seen": 2000,
+      "page_faults": 69061,
+      "private_bytes": 196366336,
+      "retained_message_bytes": 342000,
+      "retained_messages": 1000,
+      "scenario": "gif-open",
+      "seconds": 60.0108258,
+      "vm_regions": [
+        {
+          "committed_bytes": 81121280,
+          "name": "image:\\Device\\HarddiskVolume3\\Users\\dwhee\\.cargo-target\\sticktalk-polish2\\probe-binaries\\sticktalk-00C6664043ED46634517253A3359AF3C01A2B70FCA46E7CF772B871522521668.exe",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 21868544
+        },
+        {
+          "committed_bytes": 147456,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 3481600,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12Core.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 1523712
+        },
+        {
+          "committed_bytes": 4718592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DCompiler_47.dll",
+          "private_resident_bytes": 81920,
+          "resident_bytes": 2273280
+        },
+        {
+          "committed_bytes": 917504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DSCache.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 761856
+        },
+        {
+          "committed_bytes": 307200,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DXCore.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 294912
+        },
+        {
+          "committed_bytes": 376832,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DataExchange.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 1290240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\NvMemMapStoragex.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 561152
+        },
+        {
+          "committed_bytes": 98623488,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvgpucomp64.dll",
+          "private_resident_bytes": 1785856,
+          "resident_bytes": 15556608
+        },
+        {
+          "committed_bytes": 827392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvldumdx.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 7499776,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvppex.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 339968
+        },
+        {
+          "committed_bytes": 89804800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvwgf2umx.dll",
+          "private_resident_bytes": 983040,
+          "resident_bytes": 11603968
+        },
+        {
+          "committed_bytes": 3309568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ExplorerFrame.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 348160
+        },
+        {
+          "committed_bytes": 4235264,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\KernelBase.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 1118208
+        },
+        {
+          "committed_bytes": 634880,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\MMDevAPI.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 110592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\Microsoft.Internal.WarpPal.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 49152
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\RTWorkQ.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1019904,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\SHCore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 774144,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\advapi32.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 331776
+        },
+        {
+          "committed_bytes": 176128,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcrypt.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 114688
+        },
+        {
+          "committed_bytes": 708608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcryptprimitives.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 167936
+        },
+        {
+          "committed_bytes": 339968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cfgmgr32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 126976
+        },
+        {
+          "committed_bytes": 720896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\clbcatq.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 233472
+        },
+        {
+          "committed_bytes": 3825664,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\combase.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 1507328
+        },
+        {
+          "committed_bytes": 1568768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\crypt32.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 598016
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptbase.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 40960
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptnet.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptsp.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 2490368,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\d3d11.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 2314240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dcomp.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 307200
+        },
+        {
+          "committed_bytes": 196608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\devobj.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 393216,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\directxdatabasehelper.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 1556480,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\drvstore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 192512,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dwmapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1327104,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxgi.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 675840
+        },
+        {
+          "committed_bytes": 1458176,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxilconv.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 970752
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 155648
+        },
+        {
+          "committed_bytes": 1220608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32full.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 270336
+        },
+        {
+          "committed_bytes": 233472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\glu32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 135168,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imagehlp.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 69632
+        },
+        {
+          "committed_bytes": 204800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imm32.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel.appcore.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 65536
+        },
+        {
+          "committed_bytes": 835584,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel32.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 626688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mf.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 4304896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfcore.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 233472
+        },
+        {
+          "committed_bytes": 2260992,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfplat.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 286720
+        },
+        {
+          "committed_bytes": 876544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfreadwrite.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 122880
+        },
+        {
+          "committed_bytes": 81920,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msasn1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 1429504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msctf.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 643072,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp140.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 671744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp_win.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 323584
+        },
+        {
+          "committed_bytes": 696320,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcrt.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 229376
+        },
+        {
+          "committed_bytes": 2543616,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntdll.dll",
+          "private_resident_bytes": 53248,
+          "resident_bytes": 1961984
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntmarta.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 1339392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\nvspcap64.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 479232
+        },
+        {
+          "committed_bytes": 1679360,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ole32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 327680
+        },
+        {
+          "committed_bytes": 897024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\oleaut32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 151552
+        },
+        {
+          "committed_bytes": 1101824,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\opengl32.dll",
+          "private_resident_bytes": 122880,
+          "resident_bytes": 208896
+        },
+        {
+          "committed_bytes": 364544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\pdh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 389120,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\powrprof.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 172032,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\profapi.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 1003520,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\propsys.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\psapi.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1150976,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rpcrt4.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 671744
+        },
+        {
+          "committed_bytes": 237568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rsaenh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 110592
+        },
+        {
+          "committed_bytes": 692224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\sechost.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 196608
+        },
+        {
+          "committed_bytes": 8065024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shell32.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 610304
+        },
+        {
+          "committed_bytes": 430080,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shlwapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 2428928,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\twinapi.appcore.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 430080
+        },
+        {
+          "committed_bytes": 1363968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ucrtbase.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 720896
+        },
+        {
+          "committed_bytes": 90112,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\umpdc.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 1961984,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\user32.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 552960
+        },
+        {
+          "committed_bytes": 217088,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\userenv.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 700416,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\uxtheme.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 348160
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140_1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\version.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 159744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\win32u.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 9179136,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\windows.storage.dll",
+          "private_resident_bytes": 69632,
+          "resident_bytes": 925696
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\winmm.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 94208
+        },
+        {
+          "committed_bytes": 540672,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wintrust.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 462848,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wldp.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 180224
+        },
+        {
+          "committed_bytes": 528384,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ws2_32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 106496
+        },
+        {
+          "committed_bytes": 745472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\WinSxS\\amd64_microsoft.windows.common-controls_6595b64144ccf1df_5.82.26100.8328_none_87eede957a2ccddd\\comctl32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 5394432,
+          "name": "mapped",
+          "private_resident_bytes": 0,
+          "resident_bytes": 643072
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\6F75932F-7DFC-4FB0-B4B8-12DE1AC415DA_VEN_10DE&DEV_24C9&SUBSYS_88AE&REV_A1.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\F4EB2D6C-ED2B-4BDD-AD9D-F913287E6768.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\0002a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\fc52a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 3387392,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\Globalization\\Sorting\\SortDefault.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 36864
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_1252.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 12288
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_437.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 45056,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\crypt32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 20480,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\user32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 24576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\l_intl.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 864256,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\locale.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 749568
+        },
+        {
+          "committed_bytes": 1646592,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\apppatch\\DirectXApps.sdb",
+          "private_resident_bytes": 0,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 159817728,
+          "name": "private",
+          "private_resident_bytes": 87638016,
+          "resident_bytes": 87646208
+        }
+      ],
+      "working_set_bytes": 163700736
+    },
+    {
+      "audio_active": false,
+      "cpu_percent_one_core": 0.05206701136661013,
+      "font_faces": 298,
+      "image_cache": {
+        "decoded_bytes": 0,
+        "entries": 0,
+        "pending": 0
+      },
+      "messages_seen": 2000,
+      "page_faults": 69163,
+      "private_bytes": 196460544,
+      "retained_message_bytes": 342000,
+      "retained_messages": 1000,
+      "scenario": "pickers-closed",
+      "seconds": 60.0188088,
+      "vm_regions": [
+        {
+          "committed_bytes": 81121280,
+          "name": "image:\\Device\\HarddiskVolume3\\Users\\dwhee\\.cargo-target\\sticktalk-polish2\\probe-binaries\\sticktalk-00C6664043ED46634517253A3359AF3C01A2B70FCA46E7CF772B871522521668.exe",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 21872640
+        },
+        {
+          "committed_bytes": 147456,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 3481600,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3D12Core.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 1523712
+        },
+        {
+          "committed_bytes": 4718592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DCompiler_47.dll",
+          "private_resident_bytes": 81920,
+          "resident_bytes": 2273280
+        },
+        {
+          "committed_bytes": 917504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\D3DSCache.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 761856
+        },
+        {
+          "committed_bytes": 307200,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DXCore.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 294912
+        },
+        {
+          "committed_bytes": 376832,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DataExchange.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 1290240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\NvMemMapStoragex.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 561152
+        },
+        {
+          "committed_bytes": 98623488,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvgpucomp64.dll",
+          "private_resident_bytes": 1785856,
+          "resident_bytes": 15556608
+        },
+        {
+          "committed_bytes": 827392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvldumdx.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 7499776,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvppex.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 339968
+        },
+        {
+          "committed_bytes": 89804800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\DriverStore\\FileRepository\\nv_dispig.inf_amd64_cc526ccc3287f5cd\\nvwgf2umx.dll",
+          "private_resident_bytes": 983040,
+          "resident_bytes": 11603968
+        },
+        {
+          "committed_bytes": 3309568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ExplorerFrame.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 348160
+        },
+        {
+          "committed_bytes": 4235264,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\KernelBase.dll",
+          "private_resident_bytes": 49152,
+          "resident_bytes": 1196032
+        },
+        {
+          "committed_bytes": 634880,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\MMDevAPI.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 110592,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\Microsoft.Internal.WarpPal.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 49152
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\RTWorkQ.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1019904,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\SHCore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 176128
+        },
+        {
+          "committed_bytes": 774144,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\advapi32.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 331776
+        },
+        {
+          "committed_bytes": 176128,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcrypt.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 114688
+        },
+        {
+          "committed_bytes": 708608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\bcryptprimitives.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 167936
+        },
+        {
+          "committed_bytes": 339968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cfgmgr32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 126976
+        },
+        {
+          "committed_bytes": 720896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\clbcatq.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 237568
+        },
+        {
+          "committed_bytes": 3825664,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\combase.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 1515520
+        },
+        {
+          "committed_bytes": 1568768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\crypt32.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 602112
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptbase.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 40960
+        },
+        {
+          "committed_bytes": 245760,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptnet.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\cryptsp.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 2490368,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\d3d11.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 2314240,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dcomp.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 196608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\devobj.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 393216,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\directxdatabasehelper.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 335872
+        },
+        {
+          "committed_bytes": 1556480,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\drvstore.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 192512,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dwmapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 90112
+        },
+        {
+          "committed_bytes": 1327104,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxgi.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 675840
+        },
+        {
+          "committed_bytes": 1458176,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\dxilconv.dll",
+          "private_resident_bytes": 45056,
+          "resident_bytes": 970752
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 155648
+        },
+        {
+          "committed_bytes": 1220608,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\gdi32full.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 270336
+        },
+        {
+          "committed_bytes": 233472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\glu32.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 135168,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imagehlp.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 69632
+        },
+        {
+          "committed_bytes": 204800,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\imm32.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 114688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel.appcore.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 65536
+        },
+        {
+          "committed_bytes": 835584,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\kernel32.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 409600
+        },
+        {
+          "committed_bytes": 626688,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mf.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 135168
+        },
+        {
+          "committed_bytes": 4304896,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfcore.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 233472
+        },
+        {
+          "committed_bytes": 2260992,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfplat.dll",
+          "private_resident_bytes": 40960,
+          "resident_bytes": 286720
+        },
+        {
+          "committed_bytes": 876544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\mfreadwrite.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 122880
+        },
+        {
+          "committed_bytes": 81920,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msasn1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 1429504,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msctf.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 360448
+        },
+        {
+          "committed_bytes": 643072,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp140.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 671744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcp_win.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 323584
+        },
+        {
+          "committed_bytes": 696320,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\msvcrt.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 229376
+        },
+        {
+          "committed_bytes": 2543616,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntdll.dll",
+          "private_resident_bytes": 53248,
+          "resident_bytes": 1961984
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ntmarta.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 86016
+        },
+        {
+          "committed_bytes": 1339392,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\nvspcap64.dll",
+          "private_resident_bytes": 36864,
+          "resident_bytes": 479232
+        },
+        {
+          "committed_bytes": 1679360,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ole32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 344064
+        },
+        {
+          "committed_bytes": 897024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\oleaut32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 151552
+        },
+        {
+          "committed_bytes": 1101824,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\opengl32.dll",
+          "private_resident_bytes": 122880,
+          "resident_bytes": 208896
+        },
+        {
+          "committed_bytes": 364544,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\pdh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 389120,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\powrprof.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 73728
+        },
+        {
+          "committed_bytes": 172032,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\profapi.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 1003520,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\propsys.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 143360
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\psapi.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1150976,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rpcrt4.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 671744
+        },
+        {
+          "committed_bytes": 237568,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\rsaenh.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 110592
+        },
+        {
+          "committed_bytes": 692224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\sechost.dll",
+          "private_resident_bytes": 28672,
+          "resident_bytes": 196608
+        },
+        {
+          "committed_bytes": 8065024,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shell32.dll",
+          "private_resident_bytes": 73728,
+          "resident_bytes": 610304
+        },
+        {
+          "committed_bytes": 430080,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\shlwapi.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 2428928,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\twinapi.appcore.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 466944
+        },
+        {
+          "committed_bytes": 1363968,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ucrtbase.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 720896
+        },
+        {
+          "committed_bytes": 90112,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\umpdc.dll",
+          "private_resident_bytes": 12288,
+          "resident_bytes": 45056
+        },
+        {
+          "committed_bytes": 1961984,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\user32.dll",
+          "private_resident_bytes": 32768,
+          "resident_bytes": 552960
+        },
+        {
+          "committed_bytes": 217088,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\userenv.dll",
+          "private_resident_bytes": 16384,
+          "resident_bytes": 77824
+        },
+        {
+          "committed_bytes": 700416,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\uxtheme.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 356352
+        },
+        {
+          "committed_bytes": 180224,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\vcruntime140_1.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 49152,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\version.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 159744,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\win32u.dll",
+          "private_resident_bytes": 8192,
+          "resident_bytes": 147456
+        },
+        {
+          "committed_bytes": 9179136,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\windows.storage.dll",
+          "private_resident_bytes": 69632,
+          "resident_bytes": 958464
+        },
+        {
+          "committed_bytes": 225280,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\winmm.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 94208
+        },
+        {
+          "committed_bytes": 540672,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wintrust.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 159744
+        },
+        {
+          "committed_bytes": 462848,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\wldp.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 196608
+        },
+        {
+          "committed_bytes": 528384,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\System32\\ws2_32.dll",
+          "private_resident_bytes": 20480,
+          "resident_bytes": 106496
+        },
+        {
+          "committed_bytes": 745472,
+          "name": "image:\\Device\\HarddiskVolume3\\Windows\\WinSxS\\amd64_microsoft.windows.common-controls_6595b64144ccf1df_5.82.26100.8328_none_87eede957a2ccddd\\comctl32.dll",
+          "private_resident_bytes": 24576,
+          "resident_bytes": 118784
+        },
+        {
+          "committed_bytes": 5394432,
+          "name": "mapped",
+          "private_resident_bytes": 0,
+          "resident_bytes": 643072
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\6F75932F-7DFC-4FB0-B4B8-12DE1AC415DA_VEN_10DE&DEV_24C9&SUBSYS_88AE&REV_A1.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 32768,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\D3DSCache\\f0b7718155e7f7d7\\F4EB2D6C-ED2B-4BDD-AD9D-F913287E6768.dxcache-shm",
+          "private_resident_bytes": 0,
+          "resident_bytes": 32768
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\0002a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 1048576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Users\\dwhee\\AppData\\Local\\NVIDIA\\DXCache\\fc52a9dbe39f87ac.nvph",
+          "private_resident_bytes": 0,
+          "resident_bytes": 24576
+        },
+        {
+          "committed_bytes": 3387392,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\Globalization\\Sorting\\SortDefault.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 36864
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_1252.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 12288
+        },
+        {
+          "committed_bytes": 139264,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\C_437.NLS",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 45056,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\crypt32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 20480,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\en-US\\user32.dll.mui",
+          "private_resident_bytes": 0,
+          "resident_bytes": 8192
+        },
+        {
+          "committed_bytes": 24576,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\l_intl.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 16384
+        },
+        {
+          "committed_bytes": 864256,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\System32\\locale.nls",
+          "private_resident_bytes": 0,
+          "resident_bytes": 749568
+        },
+        {
+          "committed_bytes": 1646592,
+          "name": "mapped:\\Device\\HarddiskVolume3\\Windows\\apppatch\\DirectXApps.sdb",
+          "private_resident_bytes": 0,
+          "resident_bytes": 61440
+        },
+        {
+          "committed_bytes": 159907840,
+          "name": "private",
+          "private_resident_bytes": 87789568,
+          "resident_bytes": 87797760
+        }
+      ],
+      "working_set_bytes": 164114432
+    }
+  ],
+  "instrumented": "DHAT allocation-site profiling; NOT shipping RAM/CPU; peak includes live app, end follows daemon shutdown"
+}

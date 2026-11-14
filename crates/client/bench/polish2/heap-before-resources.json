@@ -1,0 +1,13 @@
+{
+  "allocator": "system",
+  "memory": {
+    "private_bytes": 247140352,
+    "working_set_bytes": 166535168
+  },
+  "method": "30 warm frames, 2s idle and one allocator collection, live App/view/cache/renderer retained; one offscreen target; NO OS window or swapchain; not directly comparable to native-window working set",
+  "renderer": "dx12",
+  "size": [
+    1280,
+    800
+  ]
+}

@@ -4597,6 +4597,12 @@ impl App {
             }
             "member-menu" => {
                 app.open(Dialog::GuildSettings(GuildTab::Members));
+                // Model the row-action click, rather than the uninitialized pointer origin.
+                let (left, content) = crate::theme::settings::columns(size.width);
+                app.main.pointer = iced::Point::new(
+                    left + crate::theme::settings::CONTENT_GAP + content - crate::theme::S16,
+                    crate::theme::HEADER + crate::theme::S32 * 9. + crate::theme::S8,
+                );
                 app.open(Dialog::MemberMenu(Id(2)));
             }
             "password-settings" => {
