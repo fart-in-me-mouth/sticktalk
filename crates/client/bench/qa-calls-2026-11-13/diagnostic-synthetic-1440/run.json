@@ -1,0 +1,12 @@
+{
+  "commit": "7b7dd328efc65eb59bbfc23fcce508bdfd79dfdb",
+  "utc_started": "2026-11-13T23:37:37.9799184Z",
+  "source": "synthetic",
+  "binary": "voice-f31c3035531e617d.exe",
+  "profile": "server",
+  "seconds": 60,
+  "fps": 60,
+  "quality": "1440",
+  "viewers": 2,
+  "binary_sha256": "F0B99BDB21B8510DFD661BE4000519E0BB59BD8392EEA3328A81894986011E92"
+}

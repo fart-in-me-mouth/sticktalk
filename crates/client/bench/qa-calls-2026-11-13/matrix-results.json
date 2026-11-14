@@ -1,0 +1,15 @@
+[
+  {
+    "Case": "final-synthetic-1080-60-600",
+    "ExitCode": 0,
+    "Finished": "2026-11-14T01:26:57.9500167Z",
+    "Started": "2026-11-14T01:16:46.5240956Z"
+  },
+  {
+    "Case": "final-synthetic-1440-60-600",
+    "Started": "2026-11-14T01:26:57.97118Z",
+    "ExitCode": 0,
+    "Note": "Scheduler stopped at lead time check. The already-running pre-merge case finished, but its native parent log FAILED. ExitCode is the interrupted-run collector value, not reliable native success; independent metric gates classify this case FAIL.",
+    "Finished": "2026-11-14T01:37:09.8090769Z"
+  }
+]

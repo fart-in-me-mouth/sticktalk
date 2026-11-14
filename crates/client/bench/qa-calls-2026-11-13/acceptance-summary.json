@@ -1,0 +1,102 @@
+[
+  {
+    "case": "final-synthetic-1080-60-600",
+    "exit_code": 0,
+    "viewers": 2,
+    "utc_started": "2026-11-14T01:16:47.3505541Z",
+    "profile": "server",
+    "commit": "dfe14f18eda44c543d88774a17e7ea4c1d6a13f6",
+    "binary": "voice-f31c3035531e617d.exe",
+    "seconds": 600,
+    "fps": 60,
+    "source": "synthetic",
+    "binary_sha256": "E817641C0ACC8A5431A08AC2B550F1168CD6254E548FE024E23C17013F10137C",
+    "quality": "1080",
+    "sharer": {
+      "avg_fps": 59.99967760173235,
+      "min_fps": 58,
+      "drift_ms": 0.0,
+      "reconfigurations": 0,
+      "decode_errors": 0,
+      "cpu_machine_pct": 0.461748820953002,
+      "working_set_mib": 78.33203125,
+      "private_mib": 111.53515625,
+      "payload_mbps": 8.082491916743432
+    },
+    "viewer_b": {
+      "avg_fps": 59.99947444460351,
+      "min_fps": 59,
+      "drift_ms": 0.07866837784403866,
+      "reconfigurations": null,
+      "decode_errors": 0,
+      "cpu_machine_pct": 0.5654247347562733,
+      "working_set_mib": 78.7578125,
+      "private_mib": 94.25,
+      "payload_mbps": 8.082471776268887
+    },
+    "viewer_c": {
+      "avg_fps": 59.99977836081874,
+      "min_fps": 59,
+      "drift_ms": 0.07377107322154106,
+      "reconfigurations": null,
+      "decode_errors": 0,
+      "cpu_machine_pct": 0.5668924371493372,
+      "working_set_mib": 81.625,
+      "private_mib": 98.10546875,
+      "payload_mbps": 8.082512716531358
+    },
+    "metric_failures": [],
+    "passed": true
+  },
+  {
+    "case": "final-synthetic-1440-60-600",
+    "exit_code": 0,
+    "viewers": 2,
+    "seconds": 600,
+    "profile": "server",
+    "binary": "voice-f31c3035531e617d.exe",
+    "fps": 60,
+    "binary_sha256": "E817641C0ACC8A5431A08AC2B550F1168CD6254E548FE024E23C17013F10137C",
+    "commit": "f0ad6fd1ffeaf08a95d0d4dcb3415bce3700f65b",
+    "utc_started": "2026-11-14T01:26:58.9098332Z",
+    "quality": "1440",
+    "source": "synthetic",
+    "sharer": {
+      "avg_fps": 59.98203962070878,
+      "min_fps": 57,
+      "drift_ms": 0.0,
+      "reconfigurations": 0,
+      "decode_errors": 0,
+      "cpu_machine_pct": 0.4955947795965954,
+      "working_set_mib": 79.73828125,
+      "private_mib": 121.25390625,
+      "payload_mbps": 11.988688290641386
+    },
+    "viewer_b": {
+      "avg_fps": 59.98122191590303,
+      "min_fps": 56,
+      "drift_ms": -1.8049130306024144,
+      "reconfigurations": null,
+      "decode_errors": 0,
+      "cpu_machine_pct": 0.6334588446749099,
+      "working_set_mib": 99.2734375,
+      "private_mib": 120.1953125,
+      "payload_mbps": 11.987215316796293
+    },
+    "viewer_c": {
+      "avg_fps": 59.89818332831622,
+      "min_fps": 11,
+      "drift_ms": -1.8291582164190272,
+      "reconfigurations": null,
+      "decode_errors": 0,
+      "cpu_machine_pct": 0.6580387166350407,
+      "working_set_mib": 99.453125,
+      "private_mib": 118.8984375,
+      "payload_mbps": 11.973042455510678
+    },
+    "metric_failures": [
+      "viewer_c: FPS/drift gate"
+    ],
+    "passed": false
+  }
+]
