@@ -1,0 +1,1076 @@
+[
+  {
+    "name": "baseline-a-1080",
+    "run": {
+      "profile": "server",
+      "binary_sha256": "92480D4EE53B6FEF7BA19924B3407A91642C22BC0F0FC9096742642E8FE28296",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "quality": "1080",
+      "commit": "3ed11142685ffd30e3826544dcafd350ffff4755",
+      "source": "synthetic",
+      "diff_sha256": "15E8630B183722FB4F6DBB9CCABD43149608F4C9C831BFFC43722B6699341CE4",
+      "utc_started": "2026-11-14T05:59:27.4334391Z",
+      "seconds": 180,
+      "viewers": 2,
+      "fps": 60
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.95969093252043,
+        "min": 54,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": false,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.96048392444926,
+        "min": 54,
+        "first": 60,
+        "drift_ms": -3.044675216049106,
+        "passed": false,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.9592843848909,
+        "min": 55,
+        "first": 60,
+        "drift_ms": -2.9230234567905256,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": false,
+    "exit": {
+      "code": 1,
+      "wall_seconds": 192.03968214988708
+    }
+  },
+  {
+    "name": "baseline-b-1440",
+    "run": {
+      "quality": "1440",
+      "source": "synthetic",
+      "viewers": 2,
+      "diff_sha256": "15E8630B183722FB4F6DBB9CCABD43149608F4C9C831BFFC43722B6699341CE4",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "seconds": 60,
+      "profile": "server",
+      "utc_started": "2026-11-14T06:02:38.5227001Z",
+      "binary_sha256": "92480D4EE53B6FEF7BA19924B3407A91642C22BC0F0FC9096742642E8FE28296",
+      "commit": "3ed11142685ffd30e3826544dcafd350ffff4755",
+      "fps": 60
+    },
+    "roles": {
+      "sharer": {
+        "average": 60.00797351157062,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 60.0159923869922,
+        "min": 58,
+        "first": 59,
+        "drift_ms": -2.7398987345679653,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 60.016021294384345,
+        "min": 58,
+        "first": 59,
+        "drift_ms": -2.7303695679014925,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 70.32836270332336
+    }
+  },
+  {
+    "name": "final-a-1080",
+    "run": {
+      "seconds": 180,
+      "utc_started": "2026-11-14T06:33:07.9665866Z",
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "fps": 60,
+      "profile": "server",
+      "source": "synthetic",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "quality": "1080",
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "viewers": 2,
+      "compiler_processes": [],
+      "compiler_processes_end": [],
+      "utc_ended": "2026-11-14T06:36:17.6950890Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.99983916709779,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.99964463543808,
+        "min": 59,
+        "first": 61,
+        "drift_ms": -2.122099156882392,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.999306274687676,
+        "min": 59,
+        "first": 61,
+        "drift_ms": -2.1100926802844513,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 190.52525162696838
+    }
+  },
+  {
+    "name": "final-b-startup-1",
+    "run": {
+      "compiler_processes": [],
+      "seconds": 60,
+      "profile": "server",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "viewers": 2,
+      "utc_started": "2026-11-14T06:36:18.4579735Z",
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "source": "synthetic",
+      "quality": "1440",
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "fps": 60,
+      "compiler_processes_end": [],
+      "utc_ended": "2026-11-14T06:37:27.6986591Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.99729332210726,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.997270524172954,
+        "min": 59,
+        "first": 61,
+        "drift_ms": -3.752194133567132,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.99682336819207,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -3.6913094616390127,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 69.92934894561768
+    }
+  },
+  {
+    "name": "final-b-startup-2",
+    "run": {
+      "profile": "server",
+      "source": "synthetic",
+      "fps": 60,
+      "viewers": 2,
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "utc_started": "2026-11-14T06:37:28.3906806Z",
+      "quality": "1440",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "seconds": 60,
+      "compiler_processes": [],
+      "compiler_processes_end": [],
+      "utc_ended": "2026-11-14T06:38:37.6050338Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.99689626056161,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.99528447063275,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -4.30496398148138,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.99528767012995,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -4.39973731481472,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 69.88587522506714
+    }
+  },
+  {
+    "name": "final-b-startup-3",
+    "run": {
+      "viewers": 2,
+      "source": "synthetic",
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "compiler_processes": [],
+      "quality": "1440",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "seconds": 60,
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "fps": 60,
+      "utc_started": "2026-11-14T06:38:38.2834194Z",
+      "profile": "server",
+      "compiler_processes_end": [],
+      "utc_ended": "2026-11-14T06:39:47.5026793Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 60.00206476419254,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.99912201284788,
+        "min": 59,
+        "first": 59,
+        "drift_ms": -3.913025524691316,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.9999640000216,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -3.9154163580248715,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 69.90072584152222
+    }
+  },
+  {
+    "name": "final-b-startup-4",
+    "run": {
+      "utc_started": "2026-11-14T06:39:48.2279418Z",
+      "quality": "1440",
+      "viewers": 2,
+      "profile": "server",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "fps": 60,
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "source": "synthetic",
+      "compiler_processes": [],
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "seconds": 60,
+      "compiler_processes_end": [],
+      "utc_ended": "2026-11-14T06:40:57.4931607Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 60.00141200768019,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.99869652831792,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -3.1327536111110414,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.999158111813095,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -3.070844444444494,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 69.95752596855164
+    }
+  },
+  {
+    "name": "final-b-startup-5",
+    "run": {
+      "profile": "server",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "quality": "1440",
+      "source": "synthetic",
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "viewers": 2,
+      "utc_started": "2026-11-14T06:40:58.1885078Z",
+      "fps": 60,
+      "compiler_processes": [],
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "seconds": 60,
+      "compiler_processes_end": [],
+      "utc_ended": "2026-11-14T06:42:07.4645654Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.98886266771999,
+        "min": 59,
+        "first": 59,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.99800876608573,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -4.132948395061483,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.99896861772946,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -4.17731006172837,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 69.95387768745422
+    }
+  },
+  {
+    "name": "final-c-1440-long",
+    "run": {
+      "compiler_processes": [],
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "viewers": 2,
+      "source": "synthetic",
+      "seconds": 600,
+      "utc_started": "2026-11-14T06:42:08.1688005Z",
+      "fps": 60,
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "quality": "1440",
+      "profile": "server",
+      "compiler_processes_end": [],
+      "utc_ended": "2026-11-14T06:52:18.0347130Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.999713511367936,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.99992858008502,
+        "min": 59,
+        "first": 61,
+        "drift_ms": -0.6850337980818966,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.999922490100126,
+        "min": 59,
+        "first": 61,
+        "drift_ms": -0.6409840004625782,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 610.8259835243225
+    }
+  },
+  {
+    "name": "final-d-wgc-1440",
+    "run": {
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "compiler_processes": [],
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "seconds": 180,
+      "quality": "1440",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "viewers": 2,
+      "fps": 60,
+      "profile": "server",
+      "source": "wgc-motion",
+      "utc_started": "2026-11-14T06:52:19.0302952Z",
+      "compiler_processes_end": [],
+      "utc_ended": "2026-11-14T06:55:31.8535649Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 60.00114817121664,
+        "min": 59,
+        "first": 59,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 60.00438116980876,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -0.7301493106998009,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 60.00385101282564,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -0.7673231069955048,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 193.59708333015442
+    }
+  },
+  {
+    "name": "final-d-wgc-source",
+    "run": {
+      "quality": "source",
+      "compiler_processes": [],
+      "profile": "server",
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "fps": 60,
+      "utc_started": "2026-11-14T06:55:32.6272184Z",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "seconds": 180,
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "source": "wgc-motion",
+      "viewers": 2,
+      "compiler_processes_end": [],
+      "utc_ended": "2026-11-14T06:58:45.3739998Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.99748337222802,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.999325240921756,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -2.0156684156373204,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.99921497693782,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -2.05263360082248,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 193.49991750717163
+    }
+  },
+  {
+    "name": "final-e-load-1",
+    "run": {
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "source": "synthetic",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "profile": "server",
+      "compiler_processes": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 1.796875
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "rustc",
+          "Id": 4948,
+          "CPU": 1.8125
+        },
+        {
+          "Name": "rustc",
+          "Id": 16636,
+          "CPU": 1.3125
+        },
+        {
+          "Name": "rustc",
+          "Id": 24368,
+          "CPU": 0.875
+        }
+      ],
+      "seconds": 60,
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "quality": "1440",
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "fps": 60,
+      "viewers": 2,
+      "utc_started": "2026-11-14T06:59:03.2935442Z",
+      "compiler_processes_end": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 2.5
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "rustc",
+          "Id": 23056,
+          "CPU": 29.828125
+        },
+        {
+          "Name": "rustc",
+          "Id": 24496,
+          "CPU": 8.203125
+        },
+        {
+          "Name": "rustc",
+          "Id": 26588,
+          "CPU": 7.03125
+        }
+      ],
+      "utc_ended": "2026-11-14T07:00:12.9036431Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.99729912158454,
+        "min": 59,
+        "first": 59,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.998748726095315,
+        "min": 59,
+        "first": 61,
+        "drift_ms": -1.4857179938272116,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.998762125539415,
+        "min": 59,
+        "first": 61,
+        "drift_ms": -1.3498485493826695,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 70.41589093208313
+    }
+  },
+  {
+    "name": "final-e-load-2",
+    "run": {
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "profile": "server",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "source": "synthetic",
+      "utc_started": "2026-11-14T07:00:13.776227Z",
+      "seconds": 60,
+      "fps": 60,
+      "quality": "1440",
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "viewers": 2,
+      "compiler_processes": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 2.5
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "rustc",
+          "Id": 23056,
+          "CPU": 30.609375
+        },
+        {
+          "Name": "rustc",
+          "Id": 24496,
+          "CPU": 8.96875
+        },
+        {
+          "Name": "rustc",
+          "Id": 26588,
+          "CPU": 7.8125
+        }
+      ],
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "compiler_processes_end": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 2.84375
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "cl",
+          "Id": 8916,
+          "CPU": 0.34375
+        },
+        {
+          "Name": "rustc",
+          "Id": 16932,
+          "CPU": 13.953125
+        },
+        {
+          "Name": "rustc",
+          "Id": 23056,
+          "CPU": 99.78125
+        }
+      ],
+      "utc_ended": "2026-11-14T07:01:23.1572142Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.994359730260555,
+        "min": 59,
+        "first": 59,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.997280623255755,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -4.753516419753175,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.996036961778486,
+        "min": 60,
+        "first": 60,
+        "drift_ms": -4.767048086419919,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 70.13329887390137
+    }
+  },
+  {
+    "name": "final-e-load-3",
+    "run": {
+      "compiler_processes": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 2.84375
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "cl",
+          "Id": 25592,
+          "CPU": 0.0
+        },
+        {
+          "Name": "rustc",
+          "Id": 16932,
+          "CPU": 14.734375
+        },
+        {
+          "Name": "rustc",
+          "Id": 23056,
+          "CPU": 100.5625
+        }
+      ],
+      "viewers": 2,
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "source": "synthetic",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "utc_started": "2026-11-14T07:01:24.0218504Z",
+      "seconds": 60,
+      "quality": "1440",
+      "fps": 60,
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "profile": "server",
+      "compiler_processes_end": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 2.9375
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "cl",
+          "Id": 18380,
+          "CPU": 0.390625
+        },
+        {
+          "Name": "cl",
+          "Id": 23688,
+          "CPU": 0.28125
+        },
+        {
+          "Name": "cl",
+          "Id": 26676,
+          "CPU": 0.390625
+        },
+        {
+          "Name": "rustc",
+          "Id": 8664,
+          "CPU": 22.40625
+        },
+        {
+          "Name": "rustc",
+          "Id": 23056,
+          "CPU": 169.453125
+        }
+      ],
+      "utc_ended": "2026-11-14T07:02:33.5301520Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 60.00375455872943,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 60.01652312714885,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -2.72097827023704,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.999973500011706,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -3.052038333333269,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 70.27565002441406
+    }
+  },
+  {
+    "name": "final-e-load-4",
+    "run": {
+      "fps": 60,
+      "compiler_processes": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 2.9375
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "cl",
+          "Id": 22588,
+          "CPU": 0.296875
+        },
+        {
+          "Name": "cl",
+          "Id": 25168,
+          "CPU": 0.515625
+        },
+        {
+          "Name": "cl",
+          "Id": 25512,
+          "CPU": 0.359375
+        },
+        {
+          "Name": "rustc",
+          "Id": 8664,
+          "CPU": 23.28125
+        },
+        {
+          "Name": "rustc",
+          "Id": 23056,
+          "CPU": 170.328125
+        }
+      ],
+      "profile": "server",
+      "viewers": 2,
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "quality": "1440",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "source": "synthetic",
+      "seconds": 60,
+      "utc_started": "2026-11-14T07:02:34.4939518Z",
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "compiler_processes_end": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 3.09375
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "rustc",
+          "Id": 3656,
+          "CPU": 14.140625
+        },
+        {
+          "Name": "rustc",
+          "Id": 10396,
+          "CPU": 35.59375
+        },
+        {
+          "Name": "rustc",
+          "Id": 26060,
+          "CPU": 2.078125
+        }
+      ],
+      "utc_ended": "2026-11-14T07:03:43.9803361Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 60.004906005114194,
+        "min": 60,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.9968770625541,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -4.040479166666767,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.99536605791796,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -4.4116352777779015,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 70.2828323841095
+    }
+  },
+  {
+    "name": "final-e-load-5",
+    "run": {
+      "seconds": 60,
+      "quality": "1440",
+      "fps": 60,
+      "compiler_processes": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 3.09375
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "rustc",
+          "Id": 3656,
+          "CPU": 14.890625
+        },
+        {
+          "Name": "rustc",
+          "Id": 10396,
+          "CPU": 36.34375
+        },
+        {
+          "Name": "rustc",
+          "Id": 26060,
+          "CPU": 2.828125
+        }
+      ],
+      "binary": "voice-6c2ddc1db49e0114.exe",
+      "viewers": 2,
+      "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+      "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+      "source": "synthetic",
+      "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "utc_started": "2026-11-14T07:03:44.8214191Z",
+      "profile": "server",
+      "compiler_processes_end": [
+        {
+          "Name": "cargo",
+          "Id": 7004,
+          "CPU": 3.421875
+        },
+        {
+          "Name": "cargo",
+          "Id": 19760,
+          "CPU": 0.140625
+        },
+        {
+          "Name": "rustc",
+          "Id": 17552,
+          "CPU": 0.078125
+        },
+        {
+          "Name": "rustc",
+          "Id": 25988,
+          "CPU": 45.484375
+        },
+        {
+          "Name": "rustc",
+          "Id": 27640,
+          "CPU": 0.96875
+        }
+      ],
+      "utc_ended": "2026-11-14T07:04:54.1761363Z"
+    },
+    "roles": {
+      "sharer": {
+        "average": 59.996406415243754,
+        "min": 59,
+        "first": 60,
+        "drift_ms": 0.0,
+        "passed": true,
+        "reconfigs": 0
+      },
+      "viewer_b": {
+        "average": 59.99832944651378,
+        "min": 59,
+        "first": 61,
+        "drift_ms": -4.224050786142659,
+        "passed": true,
+        "reconfigs": null
+      },
+      "viewer_c": {
+        "average": 59.99539865290031,
+        "min": 59,
+        "first": 60,
+        "drift_ms": -4.302692096646851,
+        "passed": true,
+        "reconfigs": null
+      }
+    },
+    "passed": true,
+    "exit": {
+      "code": 0,
+      "wall_seconds": 70.13225388526917
+    }
+  }
+]

@@ -1,0 +1,1 @@
+Stopped pre-acceptance candidate build to exclude unproven publisher queue change; true publisher congestion was visible in baseline, not established padding-only inflation.

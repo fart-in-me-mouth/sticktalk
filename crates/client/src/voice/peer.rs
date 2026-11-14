@@ -562,6 +562,9 @@ impl Peer {
                     out.push(PeerOutput::Datagram(t.destination, t.contents.to_vec()))
                 }
                 Output::Event(Event::Connected) => out.push(PeerOutput::Connected),
+                Output::Event(Event::EgressBitrateEstimate(estimate)) if self.video_trace => {
+                    eprintln!("VIDEO_TRACE endpoint_bwe estimate={estimate:?}");
+                }
                 Output::Event(Event::RtpPacket(packet)) => {
                     let mid = self
                         .rtc

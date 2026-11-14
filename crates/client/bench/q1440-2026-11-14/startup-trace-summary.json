@@ -1,0 +1,370 @@
+{
+  "baseline-a-1080": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247238985884106752), connection_id: Id(247238986249011200) }": {
+        "samples": 133,
+        "max_bytes": 44905.0,
+        "max_age_ms": 17.418,
+        "max_resets": 0,
+        "max_keyframe_bytes": 78608.0,
+        "min_bwe": 8000000.0,
+        "max_bwe": 21892838.0
+      },
+      "VoiceSession { user_id: Id(247238985959604224), connection_id: Id(247238986249011201) }": {
+        "samples": 133,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 78608.0,
+        "min_bwe": 8000000.0,
+        "max_bwe": 28616111.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "baseline-b-1440": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247239787478515712), connection_id: Id(247239787856003073) }": {
+        "samples": 126,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136639.0,
+        "min_bwe": 8000000.0,
+        "max_bwe": 31467541.0
+      },
+      "VoiceSession { user_id: Id(247239787558207488), connection_id: Id(247239787881168896) }": {
+        "samples": 126,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136639.0,
+        "min_bwe": 8000000.0,
+        "max_bwe": 31467541.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-a-1080": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247247460521476096), connection_id: Id(247247460819271680) }": {
+        "samples": 134,
+        "max_bytes": 4505.0,
+        "max_age_ms": 10.559,
+        "max_resets": 0,
+        "max_keyframe_bytes": 91741.0,
+        "min_bwe": 16000000.0,
+        "max_bwe": 31851833.0
+      },
+      "VoiceSession { user_id: Id(247247460584390656), connection_id: Id(247247460836048896) }": {
+        "samples": 134,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 91741.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 31639630.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-b-startup-1": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247248259456696320), connection_id: Id(247248259762880512) }": {
+        "samples": 125,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 132178.0,
+        "min_bwe": 16000000.0,
+        "max_bwe": 28344535.0
+      },
+      "VoiceSession { user_id: Id(247248259527999488), connection_id: Id(247248259762880513) }": {
+        "samples": 125,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 132178.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 31214625.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-b-startup-2": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247248552768569344), connection_id: Id(247248553066364928) }": {
+        "samples": 132,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 132178.0,
+        "min_bwe": 15131152.0,
+        "max_bwe": 30420646.0
+      },
+      "VoiceSession { user_id: Id(247248552835678208), connection_id: Id(247248553066364929) }": {
+        "samples": 132,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 132178.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 23908456.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-b-startup-3": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247248845904281600), connection_id: Id(247248846193688576) }": {
+        "samples": 131,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 68651.0,
+        "min_bwe": 15212849.0,
+        "max_bwe": 25674811.0
+      },
+      "VoiceSession { user_id: Id(247248845967196160), connection_id: Id(247248846197882880) }": {
+        "samples": 131,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 68651.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 31479467.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-b-startup-4": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247249139354566656), connection_id: Id(247249139664945152) }": {
+        "samples": 129,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 68651.0,
+        "min_bwe": 16000000.0,
+        "max_bwe": 26018813.0
+      },
+      "VoiceSession { user_id: Id(247249139421675520), connection_id: Id(247249139664945153) }": {
+        "samples": 129,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 68651.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 30963410.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-b-startup-5": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247249432741937152), connection_id: Id(247249433052315648) }": {
+        "samples": 125,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136639.0,
+        "min_bwe": 16000000.0,
+        "max_bwe": 30950820.0
+      },
+      "VoiceSession { user_id: Id(247249432813240320), connection_id: Id(247249433052315649) }": {
+        "samples": 125,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136639.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 30451613.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-c-1440-long": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247249726246748160), connection_id: Id(247249726544543744) }": {
+        "samples": 131,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 132178.0,
+        "min_bwe": 15836182.0,
+        "max_bwe": 26219836.0
+      },
+      "VoiceSession { user_id: Id(247249726309662720), connection_id: Id(247249726548738048) }": {
+        "samples": 131,
+        "max_bytes": 2977.0,
+        "max_age_ms": 14.506,
+        "max_resets": 0,
+        "max_keyframe_bytes": 132178.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 26322558.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-d-wgc-1440": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247252301276774400), connection_id: Id(247252301608124416) }": {
+        "samples": 134,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 11458.0,
+        "min_bwe": 15158080.0,
+        "max_bwe": 24500827.0
+      },
+      "VoiceSession { user_id: Id(247252301352271872), connection_id: Id(247252301612318720) }": {
+        "samples": 134,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 11458.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 20981099.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-d-wgc-source": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247253113063342080), connection_id: Id(247253113369526272) }": {
+        "samples": 132,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 11203.0,
+        "min_bwe": 11451256.0,
+        "max_bwe": 24401811.0
+      },
+      "VoiceSession { user_id: Id(247253113130450944), connection_id: Id(247253113369526273) }": {
+        "samples": 132,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 11203.0,
+        "min_bwe": 11297073.0,
+        "max_bwe": 18019307.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-e-load-1": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247253984211894272), connection_id: Id(247253984585187328) }": {
+        "samples": 126,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 126952.0,
+        "min_bwe": 16000000.0,
+        "max_bwe": 25055158.0
+      },
+      "VoiceSession { user_id: Id(247253984291586048), connection_id: Id(247253984585187329) }": {
+        "samples": 126,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 126952.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 25859528.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-e-load-2": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247254279696416768), connection_id: Id(247254280019378176) }": {
+        "samples": 124,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 132178.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 30463407.0
+      },
+      "VoiceSession { user_id: Id(247254279763525632), connection_id: Id(247254280019378177) }": {
+        "samples": 124,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 132178.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 28054955.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-e-load-3": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247254574329495552), connection_id: Id(247254574660845568) }": {
+        "samples": 131,
+        "max_bytes": 26996.0,
+        "max_age_ms": 17.171,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136706.0,
+        "min_bwe": 16000000.0,
+        "max_bwe": 25635892.0
+      },
+      "VoiceSession { user_id: Id(247254574404993024), connection_id: Id(247254574665039872) }": {
+        "samples": 131,
+        "max_bytes": 26996.0,
+        "max_age_ms": 23.188,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136706.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 24917474.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-e-load-4": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247254870006956032), connection_id: Id(247254870397026304) }": {
+        "samples": 126,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136639.0,
+        "min_bwe": 16000000.0,
+        "max_bwe": 31923168.0
+      },
+      "VoiceSession { user_id: Id(247254870090842112), connection_id: Id(247254870401220608) }": {
+        "samples": 126,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136639.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 31997397.0
+      }
+    },
+    "all_guard_resets": []
+  },
+  "final-e-load-5": {
+    "sampled_first_15s": {
+      "VoiceSession { user_id: Id(247255164942024704), connection_id: Id(247255165264986112) }": {
+        "samples": 126,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136639.0,
+        "min_bwe": 16000000.0,
+        "max_bwe": 31466667.0
+      },
+      "VoiceSession { user_id: Id(247255165013327872), connection_id: Id(247255165269180416) }": {
+        "samples": 126,
+        "max_bytes": 0,
+        "max_age_ms": 0,
+        "max_resets": 0,
+        "max_keyframe_bytes": 136639.0,
+        "min_bwe": 12000000.0,
+        "max_bwe": 31818366.0
+      }
+    },
+    "all_guard_resets": []
+  }
+}

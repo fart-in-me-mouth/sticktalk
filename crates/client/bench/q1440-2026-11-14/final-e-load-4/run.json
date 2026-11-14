@@ -1,0 +1,78 @@
+{
+  "fps": 60,
+  "compiler_processes": [
+    {
+      "Name": "cargo",
+      "Id": 7004,
+      "CPU": 2.9375
+    },
+    {
+      "Name": "cargo",
+      "Id": 19760,
+      "CPU": 0.140625
+    },
+    {
+      "Name": "cl",
+      "Id": 22588,
+      "CPU": 0.296875
+    },
+    {
+      "Name": "cl",
+      "Id": 25168,
+      "CPU": 0.515625
+    },
+    {
+      "Name": "cl",
+      "Id": 25512,
+      "CPU": 0.359375
+    },
+    {
+      "Name": "rustc",
+      "Id": 8664,
+      "CPU": 23.28125
+    },
+    {
+      "Name": "rustc",
+      "Id": 23056,
+      "CPU": 170.328125
+    }
+  ],
+  "profile": "server",
+  "viewers": 2,
+  "commit": "a505653b05dfdfd3ab55a6a0d577879c9abb903c",
+  "binary": "voice-6c2ddc1db49e0114.exe",
+  "quality": "1440",
+  "binary_sha256": "4155C67A0C2E6F13F453BBFB48A38BDE8894AAAF26348DF9CFBF16E59341F3AB",
+  "source": "synthetic",
+  "seconds": 60,
+  "utc_started": "2026-11-14T07:02:34.4939518Z",
+  "diff_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+  "compiler_processes_end": [
+    {
+      "Name": "cargo",
+      "Id": 7004,
+      "CPU": 3.09375
+    },
+    {
+      "Name": "cargo",
+      "Id": 19760,
+      "CPU": 0.140625
+    },
+    {
+      "Name": "rustc",
+      "Id": 3656,
+      "CPU": 14.140625
+    },
+    {
+      "Name": "rustc",
+      "Id": 10396,
+      "CPU": 35.59375
+    },
+    {
+      "Name": "rustc",
+      "Id": 26060,
+      "CPU": 2.078125
+    }
+  ],
+  "utc_ended": "2026-11-14T07:03:43.9803361Z"
+}

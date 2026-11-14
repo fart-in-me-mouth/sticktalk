@@ -1,0 +1,115 @@
+{
+  "runtime_commit": "a67b944",
+  "test_command": "cargo test --profile server -p sticktalk -p sticktalk-media -p sticktalk-sfu --lib --bins --tests --no-fail-fast -j3 -- --test-threads=1",
+  "test_suites": [
+    {
+      "passed": 32,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 126,
+      "failed": 0,
+      "ignored": 1
+    },
+    {
+      "passed": 12,
+      "failed": 0,
+      "ignored": 4
+    },
+    {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 1
+    },
+    {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 2
+    },
+    {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 3
+    },
+    {
+      "passed": 40,
+      "failed": 0,
+      "ignored": 3
+    },
+    {
+      "passed": 25,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 15,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    }
+  ],
+  "test_totals": {
+    "passed": 257,
+    "failed": 0,
+    "ignored": 14
+  },
+  "tests_exit": 0,
+  "clippy_command": "cargo clippy --profile server -p sticktalk -p sticktalk-media -p sticktalk-sfu --all-targets -j3 -- -D warnings",
+  "clippy_exit": 0,
+  "fmt_exit": 0,
+  "python_gate_tests": 6,
+  "doc_tests_exit": 0,
+  "fmt_final_exit": 0,
+  "python_gate_tests_exit": 0,
+  "hardware_final_cases_passed": 14,
+  "all_cases_same_binary": true,
+  "load_compiler_presence_verified": true,
+  "compiler_load_builds": [
+    {
+      "started_unix": 1794639525.9433813,
+      "ended_unix": 1794640404.9870975,
+      "code": 0
+    }
+  ],
+  "validated_runtime_trees": {
+    "crates/sfu": "c9925e67c5b5e4613a37c6f4b802d6d79eaa0158",
+    "crates/client/src": "7d3bf3708d666ec70d5114461a7b3d56702bdc3b",
+    "crates/client/tests": "1d5bd902c2d059d7373cb17aca20974cd193b66a",
+    "crates/media": "b3a20d6697e2a79a41a26d7fe4b21a5d0dd72e02"
+  },
+  "maximum_one_second_mean_offset_span_ms": 11.024868330194616,
+  "sfu_final_queue_resets": 0,
+  "sfu_final_cap_drops": 0,
+  "latest_publisher_guard_rtp_seconds": 2.9168555555555558,
+  "attempts": {
+    "baseline_build_initial": {
+      "exit": 101,
+      "reason": "Trace-only non-exhaustive BweKind let pattern, corrected before running hardware"
+    },
+    "baseline_build_retry": {
+      "exit": 0
+    },
+    "publisher_bookkeeping_candidate": {
+      "interrupted": true,
+      "reason": "Rejected after review; not established as the fresh baseline cause"
+    },
+    "sfu_only_build": {
+      "exit": 0
+    },
+    "clean_tree_harness_preflight": {
+      "exit": 1,
+      "native_workers_launched": false,
+      "reason": "Empty diff snapshot not created by pipeline; corrected before final matrix"
+    }
+  }
+}

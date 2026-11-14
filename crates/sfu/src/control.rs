@@ -66,6 +66,11 @@ pub(crate) struct Budget {
     last: Instant,
 }
 impl Budget {
+    pub(crate) fn available_bytes(&self, now: Instant) -> u64 {
+        (self.tokens
+            + now.saturating_duration_since(self.last).as_secs_f64() * self.bps as f64 / 8.0)
+            .min(self.capacity) as u64
+    }
     pub fn new(bps: u64, max_datagram_bytes: u16, now: Instant) -> Self {
         let capacity = ((bps as f64 / 8.0) * 0.1).max(f64::from(max_datagram_bytes));
         Self {
@@ -76,7 +81,7 @@ impl Budget {
         }
     }
     pub fn take(&mut self, bytes: usize, now: Instant) -> bool {
-        if !self.available(bytes, false, now) {
+        if !self.available(bytes, now) {
             return false;
         }
         self.tokens -= bytes as f64;
@@ -113,22 +118,13 @@ impl Budget {
         }
     }
     /// Preflight without spending: peer/room/global admission must be atomic.
-    /// Reserve 90% of the burst for original media, so capacity probes/RTX cannot
-    /// consume the last tokens and break an otherwise admissible reference chain.
-    /// Both classes still share the SAME strict wire rate and burst ceiling.
-    pub fn available(&mut self, bytes: usize, repair: bool, now: Instant) -> bool {
+    /// All video classes spend the same cap after pre-dequeue admission.
+    pub fn available(&mut self, bytes: usize, now: Instant) -> bool {
         self.tokens = (self.tokens
             + now.saturating_duration_since(self.last).as_secs_f64() * self.bps as f64 / 8.0)
             .min(self.capacity);
         self.last = now;
-        // Tiny configured buckets must still admit one full-MTU repair when
-        // full; otherwise probes can never discover capacity from a low floor.
-        let reserve = if repair {
-            (self.capacity * 0.9).min((self.capacity - bytes as f64).max(0.0))
-        } else {
-            0.0
-        };
-        self.tokens >= bytes as f64 + reserve
+        self.tokens >= bytes as f64
     }
 }
 
@@ -143,7 +139,7 @@ mod budget_tests {
         assert!(b.take(400_000, now));
         for _ in 0..100 {
             b.set_rate(16_000_000, 1232, now);
-            assert!(!b.available(1, false, now));
+            assert!(!b.available(1, now));
         }
         assert!(b.take(200_000, now + Duration::from_millis(100)));
         assert!(!b.take(1, now + Duration::from_millis(100)));
@@ -158,23 +154,23 @@ mod budget_tests {
         assert!(b.take(400_000, now));
         let ready = b.ready_at(1232, now);
         assert_eq!(ready - now, Duration::from_nanos(308_001));
-        assert!(!b.available(1232, false, ready - Duration::from_nanos(2)));
-        assert!(b.available(1232, false, ready));
+        assert!(!b.available(1232, ready - Duration::from_nanos(2)));
+        assert!(b.available(1232, ready));
         assert!(b.take(1232, ready));
-        assert!(!b.available(1, false, ready));
+        assert!(!b.available(1, ready));
     }
 
     #[test]
-    fn probes_leave_media_headroom_without_increasing_wire_budget() {
+    fn shared_probe_and_media_budget_never_mints_tokens() {
         let now = Instant::now();
         let mut b = Budget::new(80_000, 1000, now); // 1000-byte burst
-        assert!(b.available(100, true, now));
+        assert!(b.available(100, now));
         assert!(b.take(100, now));
-        assert!(!b.available(1, true, now));
+        assert!(b.available(900, now));
         assert!(b.take(900, now));
         assert!(!b.take(1, now));
         // A rejected preflight never spends tokens in any other bucket.
-        assert!(!b.available(1001, false, now + Duration::from_secs(1)));
+        assert!(!b.available(1001, now + Duration::from_secs(1)));
         assert!(b.take(1000, now + Duration::from_secs(1)));
         assert!(!b.take(1, now + Duration::from_secs(1)));
     }
@@ -183,10 +179,10 @@ mod budget_tests {
     fn a_low_rate_bucket_can_still_send_one_full_mtu_repair() {
         let now = Instant::now();
         let mut b = Budget::new(80_000, 1232, now);
-        assert!(b.available(1232, true, now));
+        assert!(b.available(1232, now));
         assert!(b.take(1232, now));
-        assert!(!b.available(1, true, now));
-        assert!(!b.available(1233, true, now + Duration::from_secs(1)));
-        assert!(b.available(1232, true, now + Duration::from_secs(1)));
+        assert!(!b.available(1, now));
+        assert!(!b.available(1233, now + Duration::from_secs(1)));
+        assert!(b.available(1232, now + Duration::from_secs(1)));
     }
 }

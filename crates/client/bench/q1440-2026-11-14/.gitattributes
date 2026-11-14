@@ -1,0 +1,2 @@
+# Source snapshot hashes cover exact captured bytes, including line endings.
+*/source.diff -text -whitespace
