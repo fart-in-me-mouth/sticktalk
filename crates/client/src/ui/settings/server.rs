@@ -95,6 +95,7 @@ pub(super) fn content<'a>(app: &'a App, page: &Dialog) -> Element<'a, Msg> {
     match tab {
         GuildTab::Overview=>profile(app),GuildTab::Roles=>roles::content(app),GuildTab::Members=>members(app),GuildTab::Invites=>invites(app,gid),GuildTab::Bans=>bans(app,gid),
         GuildTab::Engagement=>column![title("Engagement"),section("SYSTEM MESSAGES CHANNEL"),disabled_tip(widget::pick_list(vec!["No system messages".to_owned()],Some("No system messages".to_owned()),|_|Msg::Settings(A::Server(GuildTab::Engagement))).padding(t::S12).style(st::pick_list).menu_style(st::menu),false,"System messages channels are not available on this server yet."),line(),title("Default Notifications"),small("Default notification preferences for new members are not available on this server yet."),secondary("Your Notification Settings",A::Notifications(gid),true)].spacing(t::S24).into(),
+        GuildTab::Emoji=>super::super::features3::settings(app),
         GuildTab::Channels=>channels::content(app),
         _=>column![title(label(*tab)),small(match tab{GuildTab::Emoji=>"Custom server emoji management is not available yet.",GuildTab::Access=>"Manage who can join with server invites and member moderation.",_=>"Audit logs are not available yet."})].spacing(t::S24).into(),
     }

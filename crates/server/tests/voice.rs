@@ -106,6 +106,7 @@ impl Peer {
         assert!(matches!(read(&mut ws).await, ServerMsg::Hello(_)));
         ws.send(Frame::Binary(
             rmp_serde::to_vec_named(&ClientMsg::Identify(Identify {
+                text_features: false,
                 version: 1,
                 launch_features: false,
                 token: auth.token.clone(),

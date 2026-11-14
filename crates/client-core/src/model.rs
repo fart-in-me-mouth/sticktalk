@@ -104,6 +104,7 @@ impl Model {
                 | Event::ReadStateUpdated(_)
                 | Event::UserUpdated(_)
                 | Event::MemberUpsert(_)
+                | Event::GuildEmojiUpdated { .. }
                 | Event::RolesUpdated { .. }
         ) {
             self.layout_revision = self.layout_revision.wrapping_add(1);

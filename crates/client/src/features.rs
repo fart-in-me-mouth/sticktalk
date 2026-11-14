@@ -1050,6 +1050,10 @@ pub fn persist(app: &App) -> Task<Msg> {
 }
 pub fn reconcile(app: &mut App) -> Task<Msg> {
     crate::desktop_host::sync(app);
+    app.features.desktop.disabled = !app.settings.preferences.desktop_notifications;
+    if app.features.desktop.disabled {
+        app.features.flash_pending = false;
+    }
     let (Some(c), Some(account)) = (config(app), app.me()) else {
         return Task::none();
     };

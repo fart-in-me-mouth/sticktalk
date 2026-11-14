@@ -27,6 +27,7 @@ pub fn header<'a>(app: &'a App, c: &'a ChannelSummary) -> Element<'a, Msg> {
         );
     let search = text_input(&search_hint, &app.main.search)
         .id("header-search")
+        .on_submit(crate::features3::msg(crate::features3::Event::SearchSubmit))
         .on_input(|s| mm(Main::Search(s)))
         .padding([t::S4, t::S8])
         .font(t::regular())
@@ -235,60 +236,4 @@ pub fn drop_overlay<'a>() -> Element<'a, Msg> {
     .center_y(Fill)
     .style(t::dim)
     .into()
-}
-pub fn local_results(app: &App, id: Id) -> Element<'_, Msg> {
-    let query = app.main.search.to_lowercase();
-    let results: Vec<_> = app
-        .state
-        .model
-        .messages
-        .get(&id)
-        .into_iter()
-        .flat_map(|ms| ms.values())
-        .filter(|m| app.state.model.content(m).to_lowercase().contains(&query))
-        .take(100)
-        .collect();
-    let mut list = column![
-        section(format!("Search results — {}", results.len())),
-        hint("Messages loaded in this conversation.").color(t::TEXT_SECONDARY)
-    ]
-    .spacing(t::S12);
-    if results.is_empty() {
-        list = list.push(
-            container(
-                column![
-                    icon("search", t::AVATAR, t::TEXT_SECONDARY),
-                    txt("No messages found"),
-                    hint("Try a different word.").color(t::TEXT_SECONDARY),
-                    action("Clear search", mm(Main::Search(String::new())))
-                ]
-                .spacing(t::S16)
-                .align_x(Center),
-            )
-            .center_x(Fill)
-            .padding(t::S32),
-        );
-    }
-    for m in results {
-        list = list.push(
-            button(
-                column![
-                    txt(app.state.model.name(m.author_id))
-                        .color(controls::name_color(app, m.author_id))
-                        .font(t::medium()),
-                    txt(ellipsis(&app.state.model.content(m), 200)),
-                    hint(timestamp(m.created_at, false))
-                ]
-                .spacing(t::S4),
-            )
-            .on_press(Msg::JumpTo(m.id))
-            .padding(t::S12)
-            .width(Fill)
-            .style(t::icon),
-        );
-    }
-    container(scroller(list).height(Fill))
-        .padding(t::S16)
-        .height(Fill)
-        .into()
 }

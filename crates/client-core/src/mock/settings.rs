@@ -116,6 +116,61 @@ pub(super) fn command(
 ) -> Result<CommandResult, ApiError> {
     let me = mock.model.me.as_ref().unwrap().user.id;
     match cmd {
+        LaunchCommand::SetServerFolders { folders } => {
+            events.push(Event::ServerFoldersUpdated(folders));
+            Ok(CommandResult::Ack)
+        }
+        LaunchCommand::SetSlowmode {
+            channel_id,
+            seconds,
+        } => {
+            if !SLOWMODE_SECONDS.contains(&seconds) {
+                return Err(error("Invalid slowmode interval"));
+            }
+            mock.model.launch.slowmode.insert(
+                channel_id,
+                SlowmodeStatus {
+                    channel_id,
+                    seconds,
+                    bypassed: false,
+                    retry_after_ms: 0,
+                    server_time: mock.clock.unix_ms(),
+                },
+            );
+            events.push(Event::SlowmodeUpdated {
+                channel_id,
+                seconds,
+            });
+            Ok(CommandResult::Ack)
+        }
+        LaunchCommand::RenameEmoji {
+            guild_id,
+            emoji_id,
+            name,
+        } => {
+            if !valid_emoji_name(&name) {
+                return Err(error("Invalid emoji name"));
+            }
+            let list = mock.model.launch.emoji.entry(guild_id).or_default();
+            if let Some(e) = list.iter_mut().find(|e| e.id == emoji_id) {
+                e.name = name;
+            }
+            events.push(Event::GuildEmojiUpdated {
+                guild_id,
+                emoji: list.clone(),
+            });
+            Ok(CommandResult::Ack)
+        }
+        LaunchCommand::DeleteEmoji { guild_id, emoji_id } => {
+            let list = mock.model.launch.emoji.entry(guild_id).or_default();
+            list.retain(|e| e.id != emoji_id);
+            events.push(Event::GuildEmojiUpdated {
+                guild_id,
+                emoji: list.clone(),
+            });
+            Ok(CommandResult::Ack)
+        }
+
         LaunchCommand::CreateRole { guild_id, name } => {
             let id = mock.id();
             for r in mock

@@ -21,6 +21,19 @@ use sticktalk_proto::*;
 pub fn router(app: App) -> axum::Router {
     axum::Router::new()
         .merge(crate::browser::routes())
+        .merge(crate::custom_emoji::routes())
+        .route(
+            "/api/v1/users/@me/server-folders",
+            get(crate::folders::endpoint),
+        )
+        .route(
+            "/api/v1/channels/{id}/slowmode",
+            get(crate::slowmode::endpoint),
+        )
+        .route(
+            "/api/v1/guilds/{id}/messages/search",
+            get(crate::search::endpoint),
+        )
         .merge(crate::push::routes())
         .route(
             "/api/v1/channels/{id}/history-extent",

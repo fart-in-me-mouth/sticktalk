@@ -95,6 +95,22 @@ pub struct DeviceSession {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum LaunchCommand {
+    SetServerFolders {
+        folders: Vec<ServerFolder>,
+    },
+    SetSlowmode {
+        channel_id: ChannelId,
+        seconds: u32,
+    },
+    RenameEmoji {
+        guild_id: GuildId,
+        emoji_id: Id,
+        name: String,
+    },
+    DeleteEmoji {
+        guild_id: GuildId,
+        emoji_id: Id,
+    },
     CreateRole {
         guild_id: GuildId,
         name: String,

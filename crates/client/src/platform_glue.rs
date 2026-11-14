@@ -6,6 +6,7 @@ use sticktalk_desktop_platform::{
 use sticktalk_proto::*;
 #[derive(Default)]
 pub struct State {
+    pub disabled: bool,
     pub settings: Vec<NotificationSettings>,
     pub pending_activation: Option<Activation>,
     pub dry_run: bool,
@@ -53,10 +54,11 @@ impl State {
             blocked,
             now: crate::mock::now(),
         };
-        if !sticktalk_client_core::notifications::permits_with_default(
+        if !sticktalk_client_core::notifications::permits_on_device(
             &self.settings,
             c,
             self.default_level,
+            !self.disabled,
         ) {
             return None;
         }

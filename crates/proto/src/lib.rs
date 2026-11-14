@@ -2,8 +2,10 @@
 //! Encode WebSocket messages using `rmp_serde::to_vec_named`, never `to_vec`.
 
 mod browser;
+mod features3;
 mod gifs;
 mod ids;
+pub use features3::*;
 mod launch;
 pub use launch::*;
 mod models;

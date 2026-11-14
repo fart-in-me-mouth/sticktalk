@@ -1,0 +1,4 @@
+CREATE TABLE channel_slowmode (
+ channel_id INTEGER PRIMARY KEY REFERENCES channels(id) ON DELETE CASCADE,
+ seconds INTEGER NOT NULL CHECK(seconds IN(0,5,10,30,60,300,900,3600,21600))
+);

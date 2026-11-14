@@ -32,6 +32,7 @@ bitflags::bitflags! {
         const MOVE_MEMBERS = 1 << 25;
         const USE_VOICE_ACTIVITY = 1 << 26;
         const PRIORITY_SPEAKER = 1 << 27;
+        const MANAGE_EMOJI = 1 << 28;
     }
 }
 

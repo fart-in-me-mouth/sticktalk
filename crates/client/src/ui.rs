@@ -3,6 +3,7 @@ mod avatar_mask;
 mod controls;
 mod elided;
 pub mod emoji_picker;
+pub mod features3;
 pub mod gif_picker;
 mod history;
 mod link_context;
@@ -534,6 +535,9 @@ fn content_view(app: &App) -> Element<'_, Msg> {
         );
     }
     if let Some(overlay) = main_window::overlay(app) {
+        layers.push(overlay);
+    }
+    if let Some(overlay) = features3::folder_overlay(app) {
         layers.push(overlay);
     }
     if app.main.dropping {
@@ -1093,9 +1097,7 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
     let header = main_window::header(app, channel);
     let rows = app.visible_items();
     let (_, _, top, tail) = app.visible_range();
-    let history: Element<'_, Msg> = if !app.main.search.is_empty() {
-        main_window::local_results(app, id)
-    } else if app.extent.active() {
+    let history: Element<'_, Msg> = if app.extent.active() {
         history::view(app)
     } else if app.state.loading && rows.is_empty() {
         container(skeleton()).height(Fill).style(t::bare).into()
@@ -1163,7 +1165,9 @@ fn chat(app: &App, id: Id) -> Element<'_, Msg> {
         .height(Fill)
         .width(Fill);
     let mut body = row![center].height(Fill);
-    if app
+    if app.text_features.search.open {
+        body = body.push(features3::search_panel(app));
+    } else if app
         .members_open
         .unwrap_or(app.width >= t::MEMBER_BREAKPOINT)
     {
@@ -1197,6 +1201,9 @@ fn composer<'a>(app: &'a App, channel: &'a ChannelSummary) -> Element<'a, Msg> {
         .into();
     }
     let mut body = column![].spacing(t::S8);
+    if let Some(status) = features3::slowmode_composer(app, channel.id) {
+        body = body.push(status);
+    }
     if let Some(cards) = uploads::cards(app) {
         body = body.push(cards);
     }
@@ -1652,12 +1659,15 @@ fn message_row<'a>(app: &'a App, m: &'a Message, _height: f32, grouped: bool) ->
         for r in m
             .reactions
             .iter()
-            .filter(|r| emoji_picker::has_artwork(&r.emoji))
+            .filter(|r| emoji_picker::has_artwork(&r.emoji) || custom_emoji_id(&r.emoji).is_some())
         {
             reactions = reactions.push(
                 button(
                     row![
-                        emoji(&r.emoji, t::INLINE_ICON),
+                        custom_emoji_id(&r.emoji).map_or_else(
+                            || emoji(&r.emoji, t::INLINE_ICON),
+                            |id| features3::glyph(app, id, t::INLINE_ICON)
+                        ),
                         hint(r.count.to_string()).color(if r.me {
                             t::ACCENT
                         } else {
@@ -1909,6 +1919,9 @@ fn inline_content_edited<'a>(
     size: f32,
     edited: bool,
 ) -> Element<'a, Msg> {
+    if let Some(view) = features3::inline(app, m, values, size) {
+        return view;
+    }
     use unicode_segmentation::UnicodeSegmentation;
     let is_emoji = |g: &str| {
         g.chars().next().is_some_and(|c| c as u32 >= 0x2300)
@@ -2147,6 +2160,8 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
     use std::hash::{Hash, Hasher};
     let mut hash = std::collections::hash_map::DefaultHasher::new();
     m.content.hash(&mut hash);
+    app.state.model.launch.emoji_revision.hash(&mut hash);
+
     m.edited_at.hash(&mut hash);
     app.settings
         .preferences
@@ -3036,7 +3051,9 @@ fn compose_editor<'a>(
     autocomplete: bool,
 ) -> Element<'a, Msg> {
     let empty = app.editor.text().trim().is_empty();
-    let autocomplete = autocomplete || !app.emoji_candidates().is_empty();
+    let autocomplete = autocomplete
+        || !app.emoji_candidates().is_empty()
+        || !crate::features3::candidates(app).is_empty();
     let viewing_image = app.features.viewer.current().is_some();
     let quick_binding = app
         .settings
