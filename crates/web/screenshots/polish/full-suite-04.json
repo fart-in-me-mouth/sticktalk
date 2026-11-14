@@ -1,5 +1,5 @@
 {
-  "bundleRevision": "6bf1ef87d22b60d201ff",
+  "bundleRevision": "3808e78aad2e6c680634",
   "fastQa": false,
   "realServer": true,
   "headless": true,
@@ -56,14 +56,14 @@
       "inbound": [
         {
           "kind": "audio",
-          "bytesReceived": 2848,
-          "packetsReceived": 48
+          "bytesReceived": 2645,
+          "packetsReceived": 46
         },
         {
           "kind": "video",
-          "bytesReceived": 8579,
+          "bytesReceived": 24171,
           "framesDecoded": 15,
-          "packetsReceived": 15
+          "packetsReceived": 34
         }
       ]
     },
@@ -72,14 +72,14 @@
       "inbound": [
         {
           "kind": "audio",
-          "bytesReceived": 2419,
-          "packetsReceived": 48
+          "bytesReceived": 2601,
+          "packetsReceived": 46
         },
         {
           "kind": "video",
-          "bytesReceived": 8579,
+          "bytesReceived": 17984,
           "framesDecoded": 15,
-          "packetsReceived": 15
+          "packetsReceived": 26
         }
       ]
     }

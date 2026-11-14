@@ -1,5 +1,5 @@
 {
-  "revision": "1c569ada4e7b53ce46e4",
+  "revision": "3808e78aad2e6c680634",
   "checks": [
     "server description/banner persistence, real icon upload/removal, settings stay open",
     "role create/reorder, member assignment and selected-member role hydration",

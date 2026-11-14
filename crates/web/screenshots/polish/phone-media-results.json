@@ -1,5 +1,5 @@
 {
-  "revision": "1c569ada4e7b53ce46e4",
+  "revision": "3808e78aad2e6c680634",
   "checks": [
     "phone invite deep link survives session recovery, prefilled confirmation, real join",
     "phone friend request/accept and DM creation/send",

@@ -1,6 +1,6 @@
 {
   "cause": "H.264 codec preferences discarded the auxiliary RTX codec. str0m only enables stream padding probes when RTX is negotiated; without repair/probes, startup feedback loss can collapse the estimate and expire the keyframe queue.",
-  "scope": "Web adapter only; no SFU, server, protocol, timeouts, bandwidth budgets or media assertions relaxed.",
+  "scope": "Web adapter only; no SFU, server, protocol, bandwidth budgets or decoder assertions relaxed. Original full-suite timeout is unchanged. Focused delayed test allows 35 seconds, including injected delay; the no-RTX negative control uses the same deadline.",
   "injection": "Delay one Chromium peer setRemoteDescription for video answers by 7500 ms. Real independent browser processes, real SFU and synthetic capture tracks.",
   "before": {
     "revision": "83e503bc1c7dac774f10",
@@ -60,7 +60,7 @@
     ]
   },
   "after": {
-    "revision": "6bf1ef87d22b60d201ff",
+    "revision": "3808e78aad2e6c680634",
     "realServer": true,
     "independentBrowserProcesses": 2,
     "remoteAnswerDelayMs": 7500,
@@ -68,23 +68,23 @@
       {
         "round": 1,
         "decodedDelta": [
-          158,
-          11
+          156,
+          10
         ],
         "states": [
           "connected",
           "connected"
         ],
         "remoteWidths": [
-          640,
+          480,
           960
         ]
       },
       {
         "round": 2,
         "decodedDelta": [
-          33,
-          12
+          31,
+          11
         ],
         "states": [
           "connected",
@@ -98,8 +98,8 @@
       {
         "round": 3,
         "decodedDelta": [
-          12,
-          107
+          11,
+          105
         ],
         "states": [
           "connected",

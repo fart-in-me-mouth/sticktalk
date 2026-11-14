@@ -1,5 +1,5 @@
 {
-  "bundleRevision": "6bf1ef87d22b60d201ff",
+  "bundleRevision": "3808e78aad2e6c680634",
   "headless": true,
   "realServer": true,
   "page": "Cold progressive login; authenticated chat measured separately",
@@ -13,23 +13,23 @@
     "metrics": {
       "first-contentful-paint": {
         "display": "0.9 s",
-        "value": 903.0429999999999
+        "value": 905.156
       },
       "largest-contentful-paint": {
         "display": "0.9 s",
-        "value": 903.0429999999999
+        "value": 905.156
       },
       "total-blocking-time": {
         "display": "0 ms",
-        "value": 0
+        "value": 2
       },
       "cumulative-layout-shift": {
         "display": "0",
         "value": 0.0004817251406140742
       },
       "interactive": {
-        "display": "0.9 s",
-        "value": 903.0429999999999
+        "display": "1.0 s",
+        "value": 1049.8239
       }
     },
     "appReady": [],
@@ -88,7 +88,7 @@
                 "snippet": "<img class=\"auth-logo\" src=\"/public/icons/icon-192.png\" alt=\"\" width=\"48\" height=\"48\">",
                 "nodeLabel": "main.auth-page > form.auth-card > div.auth-brand > img.auth-logo"
               },
-              "url": "http://127.0.0.1:53026/public/icons/icon-192.png",
+              "url": "http://127.0.0.1:64424/public/icons/icon-192.png",
               "totalBytes": 5072,
               "wastedBytes": 4101,
               "subItems": {
@@ -120,49 +120,49 @@
               "value": {
                 "type": "network-tree",
                 "chains": {
-                  "50BABC874BB2AFF3E0CB7D017425A102": {
-                    "url": "http://127.0.0.1:53026/",
-                    "navStartToEndTime": 83,
+                  "94989A3AA96DCAAFA4089B610EC3F06A": {
+                    "url": "http://127.0.0.1:64424/",
+                    "navStartToEndTime": 72,
                     "transferSize": 1742,
                     "isLongest": true,
                     "children": {
-                      "19316.3": {
-                        "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
-                        "navStartToEndTime": 90,
+                      "24256.3": {
+                        "url": "http://127.0.0.1:64424/live-3472b048197eda30e2e9.css",
+                        "navStartToEndTime": 84,
                         "transferSize": 9038,
                         "isLongest": true,
                         "children": {
-                          "19316.18": {
-                            "url": "http://127.0.0.1:53026/public/fonts/Inter-SemiBold.woff2",
-                            "navStartToEndTime": 107,
+                          "24256.18": {
+                            "url": "http://127.0.0.1:64424/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 121,
                             "transferSize": 19422,
                             "isLongest": true,
                             "children": {}
                           }
                         }
                       },
-                      "19316.2": {
-                        "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
-                        "navStartToEndTime": 91,
+                      "24256.2": {
+                        "url": "http://127.0.0.1:64424/bootstrap-1b0dab3c93e1cb26e1f7.js",
+                        "navStartToEndTime": 83,
                         "transferSize": 2475,
                         "children": {
-                          "19316.20": {
-                            "url": "http://127.0.0.1:53026/api/v1/browser/capabilities",
-                            "navStartToEndTime": 105,
+                          "24256.20": {
+                            "url": "http://127.0.0.1:64424/api/v1/browser/capabilities",
+                            "navStartToEndTime": 120,
                             "transferSize": 761,
                             "children": {}
                           }
                         }
                       },
-                      "19316.6": {
-                        "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
-                        "navStartToEndTime": 91,
+                      "24256.6": {
+                        "url": "http://127.0.0.1:64424/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 86,
                         "transferSize": 1172,
                         "children": {}
                       },
-                      "19316.5": {
-                        "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
-                        "navStartToEndTime": 90,
+                      "24256.5": {
+                        "url": "http://127.0.0.1:64424/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 82,
                         "transferSize": 900,
                         "children": {}
                       }
@@ -170,7 +170,7 @@
                   }
                 },
                 "longestChain": {
-                  "duration": 107
+                  "duration": 121
                 }
               }
             },
@@ -220,19 +220,19 @@
           ],
           "items": [
             {
-              "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+              "url": "http://127.0.0.1:64424/ui-tokens-500c88b5b36ff764fdd6.css",
               "totalBytes": 1172,
-              "wastedMs": 302
+              "wastedMs": 303
             },
             {
-              "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
-              "totalBytes": 900,
-              "wastedMs": 302
-            },
-            {
-              "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+              "url": "http://127.0.0.1:64424/live-3472b048197eda30e2e9.css",
               "totalBytes": 9038,
-              "wastedMs": 152
+              "wastedMs": 153
+            },
+            {
+              "url": "http://127.0.0.1:64424/boot-c066202c08c28b10f232.css",
+              "totalBytes": 900,
+              "wastedMs": 303
             }
           ]
         }
@@ -242,36 +242,36 @@
   "authenticatedChatMobile": {
     "version": "13.6.0",
     "categories": {
-      "performance": 86,
+      "performance": 85,
       "accessibility": 100,
       "best-practices": 100
     },
     "metrics": {
       "first-contentful-paint": {
         "display": "0.9 s",
-        "value": 917.1717000000001
+        "value": 903.6189999999999
       },
       "largest-contentful-paint": {
-        "display": "4.2 s",
-        "value": 4183.1363249999995
+        "display": "4.5 s",
+        "value": 4461.642750000001
       },
       "total-blocking-time": {
-        "display": "0 ms",
-        "value": 3
+        "display": "50 ms",
+        "value": 54
       },
       "cumulative-layout-shift": {
         "display": "0",
         "value": 0
       },
       "interactive": {
-        "display": "4.2 s",
-        "value": 4183.1363249999995
+        "display": "4.5 s",
+        "value": 4468.3832250000005
       }
     },
     "appReady": [
       {
         "name": "sticktalk-chat-ready",
-        "startTime": 166.691,
+        "startTime": 238.831,
         "timingType": "Mark"
       }
     ],
@@ -279,12 +279,12 @@
       {
         "id": "largest-contentful-paint",
         "title": "Largest Contentful Paint",
-        "score": 0.45
+        "score": 0.38
       },
       {
         "id": "interactive",
         "title": "Time to Interactive",
-        "score": 0.86
+        "score": 0.83
       },
       {
         "id": "valid-source-maps",
@@ -309,7 +309,7 @@
           ],
           "items": [
             {
-              "scriptUrl": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5_bg.wasm",
+              "scriptUrl": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/sticktalk-web-ce26c723ca5ebabaeb8d_bg.wasm",
               "subItems": {
                 "type": "subitems",
                 "items": [
@@ -347,14 +347,14 @@
           ],
           "items": [
             {
-              "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5.js",
-              "totalBytes": 7522,
-              "wastedBytes": 2422,
-              "wastedPercent": 32.19503573953342
+              "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/sticktalk-web-ce26c723ca5ebabaeb8d.js",
+              "totalBytes": 7551,
+              "wastedBytes": 2430,
+              "wastedPercent": 32.18635750454555
             }
           ],
           "overallSavingsMs": 0,
-          "overallSavingsBytes": 2422,
+          "overallSavingsBytes": 2430,
           "sortedBy": [
             "wastedBytes"
           ],
@@ -379,123 +379,144 @@
               "value": {
                 "type": "network-tree",
                 "chains": {
-                  "A62C853E9F2F3F004B1DBB1E228E6885": {
-                    "url": "http://127.0.0.1:53026/?channel=247169127322484737",
-                    "navStartToEndTime": 56,
+                  "58CC1378E9B739E734C71229847CE587": {
+                    "url": "http://127.0.0.1:64424/?channel=247177422657552385",
+                    "navStartToEndTime": 40,
                     "transferSize": 1742,
                     "isLongest": true,
                     "children": {
-                      "22452.3": {
-                        "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
-                        "navStartToEndTime": 59,
-                        "transferSize": 9038,
+                      "21696.2": {
+                        "url": "http://127.0.0.1:64424/bootstrap-1b0dab3c93e1cb26e1f7.js",
+                        "navStartToEndTime": 47,
+                        "transferSize": 2475,
                         "isLongest": true,
                         "children": {
-                          "22452.17": {
-                            "url": "http://127.0.0.1:53026/public/fonts/Inter-Medium.woff2",
-                            "navStartToEndTime": 169,
-                            "transferSize": 659,
+                          "21696.23": {
+                            "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/sticktalk-web-ce26c723ca5ebabaeb8d.js",
+                            "navStartToEndTime": 106,
+                            "transferSize": 8370,
                             "isLongest": true,
-                            "children": {}
-                          },
-                          "22452.18": {
-                            "url": "http://127.0.0.1:53026/public/fonts/Inter-SemiBold.woff2",
-                            "navStartToEndTime": 85,
-                            "transferSize": 19422,
-                            "children": {}
-                          }
-                        }
-                      },
-                      "22452.2": {
-                        "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
-                        "navStartToEndTime": 60,
-                        "transferSize": 2475,
-                        "children": {
-                          "22452.23": {
-                            "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5.js",
-                            "navStartToEndTime": 82,
-                            "transferSize": 8341,
                             "children": {
-                              "22452.25": {
-                                "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
-                                "navStartToEndTime": 91,
-                                "transferSize": 8545,
+                              "21696.25": {
+                                "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/live.js",
+                                "navStartToEndTime": 112,
+                                "transferSize": 8555,
+                                "isLongest": true,
                                 "children": {
-                                  "22452.63": {
-                                    "url": "http://127.0.0.1:53026/api/v1/channels/247169127322484737/history-extent",
-                                    "navStartToEndTime": 166,
+                                  "21696.66": {
+                                    "url": "http://127.0.0.1:64424/api/v1/channels/247177422657552385/history-extent",
+                                    "navStartToEndTime": 238,
                                     "transferSize": 836,
+                                    "isLongest": true,
                                     "children": {}
                                   },
-                                  "22452.62": {
-                                    "url": "http://127.0.0.1:53026/api/v1/channels/247169127322484737/messages?limit=50",
-                                    "navStartToEndTime": 166,
+                                  "21696.65": {
+                                    "url": "http://127.0.0.1:64424/api/v1/channels/247177422657552385/messages?limit=50",
+                                    "navStartToEndTime": 237,
                                     "transferSize": 840,
                                     "children": {}
                                   },
-                                  "22452.61": {
-                                    "url": "http://127.0.0.1:53026/api/v1/guilds/247169127322484736/members?limit=50",
-                                    "navStartToEndTime": 166,
+                                  "21696.64": {
+                                    "url": "http://127.0.0.1:64424/api/v1/guilds/247177422657552384/members?limit=50",
+                                    "navStartToEndTime": 237,
                                     "transferSize": 1103,
                                     "children": {}
                                   },
-                                  "22452.30": {
-                                    "url": "http://127.0.0.1:53026/api/v1/browser/capabilities",
-                                    "navStartToEndTime": 120,
+                                  "21696.30": {
+                                    "url": "http://127.0.0.1:64424/api/v1/browser/capabilities",
+                                    "navStartToEndTime": 157,
                                     "transferSize": 761,
                                     "children": {}
                                   },
-                                  "22452.28": {
-                                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/navigation.js",
-                                    "navStartToEndTime": 99,
+                                  "21696.28": {
+                                    "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/navigation.js",
+                                    "navStartToEndTime": 117,
                                     "transferSize": 1777,
                                     "children": {}
                                   },
-                                  "22452.27": {
-                                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/preferences.js",
-                                    "navStartToEndTime": 99,
+                                  "21696.27": {
+                                    "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/preferences.js",
+                                    "navStartToEndTime": 117,
                                     "transferSize": 1394,
                                     "children": {}
                                   }
                                 }
                               },
-                              "22452.32": {
-                                "url": "http://127.0.0.1:53026/api/v1/meta",
-                                "navStartToEndTime": 129,
-                                "transferSize": 774,
-                                "children": {}
+                              "21696.26": {
+                                "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/__wasm_split.js",
+                                "navStartToEndTime": 113,
+                                "transferSize": 2106,
+                                "children": {
+                                  "21696.35": {
+                                    "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/split_load_message_encoder_4436574240319803330.wasm",
+                                    "navStartToEndTime": 174,
+                                    "transferSize": 5518,
+                                    "children": {}
+                                  },
+                                  "21696.34": {
+                                    "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/chunk_28.wasm",
+                                    "navStartToEndTime": 173,
+                                    "transferSize": 1082,
+                                    "children": {}
+                                  },
+                                  "21696.33": {
+                                    "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/chunk_18.wasm",
+                                    "navStartToEndTime": 172,
+                                    "transferSize": 976,
+                                    "children": {}
+                                  }
+                                }
                               },
-                              "22452.26": {
-                                "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/__wasm_split.js",
-                                "navStartToEndTime": 91,
-                                "transferSize": 2047,
+                              "21696.32": {
+                                "url": "http://127.0.0.1:64424/api/v1/meta",
+                                "navStartToEndTime": 171,
+                                "transferSize": 774,
                                 "children": {}
                               }
                             }
                           },
-                          "22452.22": {
-                            "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5_bg.wasm",
-                            "navStartToEndTime": 99,
-                            "transferSize": 442873,
+                          "21696.22": {
+                            "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/sticktalk-web-ce26c723ca5ebabaeb8d_bg.wasm",
+                            "navStartToEndTime": 106,
+                            "transferSize": 450768,
                             "children": {}
                           },
-                          "22452.21": {
-                            "url": "http://127.0.0.1:53026/api/v1/browser/session",
-                            "navStartToEndTime": 80,
+                          "21696.21": {
+                            "url": "http://127.0.0.1:64424/api/v1/browser/session",
+                            "navStartToEndTime": 89,
                             "transferSize": 1068,
                             "children": {}
                           }
                         }
                       },
-                      "22452.6": {
-                        "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
-                        "navStartToEndTime": 60,
+                      "21696.3": {
+                        "url": "http://127.0.0.1:64424/live-3472b048197eda30e2e9.css",
+                        "navStartToEndTime": 45,
+                        "transferSize": 9038,
+                        "children": {
+                          "21696.17": {
+                            "url": "http://127.0.0.1:64424/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 233,
+                            "transferSize": 659,
+                            "children": {}
+                          },
+                          "21696.18": {
+                            "url": "http://127.0.0.1:64424/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 89,
+                            "transferSize": 19422,
+                            "children": {}
+                          }
+                        }
+                      },
+                      "21696.6": {
+                        "url": "http://127.0.0.1:64424/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 46,
                         "transferSize": 1172,
                         "children": {}
                       },
-                      "22452.5": {
-                        "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
-                        "navStartToEndTime": 59,
+                      "21696.5": {
+                        "url": "http://127.0.0.1:64424/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 45,
                         "transferSize": 900,
                         "children": {}
                       }
@@ -503,7 +524,7 @@
                   }
                 },
                 "longestChain": {
-                  "duration": 169
+                  "duration": 238
                 }
               }
             },
@@ -553,19 +574,19 @@
           ],
           "items": [
             {
-              "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+              "url": "http://127.0.0.1:64424/ui-tokens-500c88b5b36ff764fdd6.css",
               "totalBytes": 1172,
-              "wastedMs": 301
+              "wastedMs": 302
             },
             {
-              "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+              "url": "http://127.0.0.1:64424/boot-c066202c08c28b10f232.css",
               "totalBytes": 900,
-              "wastedMs": 301
+              "wastedMs": 302
             },
             {
-              "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+              "url": "http://127.0.0.1:64424/live-3472b048197eda30e2e9.css",
               "totalBytes": 9038,
-              "wastedMs": 151
+              "wastedMs": 152
             }
           ]
         }
@@ -575,40 +596,50 @@
   "warmAuthenticatedChatMobile": {
     "version": "13.6.0",
     "categories": {
-      "performance": 99,
+      "performance": 94,
       "accessibility": 100,
       "best-practices": 100
     },
     "metrics": {
       "first-contentful-paint": {
-        "display": "0.2 s",
-        "value": 170.057
+        "display": "0.3 s",
+        "value": 279.595
       },
       "largest-contentful-paint": {
-        "display": "0.7 s",
-        "value": 723.354
+        "display": "1.1 s",
+        "value": 1113
       },
       "total-blocking-time": {
-        "display": "100 ms",
-        "value": 100.3329999961853
+        "display": "290 ms",
+        "value": 287.24999999618535
       },
       "cumulative-layout-shift": {
         "display": "0",
         "value": 0
       },
       "interactive": {
-        "display": "0.7 s",
-        "value": 713.9239999961853
+        "display": "1.1 s",
+        "value": 1102.2399999961854
       }
     },
     "appReady": [
       {
         "name": "sticktalk-chat-ready",
-        "startTime": 868.106,
+        "startTime": 1211.907,
         "timingType": "Mark"
       }
     ],
     "failures": [
+      {
+        "id": "total-blocking-time",
+        "title": "Total Blocking Time",
+        "score": 0.8
+      },
+      {
+        "id": "max-potential-fid",
+        "title": "Max Potential First Input Delay",
+        "score": 0.51
+      },
       {
         "id": "valid-source-maps",
         "title": "Missing source maps for large first-party JavaScript",
@@ -632,7 +663,7 @@
           ],
           "items": [
             {
-              "scriptUrl": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5_bg.wasm",
+              "scriptUrl": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/sticktalk-web-ce26c723ca5ebabaeb8d_bg.wasm",
               "subItems": {
                 "type": "subitems",
                 "items": [
@@ -671,12 +702,12 @@
                 {
                   "source": {
                     "type": "source-location",
-                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/live.js",
                     "urlProvider": "network",
                     "line": 352,
                     "column": 35
                   },
-                  "reflowTime": 39.716
+                  "reflowTime": 87.05
                 }
               ]
             },
@@ -699,62 +730,62 @@
                 {
                   "source": {
                     "type": "source-location",
-                    "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
+                    "url": "http://127.0.0.1:64424/bootstrap-1b0dab3c93e1cb26e1f7.js",
                     "urlProvider": "network",
                     "line": 10,
                     "column": 89
                   },
-                  "reflowTime": 49.935
+                  "reflowTime": 80.03
                 },
                 {
                   "source": {
                     "type": "source-location",
-                    "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
+                    "url": "http://127.0.0.1:64424/bootstrap-1b0dab3c93e1cb26e1f7.js",
                     "urlProvider": "network",
                     "line": 11,
                     "column": 89
                   },
-                  "reflowTime": 2.649
+                  "reflowTime": 2.913
                 },
                 {
                   "source": {
                     "type": "source-location",
-                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/live.js",
                     "urlProvider": "network",
                     "line": 236,
                     "column": 28
                   },
-                  "reflowTime": 33.023
+                  "reflowTime": 65.417
                 },
                 {
                   "source": {
                     "type": "source-location",
-                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/live.js",
                     "urlProvider": "network",
                     "line": 47,
                     "column": 39
                   },
-                  "reflowTime": 3.47
+                  "reflowTime": 11.74
                 },
                 {
                   "source": {
                     "type": "source-location",
-                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/live.js",
                     "urlProvider": "network",
                     "line": 42,
                     "column": 81
                   },
-                  "reflowTime": 2.622
+                  "reflowTime": 8.257
                 },
                 {
                   "source": {
                     "type": "source-location",
-                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
+                    "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/live.js",
                     "urlProvider": "network",
                     "line": 278,
                     "column": 41
                   },
-                  "reflowTime": 0.601
+                  "reflowTime": 1.636
                 }
               ]
             }
@@ -773,125 +804,144 @@
               "value": {
                 "type": "network-tree",
                 "chains": {
-                  "F90AFA01E4123EEBC7CEA5344875BE4A": {
-                    "url": "http://127.0.0.1:53026/?channel=247169127322484737",
-                    "navStartToEndTime": 68,
+                  "0D0B97C819F3C713AF468FEDDCF3B953": {
+                    "url": "http://127.0.0.1:64424/?channel=247177422657552385",
+                    "navStartToEndTime": 127,
                     "transferSize": 0,
                     "isLongest": true,
                     "children": {
-                      "9472.2": {
-                        "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
-                        "navStartToEndTime": 69,
+                      "6492.2": {
+                        "url": "http://127.0.0.1:64424/bootstrap-1b0dab3c93e1cb26e1f7.js",
+                        "navStartToEndTime": 130,
                         "transferSize": 0,
                         "isLongest": true,
                         "children": {
-                          "9472.24": {
-                            "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5.js",
-                            "navStartToEndTime": 154,
+                          "6492.24": {
+                            "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/sticktalk-web-ce26c723ca5ebabaeb8d.js",
+                            "navStartToEndTime": 286,
                             "transferSize": 0,
                             "isLongest": true,
                             "children": {
-                              "9472.25": {
-                                "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/live.js",
-                                "navStartToEndTime": 196,
+                              "6492.25": {
+                                "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/live.js",
+                                "navStartToEndTime": 357,
                                 "transferSize": 0,
                                 "isLongest": true,
                                 "children": {
-                                  "9472.36": {
-                                    "url": "http://127.0.0.1:53026/api/v1/channels/247169127322484737/history-extent",
-                                    "navStartToEndTime": 868,
+                                  "6492.39": {
+                                    "url": "http://127.0.0.1:64424/api/v1/channels/247177422657552385/history-extent",
+                                    "navStartToEndTime": 1211,
                                     "transferSize": 836,
                                     "isLongest": true,
                                     "children": {}
                                   },
-                                  "9472.35": {
-                                    "url": "http://127.0.0.1:53026/api/v1/channels/247169127322484737/messages?limit=50",
-                                    "navStartToEndTime": 861,
+                                  "6492.38": {
+                                    "url": "http://127.0.0.1:64424/api/v1/channels/247177422657552385/messages?limit=50",
+                                    "navStartToEndTime": 1210,
                                     "transferSize": 840,
                                     "children": {}
                                   },
-                                  "9472.34": {
-                                    "url": "http://127.0.0.1:53026/api/v1/guilds/247169127322484736/members?limit=50",
-                                    "navStartToEndTime": 860,
+                                  "6492.37": {
+                                    "url": "http://127.0.0.1:64424/api/v1/guilds/247177422657552384/members?limit=50",
+                                    "navStartToEndTime": 1185,
                                     "transferSize": 1103,
                                     "children": {}
                                   },
-                                  "9472.30": {
-                                    "url": "http://127.0.0.1:53026/api/v1/browser/capabilities",
-                                    "navStartToEndTime": 457,
+                                  "6492.30": {
+                                    "url": "http://127.0.0.1:64424/api/v1/browser/capabilities",
+                                    "navStartToEndTime": 684,
                                     "transferSize": 761,
                                     "children": {}
                                   },
-                                  "9472.28": {
-                                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/navigation.js",
-                                    "navStartToEndTime": 201,
+                                  "6492.28": {
+                                    "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/navigation.js",
+                                    "navStartToEndTime": 367,
                                     "transferSize": 0,
                                     "children": {}
                                   },
-                                  "9472.27": {
-                                    "url": "http://127.0.0.1:53026/public/runtime/60beac6dc98bd2b18695/preferences.js",
-                                    "navStartToEndTime": 200,
+                                  "6492.27": {
+                                    "url": "http://127.0.0.1:64424/public/runtime/1e72bccef432e9f84c8c/preferences.js",
+                                    "navStartToEndTime": 365,
                                     "transferSize": 0,
                                     "children": {}
                                   }
                                 }
                               },
-                              "9472.32": {
-                                "url": "http://127.0.0.1:53026/api/v1/meta",
-                                "navStartToEndTime": 727,
+                              "6492.32": {
+                                "url": "http://127.0.0.1:64424/api/v1/meta",
+                                "navStartToEndTime": 1115,
                                 "transferSize": 774,
                                 "children": {}
                               },
-                              "9472.26": {
-                                "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/__wasm_split.js",
-                                "navStartToEndTime": 197,
+                              "6492.26": {
+                                "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/__wasm_split.js",
+                                "navStartToEndTime": 360,
                                 "transferSize": 0,
-                                "children": {}
+                                "children": {
+                                  "6492.35": {
+                                    "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/split_load_message_encoder_4436574240319803330.wasm",
+                                    "navStartToEndTime": 800,
+                                    "transferSize": 0,
+                                    "children": {}
+                                  },
+                                  "6492.34": {
+                                    "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/chunk_28.wasm",
+                                    "navStartToEndTime": 796,
+                                    "transferSize": 0,
+                                    "children": {}
+                                  },
+                                  "6492.33": {
+                                    "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/chunk_18.wasm",
+                                    "navStartToEndTime": 795,
+                                    "transferSize": 0,
+                                    "children": {}
+                                  }
+                                }
                               }
                             }
                           },
-                          "9472.22": {
-                            "url": "http://127.0.0.1:53026/api/v1/browser/session",
-                            "navStartToEndTime": 305,
+                          "6492.22": {
+                            "url": "http://127.0.0.1:64424/api/v1/browser/session",
+                            "navStartToEndTime": 499,
                             "transferSize": 1068,
                             "children": {}
                           },
-                          "9472.23": {
-                            "url": "http://127.0.0.1:53026/pkg/ea154b8d0a25964339cb/sticktalk-web-45529f3552d233e485d5_bg.wasm",
-                            "navStartToEndTime": 191,
+                          "6492.23": {
+                            "url": "http://127.0.0.1:64424/pkg/e23cb39194ef56822853/sticktalk-web-ce26c723ca5ebabaeb8d_bg.wasm",
+                            "navStartToEndTime": 347,
                             "transferSize": 0,
                             "children": {}
                           }
                         }
                       },
-                      "9472.3": {
-                        "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
-                        "navStartToEndTime": 55,
+                      "6492.3": {
+                        "url": "http://127.0.0.1:64424/live-3472b048197eda30e2e9.css",
+                        "navStartToEndTime": 98,
                         "transferSize": 0,
                         "children": {
-                          "9472.18": {
-                            "url": "http://127.0.0.1:53026/public/fonts/Inter-Medium.woff2",
-                            "navStartToEndTime": 715,
+                          "6492.18": {
+                            "url": "http://127.0.0.1:64424/public/fonts/Inter-Medium.woff2",
+                            "navStartToEndTime": 1105,
                             "transferSize": 0,
                             "children": {}
                           },
-                          "9472.19": {
-                            "url": "http://127.0.0.1:53026/public/fonts/Inter-SemiBold.woff2",
-                            "navStartToEndTime": 142,
+                          "6492.19": {
+                            "url": "http://127.0.0.1:64424/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 255,
                             "transferSize": 0,
                             "children": {}
                           }
                         }
                       },
-                      "9472.6": {
-                        "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
-                        "navStartToEndTime": 57,
+                      "6492.6": {
+                        "url": "http://127.0.0.1:64424/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 104,
                         "transferSize": 0,
                         "children": {}
                       },
-                      "9472.5": {
-                        "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
-                        "navStartToEndTime": 57,
+                      "6492.5": {
+                        "url": "http://127.0.0.1:64424/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 102,
                         "transferSize": 0,
                         "children": {}
                       }
@@ -899,7 +949,7 @@
                   }
                 },
                 "longestChain": {
-                  "duration": 868
+                  "duration": 1211
                 }
               }
             },
@@ -949,17 +999,17 @@
           ],
           "items": [
             {
-              "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+              "url": "http://127.0.0.1:64424/ui-tokens-500c88b5b36ff764fdd6.css",
               "totalBytes": 0,
               "wastedMs": 110
             },
             {
-              "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+              "url": "http://127.0.0.1:64424/boot-c066202c08c28b10f232.css",
               "totalBytes": 0,
               "wastedMs": 110
             },
             {
-              "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+              "url": "http://127.0.0.1:64424/live-3472b048197eda30e2e9.css",
               "totalBytes": 0,
               "wastedMs": 110
             }
@@ -978,11 +1028,11 @@
     "metrics": {
       "first-contentful-paint": {
         "display": "0.2 s",
-        "value": 173.96158567504884
+        "value": 180.61943567504883
       },
       "largest-contentful-paint": {
         "display": "0.2 s",
-        "value": 173.96158567504884
+        "value": 180.61943567504883
       },
       "total-blocking-time": {
         "display": "0 ms",
@@ -994,7 +1044,7 @@
       },
       "interactive": {
         "display": "0.2 s",
-        "value": 173.96158567504887
+        "value": 180.61943567504886
       }
     },
     "appReady": [],
@@ -1011,49 +1061,49 @@
               "value": {
                 "type": "network-tree",
                 "chains": {
-                  "4970EED6216F8F0EC1069532A56B2ACE": {
-                    "url": "http://127.0.0.1:53026/",
-                    "navStartToEndTime": 41,
+                  "52D9E79D130A003DBF8282F094786B49": {
+                    "url": "http://127.0.0.1:64424/",
+                    "navStartToEndTime": 21,
                     "transferSize": 659,
                     "isLongest": true,
                     "children": {
-                      "20336.3": {
-                        "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
-                        "navStartToEndTime": 40,
+                      "24176.3": {
+                        "url": "http://127.0.0.1:64424/live-3472b048197eda30e2e9.css",
+                        "navStartToEndTime": 20,
                         "transferSize": 0,
                         "isLongest": true,
                         "children": {
-                          "20336.18": {
-                            "url": "http://127.0.0.1:53026/public/fonts/Inter-SemiBold.woff2",
-                            "navStartToEndTime": 59,
+                          "24176.18": {
+                            "url": "http://127.0.0.1:64424/public/fonts/Inter-SemiBold.woff2",
+                            "navStartToEndTime": 55,
                             "transferSize": 659,
                             "isLongest": true,
                             "children": {}
                           }
                         }
                       },
-                      "20336.2": {
-                        "url": "http://127.0.0.1:53026/bootstrap-fa34a61468265c458a31.js",
-                        "navStartToEndTime": 41,
+                      "24176.2": {
+                        "url": "http://127.0.0.1:64424/bootstrap-1b0dab3c93e1cb26e1f7.js",
+                        "navStartToEndTime": 21,
                         "transferSize": 0,
                         "children": {
-                          "20336.20": {
-                            "url": "http://127.0.0.1:53026/api/v1/browser/capabilities",
-                            "navStartToEndTime": 57,
+                          "24176.20": {
+                            "url": "http://127.0.0.1:64424/api/v1/browser/capabilities",
+                            "navStartToEndTime": 53,
                             "transferSize": 761,
                             "children": {}
                           }
                         }
                       },
-                      "20336.6": {
-                        "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
-                        "navStartToEndTime": 40,
+                      "24176.6": {
+                        "url": "http://127.0.0.1:64424/ui-tokens-500c88b5b36ff764fdd6.css",
+                        "navStartToEndTime": 20,
                         "transferSize": 0,
                         "children": {}
                       },
-                      "20336.5": {
-                        "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
-                        "navStartToEndTime": 40,
+                      "24176.5": {
+                        "url": "http://127.0.0.1:64424/boot-c066202c08c28b10f232.css",
+                        "navStartToEndTime": 20,
                         "transferSize": 0,
                         "children": {}
                       }
@@ -1061,7 +1111,7 @@
                   }
                 },
                 "longestChain": {
-                  "duration": 59
+                  "duration": 55
                 }
               }
             },
@@ -1111,15 +1161,15 @@
           ],
           "items": [
             {
-              "url": "http://127.0.0.1:53026/ui-tokens-500c88b5b36ff764fdd6.css",
+              "url": "http://127.0.0.1:64424/ui-tokens-500c88b5b36ff764fdd6.css",
               "totalBytes": 0
             },
             {
-              "url": "http://127.0.0.1:53026/boot-c066202c08c28b10f232.css",
+              "url": "http://127.0.0.1:64424/boot-c066202c08c28b10f232.css",
               "totalBytes": 0
             },
             {
-              "url": "http://127.0.0.1:53026/live-3472b048197eda30e2e9.css",
+              "url": "http://127.0.0.1:64424/live-3472b048197eda30e2e9.css",
               "totalBytes": 0
             }
           ]

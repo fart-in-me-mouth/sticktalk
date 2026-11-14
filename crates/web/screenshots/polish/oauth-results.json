@@ -1,5 +1,5 @@
 {
-  "revision": "1c569ada4e7b53ce46e4",
+  "revision": "3808e78aad2e6c680634",
   "checks": [
     "mock Google authorization + PKCE/token + RSA JWKS, signup and username collision",
     "existing Google identity login after logout",

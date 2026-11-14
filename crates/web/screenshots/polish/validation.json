@@ -1,0 +1,152 @@
+{
+  "branch": "t3/polish-mobile-web-ui",
+  "validatedSourceHead": "047ea60a9a255f7f55b13e086b4e5d4755a58a4d",
+  "mergedMaster": "f91944d46b2a0c45529bd59b738b3dd7d7ac2b95",
+  "mergeCommit": "b7fb2bade7d11198acb51f83b92ac7b3b68c4bdd",
+  "bundleRevision": "3808e78aad2e6c680634",
+  "coreWasm": {
+    "file": "pkg/e23cb39194ef56822853/sticktalk-web-ce26c723ca5ebabaeb8d_bg.wasm",
+    "bytes": 1934640,
+    "brotli": 449946
+  },
+  "strictCoreBrotliBudgetBytes": 450000,
+  "commands": [
+    {
+      "command": "cargo test -p sticktalk-web -p sticktalk-client-core -p sticktalk-proto",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo clippy -p sticktalk-web -p sticktalk-client-core -p sticktalk-proto --all-targets -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo check -p sticktalk-web --target wasm32-unknown-unknown --profile web-release",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo clippy -p sticktalk-web -p sticktalk-client-core -p sticktalk-proto --target wasm32-unknown-unknown --profile web-release --all-targets -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "npm test",
+      "consecutiveRuns": 5,
+      "exitCode": 0,
+      "results": [
+        "full-suite-01.json",
+        "full-suite-02.json",
+        "full-suite-03.json",
+        "full-suite-04.json",
+        "full-suite-05.json"
+      ],
+      "checksPerRun": 28,
+      "headless": true,
+      "realServer": true
+    },
+    {
+      "command": "npm run test:qa",
+      "exitCode": 0,
+      "groupedChecks": 49,
+      "delayedCameraReactivationCycles": 3,
+      "results": [
+        "polish-results.json",
+        "phone-results.json",
+        "admin-results.json",
+        "oauth-results.json",
+        "pwa-results.json",
+        "phone-media-results.json",
+        "voice-negotiation-results.json"
+      ]
+    },
+    {
+      "command": "cargo test -p sticktalk-server -- --test-threads=1",
+      "exitCode": 0,
+      "passed": 137,
+      "ignored": 1,
+      "log": "validation-logs/merged-server-tests.log"
+    },
+    {
+      "command": "npm run test:idle",
+      "exitCode": 0,
+      "results": "idle.json"
+    }
+  ],
+  "rustTestCount": 87,
+  "cameraFix": "Retain negotiated auxiliary RTX when preferring H.264; restores repair and SFU padding probes. Same-deadline no-RTX negative control stalls; final build passes five full suites and three delayed cycles.",
+  "cameraEvidence": "camera-regression.json",
+  "gallery": {
+    "contactSheet": "contact-phone.png",
+    "index": "contact-index.json",
+    "rawScreenshots": 272,
+    "contactSheets": 26,
+    "requestedViewports": [
+      [
+        390,
+        844
+      ],
+      [
+        412,
+        915
+      ],
+      [
+        1440,
+        900
+      ]
+    ],
+    "review": "All contact-sheet groups reviewed during polish. Final merged featured phone, 412 profile/roles, desktop settings and keyboard/safe-area captures rechecked; no layout changes from merge."
+  },
+  "idle": {
+    "seconds": 60,
+    "cpuPercentOfOneLogicalCore": 0.0728566695809335,
+    "browserTreeWorkingSetBytes": 269557760,
+    "browserTreePrivateBytes": 119513088,
+    "deltaWorkingSetBytes": 83771392,
+    "deltaPrivateBytes": 41406464,
+    "note": "Whole separate headless Chromium process-tree totals; working-set sum double-counts shared pages. Not native-client or physical-phone memory."
+  },
+  "lighthouse": {
+    "mobile": {
+      "performance": 100,
+      "accessibility": 100,
+      "best-practices": 100
+    },
+    "authenticatedChatMobile": {
+      "performance": 85,
+      "accessibility": 100,
+      "best-practices": 100
+    },
+    "warmAuthenticatedChatMobile": {
+      "performance": 94,
+      "accessibility": 100,
+      "best-practices": 100
+    },
+    "desktop": {
+      "performance": 100,
+      "accessibility": 100,
+      "best-practices": 100
+    }
+  },
+  "cleanup": {
+    "target": "C:/Users/dwhee/.cargo-target/sticktalk-web3",
+    "measuredGiB": 5.8,
+    "budgetGiB": 10,
+    "attemptedCommand": "Remove-Item -LiteralPath C:/Users/dwhee/.cargo-target/sticktalk-web3 -Recurse -Force",
+    "result": "Execution policy rejected the command. Target remains; no alternate deletion attempted. Resolved literal path and non-reparse attributes checked; task executables stopped before attempt."
+  },
+  "limitations": [
+    "Physical iOS/Android devices and physical camera/microphone quality were not certified; browser tests use synthetic capture and real SFU.",
+    "Server does not implement global notification defaults; unsupported scope hidden, supported per-conversation/server settings retained.",
+    "Role member counts show a plus for partial rosters rather than falsely reporting an exact count.",
+    "Lighthouse cold authenticated chat remains about 4.5 seconds on shared Windows host; no claim of instant cold startup.",
+    "Merged custom emoji/search/slowmode/folders server/client-core/desktop implementation retained; web text_features:false handshake retained as supplied by master."
+  ],
+  "historicalEvidence": "historical-evidence.json identifies intentional negative controls and superseded runs; zero-padded full-suite files are the final merged runs.",
+  "visualReferences": [
+    "https://support.discord.com/hc/en-us/articles/4403147417623-Custom-Profiles",
+    "https://discord.com/blog/improving-mobile-with-squircles-styles-and-spacing"
+  ],
+  "safety": "Headless only; loopback binds; no visible windows, external OAuth, hardware audio, UAC or git push."
+}

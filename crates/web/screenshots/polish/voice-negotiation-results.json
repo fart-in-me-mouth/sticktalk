@@ -1,5 +1,5 @@
 {
-  "revision": "1c569ada4e7b53ce46e4",
+  "revision": "3808e78aad2e6c680634",
   "realServer": true,
   "independentBrowserProcesses": 2,
   "remoteAnswerDelayMs": 7500,
@@ -22,7 +22,7 @@
     {
       "round": 2,
       "decodedDelta": [
-        32,
+        31,
         11
       ],
       "states": [
@@ -37,8 +37,8 @@
     {
       "round": 3,
       "decodedDelta": [
-        12,
-        107
+        11,
+        105
       ],
       "states": [
         "connected",
