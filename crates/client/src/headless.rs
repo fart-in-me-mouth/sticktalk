@@ -6,6 +6,21 @@ use crate::{
 use iced::{advanced::widget::operation, mouse, Size};
 use iced_runtime::user_interface::{Cache, UserInterface};
 use std::{path::Path, time::Instant};
+pub const FEATURES3_SCREENS: &[&str] = &[
+    "guild-settings-emoji",
+    "custom-emoji-picker",
+    "custom-emoji-completion",
+    "custom-emoji-inline",
+    "custom-emoji-message",
+    "server-search",
+    "server-search-empty",
+    "channel-slowmode",
+    "slowmode-countdown",
+    "server-folders",
+    "server-folder-edit",
+    "server-folder-add",
+    "notifications-disabled",
+];
 pub const AUDIO_SCREENS: &[&str] = &[
     "audio-default",
     "audio-mic-test",
@@ -27,6 +42,7 @@ pub const SCREENS: &[&str] = &[
     "custom-emoji-picker",
     "custom-emoji-completion",
     "custom-emoji-message",
+    "custom-emoji-inline",
     "focused-stream",
     "stream-stats",
     "share-picker-windows",
@@ -263,7 +279,9 @@ pub fn run_if_requested() -> Option<Result<(), String>> {
             if !(940..=3840).contains(&w) || !(600..=2160).contains(&h) {
                 return Err("Screenshot size is out of range".into());
             }
-            let screens = if args.iter().any(|v| v == "--audio-only") {
+            let screens = if args.iter().any(|v| v == "--features3-only") {
+                FEATURES3_SCREENS
+            } else if args.iter().any(|v| v == "--audio-only") {
                 AUDIO_SCREENS
             } else if args.iter().any(|v| v == "--main-only") {
                 MAIN_SCREENS

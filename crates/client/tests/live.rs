@@ -3686,3 +3686,322 @@ async fn history_reads_back_off_instead_of_failing_at_the_real_rest_bucket() {
     }
     assert!(started.elapsed() >= Duration::from_secs(5));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn features3_emoji_search_slowmode_and_private_folders_real_transport() {
+    let fixture = Fixture::start().await;
+    let a = fixture.register("features_owner").await;
+    let b = fixture.register("features_member").await;
+    let c = fixture.register("features_outsider").await;
+    let mut owner = Peer::connect(&fixture.url, &a).await;
+    let mut member = Peer::connect(&fixture.url, &b).await;
+    let outside = Http::new(&fixture.url, &c.token).unwrap();
+    let CommandResult::Guild(detail) = owner
+        .command(Command::CreateGuild {
+            name: "Feature checks".into(),
+            icon_id: None,
+        })
+        .await
+    else {
+        panic!()
+    };
+    let guild = detail.summary.guild.id;
+    let channel = detail
+        .channels
+        .iter()
+        .find(|c| c.kind == ChannelKind::Text)
+        .unwrap()
+        .id;
+    let CommandResult::Invite(invite) = owner
+        .command(Command::CreateInvite {
+            guild_id: guild,
+            ttl_seconds: 600,
+            max_uses: 1,
+        })
+        .await
+    else {
+        panic!()
+    };
+    member
+        .command(Command::JoinGuild {
+            invite_code: invite.code,
+        })
+        .await;
+    member.projection(|m| m.guilds.contains_key(&guild)).await;
+    member.history(channel, None).await; // The bounded reducer retains only channels explicitly opened by the host.
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::new_rgba8(512, 256)
+        .write_to(&mut png, image::ImageFormat::Png)
+        .unwrap();
+    let upload_url = format!(
+        "{}/api/v1/guilds/{}/emoji?name=ship_it",
+        fixture.url, guild.0
+    );
+    assert_eq!(
+        member
+            .http
+            .client
+            .post(&upload_url)
+            .bearer_auth(&b.token)
+            .body(png.get_ref().clone())
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::FORBIDDEN
+    );
+    let response = owner
+        .http
+        .client
+        .post(&upload_url)
+        .bearer_auth(&a.token)
+        .body(png.into_inner())
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+    let uploaded: Snapshot<Vec<GuildEmoji>> = response.json().await.unwrap();
+    let emoji = uploaded.data[0].clone();
+    owner
+        .projection(|m| {
+            m.launch
+                .emoji
+                .get(&guild)
+                .is_some_and(|v| v.iter().any(|e| e.id == emoji.id))
+        })
+        .await;
+    member
+        .projection(|m| {
+            m.launch
+                .emoji
+                .get(&guild)
+                .is_some_and(|v| v.iter().any(|e| e.id == emoji.id))
+        })
+        .await;
+    let preview = member
+        .http
+        .get(&format!("/emoji/{}/preview", emoji.id.0))
+        .send()
+        .await
+        .unwrap();
+    assert!(preview.status().is_success());
+    let preview = image::load_from_memory(&preview.bytes().await.unwrap()).unwrap();
+    assert_eq!((preview.width(), preview.height()), (128, 64));
+    assert!(!outside
+        .get(&format!("/emoji/{}", emoji.id.0))
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .is_success());
+    let message = member
+        .message(
+            channel,
+            format!("launch prototype {} https://example.test", emoji.token()),
+        )
+        .await;
+    member
+        .command(Command::AddReaction {
+            channel_id: channel,
+            message_id: message.id,
+            emoji: emoji.token(),
+        })
+        .await;
+    member
+        .projection(|m| {
+            m.messages
+                .get(&channel)
+                .and_then(|ms| ms.get(&message.id))
+                .is_some_and(|m| {
+                    m.reactions
+                        .iter()
+                        .any(|r| r.emoji == format!("<:emoji:{}>", emoji.id.0) && r.me)
+                })
+        })
+        .await;
+    owner
+        .command(Command::Launch(LaunchCommand::RenameEmoji {
+            guild_id: guild,
+            emoji_id: emoji.id,
+            name: "shipped".into(),
+        }))
+        .await;
+    member
+        .projection(|m| {
+            m.launch
+                .emoji
+                .get(&guild)
+                .is_some_and(|v| v.iter().any(|e| e.name == "shipped"))
+        })
+        .await;
+    let results = owner
+        .http
+        .core()
+        .search(
+            guild,
+            &MessageSearchQuery {
+                q: "launch from:features_member in:general has:link".into(),
+                before: None,
+                limit: Some(25),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(results.data.items.len(), 1);
+    assert_eq!(results.data.items[0].id, message.id);
+    member
+        .command(Command::EditMessage(MessageEdit {
+            channel_id: channel,
+            message_id: message.id,
+            content: format!("updated launch {}", emoji.token()),
+            mention_ids: vec![],
+        }))
+        .await;
+    let old = owner
+        .http
+        .core()
+        .search(
+            guild,
+            &MessageSearchQuery {
+                q: "prototype".into(),
+                before: None,
+                limit: Some(25),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(old.data.items.is_empty());
+    let updated = owner
+        .http
+        .core()
+        .search(
+            guild,
+            &MessageSearchQuery {
+                q: "updated launch".into(),
+                before: None,
+                limit: Some(25),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(updated.data.items[0].id, message.id);
+    owner
+        .command(Command::Launch(LaunchCommand::SetSlowmode {
+            channel_id: channel,
+            seconds: 5,
+        }))
+        .await;
+    let status: Snapshot<SlowmodeStatus> = member
+        .http
+        .json(&format!("/channels/{}/slowmode", channel.0))
+        .await
+        .unwrap();
+    assert_eq!(status.data.seconds, 5);
+    assert!(!status.data.bypassed);
+    // A fresh send is refused across the real WebSocket while the previous persisted send is recent.
+    let draft = MessageDraft {
+        channel_id: channel,
+        content: "too soon".into(),
+        reply_to: None,
+        attachment_ids: vec![],
+        mention_ids: vec![],
+    };
+    if status.data.retry_after_ms > 0 {
+        assert!(
+            matches!(member.outcome(Command::SendMessage(draft)).await,CommandOutcome::Err(ApiError{code:ErrorCode::RateLimited,field:Some(field),..}) if field=="slowmode")
+        );
+    }
+    owner.message(channel, "launch manager bypass one").await;
+    owner.message(channel, "launch manager bypass two").await;
+    owner
+        .command(Command::Launch(LaunchCommand::SetSlowmode {
+            channel_id: channel,
+            seconds: 0,
+        }))
+        .await;
+    let folder = ServerFolder {
+        id: 1,
+        name: "Work".into(),
+        color: 0x3ddc97,
+        collapsed: true,
+        guild_ids: vec![guild],
+    };
+    owner
+        .command(Command::Launch(LaunchCommand::SetServerFolders {
+            folders: vec![folder.clone()],
+        }))
+        .await;
+    owner
+        .projection(|m| m.launch.server_folders == vec![folder.clone()])
+        .await;
+    let saved: Snapshot<Vec<ServerFolder>> =
+        owner.http.json("/users/@me/server-folders").await.unwrap();
+    assert_eq!(saved.data, vec![folder]);
+    let private: Snapshot<Vec<ServerFolder>> =
+        member.http.json("/users/@me/server-folders").await.unwrap();
+    assert!(private.data.is_empty());
+    owner
+        .command(Command::Launch(LaunchCommand::DeleteEmoji {
+            guild_id: guild,
+            emoji_id: emoji.id,
+        }))
+        .await;
+    member
+        .projection(|m| m.launch.emoji.get(&guild).is_some_and(Vec::is_empty))
+        .await;
+    member
+        .command(Command::RemoveReaction {
+            channel_id: channel,
+            message_id: message.id,
+            emoji: emoji.token(),
+        })
+        .await;
+    member
+        .command(Command::DeleteMessage {
+            channel_id: channel,
+            message_id: message.id,
+        })
+        .await;
+    let deleted = owner
+        .http
+        .core()
+        .search(
+            guild,
+            &MessageSearchQuery {
+                q: "updated".into(),
+                before: None,
+                limit: Some(25),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(deleted.data.items.is_empty());
+    owner
+        .command(Command::Launch(LaunchCommand::SetOverwrites {
+            channel_id: channel,
+            overwrites: vec![PermissionOverwrite {
+                kind: OverwriteKind::Member,
+                target_id: b.user.user.id,
+                allow: Permissions::empty(),
+                deny: Permissions::VIEW_CHANNEL,
+            }],
+        }))
+        .await;
+    member
+        .projection(|m| !m.channels.contains_key(&channel))
+        .await;
+    let hidden = member
+        .http
+        .core()
+        .search(
+            guild,
+            &MessageSearchQuery {
+                q: "launch".into(),
+                before: None,
+                limit: Some(25),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(hidden.data.items.is_empty());
+}

@@ -72,7 +72,7 @@ async fn upload(
     body: Body,
 ) -> Result<http::ApiResponse> {
     require(valid_emoji_name(&q.name), ErrorCode::InvalidRequest)?;
-    let _slot = app
+    let slot = app
         .0
         .uploads
         .clone()
@@ -91,9 +91,14 @@ async fn upload(
     let bytes = to_bytes(body, MAX_EMOJI_BYTES)
         .await
         .map_err(|_| Error::new(ErrorCode::PayloadTooLarge))?;
-    let media = tokio::task::spawn_blocking(move || normalize(&bytes))
-        .await
-        .map_err(|_| Error::new(ErrorCode::Unavailable))??;
+    let media = tokio::task::spawn_blocking(move || {
+        // Cancelling a request cannot cancel a running blocking decoder. Keep
+        // its permit inside that work so disconnects cannot bypass the bound.
+        let _slot = slot;
+        normalize(&bytes)
+    })
+    .await
+    .map_err(|_| Error::new(ErrorCode::Unavailable))??;
     let mut core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
     // Auth and permissions can change while bytes are being decoded.
@@ -144,7 +149,13 @@ async fn unique_name(c: &mut SqliteConnection, g: Id, e: Option<Id>, name: &str)
     .bind(e.map_or(0, |e| e.0) as i64)
     .fetch_one(c)
     .await?;
-    require(n == 0, ErrorCode::AlreadyExists)
+    if n != 0 {
+        let mut e = Error::new(ErrorCode::AlreadyExists);
+        e.0.message = "An emoji with that name already exists.".into();
+        e.0.field = Some("name".into());
+        return Err(e);
+    }
+    Ok(())
 }
 pub(crate) async fn mutate(
     c: &mut SqliteConnection,
@@ -213,7 +224,11 @@ async fn serve(app: App, e: Id, h: HeaderMap, preview: bool) -> Result<Response>
         .await?
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
     guild(&mut c, u, Id(r.get::<i64, _>("guild_id") as u64)).await?;
-    let bytes: Vec<u8> = r.get(if preview { "preview" } else { "data" });
+    let bytes: Vec<u8> = r.get(if preview && r.get::<bool, _>("animated") {
+        "preview"
+    } else {
+        "data"
+    });
     let mime: String = if preview {
         "image/png".into()
     } else {
@@ -330,7 +345,7 @@ fn normalize(bytes: &[u8]) -> Result<Media> {
     require(data.len() <= MAX_EMOJI_BYTES, ErrorCode::PayloadTooLarge)?;
     Ok(Media {
         data,
-        preview,
+        preview: if animated { preview } else { Vec::new() },
         mime,
         animated,
     })

@@ -286,6 +286,9 @@ impl Cooldown {
         self.until = local_now
             .saturating_add(u64::from(status.retry_after_ms).min(u64::from(status.seconds) * 1000));
     }
+    pub fn deadline(&self) -> u64 {
+        self.until
+    }
     pub fn remaining(&self, local_now: u64) -> u64 {
         if self.seconds == 0 || self.bypassed {
             0
@@ -400,6 +403,7 @@ mod folder_notification_tests {
         assert!(old.desktop_notifications);
         let c = crate::notifications::Context {
             direct: true,
+            channel: Some(Id(1)),
             mentioned: true,
             ..Default::default()
         };

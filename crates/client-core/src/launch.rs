@@ -43,6 +43,7 @@ pub struct Projection {
     pub server_folders: Vec<ServerFolder>,
     pub slowmode: BTreeMap<Id, SlowmodeStatus>,
     pub emoji: BTreeMap<Id, Vec<GuildEmoji>>,
+    pub emoji_revision: u64,
     pub roles: BTreeMap<Id, Vec<Role>>,
     pub memberships: BTreeMap<(Id, Id), Member>,
     pub notifications: BTreeMap<(Option<Id>, Option<Id>), NotificationSettings>,
@@ -93,6 +94,7 @@ impl Projection {
                 }
             }
             Event::GuildEmojiUpdated { guild_id, emoji } => {
+                self.emoji_revision = self.emoji_revision.wrapping_add(1);
                 self.emoji.insert(*guild_id, emoji.clone());
             }
             Event::ChannelUpsert(c) => {
@@ -150,6 +152,7 @@ impl Projection {
                     folder.guild_ids.retain(|g| g != guild_id);
                 }
                 self.server_folders.retain(|f| !f.guild_ids.is_empty());
+                self.emoji_revision = self.emoji_revision.wrapping_add(1);
                 self.emoji.remove(guild_id);
                 self.roles.remove(guild_id);
                 self.memberships.retain(|(g, _), _| g != guild_id);
@@ -217,7 +220,10 @@ impl Projection {
             SnapshotData::Slowmode(v) => {
                 bounded_insert(&mut self.slowmode, v.data.channel_id, v.data, 320)
             }
-            SnapshotData::Emoji(id, v) => bounded_insert(&mut self.emoji, id, v.data, 10),
+            SnapshotData::Emoji(id, v) => {
+                self.emoji_revision = self.emoji_revision.wrapping_add(1);
+                bounded_insert(&mut self.emoji, id, v.data, 10)
+            }
             SnapshotData::Profile(v) => {
                 bounded_insert(&mut self.profiles, v.data.profile.user.id, v.data, 32);
             }

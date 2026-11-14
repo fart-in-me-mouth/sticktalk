@@ -608,6 +608,13 @@ fn named_shapes(v: &serde_json::Value) -> Result<()> {
                 if kind == "update_role" {
                     object(fields.get("role").unwrap_or(&Value::Null))?;
                 }
+                if kind == "set_server_folders" {
+                    if let Some(folders) = fields.get("folders").and_then(Value::as_array) {
+                        for f in folders {
+                            object(f)?;
+                        }
+                    }
+                }
                 if kind == "set_overwrites" {
                     if let Some(overwrites) = fields.get("overwrites").and_then(Value::as_array) {
                         for o in overwrites {
@@ -728,5 +735,29 @@ mod tests {
         b.push(0);
         assert!(decode(&b).is_err());
         assert!(decode(&[0x81, 0xa1, b'x', 0xd4, 0, 0]).is_err());
+    }
+}
+
+#[cfg(test)]
+mod features3_shapes {
+    use super::*;
+    #[test]
+    fn folder_commands_use_named_maps_and_reject_positional_folder_structs() {
+        let command = ClientMsg::Command(CommandRequest {
+            nonce: 1,
+            command: Command::Launch(LaunchCommand::SetServerFolders {
+                folders: vec![ServerFolder {
+                    id: 1,
+                    name: "Work".into(),
+                    color: 0x3ddc97,
+                    collapsed: true,
+                    guild_ids: vec![Id(10)],
+                }],
+            }),
+        });
+        let bytes = rmp_serde::to_vec_named(&command).unwrap();
+        assert_eq!(decode(&bytes).unwrap(), command);
+        let bad = serde_json::json!({"type":"command","data":{"nonce":1,"command":{"type":"launch","data":{"type":"set_server_folders","data":{"folders":[[1,"Work",4054167,true,[10]]]}}}}});
+        assert!(decode(&rmp_serde::to_vec_named(&bad).unwrap()).is_err());
     }
 }

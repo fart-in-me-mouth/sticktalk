@@ -1794,10 +1794,10 @@ New additive DTOs: `AccountOperation` (`sign_in`, `link`, `unlink`, `password`,
 
 ## Additive text features: custom server emoji
 
-Launch-feature peers may use `RenameEmoji { guild_id, emoji_id, name }` and
+Text-feature peers may use `RenameEmoji { guild_id, emoji_id, name }` and
 `DeleteEmoji { guild_id, emoji_id }` inside `Command::Launch`. Permission
 `MANAGE_EMOJI` is bit 28; owners/administrators bypass normally. Changes emit
-`GuildEmojiUpdated { guild_id, emoji: GuildEmoji[] }` to launch-feature guild
+`GuildEmojiUpdated { guild_id, emoji: GuildEmoji[] }` to text-feature guild
 members. Legacy clients never receive this new event.
 
 - `GET /api/v1/guilds/{id}/emoji` returns `Snapshot<Vec<GuildEmoji>>`.
@@ -1856,7 +1856,7 @@ background polling; canceled/stale responses cannot replace a newer search.
 `LaunchCommand::SetSlowmode { channel_id, seconds }` requires Manage Channels
 and a guild text channel. Valid seconds: `0,5,10,30,60,300,900,3600,21600`.
 Changes persist and emit `SlowmodeUpdated { channel_id, seconds }` only to
-launch-feature channel viewers. `GET /api/v1/channels/{id}/slowmode` returns a
+text-feature channel viewers. `GET /api/v1/channels/{id}/slowmode` returns a
 personalized `Snapshot<SlowmodeStatus>` (interval, bypass flag, server time,
 remaining milliseconds). Read access is checked on every fetch.
 
@@ -1882,7 +1882,7 @@ already opted into `launch_features`. Capability changes invalidate replay and
 force a fresh Ready. The desktop/shared native protocol opts in; the current
 web host opts out until its separately-owned UI adopts these events.
 
-`LaunchCommand::SetServerFolders(Vec<ServerFolder>)` replaces only the caller's
+`LaunchCommand::SetServerFolders { folders: Vec<ServerFolder> }` replaces only the caller's
 private folders. Maximum ten folders, ten total member servers, positive
 account-local folder IDs, unique server placement, 1–32 character names without
 controls, RGB color 0..0xffffff. Order and collapsed state persist per account.

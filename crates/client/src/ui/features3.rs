@@ -16,12 +16,12 @@ pub fn glyph<'a>(app: &App, id: Id, size: f32) -> Element<'a, Msg> {
     {
         image(h).width(size).height(size).into()
     } else {
-        container(icon("smile", size, t::TEXT_MUTED))
-            .width(size)
-            .height(size)
-            .into()
+        icon("smile", size, t::TEXT_MUTED).into()
     };
-    mouse_area(picture)
+    // Keep the layout shape stable when a cached message's preview arrives or
+    // is evicted: both image and SVG leaves have the same container parent.
+    let picture = container(picture).width(size).height(size);
+    mouse_area(widget::sensor(picture).on_hide(f::msg(E::Hidden(id))))
         .on_enter(f::msg(E::Hover(Some(id))))
         .on_exit(f::msg(E::Hover(None)))
         .into()
@@ -176,6 +176,34 @@ pub fn autocomplete(app: &App) -> Option<Element<'_, Msg>> {
             .style(t::navigation(i == app.suggestion)),
         );
     }
+    let other = app.emoji_candidates();
+    if !other.is_empty() && entries.len() < 8 {
+        rows = rows.push(section("OTHER EMOJI"));
+    }
+    for (i, e) in other
+        .into_iter()
+        .take(8usize.saturating_sub(entries.len()))
+        .enumerate()
+    {
+        rows = rows.push(
+            button(
+                row![
+                    emoji_picker::glyph(e.emoji(), t::S24),
+                    txt(format!(":{}:", e.shortcode())),
+                    hint(e.name())
+                ]
+                .spacing(t::S12)
+                .align_y(Center),
+            )
+            .on_press(Msg::feature(crate::features::Event::EmojiComplete(
+                e.emoji().into(),
+            )))
+            .width(Fill)
+            .height(t::AUTOCOMPLETE)
+            .padding([t::S4, t::S8])
+            .style(t::navigation(entries.len() + i == app.suggestion)),
+        );
+    }
     Some(container(rows).padding(t::S8).style(t::popover).into())
 }
 pub fn inline<'a>(
@@ -230,7 +258,18 @@ pub fn inline<'a>(
                         },
                     ))
                 }
-                Part::Emoji(_, s) | Part::Text(s) => {
+                Part::Emoji(_, s) => {
+                    let mut v = v.clone();
+                    v.text = format!(
+                        ":{}:",
+                        s.trim_start_matches("<:")
+                            .split(':')
+                            .next()
+                            .unwrap_or("emoji")
+                    );
+                    flow = flow.push(super::inline_text(app, m, &[v], size));
+                }
+                Part::Text(s) => {
                     let mut v = v.clone();
                     v.text = s.into();
                     flow = flow.push(super::inline_content(
@@ -338,7 +377,7 @@ pub fn search_panel(app: &App) -> Element<'_, Msg> {
                 .on_press(f::msg(E::SearchJump(m.channel_id, m.id)))
                 .padding(t::S12)
                 .width(Fill)
-                .style(t::secondary),
+                .style(t::navigation(false)),
             );
         }
     } else if !s.loading && s.error.is_empty() {
@@ -545,7 +584,11 @@ pub fn folder_overlay(app: &App) -> Option<Element<'_, Msg>> {
         );
     }
     content = content.push(palette);
-    let valid = valid_folder_name(&app.text_features.folder_name);
+    if !app.text_features.folders_loaded {
+        content = content.push(hint("Loading your server folders…"));
+    }
+    let valid =
+        app.text_features.folders_loaded && valid_folder_name(&app.text_features.folder_name);
     let (label, save) = match dialog {
         FolderDialog::Add(g) => ("Create Folder", E::FolderCreate(g)),
         FolderDialog::Edit(id) => ("Save Changes", E::FolderSave(id)),

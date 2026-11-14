@@ -20,6 +20,7 @@ pub struct State {
     pub folder_name: String,
     pub folder_color: u32,
     folders_requested: Option<u64>,
+    pub folders_loaded: bool,
     pub cooldowns: BTreeMap<Id, sticktalk_client_core::features3::Cooldown>,
     slow_requested: Option<(Id, u64)>,
     pub search: sticktalk_client_core::features3::SearchState,
@@ -37,6 +38,8 @@ pub struct Asset {
     pub frames: Option<Arc<crate::animated::Frames>>,
     pub full: bool,
     pub pending: bool,
+    task: Option<iced::task::Handle>,
+    requested_full: bool,
     pub failed: bool,
     pub index: usize,
     pub active: bool,
@@ -60,7 +63,7 @@ pub enum Event {
     SearchPage(bool),
     SearchClose,
     SearchJump(Id, Id),
-    SearchLoaded(u64, u64, Result<Snapshot<MessageSearchPage>, String>),
+    SearchLoaded(String, u64, Result<Snapshot<MessageSearchPage>, String>),
     Name(String),
     Rename(Id, String),
     Save(Id),
@@ -70,6 +73,7 @@ pub enum Event {
     Uploaded(u64, Result<Snapshot<Vec<GuildEmoji>>, String>),
     Loaded(u64, Id, bool, Result<Arc<crate::animated::Frames>, String>),
     Hover(Option<Id>),
+    Hidden(Id),
     Advance(Id),
 }
 pub fn msg(e: Event) -> Msg {
@@ -82,7 +86,10 @@ pub fn entries(app: &App) -> &[GuildEmoji] {
         .map_or(&[], Vec::as_slice)
 }
 pub fn candidates(app: &App) -> Vec<&GuildEmoji> {
-    if app.suggestions_dismissed || !matches!(app.state.screen, Screen::Channel(_)) {
+    if app.suggestions_dismissed
+        || !matches!(app.dialog, Dialog::None)
+        || !matches!(app.state.screen, Screen::Channel(_))
+    {
         return Vec::new();
     }
     sticktalk_client_core::features3::candidates(
@@ -91,9 +98,16 @@ pub fn candidates(app: &App) -> Vec<&GuildEmoji> {
         entries(app),
     )
 }
+pub fn completion_count(app: &App) -> usize {
+    let custom = candidates(app).len();
+    (custom + app.emoji_candidates().len()).min(8)
+}
 pub fn update(app: &mut App, e: Event) -> Task<Msg> {
     match e {
         Event::FolderAdd(g) => {
+            if !app.text_features.folders_loaded {
+                app.text_features.folders_requested = None;
+            }
             app.main.popover = None;
             app.text_features.folder_dialog = Some(FolderDialog::Add(g));
             app.text_features.folder_name = "Servers".into();
@@ -228,8 +242,14 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             app.main.search = app.text_features.search.query.clone();
             return Task::batch([navigate, jump]);
         }
-        Event::SearchLoaded(_generation, serial, result) => {
-            if serial == app.text_features.search.serial
+        Event::SearchLoaded(stream, serial, result) => {
+            if app
+                .state
+                .model
+                .cursor
+                .as_ref()
+                .is_some_and(|c| c.stream_id == stream)
+                && serial == app.text_features.search.serial
                 && app.text_features.search.guild == app.state.guild
             {
                 app.text_features.search_task = None;
@@ -245,9 +265,11 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
         }
         Event::Name(s) => app.text_features.emoji_name = s.chars().take(32).collect(),
         Event::Rename(id, s) => {
-            app.text_features
-                .emoji_edits
-                .insert(id, s.chars().take(32).collect());
+            let edits = &mut app.text_features.emoji_edits;
+            if edits.len() >= MAX_GUILD_EMOJI && !edits.contains_key(&id) {
+                edits.pop_first();
+            }
+            edits.insert(id, s.chars().take(32).collect());
         }
         Event::Save(id) => {
             if let Some(guild_id) = app.state.guild {
@@ -335,10 +357,16 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
             }
         }
         Event::Hover(id) => app.text_features.hover = id,
+        Event::Hidden(id) => {
+            if app.text_features.hover == Some(id) {
+                app.text_features.hover = None;
+            }
+        }
         Event::Loaded(generation, id, full, result) => {
             if generation == app.state.generation {
                 if let Some(a) = app.text_features.assets.get_mut(&id) {
                     a.pending = false;
+                    a.task = None;
                     match result {
                         Ok(f) => {
                             a.frames = Some(f);
@@ -388,7 +416,15 @@ async fn upload(
     let bytes = crate::backend::limited(r, 65536).await?;
     if !success {
         let e = serde_json::from_slice::<ApiError>(&bytes).ok();
-        return Err(e.map_or("Emoji upload failed".into(), |e| e.message));
+        return Err(e.map_or("Emoji upload failed".into(), |e| match e.code {
+            ErrorCode::PayloadTooLarge => "Emoji must be 256 KB or smaller after resizing.".into(),
+            ErrorCode::UnsupportedMediaType => "Choose a valid PNG, GIF, or WebP image.".into(),
+            ErrorCode::LimitExceeded => {
+                "This emoji exceeds the server's image or emoji limits.".into()
+            }
+            ErrorCode::Forbidden => "You need Manage Emoji permission to upload emoji.".into(),
+            _ => e.message,
+        }));
     }
     serde_json::from_slice(&bytes).map_err(|_| "Invalid emoji response".into())
 }
@@ -441,13 +477,14 @@ pub fn reconcile(app: &mut App) -> Task<Msg> {
     }
     let current = match app.dialog {
         Dialog::ChannelSettings(id) => Some(id),
-        _ => {
+        _ if timeline_visible(app) => {
             if let Screen::Channel(id) = app.state.screen {
                 Some(id)
             } else {
                 None
             }
         }
+        _ => None,
     };
     if let Some(id) = current {
         let key = (id, app.state.generation);
@@ -468,7 +505,14 @@ pub fn reconcile(app: &mut App) -> Task<Msg> {
     {
         wanted.extend(entries(app).iter().map(|e| e.id));
     }
-    for (_, m, _, _) in app.visible_items() {
+    let (_, _, top, _) = app.visible_range();
+    let mut row_y = crate::theme::VIRTUAL_HEADER + top;
+    for (_, m, height, _) in app.visible_items() {
+        let visible = row_y + height >= app.scroll_y && row_y <= app.scroll_y + app.viewport_h;
+        row_y += height;
+        if !visible || !timeline_visible(app) {
+            continue;
+        }
         if let Some(m) = m {
             for p in sticktalk_client_core::features3::parts(&m.content) {
                 if let sticktalk_client_core::features3::Part::Emoji(id, _) = p {
@@ -493,6 +537,10 @@ pub fn reconcile(app: &mut App) -> Task<Msg> {
         let active = app.focused && app.text_features.hover == Some(id) && known[&id];
         let a = app.text_features.assets.entry(id).or_default();
         a.active = active;
+        if !active && a.pending && a.requested_full {
+            a.task = None;
+            a.pending = false;
+        }
         if !active && a.full && !a.pending {
             if let Some(f) = a.frames.as_ref() {
                 let mut f = (**f).clone();
@@ -512,9 +560,13 @@ pub fn reconcile(app: &mut App) -> Task<Msg> {
             a.pending = true;
             let config = c.clone();
             let generation = app.state.generation;
-            tasks.push(Task::perform(load(config, id, active), move |r| {
+            let (task, handle) = Task::perform(load(config, id, active), move |r| {
                 msg(Event::Loaded(generation, id, active, r))
-            }));
+            })
+            .abortable();
+            a.requested_full = active;
+            a.task = Some(handle.abort_on_drop());
+            tasks.push(task);
         }
     }
     Task::batch(tasks)
@@ -534,25 +586,70 @@ async fn load(c: Config, id: Id, full: bool) -> Result<Arc<crate::animated::Fram
         return Err("Emoji unavailable".into());
     }
     let bytes = crate::backend::limited(response, MAX_EMOJI_BYTES).await?;
+    static DECODERS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+    let permit = DECODERS
+        .acquire()
+        .await
+        .map_err(|_| "Emoji decoder stopped")?;
     tokio::task::spawn_blocking(move || {
-        if full && bytes.starts_with(b"GIF8") {
-            return crate::animated::decode(&bytes);
-        }
-        let image = image::load_from_memory(&bytes)
-            .map_err(|_| "Invalid emoji")?
-            .into_rgba8();
-        let (w, h) = (image.width(), image.height());
-        if w > 128 || h > 128 {
-            return Err("Emoji too large".into());
-        }
-        Ok(Arc::new(crate::animated::Frames {
-            bytes: image.as_raw().len(),
-            images: vec![(Handle::from_rgba(w, h, image.into_raw()), 100)],
-        }))
+        let _permit = permit;
+        decode_asset(&bytes, full)
     })
     .await
     .map_err(|_| "Emoji decoder stopped")?
 }
+fn decode_asset(bytes: &[u8], full: bool) -> Result<Arc<crate::animated::Frames>, String> {
+    use image::{AnimationDecoder, ImageDecoder};
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(128);
+    limits.max_image_height = Some(128);
+    limits.max_alloc = Some(8 * 1024 * 1024);
+    let mut images = Vec::new();
+    let mut retained = 0;
+    if full && bytes.starts_with(b"GIF8") {
+        let mut decoder = image::codecs::gif::GifDecoder::new(std::io::Cursor::new(bytes))
+            .map_err(|_| "Invalid emoji")?;
+        decoder
+            .set_limits(limits)
+            .map_err(|_| "Emoji exceeds decoder budget")?;
+        for frame in decoder.into_frames() {
+            if images.len() >= 120 {
+                return Err("Emoji has too many frames".into());
+            }
+            let frame = frame.map_err(|_| "Invalid emoji frame")?;
+            let (n, d) = frame.delay().numer_denom_ms();
+            let delay = (u64::from(n) / u64::from(d.max(1))).clamp(20, 10000);
+            let image = frame.into_buffer();
+            retained += image.as_raw().len();
+            if retained > 8 * 1024 * 1024 {
+                return Err("Emoji exceeds decoder budget".into());
+            }
+            images.push((
+                Handle::from_rgba(image.width(), image.height(), image.into_raw()),
+                delay,
+            ));
+        }
+    } else {
+        let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+            .with_guessed_format()
+            .map_err(|_| "Invalid emoji")?;
+        reader.limits(limits);
+        let image = reader.decode().map_err(|_| "Invalid emoji")?.into_rgba8();
+        retained = image.as_raw().len();
+        images.push((
+            Handle::from_rgba(image.width(), image.height(), image.into_raw()),
+            100,
+        ));
+    }
+    if images.is_empty() {
+        return Err("Emoji is empty".into());
+    }
+    Ok(Arc::new(crate::animated::Frames {
+        images,
+        bytes: retained,
+    }))
+}
+
 pub fn subscription(app: &App) -> Subscription<Msg> {
     let mut subscriptions: Vec<_> = app
         .text_features
@@ -560,7 +657,7 @@ pub fn subscription(app: &App) -> Subscription<Msg> {
         .iter()
         .filter_map(|(&id, a)| {
             let f = a.frames.as_ref()?;
-            if !a.active || f.images.len() < 2 {
+            if !app.focused || !a.active || f.images.len() < 2 {
                 return None;
             }
             let delay = f.images[a.index % f.images.len()].1;
@@ -573,17 +670,26 @@ pub fn subscription(app: &App) -> Subscription<Msg> {
             }))
         })
         .collect();
-    if app.focused {
+    if app.focused && timeline_visible(app) {
         if let Screen::Channel(id) = app.state.screen {
             let remaining = remaining(app, id);
-            if remaining > 0 {
+            if remaining > 0
+                && app
+                    .channel_permissions(id)
+                    .contains(Permissions::SEND_MESSAGES)
+            {
                 subscriptions.push(Subscription::run_with(
-                    (id, remaining.div_ceil(1000)),
-                    move |v| {
-                        let (_, seconds) = *v;
+                    (
+                        id,
+                        app.text_features.cooldowns[&id].deadline(),
+                        remaining.div_ceil(1000),
+                    ),
+                    |v| {
+                        let (_, deadline, _) = *v;
                         iced::futures::stream::once(async move {
-                            let _ = seconds;
-                            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+                            let remaining = deadline.saturating_sub(time());
+                            let delay = remaining.saturating_sub(1) % 1000 + 1;
+                            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
                             msg(Event::SlowTick)
                         })
                     },
@@ -601,6 +707,7 @@ pub fn fixture(app: &mut App, screen: &str) {
         return;
     }
     if screen.starts_with("server-folder") {
+        app.text_features.folders_loaded = true;
         let guilds: Vec<_> = app.state.model.guilds.keys().copied().take(2).collect();
         app.state.model.launch.server_folders = vec![ServerFolder {
             id: 1,
@@ -721,9 +828,12 @@ pub fn fixture(app: &mut App, screen: &str) {
         }
         "custom-emoji-picker" => app.features.picker = crate::features::Picker::Emoji,
         "custom-emoji-completion" => {
-            app.editor = iced::widget::text_editor::Content::with_text(":stick");
+            app.editor = iced::widget::text_editor::Content::new();
+            app.editor.perform(iced::widget::text_editor::Action::Edit(
+                iced::widget::text_editor::Edit::Paste(Arc::new(":stick".into())),
+            ));
         }
-        "custom-emoji-message" => {
+        "custom-emoji-message" | "custom-emoji-inline" => {
             if let Some(m) = app
                 .state
                 .model
@@ -732,7 +842,15 @@ pub fn fixture(app: &mut App, screen: &str) {
                 .and_then(|v| v.last_entry())
                 .map(|e| e.into_mut())
             {
-                m.content = format!("{} {}", list[0].token(), list[1].token());
+                m.content = if screen == "custom-emoji-inline" {
+                    format!(
+                        "Nice work {} — this is ready to ship. {}",
+                        list[3].token(),
+                        list[4].token()
+                    )
+                } else {
+                    format!("{} {}", list[0].token(), list[1].token())
+                };
                 m.reactions.push(ReactionSummary {
                     emoji: list[3].token(),
                     count: 4,
@@ -757,7 +875,12 @@ fn search(app: &mut App, before: Option<Id>) -> Task<Msg> {
     }
     app.text_features.search_task = None;
     let serial = app.text_features.search.start(guild, query.clone(), before);
-    let generation = app.state.generation;
+    let stream = app
+        .state
+        .model
+        .cursor
+        .as_ref()
+        .map_or(String::new(), |c| c.stream_id.clone());
     if config.mock {
         let mut items: Vec<_> = app
             .state
@@ -801,7 +924,7 @@ fn search(app: &mut App, before: Option<Id>) -> Task<Msg> {
                 )
                 .await
         },
-        move |v| msg(Event::SearchLoaded(generation, serial, v)),
+        move |v| msg(Event::SearchLoaded(stream.clone(), serial, v)),
     )
     .abortable();
     app.text_features.search_task = Some(handle.abort_on_drop());
@@ -823,6 +946,15 @@ pub fn remaining(app: &App, id: Id) -> u64 {
         .map_or(0, |c| c.remaining(time()))
 }
 pub fn snapshot(app: &mut App, data: &sticktalk_client_core::launch::SnapshotData) {
+    if matches!(
+        data,
+        sticktalk_client_core::launch::SnapshotData::Folders(_)
+    ) {
+        app.text_features.folders_loaded = true;
+    }
+    if matches!(data, sticktalk_client_core::launch::SnapshotData::Emoji(..)) {
+        app.state.model.layout_revision = app.state.model.layout_revision.wrapping_add(1);
+    }
     if let sticktalk_client_core::launch::SnapshotData::Slowmode(s) = data {
         app.text_features
             .cooldowns
@@ -833,6 +965,7 @@ pub fn snapshot(app: &mut App, data: &sticktalk_client_core::launch::SnapshotDat
 }
 pub fn live_event(app: &mut App, event: &sticktalk_proto::Event) {
     match event {
+        sticktalk_proto::Event::ServerFoldersUpdated(_) => app.text_features.folders_loaded = true,
         sticktalk_proto::Event::MessageCreated { message, .. }
             if Some(message.author_id) == app.me() =>
         {
@@ -849,9 +982,22 @@ pub fn live_event(app: &mut App, event: &sticktalk_proto::Event) {
             }
             app.text_features.slow_requested = None;
         }
-        sticktalk_proto::Event::RolesUpdated { .. }
-        | sticktalk_proto::Event::ChannelUpsert(_)
-        | sticktalk_proto::Event::MemberUpsert(_) => app.text_features.slow_requested = None,
+        sticktalk_proto::Event::RolesUpdated { guild_id, .. }
+            if Some(*guild_id) == app.state.guild =>
+        {
+            app.text_features.slow_requested = None
+        }
+        sticktalk_proto::Event::ChannelUpsert(c)
+            if app.state.screen == Screen::Channel(c.summary.id)
+                || matches!(app.dialog,Dialog::ChannelSettings(id) if id==c.summary.id) =>
+        {
+            app.text_features.slow_requested = None
+        }
+        sticktalk_proto::Event::MemberUpsert(m)
+            if Some(m.user.id) == app.me() && Some(m.guild_id) == app.state.guild =>
+        {
+            app.text_features.slow_requested = None
+        }
         _ => {}
     }
 }
@@ -863,9 +1009,13 @@ pub fn rejected(app: &mut App, id: Id, retry_ms: u32) {
     }
 }
 fn save_folders(app: &mut App, folders: Vec<ServerFolder>) {
-    if app.send(Command::Launch(LaunchCommand::SetServerFolders(
-        folders.clone(),
-    ))) {
+    if !app.text_features.folders_loaded {
+        app.error = "Wait for your server folders to load.".into();
+        return;
+    }
+    if app.send(Command::Launch(LaunchCommand::SetServerFolders {
+        folders: folders.clone(),
+    })) {
         app.state.model.launch.server_folders = folders;
         app.text_features.folder_dialog = None;
     }
@@ -879,6 +1029,7 @@ pub fn ready(app: &mut App) {
     app.text_features.requested = None;
     app.text_features.slow_requested = None;
     app.text_features.folders_requested = None;
+    app.text_features.folders_loaded = false;
     app.text_features.cooldowns.clear();
     app.text_features.search.close();
     app.text_features.search_task = None;
@@ -886,11 +1037,18 @@ pub fn ready(app: &mut App) {
 pub fn command_failed(app: &mut App, command: Option<&Command>) {
     if matches!(
         command,
-        Some(Command::Launch(LaunchCommand::SetServerFolders(_)))
+        Some(Command::Launch(LaunchCommand::SetServerFolders { .. }))
     ) {
         app.text_features.folders_requested = None;
     }
 }
+fn timeline_visible(app: &App) -> bool {
+    !matches!(
+        app.dialog,
+        Dialog::UserSettings | Dialog::GuildSettings(_) | Dialog::ChannelSettings(_)
+    ) && app.settings_return.is_none()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -913,6 +1071,15 @@ mod tests {
         let mut app = App::headless("slowmode-countdown", size);
         app.focused = true;
         assert_eq!(subscription(&app).units(), 1);
+        app.state.model.launch.effective_permissions.insert(
+            Id(12),
+            Permissions::VIEW_CHANNEL | Permissions::READ_HISTORY,
+        );
+        assert_eq!(subscription(&app).units(), 0);
+        app.state.model.launch.effective_permissions.remove(&Id(12));
+        app.dialog = Dialog::UserSettings;
+        assert_eq!(subscription(&app).units(), 0);
+        app.dialog = Dialog::None;
         app.focused = false;
         assert_eq!(subscription(&app).units(), 0);
         app.focused = true;
@@ -922,9 +1089,133 @@ mod tests {
             .unwrap()
             .bypassed = true;
         assert_eq!(subscription(&app).units(), 0);
+        for id in 1..=1000 {
+            let _ = update(&mut app, Event::Rename(Id(id), "edited_name".into()));
+        }
+        assert!(app.text_features.emoji_edits.len() <= MAX_GUILD_EMOJI);
         let mut app = App::headless("server-folder-edit", size);
         assert!(app.text_features.folder_dialog.is_some());
         let _ = app.update(Msg::Escape);
         assert!(app.text_features.folder_dialog.is_none());
+    }
+}
+
+#[cfg(test)]
+mod emoji_safety_tests {
+    use super::*;
+    #[test]
+    fn unknown_tokens_are_plain_text_and_shortcodes_offer_keyboard_choices() {
+        let size = iced::Size::new(1280., 800.);
+        let mut app = App::headless("custom-emoji-completion", size);
+        assert!(!candidates(&app).is_empty());
+        for _ in 0..10 {
+            let _ = app.update(Msg::Suggest(1));
+            assert!(app.suggestion < completion_count(&app));
+        }
+        let m = app.state.model.messages[&Id(12)]
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        app.state.model.launch.emoji.clear();
+        let value = crate::markdown::Inline {
+            text: "<:deleted_emoji:999>".into(),
+            style: Default::default(),
+            target: None,
+            spoiler: None,
+        };
+        // Regression: routing an unknown token back through inline_content recursively overflowed.
+        assert!(crate::ui::features3::inline(&app, &m, &[value], crate::theme::BODY).is_some());
+    }
+    #[test]
+    fn folder_saves_wait_for_the_snapshot_and_search_results_are_stream_scoped() {
+        let mut app = App::headless("server-folder-edit", iced::Size::new(1280., 800.));
+        app.text_features.folders_loaded = false;
+        save_folders(&mut app, vec![]);
+        assert_eq!(app.state.model.launch.server_folders.len(), 1);
+        assert!(app.error.starts_with("Wait for"));
+        let serial = app
+            .text_features
+            .search
+            .start(Id(10), "new account".into(), None);
+        let _ = update(
+            &mut app,
+            Event::SearchLoaded("old-account-stream".into(), serial, Err("old error".into())),
+        );
+        assert!(app.text_features.search.loading);
+        assert!(app.text_features.search.error.is_empty());
+    }
+    #[test]
+    fn glyph_cache_survives_preview_load_and_eviction() {
+        use iced_runtime::user_interface::{Cache, UserInterface};
+        let mut app = App::headless("custom-emoji-message", iced::Size::new(1280., 800.));
+        let cached = crate::message_layout::Cache::default();
+        #[cfg(feature = "wgpu")]
+        let mut renderer = iced::Renderer::Secondary(iced_tiny_skia::Renderer::new(
+            crate::theme::regular(),
+            iced::Pixels(crate::theme::BODY),
+        ));
+        #[cfg(not(feature = "wgpu"))]
+        let mut renderer = iced_tiny_skia::Renderer::new(
+            crate::theme::regular(),
+            iced::Pixels(crate::theme::BODY),
+        );
+        for loaded in [true, false, true, false] {
+            if loaded {
+                app.text_features.assets.insert(
+                    Id(999),
+                    Asset {
+                        frames: Some(Arc::new(crate::animated::Frames {
+                            images: vec![(Handle::from_rgba(1, 1, vec![61, 220, 151, 255]), 100)],
+                            bytes: 4,
+                        })),
+                        ..Default::default()
+                    },
+                );
+            } else {
+                app.text_features.assets.remove(&Id(999));
+            }
+            let glyph = crate::ui::features3::glyph(&app, Id(999), crate::theme::BODY);
+            let mut ui = UserInterface::build(
+                cached.wrap(Id(999), 1, glyph),
+                iced::Size::new(100., 100.),
+                Cache::new(),
+                &mut renderer,
+            );
+            ui.draw(
+                &mut renderer,
+                &crate::theme::theme(&app),
+                &iced::advanced::renderer::Style {
+                    text_color: crate::theme::TEXT_PRIMARY,
+                },
+                iced::mouse::Cursor::Unavailable,
+            );
+        }
+        assert_eq!(cached.hits.get(), 3);
+    }
+    #[test]
+    fn emoji_decoder_keeps_every_accepted_frame_and_rejects_large_dimensions() {
+        let mut bytes = Vec::new();
+        {
+            let mut encoder = image::codecs::gif::GifEncoder::new(&mut bytes);
+            for i in 0..120 {
+                encoder
+                    .encode_frame(image::Frame::from_parts(
+                        image::RgbaImage::from_pixel(128, 128, image::Rgba([i, 0, 0, 255])),
+                        0,
+                        0,
+                        image::Delay::from_numer_denom_ms(40, 1),
+                    ))
+                    .unwrap();
+            }
+        }
+        let frames = decode_asset(&bytes, true).unwrap();
+        assert_eq!(frames.images.len(), 120);
+        assert!(frames.bytes <= 8 * 1024 * 1024);
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgba8(1024, 1024)
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        assert!(decode_asset(png.get_ref(), false).is_err());
     }
 }

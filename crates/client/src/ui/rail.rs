@@ -190,21 +190,6 @@ fn mention_label(count: u32) -> String {
         count.to_string()
     }
 }
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn badge_counts_are_bounded() {
-        for (n, label) in [
-            (2, "2"),
-            (10, "10"),
-            (99, "99"),
-            (100, "99+"),
-            (u32::MAX, "99+"),
-        ] {
-            assert_eq!(super::mention_label(n), label);
-        }
-    }
-}
 fn folder<'a>(app: &App, f: &ServerFolder) -> Element<'a, Msg> {
     use crate::features3::{msg, Event};
     let id = f.id;
@@ -224,22 +209,84 @@ fn folder<'a>(app: &App, f: &ServerFolder) -> Element<'a, Msg> {
         }
     }
     let selected = f.collapsed && app.state.guild.is_some_and(|g| f.guild_ids.contains(&g));
+    let glyph: Element<'a, Msg> = if f.collapsed {
+        let mut grid = column![].spacing(t::S4);
+        for chunk in f
+            .guild_ids
+            .iter()
+            .take(4)
+            .copied()
+            .collect::<Vec<_>>()
+            .chunks(2)
+        {
+            let mut row = Row::new().spacing(t::S4);
+            for guild in chunk {
+                let face: Element<'a, Msg> = if let Some(handle) = app
+                    .state
+                    .model
+                    .guilds
+                    .get(guild)
+                    .and_then(|g| g.guild.icon_id)
+                    .and_then(|i| app.images.get(i))
+                {
+                    image(handle.clone())
+                        .width(t::INLINE_ICON)
+                        .height(t::INLINE_ICON)
+                        .border_radius(t::S4)
+                        .into()
+                } else {
+                    let initials = app
+                        .state
+                        .model
+                        .guilds
+                        .get(guild)
+                        .map_or(String::new(), |g| {
+                            g.guild
+                                .name
+                                .split_whitespace()
+                                .filter_map(|s| s.chars().next())
+                                .take(1)
+                                .collect::<String>()
+                        });
+                    let color = t::avatar_color(guild.0);
+                    container(hint(initials).font(t::semibold()).color(t::TEXT_PRIMARY))
+                        .center_x(t::INLINE_ICON)
+                        .center_y(t::INLINE_ICON)
+                        .style(move |_| container::Style {
+                            border: Border {
+                                radius: t::S4.into(),
+                                ..Default::default()
+                            },
+                            ..t::surface(color)
+                        })
+                        .into()
+                };
+                row = row.push(face);
+            }
+            grid = grid.push(row);
+        }
+        container(grid)
+            .center_x(t::GUILD_ICON)
+            .center_y(t::GUILD_ICON)
+            .into()
+    } else {
+        container(icon("folder-open", t::S24, color))
+            .center_x(t::GUILD_ICON)
+            .center_y(t::GUILD_ICON)
+            .into()
+    };
     let mut layers = vec![container(
-        button(icon(
-            if f.collapsed { "folder" } else { "folder-open" },
-            t::S24,
-            color,
-        ))
-        .on_press(msg(Event::FolderToggle(id)))
-        .width(t::GUILD_ICON)
-        .height(t::GUILD_ICON)
-        .padding(t::S12)
-        .style(move |theme, status| {
-            let mut s = t::icon(theme, status);
-            s.background = Some(t::alpha(color, 0.16).into());
-            s.border.radius = t::GUILD_RADIUS.into();
-            s
-        }),
+        button(glyph)
+            .on_press(msg(Event::FolderToggle(id)))
+            .width(t::GUILD_ICON)
+            .height(t::GUILD_ICON)
+            .padding(0)
+            .style(move |theme, status| {
+                let mut s = t::icon(theme, status);
+                s.background = Some(t::alpha(color, 0.16).into());
+                s.border.radius = t::GUILD_RADIUS.into();
+                s
+            }),
     )
     .center_x(t::RAIL)
     .into()];
@@ -249,7 +296,13 @@ fn folder<'a>(app: &App, f: &ServerFolder) -> Element<'a, Msg> {
                 container(space())
                     .width(t::S4)
                     .height(if selected { t::INPUT } else { t::S8 })
-                    .style(|_| t::surface(t::TEXT_PRIMARY)),
+                    .style(|_| container::Style {
+                        border: Border {
+                            radius: t::S4.into(),
+                            ..Default::default()
+                        },
+                        ..t::surface(t::TEXT_PRIMARY)
+                    }),
             )
             .center_y(t::GUILD_ICON)
             .into(),
@@ -300,4 +353,20 @@ fn folder<'a>(app: &App, f: &ServerFolder) -> Element<'a, Msg> {
             ..t::surface(t::alpha(color, 0.05))
         })
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn badge_counts_are_bounded() {
+        for (n, label) in [
+            (2, "2"),
+            (10, "10"),
+            (99, "99"),
+            (100, "99+"),
+            (u32::MAX, "99+"),
+        ] {
+            assert_eq!(super::mention_label(n), label);
+        }
+    }
 }

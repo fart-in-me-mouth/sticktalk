@@ -1,0 +1,162 @@
+{
+  "renderer": "iced-tiny-skia",
+  "screens": [
+    {
+      "file": "guild-settings-emoji-1280x800.png",
+      "height": 800,
+      "sha256": "d0e64b5078a8c9d2ec2cd48e68e7708ff28e267eede07eff1e60d3fc14a32ea4",
+      "width": 1280
+    },
+    {
+      "file": "custom-emoji-picker-1280x800.png",
+      "height": 800,
+      "sha256": "2914a004b79da928884dfbb7f0e6f46a69c16020eadf11f66a532b20e0c39ad8",
+      "width": 1280
+    },
+    {
+      "file": "custom-emoji-completion-1280x800.png",
+      "height": 800,
+      "sha256": "7a64ba180b0153f8290967c994cd896208acf52f304268b27fb7329da4dd1fa3",
+      "width": 1280
+    },
+    {
+      "file": "custom-emoji-inline-1280x800.png",
+      "height": 800,
+      "sha256": "be861a193a7efe473912287f6921a7544cce5a7414ba2a34f3c780504616cb6f",
+      "width": 1280
+    },
+    {
+      "file": "custom-emoji-message-1280x800.png",
+      "height": 800,
+      "sha256": "96968d0965e191c7af2ad70ece2d8015e976b3c16f6aa63260d5481386a9b42c",
+      "width": 1280
+    },
+    {
+      "file": "server-search-1280x800.png",
+      "height": 800,
+      "sha256": "173e030d0d8f77ef86d4cd271195827c373f922fd6cbf35364c39b6e134d65ba",
+      "width": 1280
+    },
+    {
+      "file": "server-search-empty-1280x800.png",
+      "height": 800,
+      "sha256": "63d120089a7011d0995a540d9ecaacefca77a81661273492cc1a2e39069a3d8e",
+      "width": 1280
+    },
+    {
+      "file": "channel-slowmode-1280x800.png",
+      "height": 800,
+      "sha256": "f0fe9fc20f8f8ebbb7e66ab5d7d0fbb897be875faaf0378befda647c75b6c179",
+      "width": 1280
+    },
+    {
+      "file": "slowmode-countdown-1280x800.png",
+      "height": 800,
+      "sha256": "15d48c5ed0e6d7321724832e938b5be4eb938e3870004d4a622da59e5a659792",
+      "width": 1280
+    },
+    {
+      "file": "server-folders-1280x800.png",
+      "height": 800,
+      "sha256": "1e6bcb4d319593ce58fc3d4ad606076f04f45e2504bcbe090b3afe61992a44e0",
+      "width": 1280
+    },
+    {
+      "file": "server-folder-edit-1280x800.png",
+      "height": 800,
+      "sha256": "716fd3ed9205355e95794668e92765e68dea2330fe997a462cbe8468219dba13",
+      "width": 1280
+    },
+    {
+      "file": "server-folder-add-1280x800.png",
+      "height": 800,
+      "sha256": "16775d1fb48687ceebd3b2938b70f7ebc13d75c82ae59402e0a3161dff3e5a08",
+      "width": 1280
+    },
+    {
+      "file": "notifications-disabled-1280x800.png",
+      "height": 800,
+      "sha256": "167f4eb1eff045aee48b7d45d373b2d583105db6fa82cac8e998ba1da2eab028",
+      "width": 1280
+    },
+    {
+      "file": "guild-settings-emoji-1920x1080.png",
+      "height": 1080,
+      "sha256": "b90a647cdb20ec71379be34b69d67dbdc8a9a207b1dc590f6c8bcb5c0e501196",
+      "width": 1920
+    },
+    {
+      "file": "custom-emoji-picker-1920x1080.png",
+      "height": 1080,
+      "sha256": "64c7f750accd05c7730d472e771857ae67198ce286d3c5f9d53e79fa43d903bd",
+      "width": 1920
+    },
+    {
+      "file": "custom-emoji-completion-1920x1080.png",
+      "height": 1080,
+      "sha256": "0e779517fbec5333b98279728625c19696d8d47e367189fc790a5985395c5ffb",
+      "width": 1920
+    },
+    {
+      "file": "custom-emoji-inline-1920x1080.png",
+      "height": 1080,
+      "sha256": "877d1263cc31fed1c91a18cf9f101f3acf2b49f0f3fb126d27eaaa8060869608",
+      "width": 1920
+    },
+    {
+      "file": "custom-emoji-message-1920x1080.png",
+      "height": 1080,
+      "sha256": "7546f07732f4c5759f091beeb641b6322c01a79618fee0bf12a4f5db4ddf5321",
+      "width": 1920
+    },
+    {
+      "file": "server-search-1920x1080.png",
+      "height": 1080,
+      "sha256": "f9dc7a43137780285da78d4b5a4a645076c4df5057420cb7b85b6e33faf3b1c1",
+      "width": 1920
+    },
+    {
+      "file": "server-search-empty-1920x1080.png",
+      "height": 1080,
+      "sha256": "1e99d04d515bffdd1a0f51d94f42e9141e9fa22e858da7e52fd0a2e87700d7ce",
+      "width": 1920
+    },
+    {
+      "file": "channel-slowmode-1920x1080.png",
+      "height": 1080,
+      "sha256": "b0cba54f12b96c8f86497ab857e133e8afbbb3c3b0fe774e72c41ad4cccdce66",
+      "width": 1920
+    },
+    {
+      "file": "slowmode-countdown-1920x1080.png",
+      "height": 1080,
+      "sha256": "ac2fcfa8e365c891392ba1cff32ea6f950f843a17f7086fe5762a05648deca3c",
+      "width": 1920
+    },
+    {
+      "file": "server-folders-1920x1080.png",
+      "height": 1080,
+      "sha256": "8211051a4c468be0b31926558308cb925a26f00909466ea724362eb5b11cb2ce",
+      "width": 1920
+    },
+    {
+      "file": "server-folder-edit-1920x1080.png",
+      "height": 1080,
+      "sha256": "5e0bb5d6449060f0b37c606284c295a5eb9b6b5503beee56facadad05359d9f4",
+      "width": 1920
+    },
+    {
+      "file": "server-folder-add-1920x1080.png",
+      "height": 1080,
+      "sha256": "bcd4daaaf609cfcdda99aebe6ffa970bcd8f8f77a5e035eeabdcfba6946e69b9",
+      "width": 1920
+    },
+    {
+      "file": "notifications-disabled-1920x1080.png",
+      "height": 1080,
+      "sha256": "54e14d1747b78c59cc51bf03ef7db2c908311b3180abc12b7a95e0c2c8133f9c",
+      "width": 1920
+    }
+  ],
+  "window_backend": "none"
+}

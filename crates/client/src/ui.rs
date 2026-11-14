@@ -2025,9 +2025,7 @@ fn linked_content<'a>(app: &'a App, m: &Message) -> Element<'a, Msg> {
     use std::hash::{Hash, Hasher};
     let mut hash = std::collections::hash_map::DefaultHasher::new();
     m.content.hash(&mut hash);
-    for e in app.state.model.launch.emoji.values().flatten() {
-        e.id.hash(&mut hash);
-    }
+    app.state.model.launch.emoji_revision.hash(&mut hash);
 
     m.edited_at.hash(&mut hash);
     app.settings

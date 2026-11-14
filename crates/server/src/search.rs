@@ -187,7 +187,11 @@ pub(crate) async fn search(
     q: &MessageSearchQuery,
 ) -> Result<SearchResult> {
     guild(c, u, g).await?;
-    let f = parse(&q.q)?;
+    let f = parse(&q.q).map_err(|mut e| {
+        e.0.message = "Check your search filters and dates (YYYY-MM-DD).".into();
+        e.0.field = Some("q".into());
+        e
+    })?;
     let limit = q.limit.unwrap_or(25);
     require((1..=50).contains(&limit), ErrorCode::InvalidRequest)?;
     if let Some(b) = q.before {
@@ -511,7 +515,7 @@ mod tests {
             .execute(&app.0.pool)
             .await
             .unwrap();
-        let response = http::router(app)
+        let response = http::router(app.clone())
             .oneshot(
                 axum::http::Request::builder()
                     .uri("/api/v1/guilds/10/messages/search?q=launch&limit=2")

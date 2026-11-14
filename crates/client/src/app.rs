@@ -1630,8 +1630,7 @@ impl App {
                 let count = self
                     .mention_candidates()
                     .len()
-                    .max(self.emoji_candidates().len())
-                    .max(crate::features3::candidates(self).len());
+                    .max(crate::features3::completion_count(self));
                 if count > 0 {
                     self.suggestion =
                         (self.suggestion as i32 + delta).rem_euclid(count as i32) as usize;
@@ -1645,7 +1644,11 @@ impl App {
                         crate::features::Event::EmojiComplete(token),
                     );
                 }
-                if let Some(e) = self.emoji_candidates().get(self.suggestion) {
+                let custom = crate::features3::candidates(self).len();
+                if let Some(e) = self
+                    .emoji_candidates()
+                    .get(self.suggestion.saturating_sub(custom))
+                {
                     return crate::features::update(
                         self,
                         crate::features::Event::EmojiComplete(e.emoji().into()),
@@ -3482,6 +3485,7 @@ impl App {
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         m.content.hash(&mut hash);
         m.edited_at.hash(&mut hash);
+        self.state.model.launch.emoji_revision.hash(&mut hash);
         m.attachments.len().hash(&mut hash);
         m.reactions.len().hash(&mut hash);
         self.row_decorations(m).hash(&mut hash);

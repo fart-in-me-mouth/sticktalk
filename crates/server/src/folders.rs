@@ -51,7 +51,10 @@ pub(crate) async fn set(
             ErrorCode::InvalidRequest,
         )?;
         for g in &f.guild_ids {
-            require(guilds.insert(*g), ErrorCode::InvalidRequest)?;
+            require(
+                guilds.insert(*g) && guilds.len() <= 10,
+                ErrorCode::InvalidRequest,
+            )?;
             role(c, u, *g).await?;
         }
     }
@@ -106,7 +109,7 @@ mod tests {
             Id(u),
             CommandRequest {
                 nonce: n,
-                command: Command::Launch(LaunchCommand::SetServerFolders(folders)),
+                command: Command::Launch(LaunchCommand::SetServerFolders { folders }),
             },
         )
         .await
