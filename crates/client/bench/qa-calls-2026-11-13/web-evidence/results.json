@@ -1,0 +1,60 @@
+{
+  "bundleRevision": "9afc59fa41f8d85ff553",
+  "fastQa": false,
+  "realServer": true,
+  "headless": true,
+  "loopback": true,
+  "checks": [
+    "register + cookie websocket Ready",
+    "friend request + accept via WS",
+    "DM + markdown + cross-browser delivery",
+    "server create + invite + join",
+    "two independent Chromium processes exchange audio through SFU",
+    "two independent Chromium processes decode remote H.264 camera frames",
+    "mute + deafen + leave; all publications/subscriptions/tracks released"
+  ],
+  "screenshots": [
+    "screenshots/live/voice-1440x900.png",
+    "screenshots/live/voice-390x844.png",
+    "screenshots/live/voice-412x915.png",
+    "screenshots/live/voice-820x1180.png",
+    "screenshots/live/voice-1280x800.png",
+    "screenshots/live/voice-1920x1080.png"
+  ],
+  "errors": [],
+  "violations": [],
+  "media": [
+    {
+      "state": "connected",
+      "inbound": [
+        {
+          "kind": "audio",
+          "bytesReceived": 11905,
+          "packetsReceived": 205
+        },
+        {
+          "kind": "video",
+          "bytesReceived": 47979,
+          "framesDecoded": 17,
+          "packetsReceived": 151
+        }
+      ]
+    },
+    {
+      "state": "connected",
+      "inbound": [
+        {
+          "kind": "audio",
+          "bytesReceived": 11921,
+          "packetsReceived": 206
+        },
+        {
+          "kind": "video",
+          "bytesReceived": 47979,
+          "framesDecoded": 17,
+          "packetsReceived": 154
+        }
+      ]
+    }
+  ]
+}
