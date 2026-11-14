@@ -211,6 +211,7 @@ Rust tests use mock OAuth and loopback servers, not a real browser or real secre
 cargo test --locked --workspace
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
+./deploy/test-portability.ps1
 ```
 
 On a space-limited machine run package groups separately, cleaning the old profile
@@ -339,8 +340,8 @@ decrypt/review a completed snapshot, place `recovery.sqlite3` in
 sudo STICKTALK_RECOVERY_DB=recovery.sqlite3 /usr/local/sbin/sticktalk-failover --oracle-fenced
 ```
 
-Use the explicit encrypted-recovery procedure at the end of the Pi guide, not
-the older automatic-snapshot description. Test old history, attachment hashes
+Use the explicit encrypted-recovery procedure in the Pi guide, not an
+automatically selected older plaintext snapshot. Test old history, attachment hashes
 and a new message on standby. Keep Pi private: temporary native access requires
 tailnet permission; browser media also requires HTTPS. Fence Pi before restoring
 its *newest* state to a replacement Oracle VM and updating DuckDNS. Never run two
