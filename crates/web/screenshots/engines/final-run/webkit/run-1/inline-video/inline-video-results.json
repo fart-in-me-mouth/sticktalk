@@ -1,0 +1,14 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "checks": [
+    "Windows WebKit lacks MP4 decode despite canPlayType: download fallback is available; decode BLOCKED"
+  ],
+  "playback": {
+    "supported": false,
+    "reason": "Windows WebKit media backend unavailable"
+  },
+  "errors": [],
+  "screenshots": [
+    "screenshots/engines/final-run/webkit/run-1/inline-video/inline-h264-fallback-393x659.png"
+  ]
+}

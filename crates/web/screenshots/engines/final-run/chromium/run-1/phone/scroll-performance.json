@@ -1,0 +1,13 @@
+{
+  "fixture": "10000 synthetic DB rows; real server reads",
+  "viewport": {
+    "width": 412,
+    "height": 839
+  },
+  "duration": 3016.434000000001,
+  "frames": 181,
+  "fps": 60.004627981252014,
+  "p95": 16.799999999999272,
+  "slowFrames": 0,
+  "maxRows": 50
+}

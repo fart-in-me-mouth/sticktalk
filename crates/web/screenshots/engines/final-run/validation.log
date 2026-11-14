@@ -1,0 +1,32 @@
+Push worker: generic lock-screen content, exact decimal deep link, same-origin validation, reuse/focus existing window: passed
+Browser SDP dynamic-SSRC/MSID compatibility regression: passed
+Speaking state: bounded, retains known active speakers at capacity, releases on silence: passed
+Mobile preferences: bounded device-only values; swipes: drawer dismissal, vertical/short gesture rejection: passed
+H.264 codec selection: baseline first, RTX repair/probes retained, no unrelated primary codec: passed
+Loading: core 449760 B Brotli, 31 real lazy chunks; shell/core precache, stale-while-revalidate, API exclusion, deliberate updates: passed
+Direct KLIPY adapter: public key only, omitted credentials, fixed API origin, exact media host validation: passed
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.66s
+     Running unittests src\main.rs (C:/Users/dwhee/.cargo-target/sticktalk-xengine\debug\deps\sticktalk_web-f96d193d6fca421c.exe)
+
+running 12 tests
+test model::tests::bounded_virtual_window ... ok
+test wire::tests::legacy_video_hints_are_narrow_and_keep_other_files_downloadable ... ok
+test wire::tests::adjacent_windows_overlap_and_never_skip_extent_anchor_gaps ... ok
+test wire::tests::typing_copy_handles_plural_and_empty_states ... ok
+test model::tests::local_actions_and_input_bounds ... ok
+test wire::tests::invite_links_are_parsed_as_data_not_navigation ... ok
+test wire::message_group_boundaries ... ok
+test model::tests::markdown_is_not_executable ... ok
+test wire::tests::scrollbar_rank_is_bounded_at_empty_and_oldest_extents ... ok
+test wire::tests::custom_role_colors_cannot_hide_names ... ok
+test wire::tests::signal_boundary_rejects_malformed_and_oversized_data ... ok
+test wire::tests::media_ids_remain_exact_above_javascript_integer_limit ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.78s
+warning: sticktalk-emoji@0.1.0: emoji tables: 124383 bytes, 1923 base entries
+    Finished `web-release` profile [optimized] target(s) in 0.72s
+ALL VALIDATION COMMANDS PASSED

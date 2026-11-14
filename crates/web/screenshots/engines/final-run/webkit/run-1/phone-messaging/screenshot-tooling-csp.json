@@ -1,0 +1,62 @@
+[
+  {
+    "screen": "invite-link",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "friends",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "direct-message",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "unread-channel",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "message-actions",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  },
+  {
+    "screen": "photo-viewer",
+    "directive": "style-src-elem",
+    "blocked": "inline",
+    "source": "",
+    "line": 5,
+    "sample": "",
+    "stylesheet": "body {}",
+    "tool": "Playwright WebKit screenshot animation sync"
+  }
+]

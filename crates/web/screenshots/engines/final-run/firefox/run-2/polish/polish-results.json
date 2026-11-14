@@ -1,0 +1,48 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "revisions": [
+    "dc638f7a1017f6121ef8"
+  ],
+  "checks": [
+    "412: 16px inputs, 48px primary button, safe logout, danger zone, live profile preview/reset/save/hydration",
+    "412: grouped role permissions, reorder mode, six quick reactions persist to server, no dead notification controls"
+  ],
+  "screenshots": [
+    "screenshots/engines/final-run/firefox/run-2/polish/login-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/notifications-empty-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/settings-bottom-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/account-danger-zone-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/profile-empty-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/profile-edit-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/profile-populated-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/profile-dirty-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/role-editor-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/roles-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/roles-reorder-mode-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/message-actions-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/notifications-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/settings-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/account-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/about-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/appearance-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/privacy-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/devices-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/media-settings-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/password-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/server-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/server-overview-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/server-channels-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/member-role-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/invite-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/server-bans-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/create-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/join-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/friend-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/group-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/channel-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/pins-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/gif-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/polish/emoji-412x839.png"
+  ],
+  "errors": []
+}

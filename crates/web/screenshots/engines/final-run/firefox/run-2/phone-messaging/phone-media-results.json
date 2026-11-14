@@ -1,0 +1,19 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "checks": [
+    "phone invite deep link survives session recovery, prefilled confirmation, real join",
+    "phone friend request/accept and DM creation/send",
+    "unread count appears in another channel and drawer navigation returns to its history",
+    "phone typing, explicit mention, touch reply, reaction, edit and deletion",
+    "image upload and two-pointer image zoom handler"
+  ],
+  "screenshots": [
+    "screenshots/engines/final-run/firefox/run-2/phone-messaging/invite-link-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/phone-messaging/friends-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/phone-messaging/direct-message-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/phone-messaging/unread-channel-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/phone-messaging/message-actions-412x839.png",
+    "screenshots/engines/final-run/firefox/run-2/phone-messaging/photo-viewer-412x839.png"
+  ],
+  "errors": []
+}

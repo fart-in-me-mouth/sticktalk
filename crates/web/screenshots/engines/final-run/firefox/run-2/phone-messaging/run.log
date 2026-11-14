@@ -1,0 +1,3 @@
+(node:6408) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"checks":["phone invite deep link survives session recovery, prefilled confirmation, real join","phone friend request/accept and DM creation/send","unread count appears in another channel and drawer navigation returns to its history","phone typing, explicit mention, touch reply, reaction, edit and deletion","image upload and two-pointer image zoom handler"],"screenshots":6,"errors":[]}

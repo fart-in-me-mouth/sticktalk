@@ -1,0 +1,405 @@
+{
+  "startedAt": "2026-11-14T19:32:09.618Z",
+  "platform": "win32",
+  "node": "v22.22.3",
+  "revision": "dc638f7a1017f6121ef8",
+  "headless": true,
+  "retries": 0,
+  "codeHead": "0a437a23a8453dcfb27fdfa83a162f08f6cc2930",
+  "devices": {
+    "webkit": {
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Mobile/15E148 Safari/604.1",
+      "viewport": {
+        "width": 393,
+        "height": 659
+      },
+      "screen": {
+        "width": 393,
+        "height": 852
+      },
+      "deviceScaleFactor": 3,
+      "isMobile": true,
+      "hasTouch": true,
+      "defaultBrowserType": "webkit"
+    },
+    "chromium": {
+      "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.8127.18 Mobile Safari/537.36",
+      "viewport": {
+        "width": 412,
+        "height": 839
+      },
+      "screen": {
+        "width": 412,
+        "height": 915
+      },
+      "deviceScaleFactor": 2.625,
+      "isMobile": true,
+      "hasTouch": true,
+      "defaultBrowserType": "chromium"
+    },
+    "firefox": "412x839 touch viewport (no isMobile)"
+  },
+  "webkitWindowsMedia": "Blocked: mediaDevices/RTCPeerConnection/AudioContext absent; MP4 decoder unavailable",
+  "firefoxMedia": "Real Cisco OpenH264 GMP; fake capture + test-profile media grants; real SFU/RTP",
+  "firefoxOffline": "Native offline + SW reload; inject only the missing Playwright online event after navigator.onLine returns true",
+  "gestures": "Chromium native CDP multi-touch; WebKit/Firefox public touchscreen taps plus DOM pointer/touch sequences for multi-touch and hold",
+  "bundle": {
+    "revision": "dc638f7a1017f6121ef8",
+    "raw": 3214480,
+    "compressed": 865326,
+    "firstLoadBytes": 619153,
+    "firstLoadMeaning": "Complete installable shell cache, not cold-login network transfer",
+    "assets": [
+      {
+        "file": "boot-c066202c08c28b10f232.css",
+        "bytes": 124,
+        "brotli": 90
+      },
+      {
+        "file": "bootstrap-28918618225a8a26ce10.js",
+        "bytes": 5040,
+        "brotli": 1642
+      },
+      {
+        "file": "index.html",
+        "bytes": 3233,
+        "brotli": 953
+      },
+      {
+        "file": "live-032237e43ee0865caaad.css",
+        "bytes": 49074,
+        "brotli": 8335
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_14.wasm",
+        "bytes": 5390,
+        "brotli": 3179
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_15.wasm",
+        "bytes": 1154,
+        "brotli": 724
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_16.wasm",
+        "bytes": 119614,
+        "brotli": 32937
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_17.wasm",
+        "bytes": 433,
+        "brotli": 312
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_18.wasm",
+        "bytes": 274,
+        "brotli": 182
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_19.wasm",
+        "bytes": 735,
+        "brotli": 483
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_20.wasm",
+        "bytes": 623,
+        "brotli": 424
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_21.wasm",
+        "bytes": 11864,
+        "brotli": 4764
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_22.wasm",
+        "bytes": 394,
+        "brotli": 266
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_23.wasm",
+        "bytes": 404,
+        "brotli": 261
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_24.wasm",
+        "bytes": 306,
+        "brotli": 193
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_25.wasm",
+        "bytes": 1267,
+        "brotli": 829
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_26.wasm",
+        "bytes": 641,
+        "brotli": 427
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_27.wasm",
+        "bytes": 1159,
+        "brotli": 732
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_28.wasm",
+        "bytes": 399,
+        "brotli": 291
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_29.wasm",
+        "bytes": 557,
+        "brotli": 359
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_30.wasm",
+        "bytes": 4433,
+        "brotli": 2201
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/chunk_31.wasm",
+        "bytes": 259,
+        "brotli": 181
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_completion_rows_13294626028908716306.wasm",
+        "bytes": 2534,
+        "brotli": 1298
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_dialog_data_12524356949440466629.wasm",
+        "bytes": 67757,
+        "brotli": 19720
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_expand_shortcodes_16192166041872063925.wasm",
+        "bytes": 1719,
+        "brotli": 1015
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_forward_voice_8719104469274925492.wasm",
+        "bytes": 287069,
+        "brotli": 43727
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_gif_search_12278313011594759030.wasm",
+        "bytes": 18150,
+        "brotli": 5377
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_load_call_9356238192695981583.wasm",
+        "bytes": 4578,
+        "brotli": 2334
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_load_dialog_4524596250009857420.wasm",
+        "bytes": 219541,
+        "brotli": 70060
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_load_message_encoder_11154512396779695914.wasm",
+        "bytes": 26296,
+        "brotli": 4656
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_move_role_12027117459904980262.wasm",
+        "bytes": 6286,
+        "brotli": 2931
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_profile_request_4138965245773052345.wasm",
+        "bytes": 1840,
+        "brotli": 1038
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_submit_16740275127398408723.wasm",
+        "bytes": 18159,
+        "brotli": 8006
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_upload_16166457729826968220.wasm",
+        "bytes": 23286,
+        "brotli": 9805
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/split_voice_action_1829393018797000336.wasm",
+        "bytes": 95651,
+        "brotli": 23654
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/sticktalk-web-e20ff2d8128dfb2a2cc4.d.ts",
+        "bytes": 5130,
+        "brotli": 1122
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/sticktalk-web-e20ff2d8128dfb2a2cc4.js",
+        "bytes": 51259,
+        "brotli": 7547
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/sticktalk-web-e20ff2d8128dfb2a2cc4_bg.wasm",
+        "bytes": 1934877,
+        "brotli": 449760
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/sticktalk-web-e20ff2d8128dfb2a2cc4_bg.wasm.d.ts",
+        "bytes": 3204,
+        "brotli": 604
+      },
+      {
+        "file": "pkg/4ef0b922232ae66112f5/__wasm_split.js",
+        "bytes": 11951,
+        "brotli": 1314
+      },
+      {
+        "file": "public/fonts/Inter-Medium.woff2",
+        "bytes": 18568,
+        "brotli": 18563
+      },
+      {
+        "file": "public/fonts/Inter-OFL.txt",
+        "bytes": 4380,
+        "brotli": 1419
+      },
+      {
+        "file": "public/fonts/Inter-Regular.woff2",
+        "bytes": 18264,
+        "brotli": 18250
+      },
+      {
+        "file": "public/fonts/Inter-SemiBold.woff2",
+        "bytes": 18656,
+        "brotli": 18660
+      },
+      {
+        "file": "public/fonts/JetBrainsMono-OFL.txt",
+        "bytes": 4399,
+        "brotli": 1413
+      },
+      {
+        "file": "public/fonts/JetBrainsMono-Regular.woff2",
+        "bytes": 28656,
+        "brotli": 28660
+      },
+      {
+        "file": "public/gifs.js",
+        "bytes": 56,
+        "brotli": 60
+      },
+      {
+        "file": "public/google-g.svg",
+        "bytes": 7483,
+        "brotli": 5621
+      },
+      {
+        "file": "public/icons/apple-touch-icon.png",
+        "bytes": 4779,
+        "brotli": 4689
+      },
+      {
+        "file": "public/icons/icon-192.png",
+        "bytes": 5072,
+        "brotli": 4947
+      },
+      {
+        "file": "public/icons/icon-512.png",
+        "bytes": 12256,
+        "brotli": 11357
+      },
+      {
+        "file": "public/icons/LICENSE",
+        "bytes": 3208,
+        "brotli": 1146
+      },
+      {
+        "file": "public/icons/maskable-512.png",
+        "bytes": 12256,
+        "brotli": 11357
+      },
+      {
+        "file": "public/live.js",
+        "bytes": 56,
+        "brotli": 60
+      },
+      {
+        "file": "public/manifest.webmanifest",
+        "bytes": 638,
+        "brotli": 239
+      },
+      {
+        "file": "public/media.js",
+        "bytes": 57,
+        "brotli": 61
+      },
+      {
+        "file": "public/message-menu.js",
+        "bytes": 64,
+        "brotli": 68
+      },
+      {
+        "file": "public/navigation.js",
+        "bytes": 62,
+        "brotli": 66
+      },
+      {
+        "file": "public/preferences.js",
+        "bytes": 63,
+        "brotli": 67
+      },
+      {
+        "file": "public/push.js",
+        "bytes": 56,
+        "brotli": 60
+      },
+      {
+        "file": "public/runtime/82bbef84961e1c84f76c/gifs.js",
+        "bytes": 2418,
+        "brotli": 1047
+      },
+      {
+        "file": "public/runtime/82bbef84961e1c84f76c/live.js",
+        "bytes": 34006,
+        "brotli": 8669
+      },
+      {
+        "file": "public/runtime/82bbef84961e1c84f76c/media.js",
+        "bytes": 34034,
+        "brotli": 8952
+      },
+      {
+        "file": "public/runtime/82bbef84961e1c84f76c/message-menu.js",
+        "bytes": 3736,
+        "brotli": 1279
+      },
+      {
+        "file": "public/runtime/82bbef84961e1c84f76c/navigation.js",
+        "bytes": 3054,
+        "brotli": 986
+      },
+      {
+        "file": "public/runtime/82bbef84961e1c84f76c/preferences.js",
+        "bytes": 1583,
+        "brotli": 603
+      },
+      {
+        "file": "public/runtime/82bbef84961e1c84f76c/push.js",
+        "bytes": 1424,
+        "brotli": 583
+      },
+      {
+        "file": "public/runtime/82bbef84961e1c84f76c/viewer.js",
+        "bytes": 7697,
+        "brotli": 2288
+      },
+      {
+        "file": "public/viewer.js",
+        "bytes": 58,
+        "brotli": 62
+      },
+      {
+        "file": "ui-tokens-500c88b5b36ff764fdd6.css",
+        "bytes": 777,
+        "brotli": 361
+      }
+    ]
+  }
+}

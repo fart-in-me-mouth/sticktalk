@@ -1,0 +1,17 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "checks": [
+    "mock Google authorization + PKCE/token + RSA JWKS, signup and username collision",
+    "existing Google identity login after logout",
+    "operation-bound Google reauthentication returns to Delete Account and erases account"
+  ],
+  "screenshots": [
+    "screenshots/engines/final-run/firefox/run-1/oauth/login-google-412x839.png",
+    "screenshots/engines/final-run/firefox/run-1/oauth/register-google-412x839.png",
+    "screenshots/engines/final-run/firefox/run-1/oauth/google-username-412x839.png",
+    "screenshots/engines/final-run/firefox/run-1/oauth/google-delete-reauth-412x839.png",
+    "screenshots/engines/final-run/firefox/run-1/oauth/google-account-deleted-login-412x839.png"
+  ],
+  "errors": [],
+  "externalRequests": 0
+}

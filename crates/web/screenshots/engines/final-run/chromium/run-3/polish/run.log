@@ -1,0 +1,3 @@
+(node:8408) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"checks":["412: 16px inputs, 48px primary button, safe logout, danger zone, live profile preview/reset/save/hydration","412: grouped role permissions, reorder mode, six quick reactions persist to server, no dead notification controls"],"errors":[]}

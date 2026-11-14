@@ -3,3 +3,5 @@
 /node_modules/
 /test-results/
 /screenshots/*.tmp
+# Runs are disposable; force-add only an intentionally reviewed evidence snapshot.
+/screenshots/engines/

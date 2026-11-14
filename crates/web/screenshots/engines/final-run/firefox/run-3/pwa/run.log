@@ -1,0 +1,3 @@
+(node:21780) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"checks":["standalone manifest, 192/512 PNGs, maskable icon, apple-touch install metadata","first lazy media import remains pinned when a deployment replaces stable JS aliases","real service-worker offline reload boots cached shell/core; private messages and API excluded","online recovery restores cookie session, websocket and authenticated history","waiting update never auto-activates; draft in another channel blocks Reload","explicit Reload activates new worker, reloads app, removes obsolete shell cache"],"errors":[]}

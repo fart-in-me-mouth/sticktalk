@@ -1,0 +1,16 @@
+{
+  "revision": "dc638f7a1017f6121ef8",
+  "checks": [
+    "real MP4 upload, H.264 baseline file decode and inline muted playback; NOT a WebRTC test"
+  ],
+  "playback": {
+    "width": 320,
+    "height": 180,
+    "time": 0.1156,
+    "frames": 6
+  },
+  "errors": [],
+  "screenshots": [
+    "screenshots/engines/final-run/chromium/run-2/inline-video/inline-h264-412x839.png"
+  ]
+}
