@@ -275,6 +275,10 @@ pub(crate) fn json<T: Serialize + Send + 'static>(v: T) -> ApiResponse {
         encode: Box::new(move || axum::Json(v).into_response()),
     }
 }
+/// Any non-empty password is allowed; the cap only bounds hashing work.
+pub fn password_len_ok(password: &str) -> bool {
+    (1..=128).contains(&password.len())
+}
 pub fn password_hash(password: String) -> Result<String> {
     let salt =
         SaltString::encode_b64(&state::random(16)).map_err(|_| Error::new(ErrorCode::Internal))?;
@@ -353,7 +357,7 @@ pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiR
             }
         })?;
         require(
-            (12..=128).contains(&password.len()),
+            password_len_ok(&password),
             if register {
                 ErrorCode::InvalidRequest
             } else {

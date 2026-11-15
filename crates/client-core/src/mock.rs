@@ -1931,8 +1931,8 @@ impl MockAuth {
                 self.methods.google_linked = false;
             }
             AccountAction::Password { current, new } => {
-                if !(12..=128).contains(&new.len()) {
-                    return Err("Use a password of 12–128 bytes.".into());
+                if !(1..=crate::http::MAX_PASSWORD_BYTES).contains(&new.len()) {
+                    return Err("Enter a new password (128 characters at most).".into());
                 }
                 if self.methods.has_password && current.as_deref() != self.password.as_deref() {
                     return Err("Current password is incorrect.".into());

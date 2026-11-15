@@ -237,7 +237,7 @@ pub async fn reset(State(app): State<App>, r: Request<Body>) -> Result<StatusCod
     let request: ResetPasswordRequest = crate::http::parse(r).await?;
     let name = username(&request.username)?;
     require(
-        request.code.len() == 43 && (12..=128).contains(&request.new_password.len()),
+        request.code.len() == 43 && crate::http::password_len_ok(&request.new_password),
         ErrorCode::InvalidRequest,
     )?;
     let expected = hash(request.code.as_bytes());

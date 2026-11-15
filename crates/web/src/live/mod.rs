@@ -807,7 +807,8 @@ async fn socket(app: Shared, epoch: u64) {
                                     end_session(&app, "Your session ended. Please log in again.");
                                     return;
                                 }
-                                app.borrow_mut().error = e.message;
+                                app.borrow_mut().error =
+                                    sticktalk_client_core::http::error_text(&e);
                                 app.borrow().touch();
                             }
                         }

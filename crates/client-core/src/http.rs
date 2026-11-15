@@ -90,12 +90,78 @@ pub fn validate_server(server: &str) -> Result<String, String> {
     }
     Ok(server.trim_end_matches('/').to_string())
 }
+/// What to show a person for a server error. Servers send the bare code name as
+/// `message` unless they have something specific to say; never display that name.
+pub fn error_text(error: &ApiError) -> String {
+    use ErrorCode::*;
+    let specific = !error.message.trim().is_empty() && error.message != format!("{:?}", error.code);
+    let text = match error.code {
+        _ if specific => error.message.as_str(),
+        InvalidRequest => "The server didn't accept that. Check what you entered and try again.",
+        InvalidCredentials => "Incorrect username or password.",
+        Unauthenticated | SessionExpired => "Your session ended. Please sign in again.",
+        Forbidden => "You don't have permission to do that.",
+        NotFound => "That no longer exists, or you don't have access to it.",
+        Conflict => "That changed in the meantime. Try again.",
+        UsernameTaken => "That username is taken. Choose another.",
+        AlreadyExists => "That already exists.",
+        Blocked => "You can't do that because of a block.",
+        InvalidInvite => "That invite isn't valid.",
+        InviteExpired => "That invite has expired.",
+        InviteExhausted => "That invite has been used up.",
+        Banned => "You are banned from that server.",
+        OwnerRequired => "Only the server owner can do that.",
+        HierarchyViolation => "Your role isn't high enough to do that.",
+        RateLimited => "You're doing that too quickly.",
+        LimitExceeded => "A limit has been reached.",
+        PayloadTooLarge => "That is too large.",
+        UnsupportedMediaType => "That file type isn't supported.",
+        InvalidAttachment => "That attachment can't be used. Upload it again.",
+        VersionMismatch => "This app is too old for this server. Install the latest version.",
+        InvalidSequence | ResyncRequired => "Out of sync with the server. Reconnecting.",
+        UnsupportedFeature => "This server doesn't support that.",
+        FeatureDisabled => "That is turned off on this server.",
+        Internal => "The server had a problem. Try again.",
+        Unavailable => "The server is busy or unavailable. Try again shortly.",
+        InvalidSignupTicket => "Signup expired. Sign in with Google again.",
+        IdentityAlreadyLinked => "That Google account is linked to another StickTalk account.",
+        LastLoginMethod => {
+            "Set a password before unlinking Google. It is your only sign-in method."
+        }
+    };
+    match error.retry_after_ms {
+        Some(ms) => format!("{text} Try again in {}s.", ms.div_ceil(1000)),
+        None => text.into(),
+    }
+}
+/// Passwords may be anything non-empty; the cap only bounds hashing work.
+pub const MAX_PASSWORD_BYTES: usize = 128;
+/// The server's account rules, checked before sending so the form can say which
+/// field is wrong (the server answers only `InvalidRequest`).
+pub fn registration_problem(username: &str, password: &str, display: &str) -> Option<&'static str> {
+    let name = username.trim();
+    if !(3..=32).contains(&name.len())
+        || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    {
+        return Some("Usernames are 3 to 32 letters, numbers or underscores.");
+    }
+    if password.is_empty() {
+        return Some("Enter a password.");
+    }
+    if password.len() > MAX_PASSWORD_BYTES {
+        return Some("That password is too long (128 characters at most).");
+    }
+    let display = display.trim();
+    if display.len() > 64 || display.chars().any(char::is_control) {
+        return Some("Display names are at most 64 characters.");
+    }
+    None
+}
 pub fn decode_json<T: DeserializeOwned>(response: HttpResponse) -> Result<T, String> {
     if !(200..300).contains(&response.status) {
-        return Err(serde_json::from_slice::<ApiError>(&response.bytes).map(|v| {
-            if v.code == ErrorCode::LastLoginMethod { return "Set a password before unlinking Google. It is your only sign-in method.".into(); }
-            format!("{}{}", v.message, v.retry_after_ms.map_or(String::new(), |t| format!(" Try again in {}s.", t.div_ceil(1000))))
-        }).unwrap_or_else(|_| format!("Server returned HTTP {}", response.status)));
+        return Err(serde_json::from_slice::<ApiError>(&response.bytes)
+            .map(|v| error_text(&v))
+            .unwrap_or_else(|_| format!("Server returned HTTP {}", response.status)));
     }
     serde_json::from_slice(&response.bytes).map_err(|_| "Server sent an invalid response".into())
 }
@@ -431,6 +497,9 @@ impl<A: HttpTransport> Http<A> {
     ) -> Result<AuthResponse, String> {
         let error = "Cannot reach that server. Check the address and connection.";
         if register {
+            if let Some(problem) = registration_problem(&username, &password, &display) {
+                return Err(problem.into());
+            }
             self.post_api_with_error(
                 "/api/v1/auth/register",
                 &RegisterRequest {
@@ -613,6 +682,34 @@ mod qa_read_retry {
             })
             .unwrap(),
         }
+    }
+    #[test]
+    fn errors_are_shown_as_sentences_never_code_names() {
+        let bare = |code| ApiError {
+            code,
+            message: format!("{code:?}"),
+            field: None,
+            retry_after_ms: None,
+        };
+        assert_eq!(
+            error_text(&bare(ErrorCode::InvalidCredentials)),
+            "Incorrect username or password."
+        );
+        assert!(!error_text(&bare(ErrorCode::InvalidRequest)).contains("InvalidRequest"));
+        let mut limited = bare(ErrorCode::RateLimited);
+        limited.retry_after_ms = Some(1500);
+        assert!(error_text(&limited).ends_with("Try again in 2s."));
+        let mut specific = bare(ErrorCode::Forbidden);
+        specific.message = "Owners cannot leave.".into();
+        assert_eq!(error_text(&specific), "Owners cannot leave.");
+    }
+    #[test]
+    fn registration_accepts_any_non_empty_password() {
+        assert_eq!(registration_problem("alex_1", "a", "Alex"), None);
+        assert!(registration_problem("alex_1", "", "").is_some());
+        assert!(registration_problem("alex_1", &"x".repeat(129), "").is_some());
+        assert!(registration_problem("al", "pw", "").is_some());
+        assert!(registration_problem("bad name", "pw", "").is_some());
     }
     #[test]
     fn reads_honor_backoff_but_retries_and_waiting_are_bounded() {

@@ -1493,7 +1493,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     a.reply = draft.reply_to;
                 }
             }
-            a.error = error.message;
+            a.error = sticktalk_client_core::http::error_text(&error);
             a.touch();
         }
         CommandOutcome::Ok(result) => {
