@@ -88,7 +88,7 @@ pub fn store(root: &Path, placement: &Placement) {
 }
 
 #[cfg(windows)]
-pub use native::{focus, restore, save, Show};
+pub use native::{focus, place, save};
 
 #[cfg(windows)]
 mod native {
@@ -101,15 +101,6 @@ mod native {
         },
         UI::{HiDpi::GetDpiForWindow, WindowsAndMessaging::*},
     };
-
-    pub enum Show {
-        /// An ordinary launch: visible and active.
-        Foreground,
-        /// Started with Windows: on the taskbar, without taking focus.
-        Minimized,
-        /// A smoke run: placed like a real window, never shown.
-        Hidden,
-    }
 
     fn work_area(monitor: HMONITOR) -> Option<Rect> {
         let mut info = MONITORINFO {
@@ -154,8 +145,10 @@ mod native {
         );
     }
 
-    /// Places the still-hidden window where it was last time and shows it.
-    pub fn restore(hwnd: HWND, root: &Path, show: Show) {
+    /// Puts the still-hidden window where it was last time, or centered on
+    /// first run, without showing it. Returns whether it was maximized. The
+    /// caller shows it through the windowing library, which tracks visibility.
+    pub fn place(hwnd: HWND, root: &Path) -> bool {
         let scale = f64::from(unsafe { GetDpiForWindow(hwnd) }.max(96)) / 96.0;
         let min = (
             (MIN_SIZE.0 * scale).round() as i32,
@@ -181,34 +174,22 @@ mod native {
             None => work_area(unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY) })
                 .map(|work| initial(work, scale)),
         };
-        let maximized = saved.is_some_and(|p| p.maximized);
-        let command = match show {
-            Show::Foreground if maximized => SW_SHOWMAXIMIZED,
-            Show::Foreground => SW_SHOWNORMAL,
-            Show::Minimized => SW_SHOWMINNOACTIVE,
-            Show::Hidden => SW_HIDE,
-        };
-        let placed = rect.zip(placement(hwnd)).is_some_and(|(r, mut placement)| {
-            placement.showCmd = command.0 as u32;
-            placement.flags = if maximized && matches!(show, Show::Minimized) {
-                WPF_RESTORETOMAXIMIZED
-            } else {
-                WINDOWPLACEMENT_FLAGS(0)
-            };
+        if let Some((r, mut placement)) = rect.zip(placement(hwnd)) {
+            placement.showCmd = SW_HIDE.0 as u32;
+            placement.flags = WINDOWPLACEMENT_FLAGS(0);
             placement.rcNormalPosition = RECT {
                 left: r[0],
                 top: r[1],
                 right: r[2],
                 bottom: r[3],
             };
-            unsafe { SetWindowPlacement(hwnd, &placement) }.is_ok()
-        });
-        if !placed {
-            let _ = unsafe { ShowWindow(hwnd, command) };
+            let _ = unsafe { SetWindowPlacement(hwnd, &placement) };
         }
+        saved.is_some_and(|p| p.maximized)
     }
-
-    /// Only after an explicit user action (a second launch or a link).
+    /// Only after an explicit user action (a second launch or a link). The
+    /// caller first asks the windowing library to un-minimize; this covers a
+    /// window that was minimized without it noticing (e.g. "show desktop").
     pub fn focus(hwnd: HWND) {
         unsafe {
             if IsIconic(hwnd).as_bool() {

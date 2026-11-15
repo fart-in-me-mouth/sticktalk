@@ -206,8 +206,8 @@ fn load_failure(status: COREWEBVIEW2_WEB_ERROR_STATUS, http: i32) -> Option<Fail
         // A cancelled load, or one that turned into a download.
         COREWEBVIEW2_WEB_ERROR_STATUS_OPERATION_CANCELED
         | COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_ABORTED => None,
-        // A gateway in front of a server that is down.
-        _ if matches!(http, 502..=504) => Some(Failure::Unwell(http as u16)),
+        // The server, or a gateway in front of one that is down.
+        _ if (500..600).contains(&http) => Some(Failure::Unwell(http as u16)),
         // No answer at all. WebView2 reports a refused connection this way.
         _ if http == 0 => Some(Failure::Refused),
         // An ordinary error page from the server (404 and the like) stays.

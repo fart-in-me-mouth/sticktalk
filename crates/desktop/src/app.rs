@@ -359,15 +359,20 @@ pub fn run(launch: Launch) -> i32 {
     };
     let hwnd = HWND(window.hwnd() as *mut _);
     unsafe { add_window_menu(hwnd, proxy.clone()) };
-    // Show the (dark, empty) window first: the WebView takes a moment.
-    let show = if is_smoke {
-        window_state::Show::Hidden
-    } else if background {
-        window_state::Show::Minimized
-    } else {
-        window_state::Show::Foreground
-    };
-    window_state::restore(hwnd, &root, show);
+    // Show the (dark, empty) window first: the WebView takes a moment. It is
+    // shown through tao, which must know the window is visible: it re-hides
+    // a window it believes hidden when a later state change is applied.
+    let maximized = window_state::place(hwnd, &root);
+    if background && !is_smoke {
+        // Started with Windows by the previous client's autostart entry: on
+        // the taskbar, not in the person's face.
+        window.set_minimized(true);
+    } else if maximized {
+        window.set_maximized(true);
+    }
+    if !is_smoke {
+        window.set_visible(true);
+    }
 
     // The WebView2 user-data folder: under the data root, never beside the exe.
     let mut context = WebContext::new(Some(root.join("WebView")));
@@ -489,8 +494,17 @@ pub fn run(launch: Launch) -> i32 {
                     smoke.finish_at = Some(now + smoke.settle);
                 }
                 let mut state = lock(&shared);
+                // The web app's own entry page answered "not found" or the
+                // like: whatever is at this address, it isn't StickTalk.
+                let wrong_server = !load.ok
+                    && load.detail.1 >= 400
+                    && url::Url::parse(&state.navigating)
+                        .is_ok_and(|url| url.path() == "/" && state.policy.is_server(url.as_str()));
+                let failure = load
+                    .failure
+                    .or(wrong_server.then_some(health::Failure::NotStickTalk));
                 if let (Some(failure), false, false) =
-                    (load.failure, first, state.policy.is_shell(&load.url))
+                    (failure, first, state.policy.is_shell(&load.url))
                 {
                     // Say which host failed (the server, or Google's sign-in).
                     let host = url::Url::parse(&state.navigating)
@@ -520,6 +534,9 @@ pub fn run(launch: Launch) -> i32 {
             }
             Event::UserEvent(UserEvent::Activation(activation)) => {
                 if !is_smoke {
+                    if window.is_minimized() {
+                        window.set_minimized(false);
+                    }
                     window_state::focus(hwnd);
                     let _ = webview.focus();
                 }
