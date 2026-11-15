@@ -7283,7 +7283,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "sticktalk"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arboard",
  "axum 0.8.9",
@@ -7333,7 +7333,7 @@ dependencies = [
 
 [[package]]
 name = "sticktalk-client-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "futures-channel",
@@ -7353,7 +7353,7 @@ dependencies = [
 
 [[package]]
 name = "sticktalk-desktop-platform"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum 0.8.9",
  "base64 0.22.1",
@@ -7375,14 +7375,14 @@ dependencies = [
 
 [[package]]
 name = "sticktalk-emoji"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "sticktalk-media"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "deep_filter",
  "hound",
@@ -7405,7 +7405,7 @@ dependencies = [
 
 [[package]]
 name = "sticktalk-proto"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bitflags 2.13.2",
  "rmp-serde",
@@ -7415,7 +7415,7 @@ dependencies = [
 
 [[package]]
 name = "sticktalk-server"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "age",
  "argon2",
@@ -7456,7 +7456,7 @@ dependencies = [
 
 [[package]]
 name = "sticktalk-sfu"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "proptest",
  "rand 0.9.5",
@@ -7474,7 +7474,7 @@ dependencies = [
 
 [[package]]
 name = "sticktalk-web"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures-channel",
  "futures-util",
