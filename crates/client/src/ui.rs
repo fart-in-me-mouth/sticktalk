@@ -690,7 +690,7 @@ fn login(app: &App) -> Element<'_, Msg> {
         );
     }
     if !signup {
-        let mut password = column![
+        let password = column![
             section("PASSWORD"),
             text_input("", &app.password)
                 .id("login-password")
@@ -703,9 +703,6 @@ fn login(app: &App) -> Element<'_, Msg> {
                 .style(t::input)
         ]
         .spacing(t::S8);
-        if app.register {
-            password = password.push(hint("At least 12 characters.").color(t::TEXT_SECONDARY));
-        }
         form = form.push(password);
     }
     if !app.error.is_empty() {
@@ -3040,7 +3037,6 @@ fn modal(app: &App) -> Element<'_, Msg> {
                             .padding(t::S12)
                             .size(t::BODY)
                             .style(t::input),
-                        hint("At least 12 characters.")
                     ]
                     .spacing(t::S8),
                 )

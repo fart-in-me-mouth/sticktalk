@@ -1150,8 +1150,8 @@ impl App {
                 let has_password = self.methods.as_ref().is_some_and(|m| m.has_password);
                 let new = std::mem::take(&mut self.form.topic);
                 let current = std::mem::take(&mut self.form.name);
-                if !(12..=128).contains(&new.len()) {
-                    self.error = "Use a password of 12–128 bytes.".into();
+                if !(1..=sticktalk_client_core::http::MAX_PASSWORD_BYTES).contains(&new.len()) {
+                    self.error = "Enter a new password (128 characters at most).".into();
                     return Task::none();
                 }
                 return self.update(Msg::Account(backend::AccountAction::Password {
@@ -1350,8 +1350,9 @@ impl App {
                     return operation::focus("login-server");
                 }
                 if self.mock_mode {
-                    if self.username.trim().len() < 3 || self.password.len() < 12 {
-                        self.error="Use a username of at least 3 characters and a password of at least 12 bytes.".into();
+                    if self.username.trim().len() < 3 || self.password.is_empty() {
+                        self.error =
+                            "Use a username of at least 3 characters and enter a password.".into();
                         return Task::none();
                     }
                     self.password.clear();
@@ -1369,6 +1370,17 @@ impl App {
                 }
                 if self.busy {
                     return Task::none();
+                }
+                if self.register {
+                    // Keep what was typed so only the wrong field needs fixing.
+                    if let Some(problem) = sticktalk_client_core::http::registration_problem(
+                        &self.username,
+                        &self.password,
+                        &self.display,
+                    ) {
+                        self.error = problem.into();
+                        return Task::none();
+                    }
                 }
                 self.busy = true;
                 self.error.clear();
@@ -2854,14 +2866,7 @@ impl App {
                                     );
                                 }
                             }
-                            self.error = format!(
-                                "{}{}",
-                                e.message,
-                                e.retry_after_ms.map_or(String::new(), |ms| format!(
-                                    " Try again in {}s.",
-                                    ms.div_ceil(1000)
-                                ))
-                            );
+                            self.error = sticktalk_client_core::http::error_text(&e);
                             if let Some(Command::SendMessage(d)) = command {
                                 self.restore_send(d, files);
                             }
@@ -2961,7 +2966,7 @@ impl App {
                     self.subscribe();
                 }
                 ServerMsg::Voice(v) => self.main_voice(v),
-                ServerMsg::Error(e) => self.error = e.message,
+                ServerMsg::Error(e) => self.error = sticktalk_client_core::http::error_text(&e),
                 _ => {}
             },
             Data::NewerHistory {

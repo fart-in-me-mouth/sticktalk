@@ -526,7 +526,7 @@ async fn password_user(app: &App, bucket: String, name: &str, password: String) 
         .clone()
         .try_acquire_owned()
         .map_err(|_| Error::new(ErrorCode::Unavailable))?;
-    let ok = (12..=128).contains(&password.len())
+    let ok = http::password_len_ok(&password)
         && tokio::task::spawn_blocking(move || {
             let _p = permit;
             http::verify_password(&password, &phc)

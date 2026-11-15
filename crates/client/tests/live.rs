@@ -38,7 +38,7 @@ async fn post_retry<T: serde::de::DeserializeOwned>(
 ) -> Result<T, String> {
     loop {
         match http.post(path, body).await {
-            Err(error) if error.starts_with("RateLimited") => {
+            Err(error) if error.starts_with("You're doing that too quickly") => {
                 tokio::time::sleep(Duration::from_secs(6)).await
             }
             result => return result,
@@ -56,7 +56,7 @@ async fn account_retry(
             .account_authorized(action.clone(), Some(proof))
             .await
         {
-            Err(error) if error.starts_with("RateLimited") => {
+            Err(error) if error.starts_with("You're doing that too quickly") => {
                 tokio::time::sleep(Duration::from_secs(6)).await
             }
             result => return result,
@@ -79,7 +79,7 @@ async fn password_auth(
         )
         .await
         {
-            Err(error) if error.starts_with("RateLimited") => {
+            Err(error) if error.starts_with("You're doing that too quickly") => {
                 tokio::time::sleep(Duration::from_secs(6)).await
             }
             result => return result,
@@ -291,7 +291,7 @@ impl Fixture {
             )
             .await
             .unwrap_err()
-            .starts_with("InvalidCredentials"));
+            .starts_with("Incorrect username or password."));
         }
         let result: GoogleAuthResponse = post_retry(
             &http,
@@ -883,7 +883,7 @@ async fn phase_one() {
     .await
     .err()
     .unwrap()
-    .starts_with("IdentityAlreadyLinked"));
+    .starts_with("That Google account is linked to another"));
     let proof = fixture
         .proof(&carol.http, AccountOperation::Password, true)
         .await;

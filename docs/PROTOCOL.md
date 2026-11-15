@@ -50,7 +50,7 @@ See `ARCHITECTURE.md` for implementation, storage, limits and resource budgets.
 | Value | Accepted bounds |
 |---|---|
 | Username | `[a-z0-9_]{3,32}` after ASCII lowercase/trim; unique; no display-name lookup ambiguity |
-| Password | 12..128 UTF-8 bytes; no trimming, case folding, or Unicode normalization |
+| Password | 1..128 UTF-8 bytes; no trimming, case folding, or Unicode normalization |
 | Display name | null or 1..64 bytes after trim |
 | Status text | null or 1..128 bytes; clear rather than empty |
 | Guild/group name | 1..64 bytes after trim |
@@ -315,7 +315,7 @@ when absent, but linked Google cannot be removed without a password (409
 
 For Google-only users, setting a password accepts `current_password:null`;
 password replacement requires a matching current password, otherwise 401
-`invalid_credentials`. New passwords use existing 12..128-byte validation and
+`invalid_credentials`. New passwords use existing 1..128-byte validation and
 Argon2id policy. Sessions remain valid; a concurrent password change returns
 409 `conflict`. `/auth/methods` and `/auth/password` remain available even if
 Google is disabled, allowing a still-authenticated Google-only user to set a
@@ -945,7 +945,7 @@ not revive old sessions. No account deletion or username reassignment occurs.
 POST `/api/v1/auth/reset-password` takes JSON `ResetPasswordRequest { username,
 code, new_password }`; success 204, invalid/expired/used code `invalid_credentials`.
 It consumes the code atomically with the password change and session revocation;
-password policy is 12–128 UTF-8 bytes, same as normal registration. Rate/hash slots
+password policy is 1–128 UTF-8 bytes, same as normal registration. Rate/hash slots
 are bounded. No automatic login; use the regular login afterwards.
 
 ## Signed Windows update contract
