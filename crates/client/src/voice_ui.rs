@@ -135,6 +135,17 @@ pub struct State {
     pub mic_level: Option<sticktalk_media::MicLevel>,
     pub recording_key: bool,
 }
+
+/// Mock screenshot thumbnail, read from this checkout. Dev builds only: release
+/// binaries must not carry the build machine's source path.
+#[cfg(debug_assertions)]
+const MOCK_CALL_PREVIEW: Option<&str> = Some(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/assets/call-preview.png"
+));
+#[cfg(not(debug_assertions))]
+const MOCK_CALL_PREVIEW: Option<&str> = None;
+
 impl App {
     pub(crate) fn mock_call_screen(&mut self, screen: &str) {
         if screen == "source-preview" {
@@ -256,10 +267,7 @@ impl App {
                     },
                     primary: true,
                 },
-                thumbnail: Some(iced::widget::image::Handle::from_path(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/assets/call-preview.png"
-                ))),
+                thumbnail: MOCK_CALL_PREVIEW.map(iced::widget::image::Handle::from_path),
                 gpu_thumbnail: None,
                 preview_elapsed: std::time::Duration::ZERO,
                 process_id: None,
@@ -275,10 +283,7 @@ impl App {
                     },
                     primary: false,
                 },
-                thumbnail: Some(iced::widget::image::Handle::from_path(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/assets/call-preview.png"
-                ))),
+                thumbnail: MOCK_CALL_PREVIEW.map(iced::widget::image::Handle::from_path),
                 gpu_thumbnail: None,
                 preview_elapsed: std::time::Duration::ZERO,
                 process_id: None,
