@@ -6,14 +6,28 @@ One `StickTalk-Setup-<version>.exe`. Setup never asks for administrator access:
 a fresh install goes in `%LOCALAPPDATA%\Programs\StickTalk` (registered existing
 installations are upgraded in place), adds a Start menu shortcut,
 offers an optional desktop shortcut, and registers `sticktalk://` in HKCU.
-The first run shows a server address, sign-in/register, and Google when enabled
-by that server **and included in the build configuration below**. Google uses a
-temporary **loopback callback**, not a custom URI.
+
+The app is the server's own web app in a native window (`crates/desktop`,
+installed as `sticktalk.exe`): it navigates to the StickTalk server the person
+chose, so it always matches that server's version. It needs the **Microsoft
+Edge WebView2 Runtime**, which is preinstalled on Windows 11 and on current
+Windows 10. Setup neither bundles nor downloads it; on a PC without it the app
+says so and names the Microsoft download.
+
+The first run asks for the server address, then shows the web app's own
+sign-in/register. Google sign-in is the server's browser flow and completes
+inside the window; no Google credentials are compiled into the app. People
+upgrading from 0.1.2 keep their server address and window position and sign in
+once more (the session is now a cookie in the app's WebView profile).
+Ctrl+Shift+S, or "Change server…" in the title bar menu, returns to the address
+page.
+
 Uninstall keeps local settings by default; uncheck the keep-data box to remove
-the app-owned `%LOCALAPPDATA%\StickTalk` directory. Silent uninstall supports
-`/PURGE=1`; saved Windows credentials are separate (remove StickTalk entries
-in Credential Manager if retiring the account/device). Setup never starts the
-app or enables startup automatically.
+the app-owned `%LOCALAPPDATA%\StickTalk` directory, which includes the WebView
+profile and its sign-in. Silent uninstall supports `/PURGE=1`. Sign-ins saved
+by 0.1.2 and earlier are separate (remove StickTalk entries in Credential
+Manager if retiring the account/device). Setup never starts the app or enables
+startup automatically.
 
 ## Releases without a server or signing key (GitHub Releases)
 
@@ -26,15 +40,15 @@ over the old one; settings and sign-ins are kept.
 ```powershell
 # Fresh shell: no STICKTALK_UPDATE_* variables set. Bump the Cargo version first.
 ./deploy/windows/build-installer.ps1 -Version 0.1.1 -ManualUpdates
-./tools/release/test-installer.ps1 -Installer "$env:USERPROFILE/.cargo-target/sticktalk-release-eng-out/StickTalk-Setup-0.1.1.exe" -Client "$env:CARGO_TARGET_DIR/release/sticktalk.exe"
+./tools/release/test-installer.ps1 -Installer "$env:USERPROFILE/.cargo-target/sticktalk-release-eng-out/StickTalk-Setup-0.1.1.exe" -Client "$env:CARGO_TARGET_DIR/release/sticktalk-desktop.exe"
 git tag -a v0.1.1 -m 'StickTalk 0.1.1' && git push origin v0.1.1
 gh release create v0.1.1 --title 'StickTalk 0.1.1' --notes-file notes.md `
   "$env:USERPROFILE/.cargo-target/sticktalk-release-eng-out/StickTalk-Setup-0.1.1.exe" SHA256SUMS.txt
 ```
 
-Installed manual-update builds never learn about later releases on their own.
-When you do adopt signed updates (sections 2-5), friends install that first
-signed build by hand once; after that it updates itself.
+Installed builds never learn about later releases on their own: the WebView
+app has no in-app updater (see "Update behavior / recovery"). The web app
+inside it needs no updating, because it is served by the server.
 
 ## 1. One-time prerequisites
 
@@ -94,17 +108,15 @@ $env:STICKTALK_UPDATE_ORIGIN = 'https://chat.your-domain.example'
 ./deploy/windows/build-installer.ps1 -Version 0.1.1
 ```
 
-For Google sign-in, also set `STICKTALK_GOOGLE_CLIENT_ID` and
-`STICKTALK_GOOGLE_CLIENT_SECRET` in this shell to the Desktop OAuth credentials
-configured for the server (see `docs/GOOGLE_LOGIN.md`). Never put the secret in
-git or scripts. Both must be present, and the client ID must match the server's
-capability response. Without them, password login/register still work and Google
-is hidden; the engineering test build deliberately contains no real credentials.
-The local mock OAuth/PKCE/state tests require no real Google account or browser.
+Google sign-in needs nothing in the build: the app uses the server's browser
+sign-in (see `docs/GOOGLE_LOGIN.md`), so it is available whenever the server
+offers it. `STICKTALK_GOOGLE_CLIENT_ID` / `STICKTALK_GOOGLE_CLIENT_SECRET` were
+compiled into the 0.1.x native client only; the script still insists on both
+or neither, and the app ignores them.
 
-These are compiled in. The update origin stays pinned even when someone changes
-chat servers. The public key is compiled into **both** client and maintenance
-helper; missing/invalid keys disable updates rather than trusting a server key.
+`STICKTALK_DEFAULT_SERVER` is compiled into the app as the address used until
+someone picks another. The public key is compiled into the maintenance helper
+and the release tool; the app itself has no updater and no update origin.
 The script rejects a version that differs from Cargo. `-SkipBuild` is only for
 repackaging already-validated binaries; it does not embed changed environment
 values. `-TestFixture` is solely for local test installers, never publishing.
@@ -123,16 +135,27 @@ Neither installer nor app requests elevation.
 
 Close StickTalk. The smoke test refuses to overwrite existing registrations.
 It installs into a temporary prefix, checks shortcuts, AUMIDs, registry metadata,
-protocol quoting and executable hashes, then uninstalls.
+protocol quoting and executable hashes, starts the installed app hidden
+(`--smoke`, built-in page only: no window, no network), then uninstalls.
 
 ```powershell
 ./tools/release/test-installer.ps1 `
   -Installer "$env:USERPROFILE/.cargo-target/sticktalk-release-eng-out/StickTalk-Setup-0.1.1.exe" `
-  -Client "$env:CARGO_TARGET_DIR/release/sticktalk.exe"
-cargo test --release -p sticktalk -p sticktalk-desktop-platform
-cargo clippy --release -p sticktalk -p sticktalk-desktop-platform --all-targets -- -D warnings
+  -Client "$env:CARGO_TARGET_DIR/release/sticktalk-desktop.exe"
+cargo test --release -p sticktalk-desktop -p sticktalk-desktop-platform
+cargo clippy --release -p sticktalk-desktop -p sticktalk-desktop-platform --all-targets -- -D warnings
 cargo fmt --all -- --check
+# Hidden load of a real server through the built app (prints one line of JSON):
+& "$env:CARGO_TARGET_DIR/release/sticktalk-desktop.exe" --smoke 'https://chat.your-domain.example/' | Write-Output
 ```
+
+Never start the app without `--smoke` on a PC someone is using; see
+`crates/desktop/README.md` for what `--smoke` can check.
+
+The rest of this section and section 5 concern the **0.1.x native client's
+updater** (`crates/client`, still in the tree but no longer packaged). Its
+`-RealClient` test needs that client built separately
+(`cargo build --release -p sticktalk`).
 
 `deploy/windows/test-update.ps1` additionally exercises signed **0.0.1 → 0.0.2**
 fixture installers, HTTP Range resume, apply/healthy restart, a bad-startup rollback,
@@ -173,6 +196,22 @@ version, and test using a previously installed client.
 
 ## Update behavior / recovery
 
+**The WebView app does not update itself.** It makes no update checks and has
+no "Update ready" prompt; people get a newer app by running a newer
+`StickTalk-Setup-*.exe` over the old one (settings, sign-in and window position
+are kept). This matters less than it did: everything inside the window is the
+server's web app and changes when the server is updated.
+
+Signing and publishing (sections 2 and 5) still work and still feed the
+server's update endpoint, which only installed **0.1.x native clients built
+with an update key** read. Such a client can update itself to a WebView build:
+the new app reports a healthy start to the maintenance helper after its first
+page loads, so the update is kept rather than rolled back. From then on that
+installation updates by hand like every other. The published 0.1.1 and 0.1.2
+installers were manual-update builds and never had an updater.
+
+What follows describes that 0.1.x updater:
+
 - One immediate startup check (including the login screen), then one six-hour
   Tokio timer on the existing runtime. No busy-loop or idle background worker.
 - Download streams/resumes in `%LOCALAPPDATA%\StickTalk\Updates`; the signature,
@@ -202,6 +241,8 @@ version, and test using a previously installed client.
   available monitor on restore. Startup-in-tray and autostart are opt-in in
   Settings → Advanced. Second launch and protocol links open the existing window,
   including while signed out. Invite links are retained until login.
+  (The WebView app keeps the saved geometry and the single window; it has no
+  tray icon, and an autostart entry left by 0.1.x starts it minimized.)
 
 A failing installer that deletes the installation directory entirely or a disk
 failure may require rerunning a previously downloaded installer. Keep your last
