@@ -15,6 +15,27 @@ the app-owned `%LOCALAPPDATA%\StickTalk` directory. Silent uninstall supports
 in Credential Manager if retiring the account/device). Setup never starts the
 app or enables startup automatically.
 
+## Releases without a server or signing key (GitHub Releases)
+
+Until there is a long-lived server to pin and a signing key, publish
+**manual-update** builds: no compiled-in server (first run asks for the
+address of whichever StickTalk server someone hosts, see `deploy/SELF_HOST.md`)
+and no updater. People update by installing the newer `StickTalk-Setup-*.exe`
+over the old one; settings and sign-ins are kept.
+
+```powershell
+# Fresh shell: no STICKTALK_UPDATE_* variables set. Bump the Cargo version first.
+./deploy/windows/build-installer.ps1 -Version 0.1.1 -ManualUpdates
+./tools/release/test-installer.ps1 -Installer "$env:USERPROFILE/.cargo-target/sticktalk-release-eng-out/StickTalk-Setup-0.1.1.exe" -Client "$env:CARGO_TARGET_DIR/release/sticktalk.exe"
+git tag -a v0.1.1 -m 'StickTalk 0.1.1' && git push origin v0.1.1
+gh release create v0.1.1 --title 'StickTalk 0.1.1' --notes-file notes.md `
+  "$env:USERPROFILE/.cargo-target/sticktalk-release-eng-out/StickTalk-Setup-0.1.1.exe" SHA256SUMS.txt
+```
+
+Installed manual-update builds never learn about later releases on their own.
+When you do adopt signed updates (sections 2-5), friends install that first
+signed build by hand once; after that it updates itself.
+
 ## 1. One-time prerequisites
 
 Use normal, non-administrator PowerShell. Rust stable and the existing MSVC/

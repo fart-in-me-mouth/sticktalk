@@ -7,6 +7,9 @@ param(
     [string]$MakeNsis,
     [string]$RuntimeDir,
     [switch]$SkipBuild,
+    # No compiled-in server or update key: people type their own server's address
+    # and update by installing a newer release (e.g. from GitHub Releases).
+    [switch]$ManualUpdates,
     # Only for local installer/update fixtures; never used by the publishing script.
     [switch]$TestFixture
 )
@@ -24,15 +27,25 @@ try {
     if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw 'Version must be a SemVer.' }
     if (!$TestFixture -and $Version -ne $actual) { throw "Cargo version is $actual, not $Version. Bump the workspace version first." }
     if (!$SkipBuild) {
-        if (!$env:STICKTALK_UPDATE_PUBLIC_KEY) { throw 'Set STICKTALK_UPDATE_PUBLIC_KEY before building. See deploy/RELEASING.md.' }
-        if (!$env:STICKTALK_DEFAULT_SERVER) { throw 'Set STICKTALK_DEFAULT_SERVER before building.' }
-        if ($env:STICKTALK_UPDATE_PUBLIC_KEY -notmatch '^[A-Za-z0-9+/]{43}=$' -or [Convert]::FromBase64String($env:STICKTALK_UPDATE_PUBLIC_KEY).Length -ne 32) { throw 'Update public key must be exactly 32 bytes in base64.' }
+        if ($ManualUpdates) {
+            if ($env:STICKTALK_UPDATE_PUBLIC_KEY -or $env:STICKTALK_UPDATE_ORIGIN) { throw '-ManualUpdates builds have no updater: unset STICKTALK_UPDATE_PUBLIC_KEY and STICKTALK_UPDATE_ORIGIN.' }
+        } else {
+            if (!$env:STICKTALK_UPDATE_PUBLIC_KEY) { throw 'Set STICKTALK_UPDATE_PUBLIC_KEY before building (or pass -ManualUpdates). See deploy/RELEASING.md.' }
+            if (!$env:STICKTALK_DEFAULT_SERVER) { throw 'Set STICKTALK_DEFAULT_SERVER before building (or pass -ManualUpdates).' }
+            if ($env:STICKTALK_UPDATE_PUBLIC_KEY -notmatch '^[A-Za-z0-9+/]{43}=$' -or [Convert]::FromBase64String($env:STICKTALK_UPDATE_PUBLIC_KEY).Length -ne 32) { throw 'Update public key must be exactly 32 bytes in base64.' }
+            if (!$env:STICKTALK_UPDATE_ORIGIN) { $env:STICKTALK_UPDATE_ORIGIN = $env:STICKTALK_DEFAULT_SERVER }
+        }
         if ([bool]$env:STICKTALK_GOOGLE_CLIENT_ID -ne [bool]$env:STICKTALK_GOOGLE_CLIENT_SECRET) { throw 'Google sign-in needs both STICKTALK_GOOGLE_CLIENT_ID and STICKTALK_GOOGLE_CLIENT_SECRET in the build shell, or neither to disable it.' }
-        if (!$env:STICKTALK_UPDATE_ORIGIN) { $env:STICKTALK_UPDATE_ORIGIN = $env:STICKTALK_DEFAULT_SERVER }
-        foreach ($value in @($env:STICKTALK_DEFAULT_SERVER,$env:STICKTALK_UPDATE_ORIGIN)) {
+        foreach ($value in @($env:STICKTALK_DEFAULT_SERVER,$env:STICKTALK_UPDATE_ORIGIN) | Where-Object { $_ }) {
             $uri = $null
             if (![Uri]::TryCreate($value,[UriKind]::Absolute,[ref]$uri) -or $uri.AbsolutePath -ne '/' -or $uri.Query -or $uri.Fragment -or $uri.UserInfo) { throw 'Server/update origin must be an absolute origin, without path, credentials, query or fragment.' }
             if ($uri.Scheme -ne 'https' -and !($TestFixture -and $uri.Scheme -eq 'http' -and $uri.IsLoopback)) { throw 'Production release origins require HTTPS. Loopback HTTP requires -TestFixture.' }
+        }
+        # Keep the builder's profile path (their account name) out of shipped panic and
+        # assertion locations: Rust via rustc, bundled C/C++ via MSVC's file-name trim.
+        $env:CARGO_ENCODED_RUSTFLAGS = "--remap-path-prefix=$env:USERPROFILE=~"
+        if ($env:USERPROFILE -notmatch '\s') {
+            foreach ($name in 'CFLAGS','CXXFLAGS') { Set-Item "Env:$name" ("$((Get-Item "Env:$name" -ErrorAction SilentlyContinue).Value) /d1trimfile:$env:USERPROFILE".Trim()) }
         }
         & cargo build --locked --release -p sticktalk --bin sticktalk -p sticktalk-desktop-platform --bin sticktalk-maintenance --bin sticktalk-package
         CheckExit 'Release build'
