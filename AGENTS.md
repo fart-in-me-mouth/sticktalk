@@ -6,6 +6,16 @@ Project: StickTalk, a Discord-like chat app in Rust. Contracts:
 - `docs/PHASE2_REQUIREMENTS.md`
 - `docs/GOOGLE_LOGIN.md`
 
+## One UI: the web app
+- The owner decided (2026-11) that the Rust web app (`crates/web`, Leptos compiled
+  to WebAssembly) is the only interface. The Windows app (`crates/desktop`) is a
+  native window that loads it from the server. `crates/client` (iced) is retired:
+  it stays in the tree but is no longer packaged, so do not add features to it.
+- Web UI stack: Tailwind CSS + shadcn/ui design tokens and component classes +
+  UI SDK custom elements for behavior. Read the "UI stack" section of
+  `crates/web/README.md` first, and `node_modules/@ui-sdk/web/docs/llms.txt`
+  before using a UI SDK component. Colors still come from `docs/UI_SPEC.md`.
+
 ## The owner is using this PC while you work: never disturb them
 - **Never open visible windows on the owner's screen.** UI screenshots must be rendered **headlessly**: offscreen tiny-skia rendering of the iced view tree to PNG, with no OS window. Use the client's headless screenshot mode, `sticktalk --mock --screenshots <dir>`. If it doesn't exist yet, build it before taking any screenshots.
 - If a real OS window is unavoidable (testing OS integration, drag-and-drop or focus behavior):

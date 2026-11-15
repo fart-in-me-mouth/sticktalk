@@ -1,0 +1,558 @@
+/* StickTalk web client styles: Tailwind CSS + shadcn/ui design tokens.
+   Behaviors (dialogs, tooltips, menus, avatars) come from UI SDK custom elements,
+   whose own small layer must sit below everything here. */
+@layer ui-sdk;
+@import "tailwindcss" source(none);
+@source "../src/live";
+@source "../index.html";
+@source "../public/*.js";
+
+/* <768px, the phone layout. Same boundary as Tailwind's max-md. */
+@custom-variant phone (@media (max-width: 767px));
+/* Phones and touch screens get 44px targets. */
+@custom-variant touch {
+  @media (max-width: 767px), (pointer: coarse) {
+    @slot;
+  }
+}
+@custom-variant coarse (@media (pointer: coarse));
+/* Below this the member list becomes an overlay. */
+@custom-variant narrow (@media (max-width: 1100px));
+
+/* shadcn/ui theme, mapped onto the palette generated from docs/UI_SPEC.md
+   (ui-tokens-*.css: --bg-*, --text-*, --accent, --danger, ...). */
+@theme inline {
+  --color-background: var(--bg-chat);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--bg-sidebar);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--bg-elevated);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-foreground: var(--accent-text);
+  --color-secondary: var(--bg-selected);
+  --color-secondary-hover: #3a3a41;
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--bg-elevated);
+  --color-muted-foreground: var(--text-muted);
+  --color-subtle: var(--text-secondary);
+  --color-accent: var(--bg-hover);
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--danger);
+  --color-warning: var(--warning);
+  --color-border: var(--divider);
+  --color-input: #3a3a41;
+  --color-field: #121215;
+  --color-ring: var(--accent);
+  --color-rail: var(--bg-rail);
+  --color-sidebar: var(--bg-sidebar);
+  --color-sidebar-foreground: var(--text-secondary);
+  --color-sidebar-accent: var(--bg-hover);
+  --color-sidebar-accent-foreground: var(--text-primary);
+  --color-sidebar-border: var(--divider);
+  --color-panel: #141417;
+  --color-brand-avatar: #496c63;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@font-face {
+  font-family: Inter;
+  src: url("/public/fonts/Inter-Regular.woff2") format("woff2");
+  font-display: swap;
+  font-weight: 400;
+}
+@font-face {
+  font-family: Inter;
+  src: url("/public/fonts/Inter-Medium.woff2") format("woff2");
+  font-display: swap;
+  font-weight: 500;
+}
+@font-face {
+  font-family: Inter;
+  src: url("/public/fonts/Inter-SemiBold.woff2") format("woff2");
+  font-display: swap;
+  font-weight: 600 900;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/public/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --viewport-height: 100dvh;
+    --viewport-offset: 0px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --chat-font-size: 15px;
+    --header-height: 48px;
+    /* Lead-approved WCAG AA override of the UI_SPEC value. */
+    --text-muted: #a0a0aa;
+  }
+  @media (max-width: 767px) {
+    :root {
+      --chat-font-size: 16px;
+      --header-height: 56px;
+    }
+  }
+  * {
+    @apply border-border;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bg-selected) transparent;
+  }
+  html,
+  body,
+  #sticktalk {
+    @apply m-0 size-full overflow-hidden;
+  }
+  body {
+    @apply bg-rail font-sans text-[15px] leading-normal text-foreground antialiased;
+  }
+  button {
+    @apply touch-manipulation text-left;
+  }
+  button:not(:disabled),
+  label[for],
+  select:not(:disabled) {
+    @apply cursor-pointer;
+  }
+  button:disabled {
+    @apply cursor-default opacity-50;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+  a {
+    @apply text-primary underline-offset-4;
+  }
+  h1,
+  h2 {
+    @apply text-xl font-semibold;
+  }
+  h3 {
+    @apply text-base font-semibold;
+  }
+  small {
+    @apply block text-[13px] leading-normal text-muted-foreground;
+  }
+  time {
+    @apply text-muted-foreground;
+  }
+  /* shadcn Input / Textarea / NativeSelect. */
+  input:not([type="checkbox"], [type="file"], [type="hidden"], [type="color"], [type="radio"]),
+  textarea,
+  select {
+    @apply min-w-0 rounded-md border border-input bg-field px-3 py-2 text-sm text-foreground shadow-xs transition-[border-color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 touch:text-base;
+  }
+  input:not([type="checkbox"], [type="file"], [type="hidden"], [type="color"], [type="radio"]),
+  select {
+    @apply h-10 touch:h-auto touch:min-h-12;
+  }
+  input[type="color"] {
+    @apply h-10 w-full cursor-pointer rounded-md border border-input bg-field p-1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      scroll-behavior: auto !important;
+      transition: none !important;
+    }
+  }
+}
+
+@layer components {
+  /* ---- shadcn primitives, shared by the Rust views and the script-built
+     widgets (calls, image viewer, message menu) ---------------------------- */
+  .icon {
+    @apply size-5 flex-none fill-none stroke-current stroke-2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* Button */
+  .button {
+    @apply inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap no-underline transition-colors outline-none select-none touch:min-h-11 touch:text-[15px];
+  }
+  .button.primary {
+    @apply bg-primary text-primary-foreground shadow-xs hover:bg-primary-hover;
+  }
+  .button.secondary {
+    @apply bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary-hover;
+  }
+  .button.danger {
+    @apply bg-destructive text-primary-foreground shadow-xs hover:brightness-110;
+  }
+  .button.link-button {
+    @apply text-primary hover:underline;
+  }
+  .button.danger-text {
+    @apply text-destructive hover:bg-destructive/10;
+  }
+  .link-button {
+    @apply text-primary;
+  }
+  .danger-text {
+    @apply text-destructive;
+  }
+  /* Button, ghost icon size */
+  .icon-button {
+    @apply inline-flex size-8 flex-none items-center justify-center rounded-md text-subtle transition-colors hover:bg-accent hover:text-accent-foreground aria-pressed:bg-secondary aria-pressed:text-primary touch:size-11;
+  }
+  .icon-button.is-muted {
+    @apply text-destructive;
+  }
+  /* Field: Label + control */
+  .field {
+    @apply my-4 flex flex-col gap-2;
+  }
+  .field > label,
+  .field > span,
+  label.field {
+    @apply text-[13px] leading-normal font-medium text-subtle;
+  }
+  .field select,
+  .field > input,
+  .field > textarea {
+    @apply w-full;
+  }
+  .muted-copy {
+    @apply text-[13px] leading-normal text-muted-foreground;
+  }
+  /* Sidebar group label */
+  .category {
+    @apply text-xs font-semibold tracking-[0.5px] text-muted-foreground uppercase;
+  }
+  /* Separator */
+  .settings-divider {
+    @apply my-8 h-px shrink-0 bg-border;
+  }
+  /* Badge */
+  .live-unread {
+    @apply ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-destructive px-1 text-xs font-medium text-primary-foreground;
+  }
+  /* Avatar (ui-avatar) */
+  .avatar {
+    @apply relative inline-flex size-8 flex-none items-center justify-center overflow-hidden rounded-full bg-brand-avatar text-sm font-medium text-foreground select-none;
+  }
+  .avatar.large {
+    @apply size-20 text-[28px];
+  }
+  .avatar.message-avatar {
+    @apply size-10;
+  }
+  .avatar.settings-avatar {
+    @apply size-16 text-xl;
+  }
+  .avatar-face {
+    @apply grid size-full place-items-center rounded-[inherit] object-cover;
+  }
+  img.avatar-face {
+    @apply block;
+  }
+  /* Switch, on a native checkbox so forms keep reading .checked */
+  .live-checkbox {
+    @apply flex min-h-10 cursor-pointer items-center justify-between gap-4 py-2 text-sm touch:min-h-12 touch:py-3 touch:text-[15px] phone:gap-3;
+  }
+  .live-checkbox input[type="checkbox"] {
+    @apply relative h-6 w-10 flex-none cursor-pointer appearance-none rounded-full border border-transparent bg-input p-0 shadow-xs transition-colors outline-none checked:bg-primary focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default disabled:opacity-40;
+  }
+  .live-checkbox input[type="checkbox"]::after {
+    @apply absolute top-[3px] left-[3px] size-4 rounded-full bg-foreground transition-[left] content-[''];
+  }
+  .live-checkbox input[type="checkbox"]:checked::after {
+    @apply left-[19px] bg-primary-foreground;
+  }
+  /* Tooltip (ui-tooltip-content) */
+  .tooltip {
+    @apply z-50 w-fit rounded-md bg-foreground px-2.5 py-1 text-xs font-medium text-rail shadow-md transition-opacity duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0;
+  }
+  /* DropdownMenu (ui-menu-content) */
+  .menu {
+    @apply z-50 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg outline-none;
+  }
+  .menu-item {
+    @apply flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground touch:min-h-11;
+  }
+  .menu-item .icon {
+    @apply size-4 text-subtle;
+  }
+  .menu-item.danger-text .icon {
+    @apply text-destructive;
+  }
+  .menu-separator {
+    @apply -mx-1 my-1 h-px bg-border;
+  }
+  /* Dialog (ui-dialog-backdrop / ui-dialog-content) */
+  .modal-backdrop {
+    @apply fixed inset-0 z-[100] bg-black/60 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0;
+  }
+  .live-modal {
+    @apply fixed inset-0 z-[100] m-auto h-fit max-h-[calc(var(--viewport-height)-48px)] w-[min(560px,calc(100%-48px))] overflow-auto overscroll-contain rounded-xl border bg-popover p-8 text-popover-foreground shadow-lg outline-none;
+  }
+  .live-modal.profile-popout {
+    @apply w-[340px] max-w-[calc(100%-48px)] px-4 pt-0 pb-4;
+  }
+  .live-modal h2:not(.category) {
+    @apply mb-4 pr-6 text-lg leading-tight font-semibold;
+  }
+  .live-modal p {
+    @apply my-3;
+  }
+  .live-modal form > [type="submit"] {
+    @apply mt-2;
+  }
+  .live-modal-close {
+    @apply absolute top-2 right-2;
+  }
+  @media (max-width: 767px) {
+    .live-modal:not(.settings-page) {
+      @apply top-auto bottom-0 m-0 max-h-[calc(var(--viewport-height)-var(--safe-top)-16px)] w-full max-w-none rounded-t-xl rounded-b-none border-x-0 border-b-0 px-4 pt-6 pb-[calc(24px+var(--safe-bottom))];
+    }
+    .live-modal:not(.settings-page) form > [type="submit"] {
+      @apply min-h-12 w-full;
+    }
+    .live-modal.profile-popout {
+      @apply pt-0;
+    }
+  }
+  /* Full-window settings sheet: the same dialog, edge to edge. */
+  .live-modal.settings-page {
+    @apply top-(--viewport-offset) bottom-auto m-0 flex h-(--viewport-height) max-h-none w-full max-w-none overflow-hidden rounded-none border-0 bg-background p-0;
+  }
+  .settings-page h2:not(.category) {
+    @apply mb-0 pr-0;
+  }
+  .settings-page p {
+    @apply my-0;
+  }
+  .settings-content {
+    @apply mx-auto w-[min(100%,764px)] p-8 pb-[calc(32px+var(--safe-bottom))] has-[.profile-save-bar:not([hidden])]:pb-[calc(144px+var(--safe-bottom))] phone:px-4 phone:pt-6;
+  }
+  .settings-content h2 {
+    @apply text-xl font-semibold;
+  }
+  .settings-content > h2:first-child {
+    @apply mb-6 phone:hidden;
+  }
+  .settings-content > h2:not(:first-child) {
+    @apply mt-6 mb-2;
+  }
+  .settings-content h3 {
+    @apply mb-3 text-xs font-semibold tracking-[0.5px] text-muted-foreground uppercase;
+  }
+  .settings-content p + .button,
+  .push-explainer .button {
+    @apply mt-4;
+  }
+  .settings-content > .button + .button {
+    @apply ml-2;
+  }
+  .settings-content > .profile-banner {
+    @apply mb-6 rounded-lg;
+  }
+  .profile-banner {
+    @apply h-[105px] bg-brand-avatar;
+  }
+  .danger-zone h3 {
+    @apply text-destructive;
+  }
+  .danger-zone .button {
+    @apply pl-0;
+  }
+
+  /* ---- Message content ---------------------------------------------------- */
+  .markdown,
+  .appearance-preview {
+    font-size: var(--chat-font-size);
+  }
+  .markdown {
+    @apply wrap-anywhere;
+  }
+  .markdown p {
+    @apply m-0 leading-[1.375] whitespace-pre-wrap;
+  }
+  .markdown pre {
+    @apply max-w-full overflow-x-auto rounded-sm bg-rail p-3;
+  }
+  .markdown pre code {
+    @apply font-mono;
+  }
+  .markdown a {
+    @apply wrap-anywhere;
+  }
+  .markdown video {
+    @apply max-h-[400px] max-w-full rounded-lg;
+  }
+  [data-underline-links="true"] .markdown a {
+    @apply underline;
+  }
+  .mention {
+    @apply rounded-[3px] bg-primary/20 px-0.5 text-primary;
+  }
+  .live-spoiler {
+    @apply bg-rail text-transparent;
+  }
+  .live-spoiler > * {
+    @apply invisible;
+  }
+  .live-spoiler.revealed {
+    color: inherit;
+  }
+  .live-spoiler.revealed > * {
+    @apply visible;
+  }
+  /* Keep iOS selection/callout from stealing the phone message long-press. */
+  @media (pointer: coarse) {
+    .message .markdown,
+    .message .markdown *,
+    .attachment-image,
+    .live-viewer img {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+  }
+  /* Phones have no screen sharing, and hide mute/deafen in the user panel
+     until a call is connected. */
+  @media (max-width: 767px) {
+    [data-live="media:share"] {
+      @apply hidden!;
+    }
+    .channel-sidebar:has(#live-connected[hidden]) .user-panel [data-live="media:mute"],
+    .channel-sidebar:has(#live-connected[hidden]) .user-panel [data-live="media:deafen"] {
+      @apply hidden;
+    }
+  }
+
+  /* ---- Script-built widgets ------------------------------------------------ */
+  .jump-to-present {
+    @apply absolute bottom-[calc(100%+8px)] left-1/2 z-[15] -translate-x-1/2 whitespace-nowrap shadow-lg;
+  }
+  .offline-banner {
+    @apply fixed inset-x-0 top-[calc(var(--header-height)+var(--safe-top))] z-[80] bg-warning px-4 py-2 text-center text-[13px] text-primary-foreground;
+  }
+  body:has(.auth-page) .offline-banner {
+    @apply top-(--safe-top);
+  }
+  [data-offline="true"] .connection-banner {
+    @apply invisible;
+  }
+  .update-toast {
+    @apply fixed bottom-[max(16px,var(--safe-bottom))] left-1/2 z-[200] flex w-max max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-4 rounded-lg border bg-popover px-4 py-3 text-sm shadow-lg phone:bottom-[calc(96px+var(--safe-bottom))];
+  }
+  /* Calls */
+  .participant-grid {
+    @apply grid min-h-0 flex-1 grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] content-center gap-4 overflow-auto py-4 phone:grid-cols-[minmax(0,1fr)] phone:gap-2 phone:py-2;
+  }
+  .participant-grid.has-focus {
+    @apply grid-cols-[repeat(auto-fit,minmax(120px,1fr))] content-start;
+  }
+  .participant-grid.has-focus .is-focused {
+    @apply col-span-full row-start-1;
+  }
+  .participant-tile {
+    @apply relative flex aspect-video min-h-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-muted;
+  }
+  .participant-tile.is-speaking {
+    @apply ring-2 ring-primary ring-inset;
+  }
+  .participant-tile.is-speaking::after {
+    @apply pointer-events-none absolute inset-0 rounded-[inherit] border-2 border-primary content-[''];
+  }
+  .participant-tile[data-kind="screen"] {
+    @apply bg-black;
+  }
+  .participant-tile[data-kind="screen"].is-focused video {
+    @apply touch-none;
+  }
+  .participant-label {
+    @apply absolute bottom-2 left-2 z-[1] rounded-sm bg-rail/80 px-2 py-1 text-[13px] text-foreground;
+  }
+  .call-avatar {
+    @apply grid size-20 place-items-center rounded-full bg-brand-avatar text-[28px];
+  }
+  .call-video {
+    @apply absolute inset-0 size-full max-h-full object-cover;
+  }
+  .participant-tile[data-kind="screen"] .call-video {
+    @apply object-contain;
+  }
+  .call-mini-bar {
+    @apply fixed right-4 bottom-[calc(96px+var(--safe-bottom))] z-[60] flex w-[min(340px,calc(100vw-32px))] items-center gap-3 rounded-xl border bg-popover px-3 py-2 shadow-lg;
+  }
+  .call-mini-bar > button:first-child {
+    @apply flex min-h-12 flex-1 items-center gap-3 text-[15px] text-primary;
+  }
+  .call-mini-bar .icon-button {
+    @apply size-12 rounded-full;
+  }
+  .call-mini-bar [data-live="media:leave"] {
+    @apply text-destructive;
+  }
+  .live-share-options {
+    @apply m-auto rounded-xl border bg-popover p-6 text-popover-foreground shadow-lg backdrop:bg-black/60;
+  }
+  .live-share-options select,
+  .live-share-options button {
+    @apply m-2;
+  }
+  /* Image viewer */
+  .live-viewer {
+    /* Also a manual popover (top layer): undo the popover box defaults. */
+    @apply fixed inset-0 z-[300] m-0 flex size-full max-h-none max-w-none items-center justify-center overflow-hidden border-0 bg-black/85 p-0 text-foreground;
+  }
+  .live-viewer > img {
+    @apply max-h-[calc(100vh-144px)] max-w-[calc(100vw-96px)] cursor-grab touch-none object-contain select-none active:cursor-grabbing phone:max-h-[calc(var(--viewport-height)-144px)];
+  }
+  .live-viewer-toolbar {
+    @apply absolute top-[max(16px,var(--safe-top))] right-4 z-[1] flex gap-2 rounded-lg bg-popover p-1 phone:right-2 phone:left-auto phone:max-w-[calc(100vw-16px)] phone:gap-0;
+  }
+  .live-viewer-toolbar .icon-button {
+    @apply size-9 text-subtle no-underline touch:size-11;
+  }
+  .live-viewer-toolbar .zoom-reset {
+    @apply min-w-12 text-center text-[13px];
+  }
+  .live-viewer footer {
+    @apply absolute bottom-[max(24px,var(--safe-bottom))] flex max-w-[calc(100%-32px)] flex-wrap justify-center gap-3 text-[13px] text-muted-foreground;
+  }
+  .live-viewer footer a {
+    @apply text-muted-foreground underline;
+  }
+  .viewer-loading {
+    @apply blur-sm;
+  }
+  /* Message actions sheet (native <dialog>) */
+  .message-menu {
+    @apply fixed inset-x-0 top-auto bottom-4 m-auto max-h-[calc(var(--viewport-height)-48px)] w-[min(400px,calc(100vw-32px))] overflow-y-auto rounded-xl border bg-popover px-4 pt-2 pb-6 text-popover-foreground shadow-lg outline-none backdrop:bg-black/60 phone:bottom-0 phone:w-full phone:max-w-none phone:rounded-b-none phone:pb-[max(16px,var(--safe-bottom))];
+  }
+  .message-menu h2 {
+    @apply mx-3 mt-4 mb-2 text-xs font-semibold tracking-[0.5px] text-subtle uppercase;
+  }
+  .message-menu .button {
+    @apply mt-1 flex min-h-11 w-full;
+  }
+  .message-menu .message-menu-action {
+    @apply min-h-[52px] justify-start gap-4 p-3 text-base font-medium hover:bg-accent;
+  }
+  .sheet-handle {
+    @apply mx-auto mt-1 mb-4 h-1 w-10 touch-none rounded-sm bg-muted-foreground;
+  }
+  .quick-reactions {
+    @apply grid grid-cols-6 gap-1 border-b pb-4;
+  }
+  .quick-reactions button {
+    @apply grid min-h-12 min-w-11 place-items-center rounded-lg bg-accent text-2xl hover:bg-secondary;
+  }
+}

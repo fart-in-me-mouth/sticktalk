@@ -1,4 +1,5 @@
 // Browser-only DOM host. No protocol objects, credentials, or message data live here.
+import '/public/ui.js';
 import {loadPreferences, applyPreferences, setPreference} from './preferences.js';
 import {swipeAction, installOverlayHistory, syncOverlayHistory} from './navigation.js';
 const emit = (action) =>
@@ -606,21 +607,6 @@ export function installPlatform() {
     if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
       e.preventDefault();
       mediaAction("deafen");
-    }
-    const modal = $(".live-modal");
-    if (modal && e.key === "Tab") {
-      const items = [
-        ...modal.querySelectorAll("button,input,textarea,select,a[href]"),
-      ].filter((e) => e.getClientRects().length && !e.disabled);
-      const first = items[0],
-        last = items.at(-1);
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last?.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first?.focus();
-      }
     }
   });
   document.addEventListener(

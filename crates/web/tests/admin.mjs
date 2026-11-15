@@ -62,6 +62,8 @@ try {
   await act(owner,'dialog:ban');await owner.locator('[data-live-form=ban] #f-name').selectOption(guestId);
   await owner.locator('#f-value').fill('Synthetic QA moderation');await owner.locator('[type=submit]').click();
   await guest.waitForFunction(()=>!document.querySelector('.server-icon.selected'));
+  // The owner's own command response closes the Ban dialog; open Bans after it.
+  await owner.waitForFunction(()=>!document.querySelector('.live-modal'));
   await act(owner,'dialog:server-bans');await owner.waitForSelector('[data-live^="dialog:unban:"]');
   screenshots.push(await shot(owner,'bans-populated'));
   await owner.locator('[data-live^="dialog:unban:"]').click();await owner.locator('[type=submit]').click();

@@ -5,6 +5,38 @@ model. The default build connects to the real same-origin StickTalk server.
 **This is a working live-client foundation, not completion of every launch flow.**
 See [live QA and remaining work](screenshots/live/REPORT.md).
 
+## UI stack
+
+The web app is the only StickTalk interface: the Windows app (`crates/desktop`)
+is a native window that loads this same app from the server.
+
+- **Tailwind CSS 4** builds the one stylesheet from `styles/app.css`. Layout is
+  utility classes written in the Rust views (`src/live/ui.rs`, `ui/settings.rs`),
+  `index.html` and `public/*.js`; `scripts/styles.mjs` runs the Tailwind CLI and
+  the packager fingerprints the result as `app-<hash>.css`.
+- **shadcn/ui** supplies the design system, not React code: its theme tokens
+  (`background`, `card`, `popover`, `primary`, `muted`, `accent`, `destructive`,
+  `border`, `input`, `ring`, `sidebar`) are mapped in `styles/app.css` onto the
+  palette generated from `docs/UI_SPEC.md`, and its component recipes (Button,
+  Input, Label, Card, Badge, Avatar, Switch, Separator, Dialog, DropdownMenu,
+  Tooltip) are the component classes there (`button primary`, `icon-button`,
+  `field`, `live-checkbox`, `live-modal`, `menu`, `tooltip`, ...).
+- **UI SDK** (`@ui-sdk/web`, https://github.com/vercel-labs/ui) supplies behavior
+  as unstyled custom elements: `<ui-dialog>` (top layer, focus trap, inert page,
+  dismissal), `<ui-menu>` (the server menu), `<ui-tooltip>` and `<ui-avatar>`
+  (initials until the image loads). `public/ui.js` registers them and turns
+  their events into app actions; the packager copies only the SDK modules it
+  imports to `public/ui-sdk/<version>/`. Before using another SDK component read
+  `node_modules/@ui-sdk/web/docs/llms.txt`. The SDK is a beta: its version is
+  pinned exactly in `package.json`.
+- Semantic class names (`message`, `live-modal`, `channel-row`, ...) are kept as
+  unstyled hooks for `public/*.js` and the browser tests. App state decides
+  state-dependent classes in Rust; only script-toggled states are CSS variants.
+- `tests/ui-kit.mjs` covers the stack in a real browser: stylesheet, dialog,
+  menu, tooltip, avatar fallback, nested channels, centering, phone sheet, CSP.
+- Not converted: the screenshot fixtures behind `--features mock`
+  (`src/views`, `style.css`), which still show the previous design.
+
 ## Runtime boundary
 
 - `src/live/`: cookie session recovery/login/register/Google completion; one binary
@@ -54,7 +86,7 @@ the saved role swatch stays exact. Call tiles have no presence dots, speaking us
 an accent ring, controls sit at the bottom, and the sidebar has camera/share/leave.
 Phone conversations have no bottom tabs and retain the header's # icon.
 
-Fonts preload and use font-display: swap. Production critical CSS is `live.css`;
+Fonts preload and use font-display: swap. Production CSS is the Tailwind build of `styles/app.css`;
 the much larger fixture stylesheet and media/push modules are not on the login
 critical path. Settings/server-admin/roles/pickers, autocomplete and call/signaling code are now
 Leptos 0.8 `#[lazy]` split modules. The image viewer, direct GIF provider, media

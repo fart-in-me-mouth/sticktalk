@@ -181,6 +181,8 @@ try {
       const db=new DatabaseSync(join(h.data,dbfile));
       db.exec('PRAGMA busy_timeout=10000; BEGIN IMMEDIATE');
       const insert=db.prepare('INSERT INTO messages(id,channel_id,author_id,content,created_at) VALUES(?,?,?,?,?)');
+      // Snowflake row IDs exceed 2^53: have run() report them as BigInt.
+      insert.setReadBigInts(true);
       const user=await page.locator('[data-self-id]').getAttribute('data-self-id');
       const now=Date.now(), base=(BigInt(now)-1735689600000n-100000n)<<22n;
       for(let i=0;i<10000;i++)insert.run(base+BigInt(i)*4096n,BigInt(historyChannel),BigInt(user),`History message ${i}: bounded mobile scrolling and pagination.`,now-10000000+i*1000);
@@ -212,8 +214,8 @@ try {
         }requestAnimationFrame(frame);
       }));
       assert(frames.maxRows<=50);
-      await act(page,'seek:9950');
-      await page.waitForFunction(()=>document.querySelector('#live-messages')?.dataset.windowEnd==='10000');
+      // A seek is ignored while a scroll-triggered page is still loading: ask again until it lands.
+      await until(async()=>{await act(page,'seek:9950');await wait(300);return page.evaluate(()=>document.querySelector('#live-messages')?.dataset.windowEnd==='10000');});
       screenshots.push(await shot(page,'history-10000'));
       await writeFile(`${output}/scroll-performance.json`,JSON.stringify({fixture:'10000 synthetic DB rows; real server reads',viewport:{width,height},...frames},null,2));
       checks.push('10000-row real history extent/seek, bounded 50 DOM rows, rAF scroll measurement');

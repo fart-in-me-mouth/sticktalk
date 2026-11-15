@@ -10,9 +10,10 @@ const inventory=JSON.parse(await readFile(join(dist,'sizes.json'),'utf8'));
 const core=inventory.assets.find(a=>a.file.endsWith('_bg.wasm'));
 const chunks=inventory.assets.filter(a=>a.file.endsWith('.wasm')&&a!==core);
 assert(core && chunks.length>=2, 'production must contain a core and actual lazy WASM chunks');
-assert(core.brotli<=450000, `core WASM exceeds 450 KB Brotli: ${core.brotli} B`);
+// 475 KB: the views carry their Tailwind utility classes and UI SDK elements.
+assert(core.brotli<=475000, `core WASM exceeds 475 KB Brotli: ${core.brotli} B`);
 const runtime=inventory.assets.filter(a=>/^public\/runtime\/[a-f0-9]{20}\/.*\.js$/.test(a.file));
-assert.equal(runtime.length,8,'all runtime JS modules are release-fingerprinted');
+assert.equal(runtime.length,9,'all runtime JS modules are release-fingerprinted');
 const alias=await readFile(join(dist,'public/media.js'),'utf8');
 assert.match(alias,/export \* from '\.\/runtime\/[a-f0-9]{20}\/media\.js'/);
 const liveRuntime=runtime.find(a=>a.file.endsWith('/live.js'));
@@ -23,7 +24,7 @@ assert.notEqual(core.file.split('/')[1],core.file.match(/sticktalk-web-([a-f0-9]
   'package loader URL fingerprints the host graph, not only the unchanged WASM');
 const graphFixture=await mkdtemp(join(resolve(process.env.CARGO_TARGET_DIR),'graph-unit-'));
 try {
-  for(const name of ['gifs','live','media','message-menu','navigation','preferences','push','viewer'])
+  for(const name of ['gifs','live','media','message-menu','navigation','preferences','push','ui','viewer'])
     await writeFile(join(graphFixture,name+'.js'),`export const fixture='${name}';`);
   const wasm=Buffer.from('unchanged core');
   const first=await hostGraphFingerprint(wasm,graphFixture);

@@ -94,6 +94,8 @@ export function openViewer(target) {
   const link = document.createElement('a'); link.href = target.dataset.viewImage; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Open original';
   const status = document.createElement('span'); status.setAttribute('role', 'status'); status.textContent = 'Loading original…';
   footer.append(label, link, status); root.append(toolbar, image, footer); document.body.append(root);
+  // Dialogs live in the browser's top layer; join it so the viewer opens above one.
+  try { root.popover = 'manual'; root.showPopover(); } catch {}
   dispatchEvent(new Event('sticktalk-surfaces-changed'));
   toolbar.querySelector('button').focus();
   root.onclick = (e) => { if (e.target === root) closeViewer(); };

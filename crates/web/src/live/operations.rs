@@ -1266,7 +1266,8 @@ fn submit(app: Shared, form: String, submission: Submission) {
                 ChannelKind::Text
             },
             name,
-            parent_id: id(&text),
+            // Categories are never nested; text and voice channels may sit in one.
+            parent_id: if extra == "category" { None } else { id(&text) },
             topic: None,
         }),
         "invite" => guild.map(|guild_id| Command::CreateInvite {
@@ -1541,6 +1542,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     }
                     a.dialog.clear();
                     a.touch();
+                    // A category holds channels; it has no messages to open.
+                    if c.summary.kind == ChannelKind::Category {
+                        return;
+                    }
                     drop(a);
                     load_channel(app, id, None);
                     return;
