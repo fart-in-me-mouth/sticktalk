@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>StickTalk</title>
+  <link rel="stylesheet" href="shell.css">
+  <script src="shell.js" defer></script>
+</head>
+<body>
+  <main class="card">
+    <div class="brand"><img src="icon.png" alt="" width="32" height="32"><span>StickTalk</span></div>
+    <h1 id="title">Connect to your server</h1>
+    <p id="subtitle" class="subtitle">Enter the address of your StickTalk server.</p>
+    <form id="form" novalidate>
+      <label for="address">Server address</label>
+      <input id="address" name="address" type="text" inputmode="url" autocomplete="off" autocapitalize="off"
+        spellcheck="false" maxlength="2048" placeholder="https://chat.example.com" aria-describedby="hint error">
+      <p id="error" class="error" role="alert" hidden></p>
+      <p id="hint" class="hint">Whoever runs the server can tell you its address.</p>
+      <button id="submit" type="submit" disabled>Connect</button>
+    </form>
+  </main>
+  <p id="version" class="version"></p>
+</body>
+</html>

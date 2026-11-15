@@ -1,0 +1,30 @@
+[package]
+name = "sticktalk-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "StickTalk for Windows: the server's web app in a native WebView2 window"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+url = "2"
+# Single instance, sticktalk:// parsing and the app's AUMID are shared with the
+# installer helper. No UI toolkit, no media stack.
+sticktalk-desktop-platform = { path = "../desktop-platform" }
+
+[target.'cfg(windows)'.dependencies]
+tao = { version = "0.37", default-features = false, features = ["rwh_06"] }
+# Without wry's drag-drop hook, WebView2's own HTML drag and drop handles uploads.
+wry = { version = "0.57", default-features = false, features = ["os-webview"] }
+# Must stay the versions wry itself uses: the raw WebView2 hooks share its COM types.
+webview2-com = "0.39"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_HiDpi", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+# Only drives the single-instance pipe, which desktop-platform exposes as async.
+tokio = { workspace = true }
+# The address check uses Windows' own TLS and certificate store, like the WebView.
+ureq = { version = "3", default-features = false, features = ["native-tls-no-default"] }
+getrandom = "0.3"
+
+[build-dependencies]
+winresource = "0.1"
