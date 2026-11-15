@@ -1,7 +1,7 @@
 [workspace]
-members = ["crates/proto", "crates/server", "crates/client", "crates/client-core", "crates/media", "crates/sfu", "crates/desktop-platform", "crates/emoji", "crates/web"]
+members = ["crates/proto", "crates/server", "crates/client", "crates/client-core", "crates/media", "crates/sfu", "crates/desktop-platform", "crates/emoji", "crates/web", "crates/desktop"]
 # Keep default workspace commands focused on first-party targets on Windows.
-default-members = ["crates/proto", "crates/server", "crates/client", "crates/client-core", "crates/media", "crates/sfu", "crates/desktop-platform", "crates/emoji", "crates/web"]
+default-members = ["crates/proto", "crates/server", "crates/client", "crates/client-core", "crates/media", "crates/sfu", "crates/desktop-platform", "crates/emoji", "crates/web", "crates/desktop"]
 resolver = "2"
 # Vendored dependencies are not first-party workspace test/example targets.
 exclude = ["crates/server/vendor/tract-nnef", "crates/server/vendor/sqlx-sqlite", "crates/server/vendor/cryoglyph", "crates/media/vendor/neteq", "crates/media/vendor/webrtc-audio-processing", "crates/media/vendor/webrtc-audio-processing-sys"]
