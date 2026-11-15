@@ -22,7 +22,8 @@ Push-Location $repo
 try {
     $metadata = & cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
     CheckExit 'Cargo metadata'
-    $actual = ($metadata.packages | Where-Object name -eq 'sticktalk').version
+    # The desktop app is the WebView shell (crates/desktop), installed as sticktalk.exe.
+    $actual = ($metadata.packages | Where-Object name -eq 'sticktalk-desktop').version
     if (!$Version) { $Version = $actual }
     if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw 'Version must be a SemVer.' }
     if (!$TestFixture -and $Version -ne $actual) { throw "Cargo version is $actual, not $Version. Bump the workspace version first." }
@@ -47,7 +48,7 @@ try {
         if ($env:USERPROFILE -notmatch '\s') {
             foreach ($name in 'CFLAGS','CXXFLAGS') { Set-Item "Env:$name" ("$((Get-Item "Env:$name" -ErrorAction SilentlyContinue).Value) /d1trimfile:$env:USERPROFILE".Trim()) }
         }
-        & cargo build --locked --release -p sticktalk --bin sticktalk -p sticktalk-desktop-platform --bin sticktalk-maintenance --bin sticktalk-package
+        & cargo build --locked --release -p sticktalk-desktop --bin sticktalk-desktop -p sticktalk-desktop-platform --bin sticktalk-maintenance --bin sticktalk-package
         CheckExit 'Release build'
     }
     if (!$MakeNsis) {
@@ -91,7 +92,22 @@ try {
     New-Item -ItemType Directory -Force -Path $Output | Out-Null
     $installer = Join-Path (Resolve-Path -LiteralPath $Output).Path "StickTalk-Setup-$Version.exe"
     $release = Join-Path $env:CARGO_TARGET_DIR 'release'
-    & $MakeNsis "/DCLIENT=$release\sticktalk.exe" "/DMAINTENANCE=$release\sticktalk-maintenance.exe" "/DOUTPUT=$installer" "/DVERSION=$Version" "/DCRT=$RuntimeDir" "$repo/tools/release/installer.nsi"
+    $client = Join-Path $release 'sticktalk-desktop.exe'
+    foreach ($binary in @($client, (Join-Path $release 'sticktalk-maintenance.exe'))) {
+        if (!(Test-Path -LiteralPath $binary)) { throw "Missing $binary. Build without -SkipBuild first." }
+    }
+    # The remap flags above must have kept the builder's profile path out of the app.
+    $profileName = Split-Path -Leaf $env:USERPROFILE
+    $bytes = [IO.File]::ReadAllBytes($client)
+    $latin1 = [Text.Encoding]::GetEncoding(28591).GetString($bytes)
+    foreach ($separator in '\', '/') {
+        $needle = "Users$separator$profileName"
+        $wide = [Text.Encoding]::GetEncoding(28591).GetString([Text.Encoding]::Unicode.GetBytes($needle))
+        if ($latin1.IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or $latin1.IndexOf($wide, [StringComparison]::Ordinal) -ge 0) {
+            throw "sticktalk-desktop.exe contains the builder's profile path ($needle). Rebuild with this script, not -SkipBuild."
+        }
+    }
+    & $MakeNsis "/DCLIENT=$client" "/DMAINTENANCE=$release\sticktalk-maintenance.exe" "/DOUTPUT=$installer" "/DVERSION=$Version" "/DCRT=$RuntimeDir" "$repo/tools/release/installer.nsi"
     CheckExit 'NSIS'
     Get-Item -LiteralPath $installer | Select-Object FullName, Length
 } finally { Pop-Location }

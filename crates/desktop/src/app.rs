@@ -415,6 +415,7 @@ pub fn run(launch: Launch) -> i32 {
     });
     let mut save_at: Option<Instant> = None;
     let mut last_external: Option<Instant> = None;
+    let mut started = false;
     let code = event_loop.run_return(|event, _, flow| {
         let now = Instant::now();
         match event {
@@ -460,6 +461,12 @@ pub fn run(launch: Launch) -> i32 {
                 return;
             }
             Event::UserEvent(UserEvent::Loaded(load)) => {
+                if load.ok && !started {
+                    started = true;
+                    // An installed 0.1.x client that updates itself to this
+                    // build rolls back unless the new app reports a working UI.
+                    sticktalk_desktop_platform::windows::update_install::acknowledge_startup();
+                }
                 let mut first = false;
                 if let Some(smoke) = &mut smoke {
                     eprintln!(

@@ -1,4 +1,5 @@
-# Silent, no-app-launch smoke test. Refuses to touch an existing installation.
+# Silent smoke test: no visible window, no browser. Refuses to touch an existing installation.
+# -Client is the built shell, e.g. $env:CARGO_TARGET_DIR/release/sticktalk-desktop.exe.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Installer,
@@ -33,6 +34,11 @@ try {
     Assert ($p.ExitCode -eq 0) "Silent install failed: $($p.ExitCode)"
     Assert ((Get-FileHash -LiteralPath (Join-Path $InstallDir 'sticktalk.exe')).Hash -eq (Get-FileHash -LiteralPath $Client).Hash) 'Installed client differs from built binary.'
     Assert (Test-Path -LiteralPath (Join-Path $InstallDir 'sticktalk-maintenance.exe')) 'Maintenance helper missing.'
+    # The installed app must start from its own folder (app-local runtime, WebView2
+    # present). --smoke keeps the window hidden, uses a throwaway profile and loads
+    # only the page built into the app: no network, no server, nothing on screen.
+    $smoke = (& (Join-Path $InstallDir 'sticktalk.exe') --smoke 'http://sticktalk-shell.localhost/' 2>$null | Out-String).Trim()
+    Assert ($LASTEXITCODE -eq 0 -and ($smoke | ConvertFrom-Json).ok) "Installed app did not start hidden: $smoke"
     foreach ($name in @('sticktalk.ico','vcruntime140.dll','vcruntime140_1.dll','msvcp140.dll')) {
         Assert (Test-Path -LiteralPath (Join-Path $InstallDir $name)) "App-local runtime/icon missing: $name"
     }
@@ -48,7 +54,7 @@ try {
     Assert (Test-Path -LiteralPath $aumidKey) 'AUMID registration missing.'
     Assert (Test-Path -LiteralPath $uninstallKey) 'Uninstall registration missing.'
     Assert (!(Get-ItemProperty -LiteralPath $runKey -Name StickTalk -ErrorAction SilentlyContinue)) 'Autostart was incorrectly enabled.'
-    Write-Output 'PASS silent install: client hash, helper, desktop/start shortcuts, both AUMIDs, protocol, uninstall entry, autostart off.'
+    Write-Output 'PASS silent install: client hash, hidden start, helper, desktop/start shortcuts, both AUMIDs, protocol, uninstall entry, autostart off.'
 } finally {
     if ($installed) {
         Copy-Item -LiteralPath (Join-Path $InstallDir 'Uninstall.exe') -Destination $uninstallCopy -Force
