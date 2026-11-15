@@ -24,11 +24,12 @@ It must stay **100% free** to host.
 | `crates/server` | axum + SQLite (sqlx, WAL). REST + WebSocket, auth, permissions, uploads, FTS5 search, blob storage (local or remote storage node), encrypted backups. |
 | `crates/sfu` | WebRTC SFU on str0m: voice, camera and screen-share forwarding, pacing, BWE, keyframe handling. |
 | `crates/client-core` | Platform-neutral client logic; compiles to native and wasm. |
-| `crates/client` | Windows desktop app. iced + wgpu, custom smooth-scroll engine (`src/scroll/`), modular `ui/`, headless screenshot mode (`--mock --screenshots <dir>`). |
-| `crates/media` | Windows media: WGC capture, Media Foundation hardware H.264 encode/decode, AEC3/AGC2, DeepFilterNet3 noise suppression, Opus, NetEQ. Vendored deps live in `vendor/`. |
+| `crates/desktop` | Windows desktop app since 2026-11: a thin native window (wry/tao, WebView2) that loads the web app from the server. Installed as `sticktalk.exe`. |
+| `crates/client` | **Retired** native desktop app (iced + wgpu). Still in the tree and buildable, but no longer packaged; the web app replaced it. |
+| `crates/media` | Used only by the retired native client. Windows media: WGC capture, Media Foundation hardware H.264 encode/decode, AEC3/AGC2, DeepFilterNet3 noise suppression, Opus, NetEQ. Vendored deps live in `vendor/`. |
 | `crates/desktop-platform` | Tray, autostart, single instance, window placement, updater/maintenance binaries, packaging. |
 | `crates/emoji` | Emoji tables and atlas. |
-| `crates/web` | Leptos CSR PWA for phones. |
+| `crates/web` | The one user interface: Leptos (Rust → WebAssembly) PWA, styled with Tailwind CSS and shadcn/ui components, behaviors from UI SDK. Served by the server; shown by browsers, phones and the desktop window. |
 
 ## Hosting plan (decided 2026-11-14: self-hosted; not yet running for real users)
 - **Self-hosted on the owner's own machine** (Windows PC first; Linux/Pi also supported), published with **Tailscale Funnel** at `https://<machine>.<tailnet>.ts.net` (port 443, 8443 or 10000, whichever is free). One command: `deploy/self-host/setup-windows.ps1` (per-user startup task, no admin) or `deploy/self-host/setup-linux.sh` (systemd). Guide: `deploy/SELF_HOST.md`.

@@ -210,7 +210,7 @@ fn shell(a: &App) -> AnyView {
             {if !a.status.is_empty(){view!{<div class="connection-banner bg-warning px-4 py-2 text-sm text-rail" role="status">{a.status.clone()}</div>}.into_any()}else{().into_any()}}
             {if a.screen=="voice"{a.voice_render.map_or_else(loading_call, |render|render(a))}else if channel.is_some(){chat(a,&title)}else{home(a)}}
         </main>
-        <aside class=format!("member-list w-60 flex-none touch-pan-y overflow-auto overscroll-contain bg-sidebar {}",if a.panel=="right"{"is-open narrow:absolute narrow:top-12 narrow:right-0 narrow:bottom-0 narrow:z-20 narrow:shadow-[-8px_0_24px_#0006] phone:top-[calc(var(--header-height)+var(--safe-top))] phone:z-30 phone:w-[min(300px,90vw)] phone:pb-(--safe-bottom)"}else{"narrow:hidden"}) aria-label="Members">{member_groups(a)}{button("Load More","members-more","link-button")}</aside>
+        <aside class=format!("member-list w-60 flex-none touch-pan-y overflow-auto overscroll-contain bg-sidebar {}",if a.panel=="right"{"is-open narrow:absolute narrow:top-12 narrow:right-0 narrow:bottom-0 narrow:z-20 narrow:shadow-[-8px_0_24px_#0006] phone:top-[calc(var(--header-height)+var(--safe-top))] phone:z-30 phone:w-[min(300px,90vw)] phone:pb-(--safe-bottom)"}else{"narrow:hidden"}) aria-label="Members">{member_groups(a)}{if a.guild.is_some(){button("Load More","members-more","link-button")}else{().into_any()}}</aside>
         {if channel.is_none(){view!{<nav class="bottom-tabs hidden phone:absolute phone:inset-x-0 phone:bottom-0 phone:flex phone:h-[calc(56px+var(--safe-bottom))] phone:justify-around phone:border-t phone:bg-sidebar phone:pb-(--safe-bottom)" aria-label="Main navigation">{button("Home","home","active text-primary")}{button("Notifications","dialog:notifications","text-subtle")}{button("You","dialog:settings","text-subtle")}</nav>}.into_any()}else{().into_any()}}
     </div>}.into_any()
 }
@@ -370,7 +370,7 @@ fn dialog(a: &App) -> AnyView {
         "group" if a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend).count()<2=>view!{<h2>"New Group Message"</h2><div class=SETTINGS_EMPTY>{icon("users")}<p>"Add at least two friends to start a group message."</p>{button("Add Friends","dialog:friend","primary")}</div>}.into_any(),
         "group"=>form("New Group Message","group",view!{{field("f-name","Group Name","","text")}<fieldset class="group-recipients my-4"><legend class="text-[13px] font-medium text-subtle">"Friends"</legend>{a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend).map(|r|view!{<label class="live-checkbox">{avatar(&r.user,"small")}<span class="mr-auto">{name(&r.user)}</span><input type="checkbox" data-group-user=r.user.id.0.to_string()/></label>}).collect_view()}</fieldset><input id="f-value" type="hidden"/><p class="muted-copy">"Choose 2 to 15 friends."</p>}.into_any()),
         "friend"=>form("Add Friend","friend",field("f-name","Username","","text")),
-        "create"=>view!{{form("Create a Server","create",field("f-name","Server Name","","text"))}<div class="mt-2">{button("Join a Server","dialog:join","link-button")}</div>}.into_any(),
+        "create"=>view!{{form("Create a Server","create",field("f-name","Server Name","","text"))}<div class="-mx-4 mt-2">{button("Join a Server","dialog:join","link-button")}</div>}.into_any(),
         "join"=>form("Join a Server","join",field("f-name","Invite Code","","text")),
         "channel"=>channel_form(a,"text",None),
         "category"=>channel_form(a,"category",None),
