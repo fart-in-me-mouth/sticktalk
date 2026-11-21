@@ -219,6 +219,16 @@
   .settings-search-empty {
     @apply px-3;
   }
+  .invite-preview {
+    @apply my-2 text-sm;
+  }
+  /* Kaomoji picker: text faces of very different widths, so they wrap. */
+  .kaomoji-grid {
+    @apply flex flex-wrap gap-2;
+  }
+  .kaomoji {
+    @apply min-h-10 rounded-md bg-muted px-3 py-1 text-center text-sm whitespace-nowrap text-foreground hover:bg-accent touch:min-h-11;
+  }
   .profile-actions .button {
     @apply flex-1;
   }
@@ -652,6 +662,26 @@
   }
   .mic-meter span {
     @apply block h-full w-0 rounded-full bg-primary;
+  }
+  .camera-test {
+    @apply aspect-video w-full max-w-[360px] rounded-lg bg-black object-cover;
+  }
+  /* Remote control: asked for from a stream's tile; framed while you have it. */
+  .tile-control {
+    @apply absolute top-2 left-1/2 z-[1] hidden min-h-8 -translate-x-1/2 px-3 py-1 text-xs;
+  }
+  .participant-tile.is-focused .tile-control,
+  .participant-tile.is-controlling .tile-control {
+    @apply inline-flex;
+  }
+  .participant-tile.is-controlling {
+    @apply outline-2 outline-offset-2 outline-warning;
+  }
+  .participant-tile.is-controlling .call-video {
+    @apply cursor-crosshair;
+  }
+  .control-banner {
+    @apply fixed top-[calc(var(--safe-top)+8px)] left-1/2 z-[250] flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-3 rounded-lg border border-warning bg-popover px-4 py-2 text-sm shadow-lg;
   }
   /* Image viewer */
   .live-viewer {

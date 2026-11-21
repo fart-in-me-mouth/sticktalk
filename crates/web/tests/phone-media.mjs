@@ -64,6 +64,9 @@ try {
   await bob.waitForFunction(()=>document.querySelector('.typing-indicator')?.textContent.includes('qa_mobile_alice'));
   await message(alice,'Hello @qa_mobile_bob — **phone markdown**');
   await bob.waitForSelector('.message.mentioned');
+  // The sender's own copy arrives over the same socket a few milliseconds after
+  // the recipient's: wait for it, or "the last message" is still the one before.
+  await alice.waitForFunction(()=>[...document.querySelectorAll('.message .markdown')].some(m=>m.textContent.includes('phone markdown')));
   const id=await alice.locator('[data-live-message]').last().getAttribute('data-live-message');
   await actions(alice,id);
   screenshots.push(await shot(alice,'message-actions'));

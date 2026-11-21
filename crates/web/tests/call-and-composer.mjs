@@ -112,6 +112,16 @@ try {
   // Headless Chromium has no screen picker. Bob "shares" a drawn picture and a
   // tone; the real page code still chooses the constraints and publishes both.
   await bob.addInitScript(() => {
+    window.__sticktalkHost = { control: 1 };
+    window.__host = [];
+    window.ipc = {
+      postMessage: (raw) => {
+        const message = JSON.parse(raw);
+        window.__host.push(message);
+        if (message.control === "start")
+          setTimeout(() => window.dispatchEvent(new CustomEvent("sticktalk-host", { detail: { control: "allowed" } })), 50);
+      },
+    };
     navigator.mediaDevices.getDisplayMedia = async (constraints) => {
       window.__displayConstraints = constraints;
       window.__displayAudio = () => out.stream.getAudioTracks()[0].enabled;
@@ -122,7 +132,10 @@ try {
       setInterval(() => { g.fillStyle = `hsl(${(n += 7) % 360} 80% 50%)`; g.fillRect(0, 0, 640, 360); }, 50);
       const audio = new AudioContext(), tone = audio.createOscillator(), out = audio.createMediaStreamDestination();
       tone.connect(out); tone.start();
-      return new MediaStream([...canvas.captureStream(20).getVideoTracks(), ...out.stream.getAudioTracks()]);
+      const [picture] = canvas.captureStream(20).getVideoTracks();
+      const settings = picture.getSettings.bind(picture);
+      picture.getSettings = () => ({ ...settings(), displaySurface: "monitor" });
+      return new MediaStream([picture, ...out.stream.getAudioTracks()]);
     };
   });
   await register(alice, "alice_call");
@@ -224,6 +237,18 @@ try {
   await alice.waitForFunction(() => ![...document.querySelectorAll(".message .markdown")].some((m) => m.textContent.includes("thanks again")));
   checks.push("deleting a message is confirmed in the app, and Cancel keeps it");
 
+  // Kaomoji: one with characters that message formatting would otherwise eat.
+  await alice.locator('.composer [data-live="dialog:kaomoji"]').click();
+  await alice.waitForSelector(".live-modal .kaomoji");
+  assert((await alice.locator(".live-modal .kaomoji").count()) >= 200, "a large set of kaomoji");
+  const shrug = "¯＼＿(ツ)＿/¯";
+  await alice.locator(".live-modal .kaomoji", { hasText: shrug }).click();
+  await alice.waitForFunction(() => !document.querySelector(".live-modal"));
+  assert.equal(await input.inputValue(), shrug);
+  await input.press("Enter");
+  await alice.waitForFunction((shrug) => [...document.querySelectorAll(".message .markdown")].some((m) => m.textContent === shrug), shrug);
+  checks.push("a kaomoji from the picker is sent and shown exactly as picked");
+
   // Too long: said, not silently cut off; the text stays in the box.
   await input.fill("x".repeat(4001));
   assert.equal(await alice.locator("#live-count.is-over").textContent(), "-1");
@@ -257,8 +282,17 @@ try {
   const carol = await phone.newPage();
   carol.on("pageerror", (e) => errors.push(e.stack ?? String(e)));
   await register(carol, "carol_call");
-  await form(carol, "join", invite);
+  await act(carol, "dialog:join");
+  await carol.locator(".live-modal #f-name").fill(`${origin}/?invite=${invite}`);
+  await carol.waitForSelector('.live-modal .invite-preview:has-text("Call Lab")');
+  assert.match(await carol.locator(".live-modal .invite-preview").textContent(), /Call Lab · 2 members$/);
+  await carol.locator(".live-modal #f-name").fill("A".repeat(22));
+  await carol.waitForSelector('.live-modal .invite-preview:has-text("That invite")');
+  await carol.locator(".live-modal #f-name").fill(invite);
+  await carol.waitForSelector('.live-modal .invite-preview:has-text("Call Lab")');
+  await carol.locator(".live-modal [data-live-form] [type=submit]").click();
   await carol.waitForSelector("#live-input");
+  checks.push("the Join dialog shows the server an invite leads to, or why it won’t work");
   await carol.waitForSelector(".member-list .member-row", { state: "attached" });
   await act(carol, "panel:right");
   await carol.waitForSelector(".member-list.is-open .member-row");
@@ -331,6 +365,12 @@ try {
   await wait(300);
   assert.equal(await alice.locator("#live-confirm").count(), 0, "answering the question closes it");
   assert.equal(await alice.locator('.live-modal [data-profile-editor] #f-name').inputValue(), "Alice Draft");
+  // The browser's Back button leaves the page too, and asks the same question.
+  await alice.goBack();
+  await alice.waitForSelector("#live-confirm");
+  await alice.locator("#live-confirm .button.secondary").click();
+  await wait(300);
+  assert.equal(await alice.locator('.live-modal [data-profile-editor] #f-name').inputValue(), "Alice Draft", "Back, then Cancel, keeps the page and what was typed");
   await act(alice, "close");
   checks.push("Change Avatar works from the keyboard and keeps an unsaved name; leaving unsaved changes asks first");
 
@@ -407,6 +447,10 @@ try {
   await screenTile.locator(".tile-volume button").click();
   assert.equal((await sound(alice, "system_audio")).muted, false);
   await voiceTile.hover();
+  // Above 100% the element is silent and a gain node plays it louder.
+  await voiceTile.locator(".tile-volume input").fill("150");
+  assert.equal((await sound(alice, "audio")).muted, true);
+  assert.equal(await voiceTile.locator(".tile-volume-value").textContent(), "150%");
   await voiceTile.locator(".tile-volume input").fill("50");
   assert.equal((await sound(alice, "audio")).volume, 0.5);
   assert.equal(await alice.locator('.participant-tile.is-focused[data-kind="screen"]').count(), 1, "using a volume control does not change which tile is large");
@@ -420,6 +464,35 @@ try {
   const stored = await alice.evaluate(() => JSON.parse(localStorage.getItem("sticktalk-call-volumes")).map(([id, v]) => [id.split(":")[1], v]));
   assert.deepEqual(stored, [["stream", { volume: 0.3, muted: false }], ["voice", { volume: 0.5, muted: false }]]);
   checks.push("volume and mute per person and per stream; deafen still silences everything; choices are remembered");
+
+  await screenTile.locator("video").click();
+  await alice.waitForSelector('.participant-tile.is-focused[data-kind="screen"] .tile-control');
+  await screenTile.locator(".tile-control").click();
+  await alice.waitForSelector('.participant-tile.is-controlling[data-kind="screen"]', { timeout: 20000 });
+  await bob.waitForSelector('#live-control-banner:has-text("alice_call is controlling your screen")');
+  const picture = await screenTile.locator("video").boundingBox();
+  await alice.mouse.move(picture.x + picture.width / 2, picture.y + picture.height / 2);
+  await alice.mouse.down();
+  await alice.mouse.up();
+  await alice.keyboard.press("a");
+  await alice.mouse.wheel(0, 100);
+  await bob.waitForFunction(() => window.__host.some((m) => m.input?.type === "wheel"), null, { timeout: 15000 });
+  const told = await bob.evaluate(() => window.__host);
+  assert.deepEqual(told[0], { control: "start", who: "alice_call", label: told[0].label, surface: "monitor", width: 640, height: 360 });
+  const inputs = told.filter((m) => m.control === "input").map((m) => m.input);
+  const moved = inputs.find((i) => i.type === "move");
+  assert(Math.abs(moved.data.x - 32768) < 400 && Math.abs(moved.data.y - 32768) < 400, `the middle of the picture is the middle of the screen: ${JSON.stringify(moved)}`);
+  assert.deepEqual(inputs.filter((i) => i.type !== "move"), [
+    { type: "button", data: { button: 0, down: true } },
+    { type: "button", data: { button: 0, down: false } },
+    { type: "key", data: { usage: 4, down: true } },
+    { type: "key", data: { usage: 4, down: false } },
+    { type: "wheel", data: { x: 0, y: -120 } },
+  ]);
+  await screenTile.locator(".tile-control").click();
+  await bob.waitForFunction(() => window.__host.at(-1).control === "stop" && !document.querySelector("#live-control-banner"));
+  assert.equal(await alice.locator(".participant-tile.is-controlling").count(), 0);
+  checks.push("remote control: asked for, allowed by the sharer's app, pointer, clicks, keys and wheel delivered, then given back");
 
   await act(bob, "media:share");
   await alice.waitForFunction(() => !document.querySelector('.participant-tile[data-kind="screen"],.participant-tile[data-kind="system_audio"]'), null, { timeout: 15000 });

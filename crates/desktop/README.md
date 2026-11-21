@@ -23,6 +23,14 @@ Needs the WebView2 Runtime, which ships with Windows 11 and current Windows 10.
 - **Calls.** Microphone and camera are granted to the server's pages only,
   without a prompt; every other page is refused. Screen sharing uses WebView2's
   own "choose what to share" picker, for the server's pages only.
+- **Remote control.** Someone watching your shared screen or window can ask
+  to control it. The page can only ask: `src/control.rs` puts the question in a
+  Windows message box, performs pointer and key input only on what is shared,
+  refuses the Windows key, and stops when you press Esc on your own keyboard.
+  It is only offered while the server's page is sharing, and shares from an
+  ordinary browser can't be controlled. The app cannot check the call itself:
+  it trusts the server it was pointed at to say who is asking, which is why the
+  question is asked every time and never remembered.
 - **Window.** Size, position and maximized state are kept in
   `%LOCALAPPDATA%\StickTalk\window.json` and clamped to a visible monitor. The
   WebView profile is `%LOCALAPPDATA%\StickTalk\WebView`.

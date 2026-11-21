@@ -45,6 +45,14 @@ pub struct GuildPreview {
     pub profile: GuildProfile,
     pub online_count: u32,
 }
+/// What an invite leads to, shown before it is used.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvitePreview {
+    pub name: String,
+    pub member_count: u32,
+    /// The person asking is already in that server.
+    pub joined: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserProfile {
     pub user: UserSummary,

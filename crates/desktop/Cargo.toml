@@ -19,7 +19,7 @@ tao = { version = "0.37", default-features = false, features = ["rwh_06"] }
 wry = { version = "0.57", default-features = false, features = ["os-webview"] }
 # Must stay the versions wry itself uses: the raw WebView2 hooks share its COM types.
 webview2-com = "0.39"
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_HiDpi", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_System_Threading", "Win32_UI_HiDpi", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 # Only drives the single-instance pipe, which desktop-platform exposes as async.
 tokio = { workspace = true }
 # The address check uses Windows' own TLS and certificate store, like the WebView.

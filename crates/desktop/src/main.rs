@@ -9,6 +9,7 @@
 mod address;
 #[cfg(windows)]
 mod app;
+mod control;
 mod health;
 mod links;
 mod menu;

@@ -89,12 +89,22 @@ addEventListener('sticktalk-request', (e) => void request(e.detail));
 const uploads = [];
 let uploading = false;
 function queueUploads(files) {
-  uploads.push(...files);
+  const channel = $('#live-messages')?.dataset.channel;
+  uploads.push(...files.map((file) => ({ file, channel })));
   if (!uploading) nextUpload();
 }
 function nextUpload() {
-  const file = uploads.shift(), picker = $('#live-file');
-  if (!file || !picker) { uploads.length = 0; uploading = false; return; }
+  const picker = $('#live-file'), open = $('#live-messages')?.dataset.channel;
+  // A file belongs to the conversation it was added in. Files for one that
+  // has been left are dropped; they are never attached somewhere else.
+  let next;
+  do next = uploads.shift(); while (next && next.channel !== open);
+  if (!next || !picker) {
+    uploads.length = 0;
+    uploading = false;
+    return;
+  }
+  const file = next.file;
   uploading = true;
   const transfer = new DataTransfer();
   transfer.items.add(file);
@@ -127,7 +137,37 @@ function countMessage(input) {
   counter.textContent = String(4000 - length);
   counter.classList.toggle('is-over', length > 4000);
 }
-let caret, opener, focusComposer = false, toastText = '', toastTimer;
+let caret, opener, focusComposer = false, toastText = '', toastTimer, inviteTimer;
+// What a save submitted is kept until its answer comes. The app says when a
+// form's save was really sent, and then whether it was saved or refused.
+// `submitting` is the form as last submitted, sent or not.
+const submitting = new Map(), submitted = new Map();
+const fieldValue = (field) => (field.type === 'checkbox' ? String(field.checked) : field.value);
+// Emoji this device's fonts cannot draw (they would show as an empty box) are
+// left out of the picker. A glyph is missing when it paints exactly like a
+// character no font has.
+const drawable = new Map();
+let probe;
+function canDraw(emoji) {
+  if (drawable.has(emoji)) return drawable.get(emoji);
+  probe ??= Object.assign(document.createElement('canvas'), {width: 24, height: 24}).getContext('2d', {willReadFrequently: true});
+  const paint = (text) => {
+    probe.clearRect(0, 0, 24, 24);
+    probe.font = '16px sans-serif';
+    probe.textBaseline = 'top';
+    probe.fillText(text, 0, 2);
+    return probe.getImageData(0, 0, 24, 24).data.join();
+  };
+  if (!drawable.has('')) {
+    const missing = paint('\u{10FFFF}');
+    // Where even a plain smile is missing there is no emoji font to judge by.
+    drawable.set('', paint('\u{1F600}') === missing ? null : missing);
+  }
+  const missing = drawable.get('');
+  const ok = missing === null || paint(emoji) !== missing;
+  drawable.set(emoji, ok);
+  return ok;
+}
 let saved,
   installed = false,
   composing = false,
@@ -263,6 +303,8 @@ export function beforeRender() {
     anchor: anchor?.dataset.liveMessage,
     anchorOffset: anchor && anchor.getBoundingClientRect().top - list.getBoundingClientRect().top,
     id: focus?.id,
+    // A focused button has no id: it is found again by what it does.
+    key: focus?.dataset?.live ? ['live', focus.dataset.live] : focus?.dataset?.pick ? ['pick', focus.dataset.pick] : null,
     start: focus?.selectionStart,
     end: focus?.selectionEnd,
     dialog: $(".live-modal")?.dataset.dialog,
@@ -310,12 +352,34 @@ export function mediaAction(action) {
   }
   if (action === 'upload-done') { setTimeout(nextUpload, 0); return; }
   if (action === 'upload-stop') { uploads.length = 0; uploading = false; return; }
-  if (action === 'form-saved') {
-    // What is in the form is now what is saved.
-    for (const form of document.querySelectorAll('.live-modal form[data-dirty]')) {
-      delete form.dataset.dirty;
-      for (const field of form.elements) delete field.dataset.dirty;
+  if (action.startsWith('form-sent:') || action.startsWith('form-failed:') || action.startsWith('form-saved:')) {
+    // A save's answer marks what it submitted as saved, but only when it was
+    // the only save of that form on its way. With two at once the answers
+    // cannot be told apart (a reconnect may reorder them), so nothing is
+    // marked saved: at worst the form asks once more before it is left.
+    const [what, kind] = [action.slice(5, action.indexOf(':')), action.slice(action.indexOf(':') + 1)];
+    const line = submitted.get(kind) ?? { waiting: 0, values: null, mixed: false };
+    submitted.set(kind, line);
+    if (what === 'sent') {
+      line.mixed ||= line.waiting > 0;
+      line.waiting += 1;
+      line.values = submitting.get(kind) ?? null;
+      submitting.delete(kind);
+      return;
     }
+    line.waiting = Math.max(0, line.waiting - 1);
+    const sure = !line.mixed && line.waiting === 0, values = line.values;
+    if (line.waiting === 0) { line.mixed = false; line.values = null; }
+    const form = [...document.querySelectorAll('.live-modal form[data-live-form]')].find(f => f.dataset.liveForm === kind);
+    if (what !== 'saved' || !sure || !form || !values) return;
+    // What was submitted is now what is saved. Anything typed since, or in
+    // another form, is still unsaved.
+    let clean = true;
+    for (const field of form.elements) {
+      if (field.id && values.get(field.id) === fieldValue(field)) delete field.dataset.dirty;
+      else if (field.dataset.dirty === 'true') clean = false;
+    }
+    if (clean) delete form.dataset.dirty;
     return;
   }
   if (action === 'profile-saved') {
@@ -384,6 +448,8 @@ export function mediaAction(action) {
     return;
   }
   if (action === "purge") {
+    uploads.length = 0;
+    uploading = false;
     void purgePrivateCaches();
     clearTimeout(noticeTimer);
     noticeTimer = setTimeout(() => emit('dismiss-notice'), 4000);
@@ -453,7 +519,10 @@ function restore() {
       if (rows.some(row => row.dataset.completion === saved.completion))
         rows.forEach(row => row.setAttribute('aria-selected',String(row.dataset.completion === saved.completion)));
     }
-    const focus = document.getElementById(saved.id);
+    // By what it does, only inside an open dialog: that is where a render must
+    // not take the keyboard away. Elsewhere the button may now be off screen.
+    const focus = document.getElementById(saved.id) ?? (saved.key &&
+      [...($('.live-modal')?.querySelectorAll(`[data-${saved.key[0]}]`) ?? [])].find(e => e.dataset[saved.key[0]] === saved.key[1] && e.offsetParent));
     if (focus && !composing) {
       focus.focus({ preventScroll: true });
       if (saved.start != null && focus.type !== "color")
@@ -473,6 +542,7 @@ function restore() {
   const modal = $('.live-modal');
   const dialog = modal?.dataset.dialog;
   if (dialog !== lastDialog) {
+    submitting.clear();
     if (modal) {
       modal.scrollTop = 0;
       for (const pane of modal.querySelectorAll('.settings-main,.settings-nav')) pane.scrollTop = 0;
@@ -493,6 +563,7 @@ function restore() {
     }
   }
   placeQuestion();
+  for (const button of document.querySelectorAll('.emoji-grid button')) if (!canDraw(button.textContent)) button.hidden = true;
   network();
   countMessage(input);
   // A toast is read and then gets out of the way.
@@ -519,6 +590,7 @@ function restore() {
     inviteOpened=true; emit('dialog:join');
   } else if(invite && modal?.dataset.dialog==='join' && $('#f-name')) {
     $('#f-name').value=invite;$('#f-name').dataset.dirty='true';invite=null;
+    setTimeout(() => emit(`invite-preview:${$('#f-name')?.value ?? ''}`), 0);
     // The code is in the form now. Keep it out of the address, or every reload asks again.
     const url=new URL(location.href);url.searchParams.delete('invite');history.replaceState(history.state,'',url);
   }
@@ -562,7 +634,8 @@ export function installPlatform() {
   if (installed) return;
   installed = true;
   loadPreferences();
-  installOverlayHistory(emit);
+  // Back leaves a page too: unsaved changes are asked about first.
+  installOverlayHistory(emit, () => unsaved() ? ask('Discard unsaved changes?', 'Your changes on this page haven’t been saved.', 'Discard') : null);
   addEventListener('sticktalk-close-surfaces',()=>{messageMenu?.closeMessageMenu(false);closeViewer();});
   addEventListener('sticktalk-surfaces-changed',()=>{syncOverlayHistory();const shell=$('.live-shell');if(shell)shell.inert=!!$('.live-modal,#live-viewer,#live-message-menu');});
   document.addEventListener("compositionstart", () => (composing = true));
@@ -666,7 +739,10 @@ export function installPlatform() {
         e.target.querySelector('[type=submit]').disabled = true;
         void sessionCleanup.then(() => { authPending = false; emit('auth'); });
       }
-      else emit(`submit:${kind}`);
+      else {
+        submitting.set(kind, new Map([...e.target.elements].filter(f => f.id).map(f => [f.id, fieldValue(f)])));
+        emit(`submit:${kind}`);
+      }
     }
     if (e.target.matches("[data-gif-search]")) {
       e.preventDefault();
@@ -682,6 +758,15 @@ export function installPlatform() {
       if(note){note.hidden=true;emit('saved-clear');}
     }
     if (e.target.closest('[data-profile-editor]')) syncProfile();
+    if (e.target.id === 'f-name' && e.target.form?.dataset.liveForm === 'join') {
+      // Show what the invite leads to, once the typing pauses. Until then
+      // nothing is shown: an answer on its way is about what was there before.
+      clearTimeout(inviteTimer);
+      for (const stale of document.querySelectorAll('.live-modal .invite-preview')) stale.hidden = true;
+      emit('invite-preview-clear');
+      const text = e.target.value;
+      inviteTimer = setTimeout(() => emit(`invite-preview:${text}`), 350);
+    }
     if (e.target.matches('[data-settings-search]')) {
       const query = e.target.value.trim().toLowerCase();
       const rows = [...document.querySelectorAll('.settings-nav-row')];

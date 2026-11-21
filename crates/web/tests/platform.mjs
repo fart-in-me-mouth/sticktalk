@@ -102,12 +102,31 @@ console.log('Speaking state: bounded, retains known active speakers at capacity,
 
 const {normalizeVolumes,displayAudio}=await import('../public/media.js');
 assert.deepEqual(normalizeVolumes([['42:voice',{volume:.4,muted:true}],['42:stream',{volume:7}],['42:stream',{volume:'x'}]]),
-  [['42:voice',{volume:.4,muted:true}],['42:stream',{volume:1,muted:false}],['42:stream',{volume:1,muted:false}]]);
+  [['42:voice',{volume:.4,muted:true}],['42:stream',{volume:2,muted:false}],['42:stream',{volume:1,muted:false}]]);
 assert.deepEqual(normalizeVolumes([['__proto__',{}],['42:other',{}],'42:voice',null,['42:voice',null]]),[['42:voice',{volume:1,muted:false}]]);
 assert.deepEqual(normalizeVolumes({length:1}),[]);
 assert.equal(normalizeVolumes(Array.from({length:200},(_,i)=>[`${i}:voice`,{volume:0}])).length,64);
 assert.deepEqual(displayAudio({restrictOwnAudio:true}),{echoCancellation:false,noiseSuppression:false,autoGainControl:false,restrictOwnAudio:true});
 assert.deepEqual(displayAudio(undefined),{echoCancellation:false,noiseSuppression:false,autoGainControl:false});
+// Remote control messages: the exact MessagePack the server's rmp-serde reads and writes.
+const {packControl,unpackControl,KEY_USAGE,controlPoint}=await import('../public/media.js');
+const moved={type:'input',data:{sharer:{user_id:249941506784231424n,connection_id:7n},grant:18446744073709551615n,sequence:300,input:{type:'move',data:{x:65535,y:0}}}};
+const packed=packControl(moved);
+assert.equal(Buffer.from(packed.subarray(0,12)).toString('latin1'),'¤type¥input','a map of two: type first');
+assert.deepEqual(unpackControl(packed),{type:'input',data:{sharer:{user_id:'249941506784231424',connection_id:7},grant:'18446744073709551615',sequence:300,input:{type:'move',data:{x:65535,y:0}}}});
+assert.deepEqual(unpackControl(packControl({type:'wheel',data:{x:-4096,y:-3}})),{type:'wheel',data:{x:-4096,y:-3}});
+assert.deepEqual(unpackControl(packControl({type:'key',data:{usage:0xe5,down:false}})),{type:'key',data:{usage:229,down:false}});
+assert.throws(()=>unpackControl(new Uint8Array([0x81,0xa1,0x61])),'truncated input is refused');
+assert.throws(()=>unpackControl(new Uint8Array([0x01,0x02])),'trailing bytes are refused');
+assert.throws(()=>unpackControl(new Uint8Array(600)),'oversized input is refused');
+assert.deepEqual([KEY_USAGE.KeyA,KEY_USAGE.Digit0,KEY_USAGE.F12,KEY_USAGE.ShiftRight,KEY_USAGE.MetaLeft],[4,39,69,0xe5,undefined]);
+// A 1920x1080 picture letterboxed in a 1000x1000 box: only the picture maps, edge to edge.
+const box={left:100,top:50,width:1000,height:1000};
+assert.deepEqual(controlPoint(box,1920,1080,100,50+218.75),{x:0,y:0});
+assert.deepEqual(controlPoint(box,1920,1080,1100,50+781.25),{x:65535,y:65535});
+assert.equal(controlPoint(box,1920,1080,600,60),null,'the letterbox is not part of the screen');
+assert.equal(controlPoint(box,0,0,600,500),null);
+console.log('Remote control: MessagePack round trip, key map without the Windows key, letterbox-aware pointer mapping: passed');
 console.log('Call volumes: bounded, validated device-only values; stream capture leaves out own audio where supported: passed');
 
 const {normalizePreferences}=await import('../public/preferences.js');

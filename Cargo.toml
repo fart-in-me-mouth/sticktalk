@@ -7,7 +7,7 @@ resolver = "2"
 exclude = ["crates/server/vendor/tract-nnef", "crates/server/vendor/sqlx-sqlite", "crates/server/vendor/cryoglyph", "crates/media/vendor/neteq", "crates/media/vendor/webrtc-audio-processing", "crates/media/vendor/webrtc-audio-processing-sys"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
