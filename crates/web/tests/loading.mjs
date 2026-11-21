@@ -10,8 +10,10 @@ const inventory=JSON.parse(await readFile(join(dist,'sizes.json'),'utf8'));
 const core=inventory.assets.find(a=>a.file.endsWith('_bg.wasm'));
 const chunks=inventory.assets.filter(a=>a.file.endsWith('.wasm')&&a!==core);
 assert(core && chunks.length>=2, 'production must contain a core and actual lazy WASM chunks');
-// 475 KB: the views carry their Tailwind utility classes and UI SDK elements.
-assert(core.brotli<=475000, `core WASM exceeds 475 KB Brotli: ${core.brotli} B`);
+// 490 KB: the views carry their Tailwind utility classes and UI SDK elements,
+// and the first screen now shows presence, who is in each voice channel,
+// friend requests, day and "New" dividers and quoted/list/heading text.
+assert(core.brotli<=490000, `core WASM exceeds 490 KB Brotli: ${core.brotli} B`);
 const runtime=inventory.assets.filter(a=>/^public\/runtime\/[a-f0-9]{20}\/.*\.js$/.test(a.file));
 assert.equal(runtime.length,9,'all runtime JS modules are release-fingerprinted');
 const alias=await readFile(join(dist,'public/media.js'),'utf8');

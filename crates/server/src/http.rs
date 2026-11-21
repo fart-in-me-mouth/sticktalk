@@ -436,7 +436,21 @@ pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiR
                 .bind(state::now() as i64)
                 .fetch_one(&mut *tx)
                 .await?;
-        require(n < 5, ErrorCode::LimitExceeded)?;
+        // A sixth sign-in replaces the session used least recently, so a person
+        // who lost or forgot a device is never locked out of their own account.
+        let mut evicted = vec![];
+        if n >= 5 {
+            let oldest: Vec<u8> = sqlx::query_scalar("SELECT token_hash FROM sessions WHERE user_id=? AND expires_at>? AND token_hash NOT IN (SELECT session_hash FROM mcp_grants) ORDER BY last_used_at,created_at LIMIT 1")
+                .bind(id(u)?)
+                .bind(state::now() as i64)
+                .fetch_one(&mut *tx)
+                .await?;
+            sqlx::query("DELETE FROM sessions WHERE token_hash=?")
+                .bind(&oldest)
+                .execute(&mut *tx)
+                .await?;
+            evicted.push(oldest);
+        }
         let token = state::token();
         let expires_at = state::now() + 30 * 86_400_000;
         sqlx::query("INSERT INTO sessions VALUES(?,?,?,?,?)")
@@ -450,6 +464,9 @@ pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiR
         let user = me(&mut tx, u).await?;
         core.persist_id(&mut tx).await?;
         tx.commit().await?;
+        if !evicted.is_empty() {
+            crate::reauth::disconnect(&app, &mut core, &mut c, &evicted).await?;
+        }
         let mut response = json(AuthResponse {
             token,
             expires_at,

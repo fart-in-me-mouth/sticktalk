@@ -5,6 +5,129 @@ import {swipeAction, installOverlayHistory, syncOverlayHistory} from './navigati
 const emit = (action) =>
   window.dispatchEvent(new CustomEvent("sticktalk-live", { detail: action }));
 const $ = (s) => document.querySelector(s);
+// Things that cannot be taken back ask first, in the app's own dialog.
+const confirmations = [
+  [/^delete:/, 'Delete this message?', 'This can’t be undone.', 'Delete'],
+  [/^logout$/, 'Log out?', 'You’ll need your password to sign in on this device again.', 'Log Out'],
+  [/^logout-others$/, 'Log out all other devices?', 'Every other device signed in to your account is signed out.', 'Log Out Devices'],
+  [/^device-revoke:/, 'Log out that device?', 'It will have to sign in again.', 'Log Out'],
+  [/^role-delete:/, 'Delete this role?', 'Members who have it lose its permissions. This can’t be undone.', 'Delete Role'],
+  [/^friend:block,/, 'Block this person?', 'They won’t be able to message you or add you as a friend.', 'Block'],
+  [/^friend:remove,/, 'Remove this friend?', 'You can add each other again later.', 'Remove Friend'],
+  [/^leave-guild$/, 'Leave this server?', 'You’ll need a new invite to come back.', 'Leave Server'],
+  [/^group-leave$/, 'Leave this group?', 'You won’t see new messages unless someone adds you again.', 'Leave Group'],
+  [/^group-remove:/, 'Remove this person from the group?', '', 'Remove'],
+  [/^submit:guild-icon-remove$/, 'Remove the server icon?', '', 'Remove Icon'],
+  [/^avatar-remove$/, 'Remove your avatar?', '', 'Remove Avatar'],
+];
+// Actions that leave the page a settings form is on.
+const leaving = /^(close$|home$|dialog:|channel:|guild:|voice:)/;
+const unsaved = () => !!$('.settings-page form[data-live-form][data-dirty="true"],.live-modal form[data-live-form="edit"][data-dirty="true"]');
+// An open question lives inside the open dialog, if there is one: that dialog
+// treats presses anywhere else as "outside" and swallows them. A render replaces
+// the dialog under it, so the question is put back after each one.
+let asking = null;
+function placeQuestion() {
+  if (!asking || asking.isConnected) return;
+  asking.removeAttribute('open');
+  ($('.live-modal') ?? document.body).append(asking);
+  asking.showModal();
+}
+function ask(title, body, label) {
+  return new Promise((resolve) => {
+    document.getElementById('live-confirm')?.remove();
+    const dialog = document.createElement('dialog');
+    dialog.id = 'live-confirm';
+    dialog.className = 'confirm-dialog';
+    dialog.setAttribute('aria-labelledby', 'live-confirm-title');
+    const heading = document.createElement('h2');
+    heading.id = 'live-confirm-title';
+    heading.textContent = title;
+    const copy = document.createElement('p');
+    copy.textContent = body;
+    copy.hidden = !body;
+    const row = document.createElement('div');
+    row.className = 'confirm-actions';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'button secondary';
+    cancel.textContent = 'Cancel';
+    const accept = document.createElement('button');
+    accept.type = 'button';
+    accept.className = 'button danger';
+    accept.textContent = label;
+    accept.dataset.accept = '';
+    row.append(cancel, accept);
+    dialog.append(heading, copy, row);
+    let answer = false;
+    cancel.onclick = () => dialog.close();
+    accept.onclick = () => { answer = true; dialog.close(); };
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+    // Escape answers this question; it must not also close the page behind it.
+    dialog.addEventListener('keydown', (e) => e.stopPropagation());
+    // Removed after this click has finished: the dialog under it must still
+    // see that the press landed here, not "outside" it.
+    dialog.addEventListener('close', () => { asking = null; resolve(answer); setTimeout(() => dialog.remove(), 0); });
+    asking = dialog;
+    placeQuestion();
+    cancel.focus();
+  });
+}
+// Everything a person does by click, key or menu goes through here. Actions the
+// app dispatches itself do not, so nothing is asked twice.
+async function request(action) {
+  const rule = confirmations.find(([pattern]) => pattern.test(action));
+  if (rule && !(await ask(rule[1], rule[2], rule[3]))) return;
+  if (leaving.test(action) && unsaved() &&
+      !(await ask('Discard unsaved changes?', 'Your changes on this page haven’t been saved.', 'Discard'))) return;
+  // Above the width where the member list is an overlay, its button shows or hides it.
+  if (action === 'panel:right' && innerWidth > 1100) action = 'members-toggle';
+  emit(action);
+}
+addEventListener('sticktalk-request', (e) => void request(e.detail));
+// Several chosen, pasted or dropped files are sent to the app one at a time.
+const uploads = [];
+let uploading = false;
+function queueUploads(files) {
+  uploads.push(...files);
+  if (!uploading) nextUpload();
+}
+function nextUpload() {
+  const file = uploads.shift(), picker = $('#live-file');
+  if (!file || !picker) { uploads.length = 0; uploading = false; return; }
+  uploading = true;
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  picker.files = transfer.files;
+  emit('upload');
+  picker.value = '';
+}
+// The offline notice takes the connection banner's place in the layout, so it
+// never covers the controls under it.
+function network() {
+  document.documentElement.dataset.offline = String(!navigator.onLine);
+  let banner = $('#offline-banner');
+  if (navigator.onLine) { banner?.remove(); return; }
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'offline-banner';
+    banner.className = 'offline-banner';
+    banner.setAttribute('role', 'status');
+    banner.textContent = 'You’re offline. Your draft is kept.';
+  }
+  const header = $('.live-shell .channel-header');
+  if (header) { if (header.nextElementSibling !== banner) header.after(banner); }
+  else if (banner.parentElement !== document.body) document.body.append(banner);
+}
+function countMessage(input) {
+  const counter = $('#live-count');
+  if (!counter || !input) return;
+  const length = [...input.value].length;
+  counter.hidden = length < 3600;
+  counter.textContent = String(4000 - length);
+  counter.classList.toggle('is-over', length > 4000);
+}
+let caret, opener, focusComposer = false, toastText = '', toastTimer;
 let saved,
   installed = false,
   composing = false,
@@ -185,6 +308,16 @@ export function mediaAction(action) {
     else finish?.();
     return;
   }
+  if (action === 'upload-done') { setTimeout(nextUpload, 0); return; }
+  if (action === 'upload-stop') { uploads.length = 0; uploading = false; return; }
+  if (action === 'form-saved') {
+    // What is in the form is now what is saved.
+    for (const form of document.querySelectorAll('.live-modal form[data-dirty]')) {
+      delete form.dataset.dirty;
+      for (const field of form.elements) delete field.dataset.dirty;
+    }
+    return;
+  }
   if (action === 'profile-saved') {
     const form = $('[data-profile-editor]');
     if (form) {
@@ -271,9 +404,14 @@ export function mediaAction(action) {
   if (action.startsWith("insert:")) {
     const input = $("#live-input");
     const c = $("#live-messages")?.dataset.channel;
-    const text = (input?.value ?? drafts.get(c) ?? "") + action.slice(7);
+    const base = input?.value ?? drafts.get(c) ?? "", added = action.slice(7);
+    // Where the caret was when the picker opened, not always the end.
+    const [start, end] = caret && caret[2] === c && caret[1] <= base.length ? caret : [base.length, base.length];
+    const text = base.slice(0, start) + added + base.slice(end);
+    caret = [start + added.length, start + added.length, c];
     if (c) remember(c, text);
     if (input) input.value = text;
+    focusComposer = true;
     return;
   }
   if ((action === "transport-lost" || action === "reconnected") && !media)
@@ -338,10 +476,33 @@ function restore() {
     if (modal) {
       modal.scrollTop = 0;
       for (const pane of modal.querySelectorAll('.settings-main,.settings-nav')) pane.scrollTop = 0;
+    } else if (lastDialog && !$('#live-confirm')) {
+      // A closed dialog hands focus back to what opened it, or to the composer.
+      const back = opener && [...document.querySelectorAll('.live-shell [data-live]')].find(e => e.dataset.live === opener && e.offsetParent);
+      if (back) back.focus({preventScroll:true});
+      else if (!matchMedia('(pointer:coarse)').matches) focusComposer = true;
     }
     lastDialog = dialog;
   }
-  if (modal && !modal.contains(document.activeElement)) modal.focus({preventScroll:true});
+  if (modal && !modal.contains(document.activeElement) && !$('#live-confirm')) modal.focus({preventScroll:true});
+  if (focusComposer && !modal) {
+    focusComposer = false;
+    if (input) {
+      input.focus({preventScroll:true});
+      if (caret && caret[2] === list?.dataset.channel) try { input.setSelectionRange(caret[0], caret[1]); } catch {}
+    }
+  }
+  placeQuestion();
+  network();
+  countMessage(input);
+  // A toast is read and then gets out of the way.
+  const toast = $('[data-toast]');
+  const shown = toast ? `${toast.dataset.toast}:${toast.textContent}` : '';
+  if (shown !== toastText) {
+    toastText = shown;
+    clearTimeout(toastTimer);
+    if (toast) toastTimer = setTimeout(() => { toastText = ''; emit('dismiss-error'); }, toast.dataset.toast === 'notice' ? 4000 : 8000);
+  }
   const shell=$('.live-shell');
   if(shell)shell.inert=!!modal||!!$('#live-viewer,#live-message-menu');
   const left=$('.left-panel');
@@ -358,6 +519,8 @@ function restore() {
     inviteOpened=true; emit('dialog:join');
   } else if(invite && modal?.dataset.dialog==='join' && $('#f-name')) {
     $('#f-name').value=invite;$('#f-name').dataset.dirty='true';invite=null;
+    // The code is in the form now. Keep it out of the address, or every reload asks again.
+    const url=new URL(location.href);url.searchParams.delete('invite');history.replaceState(history.state,'',url);
   }
   media?.mount();
   syncProfile();
@@ -442,6 +605,9 @@ export function installPlatform() {
     }
     const completion = e.target.closest('[data-completion]');
     if (completion) { e.preventDefault(); acceptCompletion(completion); return; }
+    // A visible button for a hidden file input, so the keyboard can reach it.
+    const pick = e.target.closest('[data-pick]');
+    if (pick) { e.preventDefault(); document.getElementById(pick.dataset.pick)?.click(); return; }
     const target = e.target.closest("[data-live]");
     if (target) {
         // Chromium may fat-finger-adjust a touch on message text to its nearby
@@ -451,15 +617,18 @@ export function installPlatform() {
           if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)return;
         }
       e.preventDefault();
-      if(target.closest('#live-message-menu'))messageMenu?.closeMessageMenu(false);
+      // Close the sheet and let its history entry go first. An action that opens
+      // a dialog is then replayed after that entry is popped (navigation.js);
+      // sent earlier, the pop would close the dialog it had just opened.
+      if(target.closest('#live-message-menu'))messageMenu?.closeMessageMenu();
       const action = target.dataset.live;
+      if (!target.closest('.live-modal,#live-message-menu')) opener = action;
+      if (action.startsWith('reply:')) focusComposer = true;
       if (action === "pick-image") { emit("close"); $("#live-file")?.click(); }
       else if (action === "pick-file") $("#live-file")?.click();
       else if (action === "send-input") send();
       else if (action === "dismiss-error") emit("dismiss-error");
-      else if (action.startsWith("delete:")) {
-        if (window.confirm("Delete this message?")) emit(action);
-      } else emit(action);
+      else void request(action);
       return;
     }
     if (e.target.matches("[data-live-close]")) emit("close");
@@ -508,22 +677,34 @@ export function installPlatform() {
     if(e.target.closest('.live-modal')) {
       e.target.dataset.dirty='true';
       if(e.target.form)e.target.form.dataset.dirty='true';
+      // "Saved." describes the form as it was saved, not what is typed after.
+      const note=e.target.form?.querySelector('.form-saved:not([hidden])');
+      if(note){note.hidden=true;emit('saved-clear');}
     }
     if (e.target.closest('[data-profile-editor]')) syncProfile();
     if (e.target.matches('[data-settings-search]')) {
-      const query = e.target.value.toLowerCase();
-      document.querySelectorAll('.settings-nav-row').forEach(row => row.hidden = !row.textContent.toLowerCase().includes(query));
+      const query = e.target.value.trim().toLowerCase();
+      const rows = [...document.querySelectorAll('.settings-nav-row')];
+      rows.forEach(row => row.hidden = !row.textContent.toLowerCase().includes(query));
+      let none = $('.settings-search-empty');
+      if (rows.every(row => row.hidden)) {
+        if (!none) {
+          none = document.createElement('p');
+          none.className = 'settings-search-empty muted-copy';
+          none.setAttribute('role', 'status');
+          none.textContent = 'No settings match that search.';
+          e.target.closest('label').after(none);
+        }
+      } else none?.remove();
     }
     if (e.target.id === "live-input") {
       resizeComposer(e.target);
       const c = $("#live-messages")?.dataset.channel;
       if (c) remember(c, e.target.value);
       if (!composing) complete(e.target);
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => {
-        if (c && $('#live-messages')?.dataset.channel === c && $('#live-input')?.value)
-          emit('typing');
-      }, 200);
+      countMessage(e.target);
+      // The app sends this at most once every few seconds.
+      if (c && e.target.value) emit('typing');
     }
     if (e.target.matches("[data-emoji-query]")) {
       clearTimeout(typingTimer);
@@ -541,7 +722,7 @@ export function installPlatform() {
     }
     if(e.target.matches('[data-preference]'))setPreference(e.target);
     if(e.target.matches('[data-notification-target]'))emit(`dialog:target-notifications:${e.target.value}`);
-    if (e.target.id === "live-file") {emit("upload");e.target.value='';}
+    if (e.target.id === "live-file") {queueUploads([...e.target.files]);e.target.value='';}
     if (e.target.id === 'live-avatar') {emit('avatar-upload');e.target.value='';}
     if (e.target.id === 'live-guild-icon') {emit('guild-icon-upload');e.target.value='';}
     if (e.target.dataset.groupUser) {
@@ -568,6 +749,66 @@ export function installPlatform() {
       $('#f-value').value=[...document.querySelectorAll('[data-member-role]:checked')].map(box=>box.dataset.memberRole).join(',');
     }
   });
+  // A pasted screenshot or copied file becomes an attachment. Pasted text,
+  // including text that carries a picture of itself, stays an ordinary paste.
+  document.addEventListener("paste", (e) => {
+    const file = e.clipboardData?.files[0];
+    const picker = $("#live-file");
+    if (!file || !picker || $(".live-modal") || e.clipboardData.getData("text/plain")) return;
+    if (e.target.id !== "live-input" && e.target.closest?.("input,textarea,[contenteditable]")) return;
+    e.preventDefault();
+    queueUploads([file]);
+  });
+  // Files dragged onto the conversation are attached, like chosen ones.
+  const dragged = (e) => !!$('#live-file') && !$('.live-modal') && [...(e.dataTransfer?.types ?? [])].includes('Files');
+  document.addEventListener('dragover', (e) => {
+    if (!dragged(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    $('.main-pane')?.classList.add('is-dropping');
+  });
+  document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) $('.main-pane')?.classList.remove('is-dropping'); });
+  document.addEventListener('drop', (e) => {
+    $('.main-pane')?.classList.remove('is-dropping');
+    if (!dragged(e)) return;
+    e.preventDefault();
+    queueUploads([...e.dataTransfer.files].slice(0, 4));
+  });
+  document.addEventListener('focusout', (e) => {
+    if (e.target.id === 'live-input') caret = [e.target.selectionStart, e.target.selectionEnd, $('#live-messages')?.dataset.channel];
+  });
+  // A picture that failed to load (a busy server) is asked for again, a few times.
+  document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (img.tagName !== 'IMG' || !img.src.includes('/api/v1/files/')) return;
+    const tries = Number(img.dataset.retry ?? 0);
+    if (tries >= 3) return;
+    img.dataset.retry = String(tries + 1);
+    setTimeout(() => {
+      if (!img.isConnected) return;
+      const url = new URL(img.src);
+      url.searchParams.set('retry', String(tries + 1));
+      img.removeAttribute('srcset');
+      img.src = url;
+    }, 1500 * (tries + 1));
+  }, true);
+  addEventListener('resize', () => {
+    // The drawer is only a drawer on a phone; a widened window gets its sidebar back.
+    const left = $('.left-panel');
+    if (left) left.inert = innerWidth < 768 && !$('.live-shell')?.classList.contains('panel-left');
+  });
+  try {
+    const notice = sessionStorage.getItem('sticktalk-notice');
+    if (notice) {
+      sessionStorage.removeItem('sticktalk-notice');
+      const toast = document.createElement('div');
+      toast.className = 'update-toast';
+      toast.setAttribute('role', 'status');
+      toast.textContent = notice.slice(0, 200);
+      document.body.append(toast);
+      setTimeout(() => toast.remove(), 6000);
+    }
+  } catch { /* Storage may be disabled. */ }
   document.addEventListener("keydown", (e) => {
     if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')||(e.key==='Enter'&&e.target.matches('.message'))) {
       const row=e.target.closest('.message');if(row){e.preventDefault();openMessageMenu(row);return;}
@@ -589,7 +830,29 @@ export function installPlatform() {
     }
     if (e.key === "Escape") {
       if ($("#live-viewer")) closeViewer();
-      else emit("close");
+      else if (e.target.matches?.('[data-settings-search]') && e.target.value) {
+        e.target.value = '';
+        e.target.dispatchEvent(new Event('input', {bubbles:true}));
+      }
+      else if (!$('.live-modal') && $('.composer-wrap .reply-preview')) emit('cancel-reply');
+      else void request("close");
+    }
+    // Editing a message: Enter saves, like sending one.
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.target.id === 'f-name' && e.target.form?.dataset.liveForm === 'edit') {
+      e.preventDefault();
+      e.target.form.requestSubmit();
+      return;
+    }
+    if ((e.key === 'Home' || e.key === 'End') && e.target.id === 'live-messages') {
+      // The list shows a window of the history: go to its real start or end.
+      const list = e.target;
+      e.preventDefault();
+      if (e.key === 'End') {
+        list.scrollTop = list.scrollHeight;
+        if (Number(list.dataset.windowEnd) < Number(list.dataset.total)) emit('present');
+      } else if (Number(list.dataset.windowStart) > 0) emit('seek:0');
+      else list.scrollTop = 0;
+      return;
     }
     if (
       e.target.id === "live-input" &&
@@ -658,14 +921,6 @@ export function installPlatform() {
     if(wasOffline&&navigator.onLine)emit('recover');
     emit(`focus:${!document.hidden && document.hasFocus()}`);
   };
-  const network = () => {
-    document.documentElement.dataset.offline=String(!navigator.onLine);
-    let banner=$('#offline-banner');
-    if(!navigator.onLine&&!banner) {
-      banner=document.createElement('div');banner.id='offline-banner';banner.className='offline-banner';
-      banner.setAttribute('role','status');banner.textContent='You’re offline. Your draft is kept.';document.body.append(banner);
-    } else if(navigator.onLine)banner?.remove();
-  };
   addEventListener('online',network);addEventListener('offline',network);network();
   window.addEventListener("online", () => emit("recover"));
   window.addEventListener('pageshow',focus);
@@ -694,7 +949,14 @@ export function installPlatform() {
   viewport();
   let touch, press;
   const cancelPress=()=>{if(press)clearTimeout(press.timer);press=null;};
-  document.addEventListener('contextmenu',e=>{const row=e.target.closest('.message');if(row&&(innerWidth<768||matchMedia('(pointer:coarse)').matches)){e.preventDefault();cancelPress();if(!$('#live-message-menu'))openMessageMenu(row);}});
+  document.addEventListener('contextmenu',e=>{
+    const row=e.target.closest('.message');
+    if(!row||row.closest('.live-modal'))return;
+    // With a mouse, a link, a picture or selected text keeps the browser's own menu.
+    const touch=innerWidth<768||matchMedia('(pointer:coarse)').matches;
+    if(!touch&&(e.target.closest('a,img,video,input,textarea')||String(getSelection()).trim()))return;
+    e.preventDefault();cancelPress();if(!$('#live-message-menu'))openMessageMenu(row);
+  });
   document.addEventListener("pointerdown", (e) => {
     cancelPress();
     if(e.target.closest('#live-message-menu'))lastSwipe=undefined;

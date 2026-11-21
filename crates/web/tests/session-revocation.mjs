@@ -61,6 +61,7 @@ for(const mode of ['delete','password','admin-disable']) {
       await act(owner,'dialog:password');
       await owner.locator('#f-name').fill('synthetic-qa-password-1234');
       await owner.locator('#f-value').fill('updated-synthetic-qa-password-5678');
+      await owner.locator('#f-extra').fill('updated-synthetic-qa-password-5678');
       await Promise.all([owner.waitForEvent('load'),owner.locator('[type=submit]').click()]);
       await owner.waitForSelector('.live-shell');
       await Promise.all(inspections);

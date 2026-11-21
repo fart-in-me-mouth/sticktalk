@@ -29,7 +29,8 @@ export function openMessageMenu(row) {
     if(button.dataset.live.startsWith('delete:'))button.classList.add('danger-text');
     menu.append(button);
   }
-  const text=row.querySelector('.markdown')?.textContent;
+  // One line per paragraph, as it was written.
+  const text=[...row.querySelectorAll('.markdown > *')].map(block=>block.textContent).join('\n');
   if(text){const copy=document.createElement('button');copy.className='button message-menu-action';const glyph=document.createElementNS('http://www.w3.org/2000/svg','svg');glyph.classList.add('icon');glyph.setAttribute('viewBox','0 0 24 24');glyph.setAttribute('aria-hidden','true');const use=document.createElementNS(glyph.namespaceURI,'use');use.setAttribute('href','#i-copy');glyph.append(use);const label=document.createElement('span');label.textContent='Copy Message';copy.append(glyph,label);copy.dataset.copy=text;menu.append(copy);}
   let start;
   menu.addEventListener('pointerdown',e=>{if(e.target===handle||e.target===menu||e.target===heading)start={x:e.clientX,y:e.clientY};});

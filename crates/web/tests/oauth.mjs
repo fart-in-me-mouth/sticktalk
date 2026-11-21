@@ -68,6 +68,7 @@ try {
   await page.waitForSelector('.live-home');
   checks.push('mock Google authorization + PKCE/token + RSA JWKS, signup and username collision');
   await act(page,'dialog:settings');await page.getByRole('button',{name:'Log Out',exact:true}).click();
+  await page.locator('#live-confirm [data-accept]').click();
   await page.waitForSelector('#auth-username');await page.getByRole('link',{name:'Continue with Google'}).click();
   await page.waitForSelector('.live-home');checks.push('existing Google identity login after logout');
   await act(page,'dialog:delete-account');await page.getByRole('button',{name:'Verify with Google',exact:true}).click();

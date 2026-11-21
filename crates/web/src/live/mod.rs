@@ -95,6 +95,21 @@ struct App {
     admin_more: bool,
     admin_busy: bool,
     dialog_generation: u64,
+    /// The form a save last succeeded in, and the dialog it was in; that form
+    /// shows "Saved." until it is edited again or the dialog changes.
+    saved: Option<(u64, &'static str)>,
+    /// A confirmation shown in the toast; it is one while it equals `error`.
+    notice: String,
+    /// The server has more members of this server than are loaded.
+    members_more: bool,
+    /// The member list was closed on a wide window, where it is otherwise always shown.
+    members_hidden: bool,
+    /// The text conversation that "Open Chat" and leaving a call return to.
+    last_text: Option<Id>,
+    /// The last message read when the conversation was opened; "New" is drawn after it.
+    new_after: Option<Id>,
+    /// This session has told the server what device it is.
+    device_named: bool,
     reply: Option<Id>,
     editing: Option<Id>,
     attachments: Vec<Attachment>,
@@ -151,6 +166,12 @@ impl App {
         self.admin_more = false;
         self.admin_busy = false;
         self.dialog_generation = self.dialog_generation.wrapping_add(1);
+        self.saved = None;
+        self.notice.clear();
+        self.members_more = false;
+        self.last_text = None;
+        self.new_after = None;
+        self.device_named = false;
         self.reply = None;
         self.editing = None;
         self.attachments.clear();
@@ -290,6 +311,13 @@ pub fn mount() {
             admin_more: false,
             admin_busy: false,
             dialog_generation: 0,
+            saved: None,
+            notice: String::new(),
+            members_more: false,
+            members_hidden: false,
+            last_text: None,
+            new_after: None,
+            device_named: false,
             reply: None,
             editing: None,
             attachments: vec![],
@@ -361,14 +389,26 @@ pub fn mount() {
             if let Ok(session) = session {
                 start_session(boot.clone(), session);
             } else {
-                let mut a = boot.borrow_mut();
-                a.status = if !window().navigator().on_line() {
-                    "Reconnecting…".into()
-                } else {
-                    String::new()
-                };
-                a.csrf = csrf_cookie();
-                a.touch();
+                // Only a real 401 means signed out. A server that cannot be
+                // reached shows "Reconnecting…", not a login form that cannot work.
+                let revoked = wasm_bindgen_futures::JsFuture::from(session_revoked())
+                    .await
+                    .ok()
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                {
+                    let mut a = boot.borrow_mut();
+                    a.status = if revoked {
+                        String::new()
+                    } else {
+                        "Reconnecting…".into()
+                    };
+                    a.csrf = csrf_cookie();
+                    a.touch();
+                }
+                if !revoked {
+                    operations::retry_recover(boot.clone());
+                }
             }
         });
         let render = StoredValue::new_local(app);
@@ -440,7 +480,8 @@ async fn send(
     socket.send(Frame::Binary(bytes)).await
 }
 async fn socket(app: Shared, epoch: u64) {
-    let mut backoff = 1_000;
+    let mut backoff = 500;
+    let mut first = true;
     loop {
         if app.borrow().epoch != epoch {
             return;
@@ -449,9 +490,16 @@ async fn socket(app: Shared, epoch: u64) {
         {
             let mut a = app.borrow_mut();
             a.ready = false;
-            a.status = "Reconnecting…".into();
+            // The first attempt is not a reconnection; nothing has gone wrong yet.
+            a.status = if first {
+                "Connecting…"
+            } else {
+                "Reconnecting…"
+            }
+            .into();
             a.touch();
         }
+        first = false;
         let url = format!("{}/api/v1/ws", origin.replacen("http", "ws", 1));
         let connect = Browser.connect(url).fuse();
         let timeout = Browser.sleep(15_000).fuse();
@@ -563,10 +611,11 @@ async fn socket(app: Shared, epoch: u64) {
                                 }
                                 deadline = Browser.monotonic_ms() + heartbeat;
                                 ack = Browser.monotonic_ms();
-                                backoff = 1000;
+                                backoff = 500;
                                 if retry_pending(&app, &mut outgoing).await.is_err() {
                                     break;
                                 }
+                                operations::ready(app.clone());
                                 let channel = app.borrow().channel;
                                 if let Some(c) = channel {
                                     operations::load_channel(app.clone(), c, None);
@@ -585,7 +634,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 }
                                 deadline = Browser.monotonic_ms() + heartbeat;
                                 ack = Browser.monotonic_ms();
-                                backoff = 1000;
+                                backoff = 500;
                                 if retry_pending(&app, &mut outgoing).await.is_err() {
                                     break;
                                 }
@@ -668,6 +717,15 @@ async fn socket(app: Shared, epoch: u64) {
                                     }
                                 }
                                 let typing = matches!(event.event, Event::Typing { .. });
+                                let created = match &event.event {
+                                    Event::MessageCreated { message, .. } => {
+                                        Some((message.channel_id, message.author_id))
+                                    }
+                                    _ => None,
+                                };
+                                let pins_changed = matches!(&event.event, Event::PinsUpdated { channel_id, .. } if a.channel == Some(*channel_id) && a.dialog == "pins");
+                                // Someone new in this server: ask whether they are online too.
+                                let joined = matches!(&event.event, Event::MemberUpsert(m) if Some(m.guild_id) == a.guild && !a.model.members.contains_key(&m.user.id));
                                 let revoked = matches!(
                                     &event.event,
                                     Event::ChannelRemoved { .. } | Event::GuildRemoved { .. }
@@ -686,6 +744,15 @@ async fn socket(app: Shared, epoch: u64) {
                                 let profile_changed =
                                     matches!(&event.event, Event::ProfileUpdated(_));
                                 let applied = a.model.apply(*event);
+                                // Someone who has just sent their message is no longer typing it.
+                                if let Some(sent) = created {
+                                    a.model.typing.remove(&sent);
+                                }
+                                let arrived =
+                                    applied && created.is_some_and(|(c, _)| a.channel == Some(c));
+                                if let Some(g) = a.guild.filter(|_| applied && joined) {
+                                    operations::subscribe(&mut a, g);
+                                }
                                 if applied && profile_changed {
                                     let updated = a
                                         .profile
@@ -755,6 +822,18 @@ async fn socket(app: Shared, epoch: u64) {
                                 }
                                 a.touch();
                                 drop(a);
+                                if arrived {
+                                    // After this render has scrolled the list: a message
+                                    // that lands in front of you is read, not unread.
+                                    let app = app.clone();
+                                    spawn_local(async move {
+                                        Browser.sleep(50).await;
+                                        operations::mark_read(&app);
+                                    });
+                                }
+                                if applied && pins_changed {
+                                    operations::action(app.clone(), "pins-refresh");
+                                }
                                 if typing && !app.borrow().typing_expiry_active {
                                     app.borrow_mut().typing_expiry_active = true;
                                     let app = app.clone();
@@ -786,15 +865,12 @@ async fn socket(app: Shared, epoch: u64) {
                                 }
                             }
                             ServerMsg::Response(response) => {
-                                operations::response(app.clone(), *response)
+                                operations::response(app.clone(), *response).await
                             }
                             ServerMsg::Voice(payload) => {
-                                // Guild voice-state broadcasts also reach text-only peers.
-                                // Do not load the lazy media decoder for those peers, in
-                                // particular while a reconnecting device is offline.
-                                if app.borrow().voice_channel.is_none() {
-                                    continue;
-                                }
+                                // Voice-state broadcasts also reach people who are not in
+                                // the call: they show who is in each voice channel. Only
+                                // someone in a call has the events passed on to the media host.
                                 if payload.version == VOICE_VERSION && payload.kind == "event" {
                                     forward_voice(app.clone(), epoch, payload).await;
                                 }
@@ -824,6 +900,13 @@ async fn socket(app: Shared, epoch: u64) {
                 let mut a = app.borrow_mut();
                 a.connection = None;
                 a.voice_channel = None;
+                // The call ended with the connection: do not leave its empty screen up.
+                if a.screen == "voice" {
+                    a.channel = a.last_text.filter(|c| a.model.channels.contains_key(c));
+                    a.screen = if a.channel.is_some() { "chat" } else { "home" }.into();
+                    a.window_ids.clear();
+                    a.extent = None;
+                }
                 a.ready = false;
                 a.pending
                     .retain(|_, (_, at)| Browser.monotonic_ms().saturating_sub(*at) < 590_000);
@@ -844,7 +927,7 @@ async fn socket(app: Shared, epoch: u64) {
             return;
         }
         Browser.sleep(backoff + nonce(&Browser) % 500).await;
-        backoff = (backoff * 2).min(30_000);
+        backoff = (backoff * 2).min(15_000);
     }
 }
 async fn retry_pending(
@@ -902,6 +985,19 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
         return;
     }
     if let Ok(event) = rmp_serde::from_slice::<VoiceEvent>(&payload.payload) {
+        if matches!(
+            event,
+            VoiceEvent::GuildState(_)
+                | VoiceEvent::GuildLeft { .. }
+                | VoiceEvent::GuildSnapshot { .. }
+        ) {
+            let mut a = app.borrow_mut();
+            a.model.launch.voice_event(event.clone());
+            a.touch();
+        }
+        if app.borrow().voice_channel.is_none() {
+            return;
+        }
         let mut v = serde_json::to_value(event).unwrap_or_default();
         stringify_ids(&mut v);
         v["request_nonce"] = payload.nonce.to_string().into();

@@ -109,7 +109,7 @@ Same as UI_SPEC §3, plus:
   - name in role color, 16 Medium
   - badges: server tag, APP, crown
   - optional subline 12 muted: activity ("🎮 HELLDIVERS 2") or custom status, ellipsized
-- **Offline members:** 30% opacity, rising to 100% on hover.
+- **Offline members:** 60% opacity, rising to 100% on hover. (30% left their names at about 2.5:1 contrast, below what is readable.)
 - **Click opens the profile popout** to the left of the list.
 
 ### 1.7 Profile popout (340 w)

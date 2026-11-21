@@ -10,6 +10,16 @@ pub(super) fn can(a: &App, permission: Permissions) -> bool {
                 || g.my_permissions.contains(permission)
         })
 }
+/// Any one of these permissions (or owner, or administrator).
+pub(super) fn can_any(a: &App, permissions: Permissions) -> bool {
+    a.guild
+        .and_then(|id| a.model.guilds.get(&id))
+        .is_some_and(|g| {
+            g.my_role == MemberRole::Owner
+                || g.my_permissions
+                    .intersects(Permissions::ADMINISTRATOR | permissions)
+        })
+}
 pub(super) fn is_server_page(page: &str) -> bool {
     matches!(
         page,
@@ -23,6 +33,7 @@ pub(super) fn is_server_page(page: &str) -> bool {
             | "member-role"
             | "private"
             | "invite"
+            | "guild-delete"
     ) || [
         "role:",
         "channel-edit:",
@@ -38,23 +49,68 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
         .guild
         .and_then(|g| a.model.guilds.get(&g))
         .map_or("Server Settings", |g| g.guild.name.as_str());
+    // Only the pages this person can do something on.
     let pages = [
-        ("user-round", "Overview", "server-overview"),
-        ("hash", "Channels", "server-channels"),
-        ("shield", "Roles", "roles"),
-        ("users", "Member Roles", "member-role"),
-        ("link", "Invites", "invite"),
-        ("shield", "Bans", "server-bans"),
-        ("smile", "Emoji", "server-emoji"),
+        ("user-round", "Overview", "server-overview", true),
+        (
+            "hash",
+            "Channels",
+            "server-channels",
+            can(a, Permissions::MANAGE_CHANNELS),
+        ),
+        (
+            "shield",
+            "Roles",
+            "roles",
+            can(a, Permissions::MANAGE_ROLES),
+        ),
+        (
+            "users",
+            "Member Roles",
+            "member-role",
+            can(a, Permissions::MANAGE_ROLES),
+        ),
+        (
+            "link",
+            "Invites",
+            "invite",
+            can_any(a, Permissions::CREATE_INVITES | Permissions::MANAGE_GUILD),
+        ),
+        (
+            "shield",
+            "Bans",
+            "server-bans",
+            can(a, Permissions::BAN_MEMBERS),
+        ),
     ];
-    let title = pages.iter().find(|(_, _, page)| *page == a.dialog).map_or(
-        if a.dialog.starts_with("role:") {
-            "Edit Role"
-        } else {
-            "Server Settings"
-        },
-        |(_, label, _)| *label,
-    );
+    let kind = a.dialog.split(':').next().unwrap_or_default();
+    let title = pages
+        .iter()
+        .find(|(_, _, page, _)| *page == a.dialog)
+        .map_or(
+            match kind {
+                "role" => "Edit Role",
+                "channel-edit" => "Edit Channel",
+                "channel-delete" => "Delete Channel",
+                "ban" => "Ban a Member",
+                "unban" => "Revoke Ban",
+                "invite-revoke" => "Revoke Invite",
+                "guild-delete" => "Delete Server",
+                _ => "Server Settings",
+            },
+            |(_, label, _, _)| *label,
+        );
+    // A page opened from a list goes back to that list.
+    let back = match kind {
+        "role" => ("Back to Roles", "dialog:roles"),
+        "channel-edit" | "channel-delete" | "private" => {
+            ("Back to Channels", "dialog:server-channels")
+        }
+        "ban" | "unban" => ("Back to Bans", "dialog:server-bans"),
+        "invite-revoke" => ("Back to Invites", "dialog:invite"),
+        "guild-delete" => ("Back to Overview", "dialog:server-overview"),
+        _ => ("Back to Server Settings", "dialog:server"),
+    };
     settings_page(
         a,
         SettingsPage {
@@ -62,11 +118,11 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             label: "Server Settings",
             nav_label: "Server settings",
             mobile_title: "Server Settings",
-            back: ("Back to Server Settings", "dialog:server"),
+            back,
             title,
         },
         view!{<h2 class="mx-2 text-xl wrap-anywhere">{name.to_owned()}</h2><h3 class="category mx-2 mt-6 mb-2">"Server Settings"</h3>
-            {pages.into_iter().map(|(glyph,label,page)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}
+            {pages.into_iter().filter(|page|page.3).map(|(glyph,label,page,_)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}
         }.into_any(),
         body,
     )
@@ -98,25 +154,21 @@ pub(super) fn server_overview(a: &App) -> AnyView {
     ];
     let (_, start, end) = presets[usize::from(banner)];
     view!{<div class="profile-banner" style=format!("background:linear-gradient(135deg,#{start:06x},#{end:06x})")></div>
-        <fieldset disabled=!allowed>{form("Overview","server-overview",view!{{field("f-name","Server Name",&g.guild.name,"text")}<p class="muted-copy">{if allowed{"Changes apply to everyone in this server."}else{"You need Manage Server permission to edit this server."}}</p>}.into_any())}
-        <div class="settings-divider"></div><h2>"Server Icon"</h2><div class="avatar-edit mb-6 flex items-center gap-4">{if let Some(id)=g.guild.icon_id{view!{<img class="server-profile-icon size-16 rounded-2xl object-cover" src=format!("/api/v1/files/{}/thumbnail",id.0) alt="Server icon"/>}.into_any()}else{view!{<span class="server-profile-icon-placeholder grid size-16 place-items-center rounded-2xl bg-muted text-xl">{g.guild.name.chars().take(2).collect::<String>()}</span>}.into_any()}}<label class="button secondary" for="live-guild-icon">"Change Icon"</label><input id="live-guild-icon" type="file" accept="image/png,image/jpeg,image/webp" hidden/></div>
+        <fieldset disabled=!allowed>{form("Overview","server-overview",view!{{field("f-name","Server Name",&g.guild.name,"text")}<p class="muted-copy">{if allowed{"Changes apply to everyone in this server."}else{"You need Manage Server permission to edit this server."}}</p>{saved_note(a,"server-overview")}}.into_any())}
+        <div class="settings-divider"></div><h2>"Server Icon"</h2><div class="avatar-edit mb-6 flex items-center gap-4">{if let Some(id)=g.guild.icon_id{view!{<img class="server-profile-icon size-16 rounded-2xl object-cover" src=format!("/api/v1/files/{}/thumbnail",id.0) alt="Server icon"/>}.into_any()}else{view!{<span class="server-profile-icon-placeholder grid size-16 place-items-center rounded-2xl bg-muted text-xl">{g.guild.name.chars().take(2).collect::<String>()}</span>}.into_any()}}<button type="button" class="button secondary" data-pick="live-guild-icon">"Change Icon"</button><input id="live-guild-icon" type="file" accept="image/png,image/jpeg,image/webp" hidden/></div>
         {if a.uploading{view!{<p role="status">{a.upload_progress.clone()}</p>}.into_any()}else{().into_any()}}
-        {if g.guild.icon_id.is_some(){form("Remove Icon","guild-icon-remove",().into_any())}else{().into_any()}}
-        <div class="settings-divider"></div>{form("Server Profile","server-profile",view!{<label class="field"><span>"Description"</span><textarea id="server-description" rows="3" maxlength="120">{profile.map_or("",|p|p.description.as_str()).to_owned()}</textarea></label><label class="field"><span>"Banner Color"</span><select id="server-banner">{presets.into_iter().enumerate().map(|(i,(label,_,_))|view!{<option value=i.to_string() selected=i==usize::from(banner)>{label}</option>}).collect_view()}</select></label>}.into_any())}</fieldset>
-        <div class="settings-divider"></div>{button("Invite People","dialog:invite","secondary")}{button("Manage Channels","dialog:server-channels","secondary")}
+        {if g.guild.icon_id.is_some(){button("Remove Icon","submit:guild-icon-remove","danger-text")}else{().into_any()}}
+        <div class="settings-divider"></div>{form("Server Profile","server-profile",view!{<label class="field"><span>"Description"</span><textarea id="server-description" rows="3" maxlength="120">{profile.map_or("",|p|p.description.as_str()).to_owned()}</textarea></label><label class="field"><span>"Banner Color"</span><select id="server-banner">{presets.into_iter().enumerate().map(|(i,(label,_,_))|view!{<option value=i.to_string() selected=i==usize::from(banner)>{label}</option>}).collect_view()}</select></label>{saved_note(a,"server-profile")}}.into_any())}</fieldset>
+        <div class="settings-divider"></div>{button("Invite People","dialog:invite","secondary")}{if can(a,Permissions::MANAGE_CHANNELS){button("Manage Channels","dialog:server-channels","secondary")}else{().into_any()}}
+        <section class="danger-zone mt-8 border-t pt-6"><h3>"Danger Zone"</h3>{if g.my_role==MemberRole::Owner{view!{<p class="muted-copy">"Permanently delete this server and everything in it."</p>{button("Delete Server","dialog:guild-delete","danger-text")}}.into_any()}else{view!{<p class="muted-copy">"Leave this server. You’ll need a new invite to come back."</p>{button("Leave Server","leave-guild","danger-text")}}.into_any()}}</section>
     }.into_any()
 }
 pub(super) fn channels(a: &App) -> AnyView {
     let allowed = can(a, Permissions::MANAGE_CHANNELS);
-    let mut channels = a
-        .model
-        .channels
-        .values()
-        .filter(|c| c.guild_id == a.guild)
-        .collect::<Vec<_>>();
-    channels.sort_by_key(|c| (c.position, c.id));
+    // The same order as the sidebar, with each category's channels under it.
+    let channels = channel_tree(a);
     view!{<h2>"Channels"</h2>{if allowed{button("Create Channel","dialog:channel","primary")}else{view!{<p class="muted-copy">"You need Manage Channels permission to edit channels."</p>}.into_any()}}
-        {channels.into_iter().map(|c|view!{<div class="settings-list-row flex flex-wrap items-center gap-3 border-b py-4"><span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere"><strong class="font-semibold">{a.model.channel_name(c)}</strong><small>{match c.kind{ChannelKind::Category=>"Category",ChannelKind::Voice=>"Voice channel",_=>"Text channel"}}</small></span><button class="icon-button" aria-label=format!("Edit {}",a.model.channel_name(c)) disabled=!allowed data-live=format!("dialog:channel-edit:{}",c.id.0)>{icon("settings")}</button></div>}).collect_view()}
+        {channels.into_iter().map(|c|view!{<div class=format!("settings-list-row flex flex-wrap items-center gap-3 border-b py-4 {}",if c.parent_id.is_some(){"pl-6"}else{""})><span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere"><strong class="font-semibold">{a.model.channel_name(c)}</strong><small>{match c.kind{ChannelKind::Category=>"Category",ChannelKind::Voice=>"Voice channel",_=>"Text channel"}}</small></span><button class="icon-button" aria-label=format!("Edit {}",a.model.channel_name(c)) disabled=!allowed data-live=format!("dialog:channel-edit:{}",c.id.0)>{icon("settings")}</button></div>}).collect_view()}
     }.into_any()
 }
 pub(super) fn channel_editor(a: &App, page: &str) -> AnyView {
@@ -126,16 +178,19 @@ pub(super) fn channel_editor(a: &App, page: &str) -> AnyView {
     else {
         return ().into_any();
     };
-    form("Edit Channel","channel-save",view!{<fieldset disabled=!can(a,Permissions::MANAGE_CHANNELS)>{field("f-name","Name",c.name.as_deref().unwrap_or(""),"text")}{field("f-value","Topic",a.model.topics.get(&c.id).and_then(|t|t.as_deref()).unwrap_or(""),"text")}<input id="f-extra" type="hidden" value=c.id.0.to_string()/></fieldset>
-        <div class="settings-divider"></div>{button("Delete Channel",&format!("dialog:channel-delete:{}",c.id.0),"danger-text")}
-    }.into_any())
+    form_with("Edit Channel","channel-save",view!{<fieldset disabled=!can(a,Permissions::MANAGE_CHANNELS)>{field("f-name","Name",c.name.as_deref().unwrap_or(""),"text")}{field("f-value","Topic",a.model.topics.get(&c.id).and_then(|t|t.as_deref()).unwrap_or(""),"text")}<input id="f-extra" type="hidden" value=c.id.0.to_string()/></fieldset>
+        <div class="settings-divider"></div>{if can(a,Permissions::MANAGE_CHANNELS){button(if c.kind==ChannelKind::Category{"Delete Category"}else{"Delete Channel"},&format!("dialog:channel-delete:{}",c.id.0),"danger-text")}else{().into_any()}}
+    }.into_any(),"dialog:server-channels",can(a,Permissions::MANAGE_CHANNELS))
 }
 pub(super) fn channel_delete(a: &App, page: &str) -> AnyView {
     let channel =
         id(page.trim_start_matches("channel-delete:")).and_then(|id| a.model.channels.get(&id));
-    form("Delete Channel","channel-delete",view!{<p>{format!("Permanently delete {} and its messages? This cannot be undone.",channel.map_or("this channel".into(),|c|a.model.channel_name(c)))}</p>
+    let label = channel.map_or("this channel".into(), |c| a.model.channel_name(c));
+    // Deleting a category keeps its channels; deleting a channel loses its messages.
+    let category = channel.is_some_and(|c| c.kind == ChannelKind::Category);
+    form_with(if category{"Delete Category"}else{"Delete Channel"},"channel-delete",view!{<p>{if category{format!("Delete the category {label}? The channels inside it are kept and move out of the category.")}else{format!("Permanently delete {label} and its messages? This cannot be undone.")}}</p>
         {field("f-name","Type DELETE to confirm","","text")}<input id="f-extra" type="hidden" value=channel.map_or(String::new(),|c|c.id.0.to_string())/>
-    }.into_any())
+    }.into_any(),"dialog:server-channels",true)
 }
 fn more(a: &App) -> AnyView {
     if a.admin_busy {
@@ -198,6 +253,9 @@ pub(super) fn roles(a: &App) -> AnyView {
 }
 
 pub(super) fn member_roles(a: &App) -> AnyView {
+    if !can(a, Permissions::MANAGE_ROLES) {
+        return view!{<h2>"Member Roles"</h2><p class="muted-copy">"You need Manage Roles permission to change member roles."</p>}.into_any();
+    }
     let members = a
         .model
         .members
@@ -234,7 +292,7 @@ pub(super) fn privacy(a: &App) -> AnyView {
         .collect::<Vec<_>>();
     view!{<h2>"Privacy & Safety"</h2><h2>"Blocked Users"</h2>{if blocked.is_empty(){view!{<p class="muted-copy">"You haven’t blocked anyone."</p>}.into_any()}else{().into_any()}}
         {blocked.into_iter().map(|r|view!{<div class="settings-list-row flex flex-wrap items-center gap-3 border-b py-4">{avatar(&r.user,"small")}<span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere">{name(&r.user)}</span>{button("Unblock",&format!("friend:unblock,{}",r.user.id.0),"secondary")}</div>}).collect_view()}
-        <div class="settings-divider"></div><h2>"Your Data"</h2><p class="muted-copy">"Messages are not stored in the offline app cache. Browser notifications never show message text on your lock screen."</p>{button("Manage Sessions","dialog:devices","secondary")}
+        <div class="settings-divider"></div><h2>"Your Data"</h2><p class="muted-copy">"Messages are not stored in the offline app cache. Browser notifications never show message text on your lock screen."</p>{button("Manage Devices","dialog:devices","secondary")}
     }.into_any()
 }
 pub(super) fn notifications(a: &App) -> AnyView {
@@ -278,8 +336,8 @@ pub(super) fn notifications(a: &App) -> AnyView {
     view!{<fieldset hidden=target.is_empty()>{form("Notifications","notifications",view!{
         <label class="field"><span>"Server or Conversation"</span><select id="f-target" data-notification-target><option value="" disabled selected=target.is_empty()>"Choose a conversation"</option>
         {a.model.guilds.values().map(|g|view!{<option value=format!("guild:{}",g.guild.id.0) selected=target==format!("guild:{}",g.guild.id.0)>{g.guild.name.clone()}</option>}).collect_view()}
-        {a.model.channels.values().filter(|c|matches!(c.kind,ChannelKind::Text|ChannelKind::Direct|ChannelKind::GroupDm)).map(|c|view!{<option value=format!("channel:{}",c.id.0) selected=target==format!("channel:{}",c.id.0)>{format!("#{}",a.model.channel_name(c))}</option>}).collect_view()}</select></label>
+        {a.model.channels.values().filter(|c|matches!(c.kind,ChannelKind::Text|ChannelKind::Direct|ChannelKind::GroupDm)).map(|c|view!{<option value=format!("channel:{}",c.id.0) selected=target==format!("channel:{}",c.id.0)>{match c.guild_id.and_then(|g|a.model.guilds.get(&g)){Some(g)=>format!("#{} — {}",a.model.channel_name(c),g.guild.name),None=>a.model.channel_name(c)}}</option>}).collect_view()}</select></label>
         <label class="field"><span>"Notify Me About"</span><select id="f-name"><option value="all" selected=level==NotificationLevel::All>"All messages"</option><option value="mentions" selected=level==NotificationLevel::Mentions>"Only @mentions"</option><option value="nothing" selected=level==NotificationLevel::Nothing>"Nothing"</option></select></label>
-        <label class="live-checkbox"><span>"Mute notifications"</span><input id="f-muted" type="checkbox" checked=n.is_some_and(|n|n.muted)/></label><label class="live-checkbox"><span>"Suppress @everyone and @here"</span><input id="f-suppress" type="checkbox" checked=n.is_some_and(|n|n.suppress_everyone)/></label>
+        <label class="live-checkbox"><span>"Mute notifications"</span><input id="f-muted" type="checkbox" checked=n.is_some_and(|n|n.muted)/></label><label class="live-checkbox"><span>"Suppress @everyone and @here"</span><input id="f-suppress" type="checkbox" checked=n.is_some_and(|n|n.suppress_everyone)/></label>{saved_note(a,"notifications")}
     }.into_any())}</fieldset>{if target.is_empty(){view!{<p class="muted-copy">"Choose a server or start a conversation to customize notifications."</p>{button("Add Friend","dialog:friend","secondary")}{button("Create a Server","dialog:create","secondary")}}.into_any()}else{().into_any()}}{if a.push{view!{<section class="push-explainer mt-6 border-t pt-6"><h3>"Notifications when you’re away"</h3><p>"Allow StickTalk to notify you about DMs and mentions. No message text appears on your lock screen. You can turn this off in your browser settings."</p><button class="button secondary" data-push-enable>"Enable Browser Notifications"</button></section>}.into_any()}else{().into_any()}}}.into_any()
 }

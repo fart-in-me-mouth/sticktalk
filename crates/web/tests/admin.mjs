@@ -24,7 +24,8 @@ try {
   await owner.locator('#live-guild-icon').setInputFiles({name:'qa-server-icon.png',mimeType:'image/png',buffer:await readFile('public/icons/icon-192.png')});
   await owner.waitForSelector('.server-profile-icon');
   screenshots.push(await shot(owner,'server-profile-saved'));
-  await owner.locator('[data-live-form=guild-icon-remove] [type=submit]').click();
+  await owner.locator('[data-live="submit:guild-icon-remove"]').click();
+  await owner.locator('#live-confirm [data-accept]').click();
   await owner.waitForFunction(()=>!document.querySelector('.server-profile-icon'));
   checks.push('server description/banner persistence, real icon upload/removal, settings stay open');
   await act(owner,'dialog:roles');await owner.waitForSelector('[data-live-form=role-create]');
@@ -62,18 +63,20 @@ try {
   await act(owner,'dialog:ban');await owner.locator('[data-live-form=ban] #f-name').selectOption(guestId);
   await owner.locator('#f-value').fill('Synthetic QA moderation');await owner.locator('[type=submit]').click();
   await guest.waitForFunction(()=>!document.querySelector('.server-icon.selected'));
-  // The owner's own command response closes the Ban dialog; open Bans after it.
-  await owner.waitForFunction(()=>!document.querySelector('.live-modal'));
-  await act(owner,'dialog:server-bans');await owner.waitForSelector('[data-live^="dialog:unban:"]');
+  // The owner's own command response returns from the Ban form to the Bans list.
+  await owner.waitForSelector('[data-live^="dialog:unban:"]');
   screenshots.push(await shot(owner,'bans-populated'));
   await owner.locator('[data-live^="dialog:unban:"]').click();await owner.locator('[type=submit]').click();
-  await owner.waitForFunction(()=>!document.querySelector('.live-modal'));
+  // Revoking returns to the Bans list, now empty.
+  await owner.waitForFunction(()=>document.querySelector('.live-modal')?.dataset.dialog==='server-bans'&&document.body.textContent.includes('No banned members.'));
+  await act(owner,'close');
   await form(guest,'join',{'f-name':code});await guest.waitForSelector('#live-input');
   checks.push('ban removes live access; bans snapshot, confirmed revoke and successful rejoin');
   await act(owner,'dialog:invite');await owner.waitForSelector('.live-modal code');
   await owner.locator(`[data-live="dialog:invite-revoke:${code}"]`).click();await owner.locator('[type=submit]').click();
-  await owner.waitForFunction(()=>!document.querySelector('.live-modal'));
-  await act(owner,'dialog:invite');assert.equal(await owner.locator('.live-modal code').count(),0);
+  // Revoking returns to the Invites list, now empty.
+  await owner.waitForFunction(()=>document.querySelector('.live-modal')?.dataset.dialog==='invite'&&document.body.textContent.includes('No active invites.'));
+  assert.equal(await owner.locator('.live-modal code').count(),0);
   checks.push('invite listing from REST and confirmed revocation');
   await act(guest,'dialog:server-overview');
   assert(await guest.locator('[data-live-form=server-overview] [type=submit]').isDisabled());

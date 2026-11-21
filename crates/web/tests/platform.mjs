@@ -100,6 +100,16 @@ retainSpeaking(active,'0',false);
 assert(!active.has('0'));
 console.log('Speaking state: bounded, retains known active speakers at capacity, releases on silence: passed');
 
+const {normalizeVolumes,displayAudio}=await import('../public/media.js');
+assert.deepEqual(normalizeVolumes([['42:voice',{volume:.4,muted:true}],['42:stream',{volume:7}],['42:stream',{volume:'x'}]]),
+  [['42:voice',{volume:.4,muted:true}],['42:stream',{volume:1,muted:false}],['42:stream',{volume:1,muted:false}]]);
+assert.deepEqual(normalizeVolumes([['__proto__',{}],['42:other',{}],'42:voice',null,['42:voice',null]]),[['42:voice',{volume:1,muted:false}]]);
+assert.deepEqual(normalizeVolumes({length:1}),[]);
+assert.equal(normalizeVolumes(Array.from({length:200},(_,i)=>[`${i}:voice`,{volume:0}])).length,64);
+assert.deepEqual(displayAudio({restrictOwnAudio:true}),{echoCancellation:false,noiseSuppression:false,autoGainControl:false,restrictOwnAudio:true});
+assert.deepEqual(displayAudio(undefined),{echoCancellation:false,noiseSuppression:false,autoGainControl:false});
+console.log('Call volumes: bounded, validated device-only values; stream capture leaves out own audio where supported: passed');
+
 const {normalizePreferences}=await import('../public/preferences.js');
 assert.deepEqual(normalizePreferences(null),{density:'cozy',fontScale:1,underlineLinks:false});
 assert.deepEqual(normalizePreferences({density:'compact',fontScale:'1.25',underlineLinks:true}),{density:'compact',fontScale:1.25,underlineLinks:true});

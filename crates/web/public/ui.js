@@ -7,8 +7,9 @@ import '/public/ui-sdk/web/dialog.js';
 import '/public/ui-sdk/web/menu.js';
 import '/public/ui-sdk/web/tooltip.js';
 
+// Sent as a request: live.js asks for confirmation where an action needs one.
 const emit = (action) =>
-  window.dispatchEvent(new CustomEvent('sticktalk-live', { detail: action }));
+  window.dispatchEvent(new CustomEvent('sticktalk-request', { detail: action }));
 
 // SDK change events do not bubble; listen in the capture phase.
 // The app state owns which dialog is open, so a dismissal is a request to it,
@@ -20,9 +21,9 @@ document.addEventListener('openchange', (event) => {
   const dialog = event.target;
   if (dialog.localName !== 'ui-dialog' || event.detail.value !== false) return;
   event.preventDefault();
-  // A press inside the image viewer or message menu, which open above a dialog,
-  // is not a press outside that dialog.
-  if (!dialog.isConnected || !dismissals.has(event.detail.reason) || document.querySelector('#live-viewer,#live-message-menu')) return;
+  // A press inside the image viewer, the message menu or a confirmation, which
+  // open above a dialog, is not a press outside that dialog.
+  if (!dialog.isConnected || !dismissals.has(event.detail.reason) || document.querySelector('#live-viewer,#live-message-menu,#live-confirm,dialog[open]')) return;
   emit('close');
 }, { capture: true });
 
