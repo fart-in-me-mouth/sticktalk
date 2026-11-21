@@ -18,7 +18,8 @@
   --divider: #2A2A2F;
   --text-primary: #E8EAED;
   --text-secondary: #A8A8B0;
-  --text-muted: #74747C;
+  /* The web app's WCAG AA value (5.4:1 on bg.chat); the UI_SPEC one is 3.7:1. */
+  --text-muted: #A0A0AA;
   --accent: #3DDC97;
   --accent-hover: #5BE5AA;
   --accent-pressed: #33C485;

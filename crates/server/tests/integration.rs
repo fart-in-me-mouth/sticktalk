@@ -747,6 +747,10 @@ async fn moderation_reorder_and_safe_replay_after_revocation() {
     };
     let gid = g.summary.guild.id;
     let general = g.channels[0].id;
+    // A new server starts with one text and one voice channel.
+    assert_eq!(g.channels.len(), 2);
+    assert_eq!(g.channels[1].kind, ChannelKind::Voice);
+    let voice = g.channels[1].id;
     let inv = match pa
         .command(Command::CreateInvite {
             guild_id: gid,
@@ -831,6 +835,11 @@ async fn moderation_reorder_and_safe_replay_after_revocation() {
                 position: 1,
             },
             ChannelPlacement {
+                channel_id: voice,
+                parent_id: None,
+                position: 2,
+            },
+            ChannelPlacement {
                 channel_id: child,
                 parent_id: Some(category),
                 position: 0,
@@ -844,7 +853,7 @@ async fn moderation_reorder_and_safe_replay_after_revocation() {
     .await;
     let moved: Snapshot<Channel> = s.get(&format!("channels/{}", child.0), &a.token).await;
     assert_eq!(moved.data.summary.parent_id, None);
-    assert_eq!(moved.data.summary.position, 1);
+    assert_eq!(moved.data.summary.position, 2);
     let cursor = pb.close().await;
     pa.command(draft(general, "must not replay to revoked member"))
         .await;

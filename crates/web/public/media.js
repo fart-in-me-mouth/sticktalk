@@ -19,6 +19,27 @@ let pc,
   levelsTimer,
   deviceListener = false;
 let idleReceivers = [];
+// The chosen microphone, camera and speaker, remembered on this device.
+const DEVICES = 'sticktalk-call-devices';
+try {
+  const stored = JSON.parse(localStorage.getItem(DEVICES) ?? '{}');
+  const id = (value) => (typeof value === 'string' && value.length <= 512 ? value : '');
+  input = id(stored.input);
+  output = id(stored.output);
+  cameraDevice = id(stored.camera);
+} catch { /* Storage may be disabled in a private browser. */ }
+function rememberDevices() {
+  try { localStorage.setItem(DEVICES, JSON.stringify({ input, output, camera: cameraDevice })); } catch {}
+}
+// What the browser calls the connection, in words for people.
+const CALL_STATES = {
+  new: 'Connecting…',
+  connecting: 'Connecting…',
+  connected: 'Voice Connected',
+  disconnected: 'Reconnecting…',
+  failed: 'Connection failed',
+  closed: 'Disconnected',
+};
 let publications = new Map(),
   senders = new Map(),
   participants = new Map(),
@@ -43,6 +64,94 @@ function requestSignal(type,data) {
   });
 }
 const speaking = new Set();
+// Listening volume per person and per stream, remembered on this device only.
+// Entries are [`${userId}:voice|stream`, {volume, muted}]; defaults are not stored.
+const VOLUMES = 'sticktalk-call-volumes';
+export function normalizeVolumes(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((row) => Array.isArray(row) && /^\d{1,20}:(voice|stream)$/.test(row[0]))
+    .slice(-64)
+    .map(([id, v]) => {
+      const n = Number(v?.volume);
+      return [id, { volume: Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1, muted: v?.muted === true }];
+    });
+}
+let volumes = new Map();
+try {
+  const raw = localStorage.getItem(VOLUMES);
+  if (raw && raw.length <= 8192) volumes = new Map(normalizeVolumes(JSON.parse(raw)));
+} catch { /* Storage may be disabled in a private browser. */ }
+const volumeKey = (p, kind) =>
+  `${p.session.user_id}:${kind === 'screen' || kind === 'system_audio' ? 'stream' : 'voice'}`;
+const volumeOf = (id) => volumes.get(id) ?? { volume: 1, muted: false };
+function setVolume(id, next) {
+  volumes.delete(id);
+  if (next.muted || next.volume < 1) volumes.set(id, next);
+  while (volumes.size > 64) volumes.delete(volumes.keys().next().value);
+  try { localStorage.setItem(VOLUMES, JSON.stringify([...volumes])); } catch {}
+  for (const e of elements.values()) if (e.volumeKey === id) applyAudio(e);
+}
+// The one place that decides what a tile's media element plays.
+function applyAudio(entry) {
+  const v = volumeOf(entry.volumeKey);
+  const video = entry.media.tagName === 'VIDEO';
+  entry.media.muted = video || deafened || v.muted;
+  if (!video) entry.media.volume = v.volume;
+  if (!entry.volume) return;
+  const silent = v.muted || v.volume === 0;
+  entry.volume.icon.setAttribute('href', silent ? '#i-volume-x' : '#i-volume-2');
+  entry.volume.button.setAttribute('aria-pressed', String(v.muted));
+  entry.volume.button.setAttribute('aria-label', `${v.muted ? 'Unmute' : 'Mute'} ${entry.volume.name}`);
+  const percent = Math.round(v.volume * 100);
+  entry.volume.slider.value = String(percent);
+  entry.volume.slider.setAttribute('aria-valuetext', `${percent}%`);
+  entry.volume.readout.textContent = `${percent}%`;
+}
+function volumeControl(id, name) {
+  const root = document.createElement('div');
+  root.className = 'tile-volume';
+  // The tile itself is a button that focuses the tile.
+  for (const type of ['click', 'keydown', 'pointerdown'])
+    root.addEventListener(type, (e) => e.stopPropagation());
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'icon-button';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.classList.add('icon');
+  svg.setAttribute('aria-hidden', 'true');
+  const icon = document.createElementNS(svg.namespaceURI, 'use');
+  svg.append(icon);
+  button.append(svg);
+  button.onclick = () => {
+    const v = volumeOf(id);
+    // Unmuting a slider left at zero would stay silent.
+    setVolume(id, { volume: v.muted && v.volume === 0 ? 1 : v.volume, muted: !v.muted });
+  };
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = '0';
+  slider.max = '100';
+  slider.setAttribute('aria-label', `${name} volume`);
+  slider.oninput = () => setVolume(id, { volume: Number(slider.value) / 100, muted: false });
+  const readout = document.createElement('span');
+  readout.className = 'tile-volume-value';
+  readout.setAttribute('aria-hidden', 'true');
+  root.append(button, slider, readout);
+  return { root, button, icon, slider, readout, name };
+}
+export function displayAudio(supported) {
+  // Raw capture for music and games. Where the browser can, leave out what this
+  // page itself plays (the other people in the call), so viewers never hear
+  // themselves echoed back through the stream.
+  return {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+    ...(supported?.restrictOwnAudio ? { restrictOwnAudio: true } : {}),
+  };
+}
 export function retainSpeaking(states, sessionKey, active) {
   if (!active) states.delete(sessionKey);
   else if (states.size < 64 || states.has(sessionKey)) states.add(sessionKey);
@@ -190,7 +299,7 @@ function bindRemote() {
     if (!entry || !track) continue;
     const old = entry.media.srcObject?.getTracks()[0];
     if (old !== track) entry.media.srcObject = new MediaStream([track]);
-    entry.media.muted = track.kind === "video" || deafened;
+    applyAudio(entry);
     if (entry.media.paused) entry.media.play().catch(() => {});
   }
 }
@@ -232,10 +341,7 @@ async function start(data) {
   current.onicecandidateerror = (e) => record("ice-error", e.errorText);
   current.onconnectionstatechange = () => {
     record("connection", current.connectionState);
-    status =
-      current.connectionState === "connected"
-        ? "Voice Connected"
-        : current.connectionState;
+    status = CALL_STATES[current.connectionState] ?? "Connecting…";
     if (current.connectionState === "failed")
       report("Media connection failed. Leave and rejoin.");
     mount();
@@ -255,13 +361,16 @@ async function start(data) {
     }
     const stream = new MediaStream([e.track]);
     entry.media.srcObject = stream;
-    entry.media.muted = e.track.kind === "video" || deafened;
+    applyAudio(entry);
     entry.media.play().catch(() => {
-      entry.label.textContent += " · Tap to play";
-      entry.tile.onclick = () => entry.media.play().catch(report);
+      entry.blocked = true;
+      describe(entry);
+      entry.tile.onclick = () =>
+        entry.media.play().then(() => { entry.blocked = false; describe(entry); }).catch(report);
     });
+    // A remembered speaker that is no longer plugged in falls back to the default.
     if (output && entry.media.setSinkId)
-      entry.media.setSinkId(output).catch(report);
+      entry.media.setSinkId(output).catch(() => {});
     mount();
   };
   try {
@@ -270,7 +379,7 @@ async function start(data) {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        ...(input ? { deviceId: { exact: input } } : {}),
+        ...(input ? { deviceId: { ideal: input } } : {}),
       },
       video: false,
     });
@@ -293,12 +402,36 @@ async function start(data) {
     for (const participant of participants.values())
       await updateParticipant(participant);
     levelsTimer = setTimeout(levels, 200);
+    // You are in: an earlier "microphone denied" notice no longer applies.
+    if ($('.live-error')?.textContent.includes('Microphone')) emit('dismiss-error');
     mount();
   } catch (e) {
     stop(true);
     if(e.name==='NotAllowedError')throw new Error('Microphone access was denied. Allow it in your browser’s site settings, then rejoin.');
     throw e;
   }
+}
+// Names and pictures come from the call screen's own list (the Rust view), and
+// from the member list for anyone that list does not have yet.
+function person(userId) {
+  const row = document.querySelector(`#live-call-people [data-user="${userId}"]`);
+  return {
+    name:
+      row?.dataset.name ??
+      $(`[data-member-name="${userId}"]`)?.textContent ??
+      (userId === self() ? "You" : "Participant"),
+    avatar: row?.dataset.avatar ?? "",
+  };
+}
+function glyph(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.classList.add("icon");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(svg.namespaceURI, "use");
+  use.setAttribute("href", `#i-${name}`);
+  svg.append(use);
+  return svg;
 }
 function createTile(id, p, kind) {
   const tile = document.createElement("div");
@@ -316,16 +449,15 @@ function createTile(id, p, kind) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focus(); }
   });
   tile.dataset.participant = key(p.session);
-  tile.classList.toggle('is-speaking', speaking.has(key(p.session)));
+  tile.classList.toggle('is-speaking', kind !== 'screen' && speaking.has(key(p.session)));
   tile.dataset.kind = kind;
   if (p.session.user_id === self()) tile.dataset.self = "true";
   const label = document.createElement("div");
   label.className = "participant-label";
-  const user =
-    $(`[data-member-name="${p.session.user_id}"]`)?.textContent ??
-    (p.session.user_id === self() ? "You" : "Participant");
-  label.textContent = `${user}${kind === "screen" ? "'s screen" : ""}`;
-  tile.setAttribute('aria-label', `Focus ${label.textContent}`);
+  const name = document.createElement("span");
+  const state = document.createElement("span");
+  state.className = "participant-state";
+  label.append(name, state);
   const media = document.createElement(
     kind === "audio" || kind === "system_audio" ? "audio" : "video",
   );
@@ -341,12 +473,75 @@ function createTile(id, p, kind) {
   else {
     const placeholder = document.createElement("span");
     placeholder.className = "call-avatar";
-    placeholder.textContent = user.slice(0, 2);
     tile.append(placeholder);
   }
-  if (kind === 'screen') bindScreenZoom(tile, media, () => { zoomGestureUntil = performance.now() + 500; });
   tile.append(media, label);
-  return { tile, label, media };
+  if (kind === 'screen') {
+    bindScreenZoom(tile, media, () => { zoomGestureUntil = performance.now() + 500; });
+    const live = document.createElement('span');
+    live.className = 'tile-live';
+    live.textContent = 'LIVE';
+    tile.append(live);
+    if (tile.requestFullscreen) {
+      const full = document.createElement('button');
+      full.type = 'button';
+      full.className = 'icon-button tile-fullscreen';
+      full.setAttribute('aria-label', 'Full Screen');
+      full.title = 'Full Screen';
+      full.append(glyph('maximize'));
+      for (const type of ['click', 'keydown', 'pointerdown'])
+        full.addEventListener(type, (e) => e.stopPropagation());
+      full.onclick = () => {
+        if (document.fullscreenElement === tile) document.exitFullscreen();
+        else tile.requestFullscreen().catch(() => {});
+      };
+      tile.append(full);
+    }
+  }
+  const entry = { tile, label, name, state, media, user: p.session.user_id, kind, volumeKey: volumeKey(p, kind) };
+  describe(entry);
+  // A stream's sound arrives as its own track; its control sits on the screen tile.
+  if (p.session.user_id !== self() && kind !== 'system_audio') {
+    entry.volume = volumeControl(entry.volumeKey, kind === 'screen' ? `${entry.who}'s stream` : entry.who);
+    tile.append(entry.volume.root);
+  }
+  applyAudio(entry);
+  return entry;
+}
+// A tile's name, picture and mute state, kept current as the call changes.
+function describe(entry) {
+  const who = person(entry.user), mine = entry.user === self();
+  entry.who = who.name;
+  const text =
+    (entry.kind !== "screen" ? who.name : mine ? "Your screen" : `${who.name}'s screen`) +
+    (entry.blocked ? " · Tap to play" : "");
+  if (entry.name.textContent !== text) entry.name.textContent = text;
+  entry.tile.setAttribute("aria-label", `Focus ${text}`);
+  const avatar = entry.tile.querySelector(".call-avatar");
+  if (avatar && who.avatar) {
+    let img = avatar.querySelector("img");
+    if (!img) {
+      img = document.createElement("img");
+      img.alt = "";
+      // A picture that cannot load leaves the initials.
+      img.onerror = () => { avatar.textContent = who.name.slice(0, 2); };
+      avatar.replaceChildren(img);
+    }
+    if (img.getAttribute("src") !== who.avatar) img.src = who.avatar;
+  } else if (avatar && !avatar.querySelector("img")) avatar.textContent = who.name.slice(0, 2);
+  // Muted or deafened, as that person (or you) last set it.
+  const other = participants.get(entry.tile.dataset.participant);
+  const off =
+    entry.kind === "screen" || entry.kind === "system_audio" ? ""
+      : (mine ? deafened : other?.deafened) ? "headphone-off"
+      : (mine ? muted : other?.muted) ? "mic-off"
+      : "";
+  if (entry.state.dataset.icon !== off) {
+    entry.state.dataset.icon = off;
+    entry.state.replaceChildren(...(off ? [glyph(off)] : []));
+    if (off) entry.state.setAttribute("aria-label", off === "mic-off" ? "Muted" : "Deafened");
+    else entry.state.removeAttribute("aria-label");
+  }
 }
 // In-app fullscreen preserves playsinline on iPhone. Pinch/pan only intercepts
 // the focused screen tile; ordinary call scrolling and controls stay native.
@@ -430,10 +625,12 @@ async function updateParticipant(participant) {
     };
     subscriptions.set(id, subscription);
     added.push(subscription);
+    // Someone started sharing: show the stream large unless you chose another tile.
+    if (track.kind === "screen" && !focusedTile) focusedTile = id;
     if (!elements.has(id)) {
       const entry = createTile(id, participant, track.kind);
       entry.media.srcObject = new MediaStream([transceiver.receiver.track]);
-      entry.media.muted = kind === "video" || deafened;
+      applyAudio(entry);
       entry.media.play().catch(() => {});
       elements.set(id, entry);
     }
@@ -484,7 +681,7 @@ export function event(event) {
     case "speaking":
       retainSpeaking(speaking, key(data.session), data.speaking);
       for (const entry of elements.values())
-        if (entry.tile.dataset.participant === key(data.session))
+        if (entry.tile.dataset.participant === key(data.session) && entry.kind !== "screen")
           entry.tile.classList.toggle("is-speaking", data.speaking);
       break;
     case "bitrate": {
@@ -517,10 +714,10 @@ export function event(event) {
   }
 }
 function applyState() {
-  for (const p of publications.values())
-    if (p.track.kind === "audio") p.track.enabled = !muted && !deafened;
-  for (const e of elements.values())
-    e.media.muted = e.media.tagName === "VIDEO" || deafened;
+  // Your microphone only: a shared screen keeps its sound while you are muted.
+  const voice = publications.get("audio");
+  if (voice) voice.track.enabled = !muted && !deafened;
+  for (const e of elements.values()) applyAudio(e);
   signal("state", { muted, deafened });
   mount();
 }
@@ -544,7 +741,7 @@ async function toggleCamera() {
       width: { ideal: 1280 },
       height: { ideal: 720 },
       frameRate: { ideal: 30 },
-      ...(cameraDevice ? { deviceId: { exact: cameraDevice } } : {}),
+      ...(cameraDevice ? { deviceId: { ideal: cameraDevice } } : {}),
     },
   });
   if (generation !== epoch) {
@@ -570,36 +767,58 @@ async function share() {
     throw Error(
       "Screen sharing is available in supported desktop browsers. Phones can watch streams.",
     );
-  const old = publications.get("screen");
-  if (old) {
-    old.stream.getTracks().forEach((t) => t.stop());
-    old.transceiver.direction = "inactive";
-    publications.delete("screen");
-    await negotiate();
-    return;
+  if (publications.has("screen")) await enqueue(unshare);
+  else showShareOptions();
+}
+// A stream is its picture and, when captured, its sound: withdraw both.
+async function unshare() {
+  for (const kind of ["screen", "system_audio"]) {
+    const p = publications.get(kind);
+    if (p) {
+      p.track.stop();
+      p.transceiver.direction = "inactive";
+      publications.delete(kind);
+    }
   }
-  showShareOptions();
+  elements.get("self-screen")?.tile.remove();
+  elements.delete("self-screen");
+  await negotiate();
+  mount();
 }
 function showShareOptions() {
   const dialog = document.createElement("dialog");
   dialog.className = "live-share-options";
+  dialog.setAttribute("aria-labelledby", "live-share-title");
+  // Escape and Cancel both leave nothing behind, and do not close the page under it.
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("keydown", (e) => e.stopPropagation());
   const title = document.createElement("h2");
+  title.id = "live-share-title";
   title.textContent = "Share Screen";
+  const labelled = (text, control) => {
+    const label = document.createElement("label");
+    label.className = "field";
+    label.textContent = text;
+    label.append(control);
+    return label;
+  };
   const fps = document.createElement("select");
-  fps.setAttribute("aria-label", "Frame Rate");
   for (const n of [15, 30, 60]) {
     const o = new Option(`${n} fps`, String(n));
     fps.add(o);
   }
   fps.value = "30";
   const size = document.createElement("select");
-  size.setAttribute("aria-label", "Resolution");
   for (const [h, label] of [
     [720, "720p"],
     [1080, "1080p"],
     [1440, "1440p"],
   ])
     size.add(new Option(label, String(h)));
+  const note = document.createElement("p");
+  note.className = "muted-copy";
+  note.textContent =
+    "Next, choose what to share. To share its sound too, turn on the audio option in that window.";
   const start = document.createElement("button");
   start.textContent = "Share";
   start.className = "button primary";
@@ -611,14 +830,9 @@ function showShareOptions() {
         height: { ideal: Number(size.value) },
         width: { ideal: Math.round((Number(size.value) * 16) / 9) },
       },
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-      },
+      audio: displayAudio(navigator.mediaDevices.getSupportedConstraints?.()),
     });
     dialog.close();
-    dialog.remove();
     try {
       const stream = await capture;
       if (!pc) {
@@ -627,21 +841,20 @@ function showShareOptions() {
       }
       const track = stream.getVideoTracks()[0];
       await publish(track, "screen", stream);
+      // What you are sharing, so you can see that you are and what others see.
+      const preview = createTile(
+        "self-screen",
+        { session: { user_id: self(), connection_id: "self" } },
+        "screen",
+      );
+      preview.media.srcObject = stream;
+      preview.media.play().catch(() => {});
+      elements.get("self-screen")?.tile.remove();
+      elements.set("self-screen", preview);
+      mount();
       for (const audio of stream.getAudioTracks())
         await publish(audio, "system_audio", stream);
-      track.onended = () =>
-        enqueue(async () => {
-          for (const kind of ["screen", "system_audio"]) {
-            const p = publications.get(kind);
-            if (p) {
-              p.track.stop();
-              p.transceiver.direction = "inactive";
-              publications.delete(kind);
-            }
-          }
-          await negotiate();
-          mount();
-        });
+      track.onended = () => enqueue(unshare);
       enqueue(negotiate);
     } catch (e) {
       if (e.name !== "NotAllowedError") report(e);
@@ -650,11 +863,8 @@ function showShareOptions() {
   const cancel = document.createElement("button");
   cancel.className = "button secondary";
   cancel.textContent = "Cancel";
-  cancel.onclick = () => {
-    dialog.close();
-    dialog.remove();
-  };
-  dialog.append(title, size, fps, start, cancel);
+  cancel.onclick = () => dialog.close();
+  dialog.append(title, labelled("Resolution", size), labelled("Frame Rate", fps), note, start, cancel);
   document.body.append(dialog);
   dialog.showModal();
 }
@@ -699,7 +909,7 @@ async function levels() {
     for (const row of stats.values())
       if (row.type === "media-source" && row.kind === "audio") {
         for (const e of elements.values())
-          if (e.tile.dataset.self)
+          if (e.tile.dataset.self && e.kind !== "screen")
             e.tile.classList.toggle(
               "is-speaking",
               !muted && !deafened && Number(row.audioLevel) > 0.02,
@@ -746,33 +956,63 @@ export function mount() {
   } else mini?.remove();
   const stage = $("#live-media-stage");
   if (focusedTile && !elements.has(focusedTile)) focusedTile = null;
+  // A focused voice tile gives way to that person's camera when they turn it on.
+  const focused = elements.get(focusedTile);
+  if (focused?.kind === "audio") {
+    const camera = [...elements].find(([, e]) =>
+      e.kind === "camera" && e.tile.dataset.participant === focused.tile.dataset.participant);
+    if (camera) focusedTile = camera[0];
+  }
   stage?.classList.toggle('has-focus', !!focusedTile);
   if (stage)
     for (const e of elements.values()) {
-      const audio = e.tile.dataset.kind === "audio";
-      const hasCamera = [...elements.values()].some(
-        (v) =>
-          v.tile.dataset.participant === e.tile.dataset.participant &&
-          v.tile.dataset.kind === "camera",
-      );
-      e.tile.hidden = audio && hasCamera;
+      describe(e);
+      const kind = e.tile.dataset.kind;
+      const has = (other) =>
+        [...elements.values()].some(
+          (v) =>
+            v.tile.dataset.participant === e.tile.dataset.participant &&
+            v.tile.dataset.kind === other,
+        );
+      // Stream sound plays from its own hidden tile, not as a second person.
+      e.tile.hidden = kind === "system_audio" || (kind === "audio" && has("camera"));
+      if (e.volume) e.volume.root.hidden = kind === "screen" && !has("system_audio");
       e.tile.classList.toggle('is-focused', e.tile === elements.get(focusedTile)?.tile);
       if (!e.tile.classList.contains('is-focused')) e.tile.resetZoom?.();
       e.tile.setAttribute('aria-pressed', String(e.tile.classList.contains('is-focused')));
       if (e.tile.parentElement !== stage) stage.append(e.tile);
     }
+  if (stage) {
+    // Lay tiles out as a grid that fits the screen: 2 across up to four people, then 3, then 4.
+    const count = [...elements.values()].filter((e) => !e.tile.hidden).length;
+    const columns = innerWidth < 768 ? (count <= 3 ? 1 : 2) : count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
+    stage.style.setProperty("--columns", String(columns));
+    stage.style.setProperty("--rows", String(Math.max(1, Math.ceil(count / columns))));
+  }
   const connected = $("#live-connected");
   if (connected) connected.hidden = !joined;
   const text = $("#live-call-status");
-  if (text) text.textContent = status;
+  if (text) {
+    const sharing = publications.has("screen");
+    text.textContent = sharing && status === "Voice Connected" ? "Voice Connected · You’re sharing your screen" : status;
+    text.classList.toggle("is-live", status === "Voice Connected");
+  }
+  // Off states are drawn slashed and red, so they are not mistaken for "on".
+  const swap = (button, icon) => button.querySelector("use")?.setAttribute("href", `#i-${icon}`);
   for (const e of document.querySelectorAll('[data-live="media:mute"]')) {
     e.setAttribute("aria-pressed", String(muted));
     e.classList.toggle("is-muted", muted);
+    swap(e, muted ? "mic-off" : "mic");
   }
-  for (const e of document.querySelectorAll('[data-live="media:deafen"]'))
+  for (const e of document.querySelectorAll('[data-live="media:deafen"]')) {
     e.setAttribute("aria-pressed", String(deafened));
+    e.classList.toggle("is-muted", deafened);
+    swap(e, deafened ? "headphone-off" : "headphones");
+  }
   for (const e of document.querySelectorAll('[data-live="media:camera"]'))
     e.setAttribute("aria-pressed", String(publications.has("camera")));
+  for (const e of document.querySelectorAll('[data-live="media:share"]'))
+    e.setAttribute("aria-pressed", String(publications.has("screen")));
   const settings = $("#live-device-settings");
   if (settings && !settings.dataset.initialized) {
     settings.dataset.initialized = "true";
@@ -799,11 +1039,12 @@ async function devices() {
       input,
       (v) => {
         input = v;
+        rememberDevices();
         enqueue(async () => {
           if (local) {
             const stream = await navigator.mediaDevices.getUserMedia({
               audio: {
-                deviceId: { exact: v },
+                ...(v ? { deviceId: { exact: v } } : {}),
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
@@ -826,6 +1067,7 @@ async function devices() {
       cameraDevice,
       (v) => {
         cameraDevice = v;
+        rememberDevices();
         if (publications.has("camera"))
           enqueue(async () => {
             await toggleCamera();
@@ -846,6 +1088,8 @@ async function devices() {
         new Option(d.label || `${label} ${select.length}`, d.deviceId),
       );
     select.value = current;
+    // A remembered device that is no longer there shows as the default.
+    if (select.value !== current) select.value = "";
     select.onchange = () => change(select.value);
     if (kind === "audiooutput" && !HTMLMediaElement.prototype.setSinkId) {
       select.disabled = true;
@@ -859,7 +1103,7 @@ async function devices() {
   const note = document.createElement("p");
   note.textContent =
     "Echo cancellation, noise suppression, and automatic gain control are enabled for voice.";
-  root.append(note);
+  root.append(note, micTest(root));
   if (!deviceListener) {
     deviceListener = true;
     navigator.mediaDevices.addEventListener("devicechange", () => {
@@ -869,8 +1113,96 @@ async function devices() {
 }
 async function setOutput(id) {
   output = id;
+  rememberDevices();
   for (const e of elements.values())
     if (e.media.setSinkId) await e.media.setSinkId(id);
+}
+// "Test Microphone": a level meter for the chosen microphone. Nothing runs
+// until it is started, and it stops with the button or when the page goes away.
+function micTest(root) {
+  const box = document.createElement("div");
+  box.className = "mic-test";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button secondary";
+  button.textContent = "Test Microphone";
+  const meter = document.createElement("div");
+  meter.className = "mic-meter";
+  meter.setAttribute("role", "meter");
+  meter.setAttribute("aria-label", "Microphone level");
+  meter.setAttribute("aria-valuemin", "0");
+  meter.setAttribute("aria-valuemax", "100");
+  meter.setAttribute("aria-valuenow", "0");
+  const bar = document.createElement("span");
+  meter.append(bar);
+  const hint = document.createElement("small");
+  hint.textContent = "Speak to see the meter move. Others can’t hear this test.";
+  hint.hidden = true;
+  let stream, context, frame;
+  const stop = () => {
+    cancelAnimationFrame(frame);
+    stream?.getTracks().forEach((t) => t.stop());
+    context?.close().catch(() => {});
+    stream = context = undefined;
+    bar.style.width = "0%";
+    meter.setAttribute("aria-valuenow", "0");
+    button.textContent = "Test Microphone";
+    hint.hidden = true;
+  };
+  button.onclick = async () => {
+    if (stream) return stop();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: input ? { deviceId: { ideal: input } } : true,
+      });
+      context = new AudioContext();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      context.createMediaStreamSource(stream).connect(analyser);
+      const samples = new Uint8Array(analyser.fftSize);
+      button.textContent = "Stop Test";
+      hint.hidden = false;
+      const tick = () => {
+        if (!root.isConnected) return stop();
+        analyser.getByteTimeDomainData(samples);
+        let peak = 0;
+        for (const v of samples) peak = Math.max(peak, Math.abs(v - 128));
+        const level = Math.min(100, Math.round((peak / 128) * 140));
+        bar.style.width = `${level}%`;
+        meter.setAttribute("aria-valuenow", String(level));
+        frame = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (e) {
+      stop();
+      report(e.name === "NotAllowedError"
+        ? new Error("Microphone access was denied. Allow it in your browser’s site settings.")
+        : e);
+    }
+  };
+  box.append(button, meter, hint);
+  return box;
+}
+// The in-call "Audio Devices" button: the same pickers, without leaving the call.
+function showDevices() {
+  if ($(".live-device-dialog")) return;
+  const dialog = document.createElement("dialog");
+  dialog.className = "live-share-options live-device-dialog";
+  dialog.setAttribute("aria-label", "Audio Devices");
+  const title = document.createElement("h2");
+  title.textContent = "Audio Devices";
+  const body = document.createElement("div");
+  body.id = "live-device-settings";
+  const close = document.createElement("button");
+  close.className = "button secondary";
+  close.textContent = "Done";
+  close.onclick = () => dialog.close();
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("keydown", (e) => e.stopPropagation());
+  dialog.append(title, body, close);
+  document.body.append(dialog);
+  dialog.showModal();
+  mount();
 }
 export function action(action) {
   switch (action) {
@@ -881,6 +1213,7 @@ export function action(action) {
     }
     case "joining":
       wantCall=true;
+      status = "Connecting…";
       break;
     case "mute":
       muted = !muted;
@@ -912,7 +1245,7 @@ export function action(action) {
       devices().catch(report);
       break;
     case "output":
-      emit("dialog:media-settings");
+      showDevices();
       break;
     default:
       break;

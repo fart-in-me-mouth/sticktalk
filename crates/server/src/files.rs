@@ -78,6 +78,9 @@ pub(crate) fn prepare(
         Some(image::ImageFormat::Jpeg)
     } else if n >= 12 && head.starts_with(b"RIFF") && &head[8..12] == b"WEBP" {
         Some(image::ImageFormat::WebP)
+    } else if head.starts_with(b"GIF87a") || head.starts_with(b"GIF89a") {
+        // Stored and served as the GIF it is; the thumbnail is its first frame.
+        Some(image::ImageFormat::Gif)
     } else {
         None
     };
@@ -248,7 +251,7 @@ pub async fn upload(
     let reservation = stream_id();
     {
         let mut core = app.0.core.lock().await;
-        core.rate(format!("upload:{}", u.0), 10., 2.)?;
+        core.rate(format!("upload:{}", u.0), 20., 4.)?;
         let mut c = app.0.pool.acquire().await?;
         let mut tx = c.begin().await?;
         crate::upload_accounting::admit(&mut tx, u).await?;
@@ -438,7 +441,9 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
     let mut core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
     let (_, u) = auth(&mut c, token).await?;
-    core.rate(format!("rest:{}", u.0), 120., 30.)?;
+    // Its own budget: a screen of avatars and pictures must not use up the
+    // allowance for the rest of the API, nor the other way round.
+    core.rate(format!("file:{}", u.0), 600., 120.)?;
     let row = sqlx::query("SELECT * FROM uploads WHERE id=?")
         .bind(id(a)?)
         .fetch_optional(&mut *c)
@@ -656,6 +661,21 @@ mod tests {
         let media = prepare(&path, "text/html", true).unwrap();
         assert_eq!(media.mime, "image/png");
         assert_eq!(media.thumb.map(|t| (t.0, t.1)), Some((2, 3)));
+        let mut gif = Vec::new();
+        {
+            let mut encoder = image::codecs::gif::GifEncoder::new(&mut gif);
+            for shade in [0, 255] {
+                let frame = image::RgbaImage::from_pixel(4, 2, image::Rgba([shade, 0, 0, 255]));
+                encoder.encode_frame(image::Frame::new(frame)).unwrap();
+            }
+        }
+        std::fs::write(&path, &gif).unwrap();
+        let media = prepare(&path, "image/gif", true).unwrap();
+        assert_eq!(media.mime, "image/gif");
+        assert_eq!((media.width, media.height), (Some(4), Some(2)));
+        assert_eq!(media.thumb.map(|t| (t.0, t.1)), Some((4, 2)));
+        std::fs::write(&path, b"GIF89a but not really").unwrap();
+        assert!(prepare(&path, "image/gif", false).is_err());
         std::fs::write(&path, b"<svg xmlns='http://www.w3.org/2000/svg'/>").unwrap();
         assert_eq!(
             prepare(&path, "application/octet-stream", false)

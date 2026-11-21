@@ -55,18 +55,27 @@ pub(super) fn action(app: Shared, raw: &str) {
                     match http.json::<BrowserSession>("/browser/session").await {
                         Ok(session) => start_session(app, session),
                         Err(e) => {
-                            let mut a = app.borrow_mut();
-                            a.status = if !window().navigator().on_line() {
-                                "Reconnecting…".into()
-                            } else {
-                                String::new()
-                            };
-                            a.error = if a.status.is_empty() {
-                                e
-                            } else {
-                                String::new()
-                            };
-                            a.touch();
+                            // Only a real 401 means signed out. Anything else is a
+                            // server that cannot be reached: say so, and keep trying.
+                            let revoked = wasm_bindgen_futures::JsFuture::from(session_revoked())
+                                .await
+                                .ok()
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            {
+                                let mut a = app.borrow_mut();
+                                if revoked {
+                                    a.status.clear();
+                                    a.error = e;
+                                } else {
+                                    a.status = "Reconnecting…".into();
+                                    a.error.clear();
+                                }
+                                a.touch();
+                            }
+                            if !revoked {
+                                retry_recover(app);
+                            }
                         }
                     }
                 });
@@ -130,6 +139,7 @@ pub(super) fn action(app: Shared, raw: &str) {
         "dismiss-error" => {
             let mut a = app.borrow_mut();
             a.error.clear();
+            a.notice.clear();
             a.touch();
         }
         "auth" => {
@@ -221,17 +231,86 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.screen = "home".into();
             a.channel = None;
             a.guild = None;
+            a.new_after = None;
             a.panel.clear();
             a.touch();
         }
+        "friend-add" => app.borrow_mut().command(Command::SendFriendRequest {
+            username: arg.into(),
+        }),
         "panel" => {
             let mut a = app.borrow_mut();
+            // There is no member list to open on the Friends page.
+            if arg == "right" && a.channel.is_none() {
+                return;
+            }
             a.panel = if a.panel == arg {
                 "".into()
             } else {
                 arg.into()
             };
             a.touch();
+        }
+        "members-toggle" => {
+            let mut a = app.borrow_mut();
+            a.members_hidden = !a.members_hidden;
+            a.touch();
+        }
+        "leave-guild" => {
+            let mut a = app.borrow_mut();
+            if let Some(guild_id) = a.guild {
+                a.command(Command::LeaveGuild { guild_id });
+            }
+        }
+        // The call is over: leave its screen for the conversation you came from.
+        "call-ended" => {
+            let target = {
+                let a = app.borrow();
+                if a.screen != "voice" {
+                    return;
+                }
+                a.last_text
+                    .filter(|c| a.model.channels.contains_key(c))
+                    .or_else(|| {
+                        a.model
+                            .channels
+                            .values()
+                            .find(|c| {
+                                a.guild.is_some()
+                                    && c.guild_id == a.guild
+                                    && c.kind == ChannelKind::Text
+                            })
+                            .map(|c| c.id)
+                    })
+            };
+            match target {
+                Some(c) => load_channel(app, c, None),
+                None => action(app, "home"),
+            }
+        }
+        "pins-refresh" => {
+            let (epoch, generation) = {
+                let a = app.borrow();
+                (a.epoch, a.dialog_generation)
+            };
+            spawn_local(async move {
+                dialog_data(app, "pins".into(), epoch, generation).await;
+            });
+        }
+        // From the pinned list or the emoji picker: close it, then act on the message.
+        "jump" | "react-pick" => {
+            {
+                let mut a = app.borrow_mut();
+                a.dialog.clear();
+                a.dialog_generation = a.dialog_generation.wrapping_add(1);
+                a.touch();
+            }
+            let next = if kind == "jump" {
+                "seek-message"
+            } else {
+                "react"
+            };
+            action(app, &format!("{next}:{arg}"));
         }
         "guild" => {
             if let Some(g) = id(arg) {
@@ -344,7 +423,11 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.panel.clear();
             a.touch();
         }
+        // The page has already hidden the note. No render here: one would race
+        // with the typing that caused it.
+        "saved-clear" => app.borrow_mut().saved = None,
         "submit" => {
+            app.borrow_mut().saved = None;
             let submission = Submission::capture(&app.borrow());
             let form = arg.to_owned();
             spawn_local(async move {
@@ -434,14 +517,14 @@ pub(super) fn action(app: Shared, raw: &str) {
                 });
             }
         }
-        "pin" => {
+        "pin" | "unpin" => {
             let channel = app.borrow().channel;
             if let (Some(c), Some(m)) = (channel, id(arg)) {
                 app.borrow_mut()
                     .command(Command::Launch(LaunchCommand::PinMessage {
                         channel_id: c,
                         message_id: m,
-                        pinned: true,
+                        pinned: kind == "pin",
                     }));
             }
         }
@@ -598,26 +681,60 @@ fn fail(app: &Shared, error: String) {
     a.error = error;
     a.touch();
 }
+/// Turns each "@username" into a mention. The name may be followed by
+/// punctuation; text inside code is left exactly as typed.
 fn mentions(model: &Model, content: &str) -> (String, Vec<Id>) {
-    let mut content = content.to_owned();
+    let mut out = String::with_capacity(content.len());
     let mut ids = vec![];
-    for u in model.users.values() {
-        let token = format!("@{}", u.username);
-        if content.split_whitespace().any(|word| word == token) {
-            content = content
-                .split_inclusive(char::is_whitespace)
-                .map(|word| {
-                    if word.trim_end() == token {
-                        format!("<@{}>{}", u.id.0, &word[word.trim_end().len()..])
-                    } else {
-                        word.to_owned()
-                    }
-                })
-                .collect();
-            ids.push(u.id);
+    let (mut fence, mut tick) = (false, false);
+    let mut rest = content;
+    while let Some(c) = rest.chars().next() {
+        if let Some(tail) = rest.strip_prefix("```") {
+            fence = !fence;
+            out.push_str("```");
+            rest = tail;
+            continue;
         }
+        if c == '\n' {
+            tick = false;
+        } else if c == '`' && !fence {
+            tick = !tick;
+        } else if c == '@'
+            && !fence
+            && !tick
+            && out
+                .chars()
+                .next_back()
+                .is_none_or(|p| !(p.is_alphanumeric() || p == '_' || p == '@'))
+        {
+            let tail = &rest[1..];
+            let len = tail
+                .bytes()
+                .take_while(|b| b.is_ascii_alphanumeric() || *b == b'_')
+                .count();
+            if let Some(u) = model.users.values().find(|u| u.username == tail[..len]) {
+                out.push_str(&format!("<@{}>", u.id.0));
+                if !ids.contains(&u.id) {
+                    ids.push(u.id);
+                }
+                rest = &tail[len..];
+                continue;
+            }
+        }
+        out.push(c);
+        rest = &rest[c.len_utf8()..];
     }
-    (content, ids)
+    (out, ids)
+}
+/// Why this text cannot be sent as one message, if it cannot.
+fn too_long(content: &str) -> Option<String> {
+    let extra = content.chars().count().saturating_sub(MAX_MESSAGE_CHARS);
+    (extra > 0).then(|| {
+        format!(
+            "That message is {extra} character{} too long. Messages can be up to 4,000 characters.",
+            if extra == 1 { "" } else { "s" }
+        )
+    })
 }
 #[lazy]
 fn expand_shortcodes(content: String) -> String {
@@ -684,8 +801,14 @@ fn send_prepared(app: Shared, content: String) {
         return;
     }
     let (content, mention_ids) = mentions(&a.model, &content);
+    if let Some(problem) = too_long(&content) {
+        a.error = problem;
+        a.touch();
+        return;
+    }
     a.completions.clear();
     a.completion_query.clear();
+    a.new_after = None;
     let reply_to = a.reply;
     let attachment_ids = a.attachments.iter().map(|a| a.id).collect();
     a.command(Command::SendMessage(MessageDraft {
@@ -698,7 +821,7 @@ fn send_prepared(app: Shared, content: String) {
     a.reply = None;
     media_action(&format!("sent:{}", channel_id.0));
 }
-fn mark_read(app: &Shared) {
+pub(super) fn mark_read(app: &Shared) {
     if document().hidden() || !document().has_focus().unwrap_or(false) {
         return;
     }
@@ -755,7 +878,7 @@ fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, targe
             .filter(|g| Some(*g) != a.guild)
     };
     let (abort, registration) = futures_util::future::AbortHandle::new_pair();
-    let (http, generation, anchor) = {
+    let (http, generation, anchor, needs_topic) = {
         let mut a = app.borrow_mut();
         if let Some(previous) = a.history_abort.replace(abort) {
             previous.abort();
@@ -763,6 +886,13 @@ fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, targe
         a.history_generation += 1;
         a.history_busy = true;
         if a.channel != Some(c) {
+            // "New" marks where you had read up to when you arrived.
+            a.new_after = a
+                .model
+                .reads
+                .get(&c)
+                .filter(|r| r.unread_count > 0)
+                .and_then(|r| r.last_read_id);
             a.typing_sent = 0;
             a.reply = None;
             a.editing = None;
@@ -781,8 +911,10 @@ fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, targe
         a.channel = Some(c);
         a.guild = a.model.channels.get(&c).and_then(|c| c.guild_id);
         a.screen = "chat".into();
+        a.last_text = Some(c);
         a.panel.clear();
         a.model.touch(c);
+        let needs_topic = a.guild.is_some() && !a.model.topics.contains_key(&c);
         let anchor = target
             .map(|message_id| HistoryAnchor {
                 message_id,
@@ -819,10 +951,27 @@ fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, targe
                 })
             });
         a.touch();
-        (a.http(), a.history_generation, anchor)
+        (a.http(), a.history_generation, anchor, needs_topic)
     };
     if let Some(g) = member_guild {
         load_members(app.clone(), g, None);
+    }
+    if needs_topic {
+        // The channel list carries no topics; fetch this one once for the header.
+        let app = app.clone();
+        let http = http.clone();
+        spawn_local(async move {
+            if let Ok(p) = http
+                .json::<Snapshot<Channel>>(&format!("/channels/{}", c.0))
+                .await
+            {
+                let mut a = app.borrow_mut();
+                if a.model.channels.contains_key(&c) && a.model.snapshot_valid(&p.cursor) {
+                    a.model.topics.insert(c, p.data.topic);
+                    a.touch();
+                }
+            }
+        });
     }
     let request = async move {
         let path = format!(
@@ -918,14 +1067,35 @@ fn load_members(app: Shared, g: Id, after: Option<Id>) {
                 if after.is_none() {
                     a.model.members.clear();
                 }
+                a.members_more = page.has_more;
                 for u in page.items {
                     a.model.users.insert(u.user.id, u.user.clone());
                     a.model.members.insert(u.user.id, u);
                 }
+                subscribe(&mut a, g);
                 a.touch();
             }
             Err(e) => fail(&app, e),
         }
+    });
+}
+/// Ask who is online among the members shown. The server answers once, then
+/// reports changes for the same people.
+pub(super) fn subscribe(a: &mut App, g: Id) {
+    if !a.ready {
+        return;
+    }
+    let presence_user_ids = a
+        .model
+        .members
+        .values()
+        .filter(|m| m.guild_id == g)
+        .map(|m| m.user.id)
+        .take(100)
+        .collect();
+    a.command(Command::SubscribeGuild {
+        guild_id: Some(g),
+        presence_user_ids,
     });
 }
 fn open_dialog(app: Shared, name: &str) {
@@ -1248,7 +1418,20 @@ fn submit(app: Shared, form: String, submission: Submission) {
             }
             Some(Command::CreateGroupDm { name, user_ids })
         }
-        "friend" => Some(Command::SendFriendRequest { username: name }),
+        "friend" => Some(Command::SendFriendRequest {
+            username: name.trim().trim_start_matches('@').to_owned(),
+        }),
+        "guild-delete" => {
+            let expected = guild
+                .and_then(|g| a.model.guilds.get(&g))
+                .map(|g| g.guild.name.trim().to_owned());
+            if expected.is_none() || expected.as_deref() != Some(name.trim()) {
+                a.error = "Type the server’s name exactly to delete it.".into();
+                a.touch();
+                return;
+            }
+            guild.map(|guild_id| Command::DeleteGuild { guild_id })
+        }
         "create" => Some(Command::CreateGuild {
             name,
             icon_id: None,
@@ -1327,6 +1510,11 @@ fn submit(app: Shared, form: String, submission: Submission) {
         "edit" => {
             if let (Some(channel_id), Some(message_id)) = (channel, editing) {
                 let (content, mention_ids) = mentions(&a.model, &name);
+                if let Some(problem) = too_long(&content) {
+                    a.error = problem;
+                    a.touch();
+                    return;
+                }
                 Some(Command::EditMessage(MessageEdit {
                     channel_id,
                     message_id,
@@ -1389,6 +1577,16 @@ fn submit(app: Shared, form: String, submission: Submission) {
             )))
         }
         "password" => {
+            if text.is_empty() || text != extra {
+                a.error = if text.is_empty() {
+                    "Enter a new password."
+                } else {
+                    "The new passwords don’t match."
+                }
+                .into();
+                a.touch();
+                return;
+            }
             let http = a.http();
             drop(a);
             // The current socket is revoked before the rotated-cookie HTTP
@@ -1406,11 +1604,20 @@ fn submit(app: Shared, form: String, submission: Submission) {
                     .await
                 {
                     Ok(_) => {
+                        // The page reloads into the new session; say why afterwards.
+                        storage_set("sticktalk-notice", Some("Your password was changed."));
                         let _ = window().location().reload();
                     }
                     Err(e) => {
                         media_action("password-finished");
-                        fail(&app, e);
+                        fail(
+                            &app,
+                            if e == "Incorrect username or password." {
+                                "Your current password is incorrect.".into()
+                            } else {
+                                e
+                            },
+                        );
                     }
                 }
             });
@@ -1480,6 +1687,8 @@ fn submit(app: Shared, form: String, submission: Submission) {
         a.touch();
     }
 }
+// Loaded with the first command a person sends, not with the login screen.
+#[lazy]
 pub(super) fn response(app: Shared, response: CommandResponse) {
     let mut a = app.borrow_mut();
     let pending = a.pending.remove(&response.nonce);
@@ -1494,14 +1703,81 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     a.reply = draft.reply_to;
                 }
             }
-            a.error = sticktalk_client_core::http::error_text(&error);
+            let operation = pending.as_ref().map(|(c, _)| c);
+            // Housekeeping the person did not ask for fails quietly.
+            if matches!(
+                operation,
+                Some(
+                    Command::SubscribeGuild { .. }
+                        | Command::MarkRead { .. }
+                        | Command::Typing { .. }
+                        | Command::Launch(LaunchCommand::UpdateDevice { .. })
+                )
+            ) {
+                return;
+            }
+            a.error = match (operation, error.code) {
+                (Some(Command::SendFriendRequest { .. }), ErrorCode::NotFound) => {
+                    "No one has that username. Check the spelling and try again.".into()
+                }
+                (
+                    Some(Command::SendFriendRequest { .. }),
+                    ErrorCode::AlreadyExists | ErrorCode::Conflict,
+                ) => "You’re already friends, or a request is already waiting.".into(),
+                (Some(Command::SendFriendRequest { .. }), ErrorCode::InvalidRequest) => {
+                    "Enter a username, for example alex_m. You can’t add yourself.".into()
+                }
+                (
+                    Some(Command::JoinGuild { .. }),
+                    ErrorCode::AlreadyExists | ErrorCode::Conflict,
+                ) => "You’re already in that server.".into(),
+                _ => sticktalk_client_core::http::error_text(&error),
+            };
             a.touch();
         }
         CommandOutcome::Ok(result) => {
             let operation = pending.map(|(c, _)| c);
             a.error.clear();
-            if matches!(operation, Some(Command::UpdateProfile(_))) {
+            a.notice.clear();
+            // Saving a name or status makes the profile form clean; a new avatar,
+            // chosen while that form is half filled in, does not.
+            if matches!(&operation, Some(Command::UpdateProfile(p)) if p.display_name != Patch::Keep || p.status_text != Patch::Keep)
+            {
                 media_action("profile-saved");
+            }
+            // These forms stay open after saving, so they must say it worked.
+            let saved = match &operation {
+                Some(Command::UpdateGuild { patch, .. }) if patch.name != Patch::Keep => {
+                    Some("server-overview")
+                }
+                Some(Command::Launch(LaunchCommand::UpdateUserProfile { .. })) => Some("about"),
+                Some(Command::Launch(LaunchCommand::UpdateGuildProfile { .. })) => {
+                    Some("server-profile")
+                }
+                Some(Command::Launch(LaunchCommand::SetNotifications(_))) => Some("notifications"),
+                _ => None,
+            };
+            if let Some(form) = saved {
+                a.saved = Some((a.dialog_generation, form));
+                media_action("form-saved");
+            }
+            // Actions with nothing else to show for them get a short confirmation.
+            let notice = match &operation {
+                Some(Command::SendFriendRequest { .. }) => "Friend request sent.",
+                Some(Command::RemoveFriend { .. }) => "Friend removed.",
+                Some(Command::BlockUser { .. }) => "User blocked.",
+                Some(Command::Launch(LaunchCommand::PinMessage { pinned: true, .. })) => {
+                    "Message pinned."
+                }
+                Some(Command::Launch(LaunchCommand::PinMessage { pinned: false, .. })) => {
+                    "Message unpinned."
+                }
+                Some(Command::Launch(LaunchCommand::SetMemberRoles { .. })) => "Roles updated.",
+                _ => "",
+            };
+            if !notice.is_empty() {
+                a.notice = notice.into();
+                a.error = notice.into();
             }
             if matches!(
                 operation,
@@ -1513,6 +1789,25 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                 a.touch();
                 drop(a);
                 action(app, "dialog:devices");
+                return;
+            }
+            // An admin page's save returns to the list it came from, not out of settings.
+            let back = match &operation {
+                Some(Command::UpdateChannel { .. } | Command::DeleteChannel { .. })
+                    if a.dialog.starts_with("channel-") =>
+                {
+                    Some("server-channels")
+                }
+                Some(Command::BanMember { .. } | Command::UnbanMember { .. }) => {
+                    Some("server-bans")
+                }
+                Some(Command::RevokeInvite { .. }) => Some("invite"),
+                Some(Command::Launch(LaunchCommand::DeleteRole { .. })) => Some("roles"),
+                _ => None,
+            };
+            if let Some(page) = back.filter(|_| !a.dialog.is_empty()) {
+                drop(a);
+                open_dialog(app, page);
                 return;
             }
             match result {
@@ -1574,19 +1869,34 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     let _ = r; // RolesUpdated owns the projection.
                     a.dialog = "roles".into();
                 }
+                CommandResult::Subscription { presences } => {
+                    for p in presences {
+                        a.model.presences.insert(p.user_id, p.status);
+                    }
+                }
                 _ => {
                     if !matches!(
                         operation,
                         Some(
                             Command::Typing { .. }
                                 | Command::MarkRead { .. }
-                                | Command::SubscribeGuild { .. }
                                 | Command::UpdateProfile(_)
-                                | Command::Launch(LaunchCommand::UpdateUserProfile { .. })
-                                | Command::Launch(LaunchCommand::UpdateGuildProfile { .. })
-                                | Command::Launch(LaunchCommand::ReorderRoles { .. })
-                                | Command::Launch(LaunchCommand::LogoutSession { .. })
-                                | Command::Launch(LaunchCommand::LogoutAllOthers)
+                                | Command::AddReaction { .. }
+                                | Command::RemoveReaction { .. }
+                                | Command::AcceptFriendRequest { .. }
+                                | Command::DeclineFriendRequest { .. }
+                                | Command::CancelFriendRequest { .. }
+                                | Command::UnblockUser { .. }
+                                | Command::Launch(
+                                    LaunchCommand::UpdateUserProfile { .. }
+                                        | LaunchCommand::UpdateGuildProfile { .. }
+                                        | LaunchCommand::ReorderRoles { .. }
+                                        | LaunchCommand::LogoutSession { .. }
+                                        | LaunchCommand::LogoutAllOthers
+                                        | LaunchCommand::UpdateDevice { .. }
+                                        | LaunchCommand::PinMessage { .. }
+                                        | LaunchCommand::SetNotifications(_)
+                                )
                         )
                     ) {
                         a.dialog.clear();
@@ -1596,6 +1906,37 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             a.touch();
         }
     }
+}
+/// After every fresh snapshot. The member list and presence subscription were
+/// reset with it, and a new session tells the server what device it is.
+pub(super) fn ready(app: Shared) {
+    let guild = app.borrow().guild;
+    if let Some(g) = guild {
+        load_members(app.clone(), g, None);
+    }
+    let mut a = app.borrow_mut();
+    if !a.device_named {
+        a.device_named = true;
+        let (device_name, platform) =
+            crate::wire::device(&window().navigator().user_agent().unwrap_or_default());
+        a.command(Command::Launch(LaunchCommand::UpdateDevice {
+            device_name,
+            platform,
+        }));
+    }
+}
+/// While the server cannot be reached and nobody is signed in, look again.
+pub(super) fn retry_recover(app: Shared) {
+    spawn_local(async move {
+        Browser.sleep(10_000).await;
+        let waiting = {
+            let a = app.borrow();
+            a.model.me.is_none() && a.status == "Reconnecting…"
+        };
+        if waiting {
+            action(app, "recover");
+        }
+    });
 }
 #[wasm_bindgen(raw_module = "/public/live.js")]
 extern "C" {
@@ -1708,17 +2049,20 @@ fn upload(
     guild: Option<Id>,
     epoch: u64,
 ) {
-    if app.borrow().epoch != epoch {
+    let queued = purpose == UploadPurpose::Message;
+    if app.borrow().epoch != epoch || app.borrow().uploading {
+        if queued {
+            media_action("upload-stop");
+        }
         return;
     }
     let (http, channel, epoch) = {
         let mut a = app.borrow_mut();
-        if a.uploading {
-            return;
-        }
         if purpose == UploadPurpose::Message && a.attachments.len() >= MAX_MESSAGE_ATTACHMENTS {
             a.error = "You can attach up to 4 files to a message.".into();
             a.touch();
+            drop(a);
+            media_action("upload-stop");
             return;
         }
         if purpose == UploadPurpose::GuildIcon && guild.is_none() {
@@ -1727,7 +2071,11 @@ fn upload(
         let c = if purpose != UploadPurpose::Message {
             None
         } else {
-            let Some(c) = channel else { return };
+            let Some(c) = channel else {
+                drop(a);
+                media_action("upload-stop");
+                return;
+            };
             Some(c)
         };
         a.uploading = true;
@@ -1878,7 +2226,13 @@ fn upload(
             }
             Err(e) => a.error = e,
         }
+        let failed = !a.error.is_empty();
         a.touch();
+        drop(a);
+        // The page queues several chosen files and sends them one at a time.
+        if purpose == UploadPurpose::Message {
+            media_action(if failed { "upload-stop" } else { "upload-done" });
+        }
     });
 }
 fn storage_get(key: &str) -> Option<String> {
@@ -2000,14 +2354,20 @@ fn voice_action(app: Shared, kind: String, arg: String, epoch: u64) {
             };
             match decode_signal(raw) {
                 Ok(signal) => {
-                    let mut a = app.borrow_mut();
-                    if matches!(signal, VoiceSignal::Leave) {
-                        a.voice_channel = None;
+                    let left = matches!(signal, VoiceSignal::Leave);
+                    {
+                        let mut a = app.borrow_mut();
+                        if left {
+                            a.voice_channel = None;
+                        }
+                        if let Some(nonce) = request_nonce {
+                            a.voice_request(signal, nonce);
+                        } else {
+                            a.voice(signal);
+                        }
                     }
-                    if let Some(nonce) = request_nonce {
-                        a.voice_request(signal, nonce);
-                    } else {
-                        a.voice(signal);
+                    if left {
+                        action(app.clone(), "call-ended");
                     }
                 }
                 Err(e) => fail(&app, e),
@@ -2032,6 +2392,8 @@ fn voice_action(app: Shared, kind: String, arg: String, epoch: u64) {
                 }
                 a.screen = "voice".into();
                 a.channel = Some(c);
+                // "Return to call" from another server shows the call's own server.
+                a.guild = a.model.channels.get(&c).and_then(|c| c.guild_id);
                 a.panel.clear();
                 a.touch();
             }

@@ -13,6 +13,88 @@ pub fn video_hint(content_type: &str, filename: &str) -> bool {
             }))
 }
 /// Accept a pasted invite link without navigating to a user-supplied origin.
+/// What this browser is, for the Devices list: ("Chrome on Windows", "Web").
+pub fn device(user_agent: &str) -> (String, String) {
+    let has = |s: &str| user_agent.contains(s);
+    let browser = if has("Edg/") {
+        "Edge"
+    } else if has("OPR/") {
+        "Opera"
+    } else if has("Firefox/") || has("FxiOS/") {
+        "Firefox"
+    } else if has("Chrome/") || has("CriOS/") {
+        "Chrome"
+    } else if has("Safari/") {
+        "Safari"
+    } else {
+        "Browser"
+    };
+    let system = if has("Windows") {
+        "Windows"
+    } else if has("Android") {
+        "Android"
+    } else if has("iPhone") {
+        "iPhone"
+    } else if has("iPad") {
+        "iPad"
+    } else if has("Mac OS X") {
+        "Mac"
+    } else if has("CrOS") {
+        "Chromebook"
+    } else if has("Linux") {
+        "Linux"
+    } else {
+        ""
+    };
+    let name = if system.is_empty() {
+        browser.to_owned()
+    } else {
+        format!("{browser} on {system}")
+    };
+    (name, "Web".into())
+}
+/// A file size as people say it: "812 B", "34 KB", "2.4 MB".
+pub fn file_size(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+    // Rounded to the nearest tenth.
+    let tenths = |unit: u64| {
+        let t = (bytes.saturating_mul(10) + unit / 2) / unit;
+        format!("{}.{}", t / 10, t % 10)
+    };
+    if bytes < KB {
+        format!("{bytes} B")
+    } else if bytes < MB {
+        format!("{} KB", bytes.div_ceil(KB))
+    } else if bytes < GB {
+        format!("{} MB", tenths(MB))
+    } else {
+        format!("{} GB", tenths(GB))
+    }
+}
+/// One line of a message for a reply preview. Spoilers stay hidden.
+pub fn snippet(text: &str) -> String {
+    let parts = text.split("||").collect::<Vec<_>>();
+    let mut out = String::new();
+    for (i, part) in parts.iter().enumerate() {
+        // An odd part is a spoiler only when a closing marker follows it.
+        if i % 2 == 1 && i + 1 < parts.len() {
+            out.push_str("(spoiler)");
+        } else {
+            if i % 2 == 1 {
+                out.push_str("||");
+            }
+            out.push_str(part);
+        }
+    }
+    out.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(100)
+        .collect()
+}
 pub fn invite_code(input: &str) -> String {
     let input = input.trim();
     let code = input
@@ -174,6 +256,40 @@ mod tests {
             code
         );
         assert_eq!(invite_code("javascript:alert(1)"), "javascript:alert(1)"); // server rejects it
+    }
+    #[test]
+    fn devices_are_named_for_the_devices_list() {
+        let edge = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0";
+        assert_eq!(device(edge), ("Edge on Windows".into(), "Web".into()));
+        let iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+        assert_eq!(device(iphone).0, "Safari on iPhone");
+        assert_eq!(device("").0, "Browser");
+    }
+    #[test]
+    fn file_sizes_read_as_people_say_them() {
+        assert_eq!(file_size(812), "812 B");
+        assert_eq!(file_size(1024), "1 KB");
+        assert_eq!(file_size(34_100), "34 KB");
+        assert_eq!(file_size(2_516_582), "2.4 MB");
+        assert_eq!(file_size(3 * 1024 * 1024 * 1024), "3.0 GB");
+    }
+    #[test]
+    fn reply_previews_are_one_line_and_keep_spoilers_hidden() {
+        assert_eq!(
+            snippet("the ending is ||everyone lives||"),
+            "the ending is (spoiler)"
+        );
+        assert_eq!(snippet("a ||b|| c ||d||"), "a (spoiler) c (spoiler)");
+        // An unclosed marker is not a spoiler: nothing is hidden, nothing is lost.
+        assert_eq!(snippet("pipes || in text"), "pipes || in text");
+        assert_eq!(
+            snippet(
+                "one
+two   three"
+            ),
+            "one two three"
+        );
+        assert_eq!(snippet(&"x".repeat(300)).chars().count(), 100);
     }
     #[test]
     fn custom_role_colors_cannot_hide_names() {

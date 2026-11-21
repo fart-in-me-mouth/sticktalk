@@ -981,7 +981,12 @@ async fn mutate(
             name: s,
             user_ids: mut users,
         } => {
-            let s = name(&s, 64)?;
+            // A group without a name is shown by the names of its members.
+            let s = if s.trim().is_empty() {
+                None
+            } else {
+                Some(name(&s, 64)?)
+            };
             unique(&users, 15)?;
             require(
                 users.len() >= 2 && !users.contains(&u),
@@ -1187,6 +1192,9 @@ async fn mutate(
                 .execute(&mut *c)
                 .await?;
             sqlx::query("INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(?,'text',?,'general',0,?)").bind(id(ch)?).bind(id(g)?).bind(now() as i64).execute(&mut *c).await?;
+            // A new server is ready to talk in: one text and one voice channel.
+            let voice = core.id().await?;
+            sqlx::query("INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(?,'voice',?,'Voice',1,?)").bind(id(voice)?).bind(id(g)?).bind(now() as i64).execute(&mut *c).await?;
             joined(c, out, g, u).await?;
             Ok(CommandResult::Guild(detail(c, u, g).await?))
         }

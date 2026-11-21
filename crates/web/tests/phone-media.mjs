@@ -75,9 +75,9 @@ try {
   await act(alice,`edit:${id}`);await alice.locator('#f-name').fill('Edited phone message');
   await alice.locator('[type=submit]').click();
   await bob.waitForFunction(id=>document.querySelector(`[data-live-message="${id}"] .markdown`)?.textContent.includes('Edited phone message'),id);
-  alice.once('dialog',d=>d.accept());
   await actions(alice,id);
   await alice.locator(`#live-message-menu [data-live="delete:${id}"]`).tap();
+  await alice.locator('#live-confirm [data-accept]').tap();
   await bob.waitForFunction(id=>!document.querySelector(`[data-live-message="${id}"]`),id);
   checks.push('phone typing, explicit mention, touch reply, reaction, edit and deletion');
 
@@ -139,7 +139,6 @@ try {
   await until(async()=>(await diagnostic(alice)).stats.some(r=>r.type==='inbound-rtp'&&r.kind==='video'&&r.framesDecoded>=10),45000);
   const remoteVideo=alice.locator('[data-kind=screen] video').first();
   assert(await remoteVideo.evaluate(v=>v.playsInline&&v.muted&&v.autoplay));
-  await alice.locator('[data-kind=screen]').first().tap();
   await alice.waitForSelector('.participant-grid.has-focus [data-kind=screen].is-focused');
   const screenBounds=await remoteVideo.boundingBox(),sx=screenBounds.x+screenBounds.width/2,sy=screenBounds.y+screenBounds.height/2;
   await gesture(alice,[

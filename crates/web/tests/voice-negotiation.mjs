@@ -28,7 +28,7 @@ try {
   const code=await alice.locator('.live-modal code').first().textContent();await act(alice,'close');
   await form(bob,'join',{'f-name':code});await bob.waitForSelector('#live-input');
   await form(alice,'channel',{'f-name':'Receiver activation','f-extra':'voice'});
-  const voice=await alice.locator('[data-live^="voice:"]').first().getAttribute('data-live');await act(bob,voice);
+  const voice=await alice.locator('[data-live^="voice:"]:has-text("Receiver activation")').getAttribute('data-live');await act(bob,voice);
   await until(async()=>(await Promise.all([diagnostic(alice),diagnostic(bob)])).every(d=>d.state==='connected'),45000);
   for(let round=1;round<=3;round++) {
     const before=await Promise.all([diagnostic(alice),diagnostic(bob)]),base=before.map(decoded);

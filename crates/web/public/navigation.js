@@ -15,7 +15,7 @@ export function installOverlayHistory(send) {
   // history.go is asynchronous. Coalesce a fast second navigation until its
   // popstate has restored the previous view, rather than closing the new drawer.
   addEventListener('sticktalk-live',event=>{
-    if(traversing&&!replaying&&/^(panel:|dialog:|channel:|guild:|home$)/.test(event.detail)) {
+    if(traversing&&!replaying&&/^(panel:|dialog:|channel:|guild:|edit:|profile:|role:|home$)/.test(event.detail)) {
       queued=event.detail;event.stopImmediatePropagation();
     }
   },true);

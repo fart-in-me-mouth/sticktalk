@@ -1026,3 +1026,68 @@ async fn failed_ready_detaches_stream_and_is_not_an_auth_failure() {
     app.shutdown();
     task.await.unwrap();
 }
+
+#[tokio::test]
+async fn a_sixth_sign_in_replaces_the_session_used_least_recently() {
+    let (_dir, app) = fixture().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let serving = app.clone();
+    let task = tokio::spawn(async move {
+        serving.serve(listener).await.unwrap();
+    });
+    let http = reqwest::Client::new();
+    let registered = http
+        .post(format!("{url}/api/v1/auth/register"))
+        .json(&RegisterRequest {
+            username: "sixth".into(),
+            password: "a password".into(),
+            display_name: None,
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(registered.status(), 201);
+    let user = registered
+        .json::<AuthResponse>()
+        .await
+        .unwrap()
+        .user
+        .user
+        .id
+        .0 as i64;
+    // Four more devices, each last used long before the one that just registered.
+    for n in 1..=4_u8 {
+        sqlx::query("INSERT INTO sessions VALUES(?,?,?,?,?)")
+            .bind(vec![100 + n; 32])
+            .bind(user)
+            .bind(n as i64)
+            .bind((now() + 86_400_000) as i64)
+            .bind(n as i64)
+            .execute(&app.0.pool)
+            .await
+            .unwrap();
+    }
+    let login = http
+        .post(format!("{url}/api/v1/auth/login"))
+        .json(&LoginRequest {
+            username: "sixth".into(),
+            password: "a password".into(),
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(login.status(), 200, "a sixth device can still sign in");
+    let left: Vec<Vec<u8>> = sqlx::query_scalar("SELECT token_hash FROM sessions WHERE user_id=?")
+        .bind(user)
+        .fetch_all(&app.0.pool)
+        .await
+        .unwrap();
+    assert_eq!(left.len(), 5);
+    assert!(
+        !left.contains(&vec![101; 32]),
+        "the session used longest ago is the one signed out"
+    );
+    assert!(left.contains(&vec![102; 32]));
+    task.abort();
+}

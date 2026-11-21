@@ -122,6 +122,9 @@ try {
       await page.locator('#f-name').selectOption('nothing');
       await page.locator('#f-muted').check();
       await page.locator('[type=submit]').click();
+      // The page stays open and says it saved.
+      await page.waitForSelector('.live-modal .form-saved');
+      await act(page,'close');
       await page.waitForFunction(()=>!document.querySelector('.live-modal'));
       await act(page,'dialog:notifications');
       await page.waitForFunction(()=>document.querySelector('#f-name')?.value==='nothing');
@@ -231,12 +234,14 @@ try {
       await page.waitForFunction(()=>document.querySelectorAll('.device-row').length===2);
       screenshots.push(await shot(page,'sessions-multiple'));
       await page.locator('.device-row').filter({hasNotText:'Current Device'}).getByRole('button',{name:'Log Out',exact:true}).click();
+      await page.locator('#live-confirm [data-accept]').click();
       await other.waitForSelector('#auth-username');
       await other.locator('#auth-username').fill(`qa_phone_${width}`);
       await other.locator('#auth-password').fill('synthetic-qa-password-1234');
       await other.locator('[type=submit]').click();await other.waitForSelector('.live-home');
       await act(page,'dialog:devices');
       await page.getByRole('button',{name:'Log Out All Other Devices',exact:true}).click();
+      await page.locator('#live-confirm [data-accept]').click();
       await other.waitForSelector('#auth-username');await other.context().close();
       checks.push('session-specific and all-other-device logout invalidate a second live browser');
     }
@@ -246,12 +251,14 @@ try {
       await page.locator('#f-name').fill(password);
       password='updated-synthetic-qa-password-5678';
       await page.locator('#f-value').fill(password);
+      await page.locator('#f-extra').fill(password);
       await Promise.all([page.waitForEvent('load'),page.locator('[type=submit]').click()]);
       await page.waitForSelector('.live-shell');
       checks.push('password change with current-password proof and cookie-session reload');
     }
     await act(page,'dialog:settings');
     await page.getByRole('button',{name:'Log Out',exact:true}).click();
+    await page.locator('#live-confirm [data-accept]').click();
     await page.waitForSelector('#auth-username');
     await wait(200);assert.equal(await page.locator('.live-error').count(),0,'logout has no late media error');
     await login(page,`qa_phone_${width}`,password);
