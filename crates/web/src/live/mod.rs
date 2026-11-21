@@ -108,6 +108,12 @@ struct App {
     last_text: Option<Id>,
     /// The last message read when the conversation was opened; "New" is drawn after it.
     new_after: Option<Id>,
+    /// Which friends the Friends page lists: all, online, pending or blocked.
+    friends_tab: String,
+    /// What the invite typed into Join a Server leads to (or why it does not).
+    invite_preview: Option<(String, Result<InvitePreview, String>)>,
+    /// The invite code now in the Join field; an answer about any other is stale.
+    invite_wanted: String,
     /// This session has told the server what device it is.
     device_named: bool,
     reply: Option<Id>,
@@ -171,6 +177,9 @@ impl App {
         self.members_more = false;
         self.last_text = None;
         self.new_after = None;
+        self.friends_tab = "all".into();
+        self.invite_preview = None;
+        self.invite_wanted.clear();
         self.device_named = false;
         self.reply = None;
         self.editing = None;
@@ -317,6 +326,9 @@ pub fn mount() {
             members_hidden: false,
             last_text: None,
             new_after: None,
+            friends_tab: "all".into(),
+            invite_preview: None,
+            invite_wanted: String::new(),
             device_named: false,
             reply: None,
             editing: None,

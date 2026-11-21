@@ -10,8 +10,12 @@ function state() {
   return {dialog:document.querySelector('#live-message-menu')?'@actions':document.querySelector('#live-viewer')?'@viewer':document.querySelector('.live-modal')?.dataset.dialog??'',
     panel:shell?.classList.contains('panel-left')?'left':shell?.classList.contains('panel-right')?'right':''};
 }
-export function installOverlayHistory(send) {
-  emit=send;
+// Every entry this page writes is numbered. The difference to a popped
+// entry's number says which way, and how far, the person went.
+let leaving, discarding=false, returning=false, position=0;
+const numbered=()=>Number.isInteger(history.state?.sticktalkIndex)?history.state.sticktalkIndex:null;
+export function installOverlayHistory(send, guard) {
+  emit=send;leaving=guard;
   // history.go is asynchronous. Coalesce a fast second navigation until its
   // popstate has restored the previous view, rather than closing the new drawer.
   addEventListener('sticktalk-live',event=>{
@@ -19,8 +23,21 @@ export function installOverlayHistory(send) {
       queued=event.detail;event.stopImmediatePropagation();
     }
   },true);
-  history.replaceState({...history.state,sticktalkOverlay:{dialog:'',panel:'',depth:0}},'');
+  position=numbered()??0;
+  history.replaceState({...history.state,sticktalkIndex:position,sticktalkOverlay:{dialog:'',panel:'',depth:0}},'');
   addEventListener('popstate',()=>{
+    // Back with unsaved changes: go forward again to where the person was, and
+    // ask. Only "Discard" repeats the Back, this time for real.
+    if(returning){returning=false;return;}
+    const question=!traversing&&!discarding&&leaving?.();
+    if(question) {
+      // An entry with no number of its own can only be taken for "Back".
+      const moved=(numbered()??position-1)-position||-1;
+      returning=true;history.go(-moved);
+      question.then(discard=>{if(discard){discarding=true;history.go(moved);}});
+      return;
+    }
+    discarding=false;position=numbered()??position;
     let next=history.state?.sticktalkOverlay??{dialog:'',panel:'',depth:0};
     if(next.dialog.startsWith('@')&&state().dialog!==next.dialog) {
       next={dialog:'',panel:'',depth:0};history.replaceState({...history.state,sticktalkOverlay:next},'');
@@ -52,5 +69,6 @@ export function syncOverlayHistory() {
   const nested=(!old.dialog&&!!next.dialog)||(['settings','server'].includes(old.dialog)&&old.dialog!==next.dialog)||(next.dialog.startsWith('@')&&!old.dialog.startsWith('@'));
   const push=old.depth===0||nested;
   const depth=push?old.depth+1:old.depth;
-  history[push?'pushState':'replaceState']({...history.state,sticktalkOverlay:{...next,depth,...(next.dialog.startsWith('@')?{parentDialog:old.dialog}:{})}},'');
+  if(push)position+=1;
+  history[push?'pushState':'replaceState']({...history.state,sticktalkIndex:position,sticktalkOverlay:{...next,depth,...(next.dialog.startsWith('@')?{parentDialog:old.dialog}:{})}},'');
 }

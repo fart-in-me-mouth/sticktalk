@@ -673,6 +673,28 @@ pub(crate) async fn snapshot(
             crate::db::role(c, u, g).await?;
             snap!(guild_profile(c, g).await?)
         }
+        // What an invite leads to, for the Join dialog. The code is the secret:
+        // holding it is what lets you see the server's name and size.
+        ["invites", code, "preview"] => {
+            require(code.len() == 22, ErrorCode::InvalidInvite)?;
+            let found: Option<i64> = sqlx::query_scalar("SELECT id FROM invites WHERE code_hash=?")
+                .bind(crate::state::hash(code.as_bytes()))
+                .fetch_optional(&mut *c)
+                .await?;
+            let found = found.ok_or_else(|| Error::new(ErrorCode::InvalidInvite))?;
+            let i = invite(c, Id(found as u64)).await?;
+            require(i.expires_at > now(), ErrorCode::InviteExpired)?;
+            require(i.uses < i.max_uses, ErrorCode::InviteExhausted)?;
+            let r = sqlx::query("SELECT name,(SELECT COUNT(*) FROM guild_members WHERE guild_id=guilds.id) AS n FROM guilds WHERE id=?")
+                .bind(id(i.guild_id)?)
+                .fetch_one(&mut *c)
+                .await?;
+            snap!(InvitePreview {
+                name: r.get("name"),
+                member_count: r.get::<i64, _>("n") as u32,
+                joined: crate::db::role(c, u, i.guild_id).await.is_ok(),
+            })
+        }
         ["guilds", g, "preview"] => {
             let g = url_id(g)?;
             let guild = guild(c, u, g).await?.guild;

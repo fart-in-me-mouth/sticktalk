@@ -3,6 +3,7 @@
 use crate::{
     address,
     app::{Load, UserEvent},
+    control,
     health::{self, Failure},
     menu,
     policy::{Decision, Grant, Permission},
@@ -92,6 +93,37 @@ pub fn build(window: &Window, context: &mut WebContext, config: Config) -> Resul
                     let _ = proxy.send_event(UserEvent::OpenExternal(url));
                 }
                 NewWindowResponse::Deny
+            }
+        })
+        // Remote control of a shared screen (see `control`). The page can only
+        // ask; the person at this PC is asked by Windows before anything happens.
+        .with_initialization_script(
+            "Object.defineProperty(window,'__sticktalkHost',{value:Object.freeze({control:1})});",
+        )
+        .with_ipc_handler({
+            let (shared, proxy) = (shared.clone(), proxy.clone());
+            let overrun = std::sync::atomic::AtomicBool::new(false);
+            move |request: Request<String>| {
+                // Only the chosen server's own pages are listened to.
+                if !lock(&shared).policy.is_server(&request.uri().to_string()) {
+                    return;
+                }
+                let Some(message) = control::parse(request.body()) else {
+                    return;
+                };
+                // A bounded line: a page that floods it loses control instead.
+                if !control::admit(&message) {
+                    if !overrun.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                        let _ = proxy.send_event(UserEvent::ControlOverrun);
+                    }
+                    return;
+                }
+                overrun.store(false, std::sync::atomic::Ordering::SeqCst);
+                if let Err(unsent) = proxy.send_event(UserEvent::Control(message)) {
+                    if let UserEvent::Control(message) = unsent.0 {
+                        control::taken(&message);
+                    }
+                }
             }
         })
         .with_document_title_changed_handler({
@@ -276,7 +308,11 @@ unsafe fn hook(
                     let Some(args) = args else { return Ok(()) };
                     let mut source = PWSTR::null();
                     args.OriginalSourceFrameInfo()?.Source(&mut source)?;
-                    if !lock(&shared).policy.is_server(&take_pwstr(source)) {
+                    let mut state = lock(&shared);
+                    if state.policy.is_server(&take_pwstr(source)) {
+                        state.sharing = true;
+                    } else {
+                        drop(state);
                         args.SetCancel(true)?;
                     }
                     Ok(())

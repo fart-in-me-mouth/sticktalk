@@ -73,6 +73,9 @@ pub struct Shared {
     pub form: Form,
     /// The top-level address most recently allowed to load.
     pub navigating: String,
+    /// The server's page on screen now has started a screen capture. Remote
+    /// control is only ever offered for something being shared.
+    pub sharing: bool,
 }
 
 pub type SharedState = Arc<Mutex<Shared>>;

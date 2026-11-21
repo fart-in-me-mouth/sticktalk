@@ -1,6 +1,6 @@
 //! One window, one WebView, one event loop that sleeps until something happens.
 use crate::{
-    address, health,
+    address, control, health,
     links::{self, Launch},
     policy::{Decision, Policy},
     shell_page::{self, lock, Form, Shared, SharedState},
@@ -61,6 +61,25 @@ pub enum UserEvent {
     Title(String),
     Loaded(Load),
     Captured(bool),
+    /// The page sent input faster than it could be performed.
+    ControlOverrun,
+    /// The server's page, about remote control of a shared screen.
+    Control(control::Message),
+    /// The person here answered the "allow remote control?" question.
+    ControlAnswer {
+        question: u64,
+        allowed: bool,
+    },
+    /// Esc on the real keyboard during remote control.
+    ControlEscape,
+}
+
+/// Tells the page what became of a remote-control request.
+fn tell(webview: &wry::WebView, control: &str, reason: &str) {
+    let detail = serde_json::json!({ "control": control, "reason": reason });
+    let _ = webview.evaluate_script(&format!(
+        "window.dispatchEvent(new CustomEvent('sticktalk-host',{{detail:{detail}}}))"
+    ));
 }
 
 /// A finished (or failed) top-level page load.
@@ -324,6 +343,7 @@ pub fn run(launch: Launch) -> i32 {
         policy,
         form,
         navigating: String::new(),
+        sharing: false,
     }));
     let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
@@ -421,6 +441,18 @@ pub fn run(launch: Launch) -> i32 {
     let mut save_at: Option<Instant> = None;
     let mut last_external: Option<Instant> = None;
     let mut started = false;
+    // Remote control: at most one question open and one session running.
+    let mut session: Option<control::Session> = None;
+    let mut asking: Option<(u64, control::Target, u32, u32)> = None;
+    let mut question = 0u64;
+    // The question's message box is on screen (possibly for a withdrawn request).
+    let mut prompting = false;
+    // The question that still stands, for the thread showing it (0: none).
+    let wanted = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let withdraw = {
+        let wanted = wanted.clone();
+        move || wanted.store(0, std::sync::atomic::Ordering::SeqCst)
+    };
     let code = event_loop.run_return(|event, _, flow| {
         let now = Instant::now();
         match event {
@@ -465,7 +497,111 @@ pub fn run(launch: Launch) -> i32 {
                 *flow = ControlFlow::ExitWithCode(if saved { 0 } else { 4 });
                 return;
             }
+            Event::UserEvent(UserEvent::ControlOverrun) => {
+                if session.take().is_some() {
+                    tell(
+                        &webview,
+                        "stopped",
+                        "Remote control stopped: input arrived faster than it could be performed.",
+                    );
+                }
+            }
+            Event::UserEvent(UserEvent::Control(message)) => {
+                control::taken(&message);
+                match message {
+                control::Message::Start {
+                    who,
+                    label,
+                    surface,
+                    width,
+                    height,
+                } => match control::target(&label, &surface) {
+                    // The question is asked by Windows, off this thread, so no
+                    // page can draw it, answer it or freeze the window with it.
+                    Some(target)
+                        if !is_smoke
+                            && session.is_none()
+                            && asking.is_none()
+                            && !prompting
+                            && lock(&shared).sharing =>
+                    {
+                        question += 1;
+                        prompting = true;
+                        asking = Some((question, target, width, height));
+                        wanted.store(question, std::sync::atomic::Ordering::SeqCst);
+                        let (proxy, question, wanted) = (proxy.clone(), question, wanted.clone());
+                        std::thread::spawn(move || {
+                            let allowed = control::ask(&who, target, move || {
+                                wanted.load(std::sync::atomic::Ordering::SeqCst) == question
+                            });
+                            let _ =
+                                proxy.send_event(UserEvent::ControlAnswer { question, allowed });
+                        });
+                    }
+                    Some(_) => tell(&webview, "denied", ""),
+                    None => tell(
+                        &webview,
+                        "denied",
+                        "StickTalk can’t tell which screen or window is shared, so it can’t be controlled.",
+                    ),
+                },
+                control::Message::Input { input } => {
+                    if let Some(active) = &mut session {
+                        if let Err(reason) = active.input(input) {
+                            session = None;
+                            tell(&webview, "stopped", &reason);
+                        }
+                    }
+                }
+                control::Message::Release => {
+                    if let Some(active) = &mut session {
+                        active.release();
+                    }
+                }
+                control::Message::Stop => {
+                    session = None;
+                    asking = None;
+                    withdraw();
+                }
+                }
+            }
+            Event::UserEvent(UserEvent::ControlAnswer {
+                question: answered,
+                allowed,
+            }) => {
+                prompting = false;
+                withdraw();
+                // An answer to a question withdrawn in the meantime counts for nothing.
+                if let Some((_, target, width, height)) =
+                    asking.take_if(|(asked, ..)| *asked == answered)
+                {
+                    if !allowed {
+                        tell(&webview, "denied", "");
+                    } else {
+                        let proxy = proxy.clone();
+                        match control::Session::start(target, width, height, move || {
+                            let _ = proxy.send_event(UserEvent::ControlEscape);
+                        }) {
+                            Ok(started) => {
+                                session = Some(started);
+                                tell(&webview, "allowed", "");
+                            }
+                            Err(reason) => tell(&webview, "denied", &reason),
+                        }
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::ControlEscape) => {
+                if session.take().is_some() {
+                    tell(&webview, "stopped", "You stopped remote control.");
+                }
+            }
             Event::UserEvent(UserEvent::Loaded(load)) => {
+                // A page that has gone can no longer be the one that was allowed.
+                session = None;
+                asking = None;
+                withdraw();
+                lock(&shared).sharing = false;
                 if load.ok && !started {
                     started = true;
                     // An installed 0.1.x client that updates itself to this

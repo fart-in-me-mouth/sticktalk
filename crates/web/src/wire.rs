@@ -112,7 +112,7 @@ pub fn stringify_ids(v: &mut serde_json::Value) {
     match v {
         serde_json::Value::Object(map) => {
             for (k, v) in map {
-                if (k == "id" || k.ends_with("_id")) && v.is_u64() {
+                if (k == "id" || k.ends_with("_id") || k == "grant") && v.is_u64() {
                     *v = v.to_string().into()
                 } else {
                     stringify_ids(v)
@@ -256,6 +256,76 @@ mod tests {
             code
         );
         assert_eq!(invite_code("javascript:alert(1)"), "javascript:alert(1)"); // server rejects it
+    }
+    /// What `public/media.js` `packControl` produces (fixtures printed by it):
+    /// the server's decoder must read them as the inputs they are.
+    #[test]
+    fn the_pages_control_messages_are_the_servers() {
+        use sticktalk_proto::{ControlData, ControlInput, Id, VoiceSession};
+        fn bytes(hex: &str) -> Vec<u8> {
+            (0..hex.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+                .collect()
+        }
+        let message = |sharer: (u64, u64), grant, sequence, input| ControlData::Input {
+            sharer: VoiceSession {
+                user_id: Id(sharer.0),
+                connection_id: Id(sharer.1),
+            },
+            grant,
+            sequence,
+            input,
+        };
+        for (hex, expected) in [
+            (
+                "82a474797065a5696e707574a46461746184a673686172657282a7757365725f6964cf0377f879e6800000ad636f6e6e656374696f6e5f696407a56772616e74cfffffffffffffffffa873657175656e6365cd012ca5696e70757482a474797065a46d6f7665a46461746182a178cdffffa17900",
+                message(
+                    (249941506784231424, 7),
+                    u64::MAX,
+                    300,
+                    ControlInput::Move { x: 65535, y: 0 },
+                ),
+            ),
+            (
+                "82a474797065a5696e707574a46461746184a673686172657282a7757365725f696401ad636f6e6e656374696f6e5f696402a56772616e7403a873657175656e636504a5696e70757482a474797065a5776865656ca46461746182a178d1f000a17978",
+                message((1, 2), 3, 4, ControlInput::Wheel { x: -4096, y: 120 }),
+            ),
+            (
+                "82a474797065a5696e707574a46461746184a673686172657282a7757365725f696401ad636f6e6e656374696f6e5f696402a56772616e7403a873657175656e636505a5696e70757482a474797065a36b6579a46461746182a57573616765cce5a4646f776ec2",
+                message(
+                    (1, 2),
+                    3,
+                    5,
+                    ControlInput::Key {
+                        usage: 229,
+                        down: false,
+                    },
+                ),
+            ),
+            (
+                "82a474797065a5696e707574a46461746184a673686172657282a7757365725f696401ad636f6e6e656374696f6e5f696402a56772616e7403a873657175656e636506a5696e70757482a474797065a6627574746f6ea46461746182a6627574746f6e01a4646f776ec3",
+                message(
+                    (1, 2),
+                    3,
+                    6,
+                    ControlInput::Button {
+                        button: 1,
+                        down: true,
+                    },
+                ),
+            ),
+        ] {
+            assert_eq!(
+                rmp_serde::from_slice::<ControlData>(&bytes(hex)).unwrap(),
+                expected
+            );
+        }
+        // And the other way: what the server sends is what the page's reader expects.
+        assert_eq!(
+            rmp_serde::to_vec_named(&ControlData::ReleaseAll { grant: 5 }).unwrap(),
+            bytes("82a474797065ab72656c656173655f616c6ca46461746181a56772616e7405")
+        );
     }
     #[test]
     fn devices_are_named_for_the_devices_list() {

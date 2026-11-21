@@ -74,7 +74,7 @@ export function normalizeVolumes(value) {
     .slice(-64)
     .map(([id, v]) => {
       const n = Number(v?.volume);
-      return [id, { volume: Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1, muted: v?.muted === true }];
+      return [id, { volume: Number.isFinite(n) ? Math.min(2, Math.max(0, n)) : 1, muted: v?.muted === true }];
     });
 }
 let volumes = new Map();
@@ -84,20 +84,61 @@ try {
 } catch { /* Storage may be disabled in a private browser. */ }
 const volumeKey = (p, kind) =>
   `${p.session.user_id}:${kind === 'screen' || kind === 'system_audio' ? 'stream' : 'voice'}`;
-const volumeOf = (id) => volumes.get(id) ?? { volume: 1, muted: false };
+const volumeOf = (id) => ({ ...(volumes.get(id) ?? { volume: 1, muted: false }) });
 function setVolume(id, next) {
   volumes.delete(id);
-  if (next.muted || next.volume < 1) volumes.set(id, next);
+  if (next.muted || next.volume !== 1) volumes.set(id, next);
   while (volumes.size > 64) volumes.delete(volumes.keys().next().value);
   try { localStorage.setItem(VOLUMES, JSON.stringify([...volumes])); } catch {}
   for (const e of elements.values()) if (e.volumeKey === id) applyAudio(e);
+}
+// Louder than 100%: a media element cannot go above its source, so that part
+// plays through a gain node instead (and the element itself stays silent).
+let audioContext;
+function boost(entry, gain) {
+  const stream = entry.media.srcObject;
+  if (!gain || !stream) {
+    entry.boost?.source.disconnect();
+    entry.boost?.node.disconnect();
+    entry.boost = null;
+    return;
+  }
+  if (!audioContext) {
+    audioContext = new AudioContext();
+    // The same speaker the rest of the call plays through.
+    if (output) audioContext.setSinkId?.(output).catch(() => {});
+  }
+  if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+  if (!entry.boost || entry.boost.stream !== stream) {
+    entry.boost?.source.disconnect();
+    entry.boost?.node.disconnect();
+    const source = audioContext.createMediaStreamSource(stream), node = audioContext.createGain();
+    source.connect(node).connect(audioContext.destination);
+    entry.boost = { stream, source, node };
+  }
+  entry.boost.node.gain.value = gain;
+}
+function discard(id) {
+  const entry = elements.get(id);
+  if (!entry) return;
+  boost(entry, 0);
+  entry.tile.remove();
+  elements.delete(id);
 }
 // The one place that decides what a tile's media element plays.
 function applyAudio(entry) {
   const v = volumeOf(entry.volumeKey);
   const video = entry.media.tagName === 'VIDEO';
-  entry.media.muted = video || deafened || v.muted;
-  if (!video) entry.media.volume = v.volume;
+  // A browser that cannot send a gain node to the chosen speaker stops at 100%.
+  const limit = !output || globalThis.AudioContext?.prototype.setSinkId ? 2 : 1;
+  if (entry.volume) entry.volume.slider.max = String(limit * 100);
+  if (v.volume > limit) v.volume = limit;
+  const boosted = !video && v.volume > 1 && !deafened && !v.muted;
+  entry.media.muted = video || deafened || v.muted || boosted;
+  if (!video) {
+    entry.media.volume = Math.min(1, v.volume);
+    boost(entry, boosted ? v.volume : 0);
+  }
   if (!entry.volume) return;
   const silent = v.muted || v.volume === 0;
   entry.volume.icon.setAttribute('href', silent ? '#i-volume-x' : '#i-volume-2');
@@ -132,7 +173,7 @@ function volumeControl(id, name) {
   const slider = document.createElement('input');
   slider.type = 'range';
   slider.min = '0';
-  slider.max = '100';
+  slider.max = '200';
   slider.setAttribute('aria-label', `${name} volume`);
   slider.oninput = () => setVolume(id, { volume: Number(slider.value) / 100, muted: false });
   const readout = document.createElement('span');
@@ -499,6 +540,19 @@ function createTile(id, p, kind) {
     }
   }
   const entry = { tile, label, name, state, media, user: p.session.user_id, kind, volumeKey: volumeKey(p, kind) };
+  if (kind === 'screen' && p.session.user_id !== self()) {
+    entry.control = document.createElement('button');
+    entry.control.type = 'button';
+    entry.control.className = 'button secondary tile-control';
+    for (const type of ['click', 'keydown', 'pointerdown'])
+      entry.control.addEventListener(type, (e) => e.stopPropagation());
+    entry.control.onclick = () => {
+      if (controlling?.tile === entry) stopControl();
+      else enqueue(() => requestControl(entry));
+    };
+    tile.append(entry.control);
+    bindControl(entry);
+  }
   describe(entry);
   // A stream's sound arrives as its own track; its control sits on the screen tile.
   if (p.session.user_id !== self() && kind !== 'system_audio') {
@@ -541,6 +595,13 @@ function describe(entry) {
     entry.state.replaceChildren(...(off ? [glyph(off)] : []));
     if (off) entry.state.setAttribute("aria-label", off === "mic-off" ? "Muted" : "Deafened");
     else entry.state.removeAttribute("aria-label");
+  }
+  if (entry.control) {
+    const mine = controlling?.tile === entry, active = mine && controlling.state === "active";
+    const text = active ? "Stop Controlling" : mine ? "Asking…" : "Request Control";
+    if (entry.control.textContent !== text) entry.control.textContent = text;
+    entry.control.disabled = (mine && !active) || (!mine && !!controlling);
+    entry.tile.classList.toggle("is-controlling", active);
   }
 }
 // In-app fullscreen preserves playsinline on iPhone. Pinch/pan only intercepts
@@ -593,8 +654,7 @@ async function updateParticipant(participant) {
       s.transceiver.direction = "inactive";
       idleReceivers.push(s.transceiver);
       subscriptions.delete(id);
-      elements.get(id)?.tile.remove();
-      elements.delete(id);
+      discard(id);
     }
   }
   const added = [];
@@ -666,14 +726,15 @@ export function event(event) {
       const prefix = key(data.session);
       speaking.delete(prefix);
       participants.delete(prefix);
+      if (controlling && key(controlling.sharer) === prefix) endControlling();
+      if (controlled && key(controlled.requester) === prefix) endControlled();
       for (const [id, s] of subscriptions)
         if (key(s.participant.session) === prefix) {
           signal("unsubscribe", { receiver_mid: s.transceiver.mid });
           s.transceiver.direction = "inactive";
           idleReceivers.push(s.transceiver);
           subscriptions.delete(id);
-          elements.get(id)?.tile.remove();
-          elements.delete(id);
+          discard(id);
         }
       mount();
       break;
@@ -705,6 +766,33 @@ export function event(event) {
       report(data.message ?? "The server rejected a media operation.");
       pendingAnswer?.reject(new Error(data.message ?? 'Media operation failed.'));
       pendingAnswer = null;
+      break;
+    case "control_requested":
+      controlRequested(data);
+      break;
+    case "control_denied":
+      if (controlling?.state === "asking" && key(data.sharer) === key(controlling.sharer)) {
+        endControlling();
+        report(new Error("They declined remote control."));
+      }
+      break;
+    case "control_granted":
+      if (controlling && key(data.sharer) === key(controlling.sharer) && data.controller.user_id === self()) {
+        controlling.state = "active";
+        controlling.grant = BigInt(data.grant);
+        focusedTile = [...elements].find(([, e]) => e === controlling.tile)?.[0] ?? focusedTile;
+        mount();
+        controlling.tile.tile.focus({ preventScroll: true });
+      } else if (controlled && !controlled.pending && data.sharer.user_id === self() &&
+                 key(data.controller) === key(controlled.requester)) {
+        clearTimeout(controlled.timer);
+        controlled.grant = String(data.grant);
+        mount();
+      }
+      break;
+    case "control_revoked":
+      if (controlling && key(data.sharer) === key(controlling.sharer)) endControlling();
+      if (controlled && data.sharer.user_id === self()) endControlled();
       break;
     case "guild_left":
       if (data.session.user_id === self() && joined) stop(false);
@@ -772,6 +860,10 @@ async function share() {
 }
 // A stream is its picture and, when captured, its sound: withdraw both.
 async function unshare() {
+  if (controlled) {
+    signal("revoke_control");
+    endControlled();
+  }
   for (const kind of ["screen", "system_audio"]) {
     const p = publications.get(kind);
     if (p) {
@@ -855,6 +947,8 @@ function showShareOptions() {
       for (const audio of stream.getAudioTracks())
         await publish(audio, "system_audio", stream);
       track.onended = () => enqueue(unshare);
+      // In the Windows app the shared screen can be controlled, with your consent.
+      if (host()) controlChannelReady();
       enqueue(negotiate);
     } catch (e) {
       if (e.name !== "NotAllowedError") report(e);
@@ -867,6 +961,321 @@ function showShareOptions() {
   dialog.append(title, labelled("Resolution", size), labelled("Frame Rate", fps), note, start, cancel);
   document.body.append(dialog);
   dialog.showModal();
+}
+// ---- remote control of a shared screen ---------------------------------------
+// The viewer sends pointer and key input over one ordered data channel. The
+// server checks the grant and passes it to the sharer, whose StickTalk Windows
+// app (never a plain browser) asks them first and then performs it.
+const CONTROL = "sticktalk-control-v1";
+const host = () =>
+  globalThis.__sticktalkHost?.control && globalThis.ipc?.postMessage ? globalThis.ipc : null;
+const tellHost = (message) => host()?.postMessage(JSON.stringify(message));
+let controlChannel = null;
+// As the viewer: { sharer, tile, state: "asking" | "active", grant, sequence, held, buttons }.
+let controlling = null;
+// As the sharer: { requester, name, pending, grant }.
+let controlled = null;
+
+// MessagePack, only as much as a control message needs: maps with text keys,
+// text, whole numbers and booleans. Field names and shapes are proto's ControlData.
+export function packControl(value) {
+  const out = [];
+  const put = (v) => {
+    if (typeof v === "boolean") out.push(v ? 0xc3 : 0xc2);
+    else if (typeof v === "string") {
+      const bytes = new TextEncoder().encode(v);
+      if (bytes.length < 32) out.push(0xa0 | bytes.length);
+      else out.push(0xd9, bytes.length);
+      out.push(...bytes);
+    } else if (typeof v === "bigint" || Number.isInteger(v)) {
+      const n = BigInt(v);
+      const big = (width, from) => {
+        for (let shift = BigInt(width - 8); shift >= 0n; shift -= 8n) out.push(Number((from >> shift) & 255n));
+      };
+      if (n < -32768n) throw Error("number out of range");
+      if (n < -32n) { out.push(0xd1); big(16, BigInt.asUintN(16, n)); }
+      else if (n < 0n) out.push(Number(BigInt.asUintN(8, n)));
+      else if (n < 128n) out.push(Number(n));
+      else if (n < 256n) out.push(0xcc, Number(n));
+      else if (n < 65536n) { out.push(0xcd); big(16, n); }
+      else if (n < 4294967296n) { out.push(0xce); big(32, n); }
+      else { out.push(0xcf); big(64, BigInt.asUintN(64, n)); }
+    } else {
+      const keys = Object.keys(v);
+      out.push(0x80 | keys.length);
+      for (const k of keys) { put(k); put(v[k]); }
+    }
+  };
+  put(value);
+  return new Uint8Array(out);
+}
+// Whole numbers too large for a JavaScript number come back as decimal text.
+export function unpackControl(bytes) {
+  if (bytes.length > 512) throw Error("too long");
+  let at = 0;
+  const take = (n) => {
+    if (at + n > bytes.length) throw Error("truncated");
+    at += n;
+    return bytes.subarray(at - n, at);
+  };
+  const whole = (n, signed) => {
+    let v = 0n;
+    for (const b of take(n)) v = (v << 8n) | BigInt(b);
+    if (signed) v = BigInt.asIntN(n * 8, v);
+    return v >= BigInt(Number.MIN_SAFE_INTEGER) && v <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(v) : v.toString();
+  };
+  const text = (n) => new TextDecoder("utf-8", { fatal: true }).decode(take(n));
+  const read = (depth) => {
+    if (depth > 8) throw Error("too deep");
+    const t = take(1)[0];
+    if (t < 0x80) return t;
+    if (t >= 0xe0) return t - 256;
+    if (t >= 0xa0 && t < 0xc0) return text(t & 31);
+    if ((t & 0xf0) === 0x80 || t === 0xde) {
+      const count = t === 0xde ? whole(2) : t & 15;
+      const map = {};
+      for (let i = 0; i < count; i++) {
+        const k = read(depth + 1);
+        if (typeof k !== "string" || k === "__proto__") throw Error("bad key");
+        map[k] = read(depth + 1);
+      }
+      return map;
+    }
+    switch (t) {
+      case 0xc0: return null;
+      case 0xc2: return false;
+      case 0xc3: return true;
+      case 0xcc: return whole(1);
+      case 0xcd: return whole(2);
+      case 0xce: return whole(4);
+      case 0xcf: return whole(8);
+      case 0xd0: return whole(1, true);
+      case 0xd1: return whole(2, true);
+      case 0xd2: return whole(4, true);
+      case 0xd3: return whole(8, true);
+      case 0xd9: return text(whole(1));
+      case 0xda: return text(whole(2));
+      default: throw Error("unsupported");
+    }
+  };
+  const value = read(0);
+  if (at !== bytes.length) throw Error("trailing bytes");
+  return value;
+}
+// USB HID keyboard usages by physical key (KeyboardEvent.code). The Windows key
+// is left out on purpose, and the sharer's app refuses it as well.
+export const KEY_USAGE = (() => {
+  const usage = {
+    Enter: 40, Escape: 41, Backspace: 42, Tab: 43, Space: 44, Minus: 45, Equal: 46,
+    BracketLeft: 47, BracketRight: 48, Backslash: 49, Semicolon: 51, Quote: 52, Backquote: 53,
+    Comma: 54, Period: 55, Slash: 56, CapsLock: 57, Insert: 73, Home: 74, PageUp: 75,
+    Delete: 76, End: 77, PageDown: 78, ArrowRight: 79, ArrowLeft: 80, ArrowDown: 81, ArrowUp: 82,
+    ControlLeft: 0xe0, ShiftLeft: 0xe1, AltLeft: 0xe2, ControlRight: 0xe4, ShiftRight: 0xe5, AltRight: 0xe6,
+  };
+  [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].forEach((c, i) => (usage[`Key${c}`] = 4 + i));
+  [..."1234567890"].forEach((c, i) => (usage[`Digit${c}`] = 30 + i));
+  for (let i = 1; i <= 12; i++) usage[`F${i}`] = 57 + i;
+  return usage;
+})();
+// Where a pointer is inside the shared picture (not its letterbox), 0..65535.
+export function controlPoint(box, width, height, x, y) {
+  if (!(width > 0 && height > 0 && box.width > 0 && box.height > 0)) return null;
+  const scale = Math.min(box.width / width, box.height / height);
+  const w = width * scale, h = height * scale;
+  const px = (x - box.left - (box.width - w) / 2) / w, py = (y - box.top - (box.height - h) / 2) / h;
+  if (px < 0 || px > 1 || py < 0 || py > 1) return null;
+  return { x: Math.round(px * 65535), y: Math.round(py * 65535) };
+}
+// True when the channel was just created and the call must renegotiate for it.
+function controlChannelReady() {
+  if (controlChannel && controlChannel.readyState !== "closed") return false;
+  controlChannel = pc.createDataChannel(CONTROL, { ordered: true });
+  controlChannel.binaryType = "arraybuffer";
+  controlChannel.onmessage = (e) => receiveControl(e.data);
+  return true;
+}
+function controlChannelOpen() {
+  const channel = controlChannel;
+  if (channel.readyState === "open") return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error("timed out")), 8000);
+    channel.addEventListener("open", () => { clearTimeout(timer); resolve(); }, { once: true });
+  });
+}
+async function requestControl(entry) {
+  const p = participants.get(entry.tile.dataset.participant);
+  if (!pc || !p || controlling) return;
+  controlling = { sharer: p.session, tile: entry, state: "asking", sequence: 0, held: new Set(), buttons: new Set() };
+  mount();
+  try {
+    if (controlChannelReady()) await negotiate();
+    await controlChannelOpen();
+    await requestSignal("request_control", { sharer: p.session });
+  } catch {
+    endControlling();
+    throw Error(`Couldn’t ask to control this screen. ${entry.who} needs to be sharing a screen or window from the StickTalk Windows app, and only one person can ask at a time.`);
+  }
+}
+function sendInput(input) {
+  const c = controlling;
+  if (c?.state !== "active" || controlChannel?.readyState !== "open") return;
+  // Never fall behind: a late key-up is a stuck key on someone else's PC. Give
+  // control back without sending anything more; the server tells the other
+  // side to let go of everything.
+  if (controlChannel.bufferedAmount > 65536) {
+    controlling = null;
+    if (pc && joined) signal("revoke_control");
+    mount();
+    return;
+  }
+  controlChannel.send(packControl({
+    type: "input",
+    data: {
+      sharer: { user_id: BigInt(c.sharer.user_id), connection_id: BigInt(c.sharer.connection_id) },
+      grant: c.grant,
+      sequence: ++c.sequence,
+      input,
+    },
+  }));
+}
+function releaseHeld() {
+  const c = controlling;
+  if (c?.state !== "active") return;
+  for (const usage of c.held) sendInput({ type: "key", data: { usage, down: false } });
+  for (const button of c.buttons) sendInput({ type: "button", data: { button, down: false } });
+  c.held.clear();
+  c.buttons.clear();
+}
+function endControlling() {
+  if (!controlling) return;
+  releaseHeld();
+  controlling = null;
+  mount();
+}
+function endControlled() {
+  if (!controlled) return;
+  clearTimeout(controlled.timer);
+  tellHost({ control: "stop" });
+  controlled = null;
+  mount();
+}
+// Either side ends it: the viewer gives control back, or the sharer takes it back.
+function stopControl() {
+  if (!controlling && !controlled) return;
+  if (pc && joined) signal("revoke_control");
+  endControlling();
+  endControlled();
+}
+function bindControl(entry) {
+  const video = entry.media, tile = entry.tile;
+  const active = () =>
+    controlling?.state === "active" && controlling.tile === entry && tile.classList.contains("is-focused");
+  const point = (e) => controlPoint(video.getBoundingClientRect(), video.videoWidth, video.videoHeight, e.clientX, e.clientY);
+  let pending = null, frame = 0;
+  video.addEventListener("pointermove", (e) => {
+    if (!active() || e.pointerType === "touch") return;
+    pending = point(e);
+    // At most one move per frame.
+    frame ||= requestAnimationFrame(() => {
+      frame = 0;
+      if (pending && active()) sendInput({ type: "move", data: pending });
+      pending = null;
+    });
+  });
+  const press = (e, down) => {
+    if (!active() || e.pointerType === "touch") return;
+    // Browser buttons are left, middle, right; the protocol's are left, right, middle.
+    const button = [0, 2, 1, 3, 4][e.button], at = point(e);
+    if (button === undefined || (down && !at)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (down) {
+      tile.focus({ preventScroll: true });
+      video.setPointerCapture?.(e.pointerId);
+      controlling.buttons.add(button);
+    } else if (!controlling.buttons.delete(button)) return;
+    if (at) sendInput({ type: "move", data: at });
+    sendInput({ type: "button", data: { button, down } });
+  };
+  video.addEventListener("pointerdown", (e) => press(e, true));
+  video.addEventListener("pointerup", (e) => press(e, false));
+  video.addEventListener("wheel", (e) => {
+    if (!active()) return;
+    e.preventDefault();
+    // A mouse notch is about 100 here and 120 there; "down" is the other sign.
+    const lines = e.deltaMode === 1 ? 40 : 1;
+    const turn = (v) => Math.max(-4096, Math.min(4096, Math.round(v * lines * 1.2)));
+    sendInput({ type: "wheel", data: { x: turn(e.deltaX), y: turn(-e.deltaY) } });
+  }, { passive: false });
+  video.addEventListener("contextmenu", (e) => { if (active()) e.preventDefault(); });
+  // A click on the picture is for the other PC, not for un-focusing the tile.
+  tile.addEventListener("click", (e) => {
+    if (controlling?.tile === entry && controlling.state === "active" && e.target === video) e.stopImmediatePropagation();
+  }, true);
+  const type = (e, down) => {
+    if (!active() || e.target !== tile) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const usage = KEY_USAGE[e.code];
+    if (!usage) return;
+    if (down) controlling.held.add(usage);
+    else if (!controlling.held.delete(usage)) return;
+    sendInput({ type: "key", data: { usage, down } });
+  };
+  tile.addEventListener("keydown", (e) => type(e, true), true);
+  tile.addEventListener("keyup", (e) => type(e, false), true);
+  tile.addEventListener("blur", () => { if (controlling?.tile === entry) releaseHeld(); });
+}
+// As the sharer: only the Windows app can be controlled, and it asks you itself.
+function controlRequested(data) {
+  const screen = publications.get("screen"), settings = screen?.track.getSettings() ?? {};
+  if (!host() || !screen || controlled || !["monitor", "window"].includes(settings.displaySurface)) {
+    signal("decide_control", { requester: data.requester, allow: false });
+    return;
+  }
+  controlled = { requester: data.requester, name: person(data.requester.user_id).name, pending: true };
+  // The server forgets the question after 30 seconds; answer "no" just before.
+  controlled.timer = setTimeout(() => hostDecision(false), Math.max(1000, Math.min(Number(data.timeout_ms) || 30000, 30000) - 1500));
+  tellHost({
+    control: "start",
+    who: controlled.name,
+    label: screen.track.label,
+    surface: settings.displaySurface,
+    width: settings.width ?? 0,
+    height: settings.height ?? 0,
+  });
+}
+function hostDecision(allow) {
+  const asked = controlled;
+  if (!asked?.pending) return;
+  clearTimeout(asked.timer);
+  asked.pending = false;
+  // "Yes" made the app ready to take input. If the call does not confirm the
+  // grant (the request had expired, the answer was lost), take that back.
+  const undo = () => { if (controlled === asked && !asked.grant) endControlled(); };
+  requestSignal("decide_control", { requester: asked.requester, allow }).catch(undo);
+  if (!allow) endControlled();
+  else asked.timer = setTimeout(undo, 5000);
+}
+globalThis.addEventListener?.("sticktalk-host", (e) => {
+  const detail = e.detail ?? {};
+  if (detail.control === "allowed") hostDecision(true);
+  else if (detail.control === "denied") hostDecision(false);
+  else if (detail.control === "stopped" && controlled) {
+    // The app ended it: Esc on the real keyboard, or input it would not perform.
+    if (controlled.pending) hostDecision(false);
+    else stopControl();
+    if (typeof detail.reason === "string" && detail.reason) report(new Error(detail.reason.slice(0, 200)));
+  }
+});
+function receiveControl(data) {
+  if (!(data instanceof ArrayBuffer) || !controlled?.grant) return;
+  let message;
+  try { message = unpackControl(new Uint8Array(data)); } catch { return; }
+  if (String(message?.data?.grant) !== controlled.grant) return;
+  if (message.type === "release_all") tellHost({ control: "release" });
+  else if (message.type === "input" && String(message.data.sharer?.user_id) === self())
+    tellHost({ control: "input", input: message.data.input });
 }
 function stop(notify) {
   if(notify)wantCall=false;
@@ -881,6 +1290,9 @@ function stop(notify) {
   publications.clear();
   local?.getTracks().forEach((t) => t.stop());
   local = null;
+  endControlling();
+  endControlled();
+  controlChannel = null;
   pc?.close();
   pc = null;
   senders.clear();
@@ -892,6 +1304,7 @@ function stop(notify) {
   participants.clear();
   subscriptions.clear();
   for (const e of elements.values()) {
+    boost(e, 0);
     e.media.srcObject = null;
     e.tile.remove();
   }
@@ -989,6 +1402,25 @@ export function mount() {
     stage.style.setProperty("--columns", String(columns));
     stage.style.setProperty("--rows", String(Math.max(1, Math.ceil(count / columns))));
   }
+  // Someone is using your mouse and keyboard: always say so, with a way to stop.
+  let banner = $("#live-control-banner");
+  if (controlled?.grant) {
+    if (!banner) {
+      banner = document.createElement("aside");
+      banner.id = "live-control-banner";
+      banner.className = "control-banner";
+      banner.setAttribute("role", "status");
+      const text = document.createElement("span");
+      const end = document.createElement("button");
+      end.className = "button danger";
+      end.dataset.live = "media:control-stop";
+      end.textContent = "Stop";
+      banner.append(text, end);
+      document.body.append(banner);
+    }
+    banner.firstChild.textContent = `${controlled.name} is controlling your screen. Press Esc to stop.`;
+  } else banner?.remove();
+  if (stopCameraTest && !cameraBox?.isConnected) stopCameraTest();
   const connected = $("#live-connected");
   if (connected) connected.hidden = !joined;
   const text = $("#live-call-status");
@@ -1103,7 +1535,7 @@ async function devices() {
   const note = document.createElement("p");
   note.textContent =
     "Echo cancellation, noise suppression, and automatic gain control are enabled for voice.";
-  root.append(note, micTest(root));
+  root.append(note, micTest(root), cameraTest());
   if (!deviceListener) {
     deviceListener = true;
     navigator.mediaDevices.addEventListener("devicechange", () => {
@@ -1114,6 +1546,9 @@ async function devices() {
 async function setOutput(id) {
   output = id;
   rememberDevices();
+  audioContext?.setSinkId?.(id).catch(() => {});
+  // What may be boosted depends on the speaker.
+  for (const e of elements.values()) applyAudio(e);
   for (const e of elements.values())
     if (e.media.setSinkId) await e.media.setSinkId(id);
 }
@@ -1183,6 +1618,56 @@ function micTest(root) {
   box.append(button, meter, hint);
   return box;
 }
+// "Test Camera": what the chosen camera sees, shown only to you. It stops with
+// the button, and when the settings page it is on goes away.
+let stopCameraTest = null;
+function cameraTest() {
+  stopCameraTest?.();
+  const box = document.createElement("div");
+  box.className = "mic-test";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button secondary";
+  button.textContent = "Test Camera";
+  const video = document.createElement("video");
+  video.className = "camera-test";
+  video.muted = true;
+  video.playsInline = true;
+  video.hidden = true;
+  video.setAttribute("aria-label", "Camera preview");
+  let stream;
+  const stop = () => {
+    stream?.getTracks().forEach((t) => t.stop());
+    stream = undefined;
+    video.srcObject = null;
+    video.hidden = true;
+    button.textContent = "Test Camera";
+    if (stopCameraTest === stop) stopCameraTest = null;
+  };
+  button.onclick = async () => {
+    if (stream) return stop();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: cameraDevice ? { deviceId: { ideal: cameraDevice } } : true,
+      });
+      if (!box.isConnected) return stop();
+      video.srcObject = stream;
+      video.hidden = false;
+      video.play().catch(() => {});
+      button.textContent = "Stop Camera";
+      stopCameraTest = stop;
+    } catch (e) {
+      stop();
+      report(e.name === "NotAllowedError"
+        ? new Error("Camera access was denied. Allow it in your browser’s site settings.")
+        : e.name === "NotFoundError" ? new Error("No camera was found.") : e);
+    }
+  };
+  box.append(button, video);
+  cameraBox = box;
+  return box;
+}
+let cameraBox = null;
 // The in-call "Audio Devices" button: the same pickers, without leaving the call.
 function showDevices() {
   if ($(".live-device-dialog")) return;
@@ -1233,6 +1718,9 @@ export function action(action) {
       break;
     case "leave":
       stop(true);
+      break;
+    case "control-stop":
+      stopControl();
       break;
     case "transport-lost":
       wantCall=false;

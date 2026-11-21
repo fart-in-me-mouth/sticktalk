@@ -185,7 +185,11 @@ pub(super) fn action(app: Shared, raw: &str) {
                     Ok(session) => start_session(app, session),
                     Err(error) => {
                         let mut a = app.borrow_mut();
-                        a.error = error;
+                        a.error = if error == "A limit has been reached." {
+                            "This account is signed in on 5 devices, the most allowed. Log out on one of them (Settings, Devices), or reset your password to sign out everywhere.".into()
+                        } else {
+                            error
+                        };
                         a.status.clear();
                         a.touch();
                     }
@@ -250,6 +254,53 @@ pub(super) fn action(app: Shared, raw: &str) {
                 arg.into()
             };
             a.touch();
+        }
+        "friends" => {
+            let mut a = app.borrow_mut();
+            a.friends_tab = arg.into();
+            a.touch();
+        }
+        // The Join dialog shows what an invite leads to before you use it.
+        "invite-preview" => {
+            let code = crate::wire::invite_code(arg);
+            let (http, generation) = {
+                let mut a = app.borrow_mut();
+                if a.invite_wanted == code {
+                    return;
+                }
+                a.invite_wanted = code.clone();
+                a.invite_preview = None;
+                a.touch();
+                (a.http(), a.dialog_generation)
+            };
+            if code.len() != 22
+                || !code
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+            {
+                return;
+            }
+            spawn_local(async move {
+                let found = http
+                    .json::<Snapshot<InvitePreview>>(&format!("/invites/{code}/preview"))
+                    .await
+                    .map(|p| p.data);
+                let mut a = app.borrow_mut();
+                if a.dialog == "join"
+                    && a.dialog_generation == generation
+                    && a.invite_wanted == code
+                {
+                    a.invite_preview = Some((code, found));
+                    a.touch();
+                }
+            });
+        }
+        // The Join field changed. No render: the page has hidden the old answer,
+        // and one would race with the typing.
+        "invite-preview-clear" => {
+            let mut a = app.borrow_mut();
+            a.invite_wanted.clear();
+            a.invite_preview = None;
         }
         "members-toggle" => {
             let mut a = app.borrow_mut();
@@ -1004,6 +1055,7 @@ fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, targe
                     .extent
                     .as_ref()
                     .map_or(page.items.len() as u64, |v| v.message_count);
+                let latest = anchor.is_none();
                 a.window_rank = if let Some(anchor) = anchor {
                     let index = page
                         .items
@@ -1019,6 +1071,22 @@ fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, targe
                     crate::wire::page_rank(count, page.items.len(), None)
                 };
                 a.model.merge_page(c, page);
+                // A message that arrived while this page was on its way is not
+                // in it, but a view of the present must still end with it.
+                if latest {
+                    let last = a.window_ids.last().copied();
+                    let arrived: Vec<Id> = a.model.messages.get(&c).map_or(vec![], |known| {
+                        known
+                            .keys()
+                            .filter(|id| last.is_none_or(|last| **id > last))
+                            .copied()
+                            .collect()
+                    });
+                    a.window_ids.extend(arrived);
+                    let extra = a.window_ids.len().saturating_sub(50);
+                    a.window_ids.drain(..extra);
+                    a.window_rank += extra as u64;
+                }
                 if let Some(message) = target {
                     media_action(&format!("history-jump:{}:{}", c.0, message.0));
                 } else if let Some(rank) = rank {
@@ -1110,6 +1178,8 @@ fn open_dialog(app: Shared, name: &str) {
             a.pins.clear();
         }
         a.query.clear();
+        a.invite_preview = None;
+        a.invite_wanted.clear();
         a.error.clear();
         a.touch();
     }
@@ -1681,10 +1751,28 @@ fn submit(app: Shared, form: String, submission: Submission) {
         _ => None,
     };
     if let Some(cmd) = cmd {
+        // The page keeps what this save submitted until its answer comes.
+        // Only for a save that really goes out: one that does gets an answer.
+        if a.ready && a.pending.len() < 128 {
+            if let Some(form) = saved_form(&cmd) {
+                media_action(&format!("form-sent:{form}"));
+            }
+        }
         a.command(cmd);
     } else {
         a.error = "Select a server or channel first.".into();
         a.touch();
+    }
+}
+/// The settings form a command saves, for the forms that stay open afterwards
+/// (and so have to say that it worked).
+fn saved_form(command: &Command) -> Option<&'static str> {
+    match command {
+        Command::UpdateGuild { patch, .. } if patch.name != Patch::Keep => Some("server-overview"),
+        Command::Launch(LaunchCommand::UpdateUserProfile { .. }) => Some("about"),
+        Command::Launch(LaunchCommand::UpdateGuildProfile { .. }) => Some("server-profile"),
+        Command::Launch(LaunchCommand::SetNotifications(_)) => Some("notifications"),
+        _ => None,
     }
 }
 // Loaded with the first command a person sends, not with the login screen.
@@ -1704,6 +1792,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                 }
             }
             let operation = pending.as_ref().map(|(c, _)| c);
+            // A refused save is no longer waiting for its answer.
+            if let Some(form) = operation.and_then(saved_form) {
+                media_action(&format!("form-failed:{form}"));
+            }
             // Housekeeping the person did not ask for fails quietly.
             if matches!(
                 operation,
@@ -1746,20 +1838,9 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                 media_action("profile-saved");
             }
             // These forms stay open after saving, so they must say it worked.
-            let saved = match &operation {
-                Some(Command::UpdateGuild { patch, .. }) if patch.name != Patch::Keep => {
-                    Some("server-overview")
-                }
-                Some(Command::Launch(LaunchCommand::UpdateUserProfile { .. })) => Some("about"),
-                Some(Command::Launch(LaunchCommand::UpdateGuildProfile { .. })) => {
-                    Some("server-profile")
-                }
-                Some(Command::Launch(LaunchCommand::SetNotifications(_))) => Some("notifications"),
-                _ => None,
-            };
-            if let Some(form) = saved {
+            if let Some(form) = operation.as_ref().and_then(saved_form) {
                 a.saved = Some((a.dialog_generation, form));
-                media_action("form-saved");
+                media_action(&format!("form-saved:{form}"));
             }
             // Actions with nothing else to show for them get a short confirmation.
             let notice = match &operation {

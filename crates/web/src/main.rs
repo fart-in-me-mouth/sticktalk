@@ -1,5 +1,7 @@
 #[cfg(any(feature = "mock", not(target_arch = "wasm32")))]
 mod components;
+#[cfg(any(target_arch = "wasm32", test))]
+mod kaomoji;
 #[cfg(target_arch = "wasm32")]
 mod live;
 #[cfg(any(feature = "mock", not(target_arch = "wasm32")))]

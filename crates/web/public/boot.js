@@ -34,6 +34,7 @@ function explain(code) {
     }[code] ?? "Could not reset the password. Try again.";
   return {
     invalid_credentials: "Incorrect username or password.",
+    limit_exceeded: "This account is signed in on 5 devices, the most allowed. Log out on one of them (Settings, Devices), or reset your password to sign out everywhere.",
     username_taken: "That username is taken. Choose another.",
     invalid_request: register
       ? "Usernames are 3 to 32 letters, numbers or underscores, and a password is required."
