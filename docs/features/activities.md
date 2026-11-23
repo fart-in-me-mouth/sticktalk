@@ -120,6 +120,12 @@ Older apps show the message text ("X invited you to Y in a call…").
 | `GET /activities/<path>` | anyone (static) | built-in activity files with the frame policy |
 | `GET /activities/frame/custom-<n>` | anyone (static) | the shell of a registered activity |
 
+Every response under `/activities/` (built-in files and the registered
+activities' shell) carries `Content-Security-Policy: sandbox allow-scripts; …`:
+opened top-level, the page still runs in an opaque origin, not the app's.
+The Windows app listens to its message channel only from the app document
+(`/`), never from a frame page (`policy::is_app_page`).
+
 `GET /api/v1/files/{id}` also serves a file shared into a session to that
 session's participants while it runs (an in-memory check, before the usual
 ones). IDs in these JSON bodies are decimal strings.

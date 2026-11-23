@@ -75,8 +75,17 @@ Every check runs on the server and has a test in `identity/tests.rs`.
 | `GET /api/v1/guilds/{g}/roles/{r}/icon?v={rev}` | the 64x64 PNG rendition, members only |
 | `GET /invite/{code}` | 303 to `/?invite={code}` (the shareable vanity link) |
 
-Reads share an `identity-rest:{user}` budget (120/min, burst 30); images use
-the `file:{user}` budget like `/api/v1/files`.
+Reads share an `identity-rest:{user}` budget (120/min, burst 30); the tag and
+invite cards also an `identity-card:{user}` one (30/min, burst 10); images use
+the `file:{user}` budget like `/api/v1/files`. These routes only read: they
+take the command gate just for the budget. An invite card's online count is
+one query (members not invisible, intersected with the connected streams),
+cached per server for 30 s (at most 256 servers). Role names and webhook
+names are screened by AutoMod like server tags (Manage Server exempt).
+
+Released vanity codes are held 30 days; lapsed holds are deleted (64 at a
+time) whenever a code is claimed or released, and at most 10,000 holds are
+kept (the oldest end early).
 
 File access: a server's banner and icon uploads are readable by its members,
 by anyone signed in when the server is listed in Discover, and its icon by

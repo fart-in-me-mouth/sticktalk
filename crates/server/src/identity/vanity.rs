@@ -49,8 +49,26 @@ pub(super) async fn info(c: &mut SqliteConnection, g: Id) -> Result<Option<Vanit
         claimed_at: r.get::<i64, _>("claimed_at") as u64,
     }))
 }
+/// Holds kept at most (released codes waiting out their 30 days); past it
+/// the oldest holds end early.
+const MAX_HOLDS: i64 = 10_000;
+/// Forgets lapsed holds, and the oldest ones past `MAX_HOLDS`, a bounded
+/// batch at a time. Runs where holds are made (a release) and looked at (a
+/// claim), so they never pile up and nothing scans on a timer.
+pub(super) async fn purge(c: &mut SqliteConnection) -> Result<()> {
+    sqlx::query("DELETE FROM vanity_codes WHERE rowid IN (SELECT rowid FROM vanity_codes WHERE guild_id IS NULL AND COALESCE(held_until,0)<=? LIMIT 64)")
+        .bind(now() as i64)
+        .execute(&mut *c)
+        .await?;
+    sqlx::query("DELETE FROM vanity_codes WHERE rowid IN (SELECT rowid FROM vanity_codes WHERE guild_id IS NULL ORDER BY held_until LIMIT MAX(0,(SELECT COUNT(*) FROM vanity_codes WHERE guild_id IS NULL)-?))")
+        .bind(MAX_HOLDS)
+        .execute(&mut *c)
+        .await?;
+    Ok(())
+}
 /// `g` gives up its code: the invite goes, the code is held for 30 days.
 pub(super) async fn release(c: &mut SqliteConnection, g: Id) -> Result<()> {
+    purge(c).await?;
     let invite: Option<Option<i64>> =
         sqlx::query_scalar("SELECT invite_id FROM vanity_codes WHERE guild_id=?")
             .bind(id(g)?)
@@ -117,6 +135,7 @@ pub(super) async fn set(
     if current.as_ref().map(|v| &v.code) == wanted.as_ref() {
         return Ok(CommandResult::Ack);
     }
+    purge(c).await?;
     if let Some(w) = &wanted {
         if reserved_vanity(w) {
             return Err(refused(ErrorCode::Forbidden, "That link is reserved."));
@@ -205,7 +224,7 @@ pub(super) async fn set(
 
 /// The usable invite a code names, and its server.
 async fn usable(c: &mut SqliteConnection, code: &str) -> Result<(i64, Id)> {
-    let i = find_invite(c, code)
+    let i = lookup_invite(c, code)
         .await?
         .ok_or_else(|| Error::new(ErrorCode::InvalidInvite))?;
     let inv = invite(c, Id(i as u64)).await?;
@@ -214,34 +233,21 @@ async fn usable(c: &mut SqliteConnection, code: &str) -> Result<(i64, Id)> {
     Ok((i, inv.guild_id))
 }
 
+/// An invite card (its online count is `online_count`'s, from its cache).
+/// Reads only, outside the command gate.
 pub(super) async fn card(
+    app: &App,
     c: &mut SqliteConnection,
-    core: &Core,
     u: Id,
     code: &str,
 ) -> Result<InviteCard> {
     let (i, g) = usable(c, code).await?;
-    let r = sqlx::query("SELECT name,(SELECT description FROM guild_profiles WHERE guild_id=guilds.id) AS d FROM guilds WHERE id=?")
+    let r = sqlx::query("SELECT name,(SELECT description FROM guild_profiles WHERE guild_id=guilds.id) AS d,(SELECT COUNT(*) FROM guild_members WHERE guild_id=guilds.id) AS n,EXISTS(SELECT 1 FROM guild_members WHERE guild_id=guilds.id AND user_id=?) AS joined FROM guilds WHERE id=?")
+        .bind(id(u)?)
         .bind(id(g)?)
         .fetch_one(&mut *c)
         .await?;
-    let members = guild_users(c, g).await?;
-    let connected: std::collections::HashSet<Id> = core
-        .streams
-        .values()
-        .filter(|s| s.connection.is_some())
-        .map(|s| s.user)
-        .collect();
-    let mut online = 0u32;
-    for m in members.iter().filter(|m| connected.contains(m)) {
-        let p: Option<String> = sqlx::query_scalar("SELECT desired_presence FROM users WHERE id=?")
-            .bind(id(*m)?)
-            .fetch_optional(&mut *c)
-            .await?;
-        if p.as_deref() != Some("invisible") {
-            online += 1;
-        }
-    }
+    let online = online_count(app, c, g).await?;
     let look = guild_look(c, g).await?;
     let vanity: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM vanity_codes WHERE invite_id=?)")
@@ -253,13 +259,13 @@ pub(super) async fn card(
         guild_id: g,
         name: r.get("name"),
         description: r.get::<Option<String>, _>("d").unwrap_or_default(),
-        member_count: members.len() as u32,
+        member_count: r.get::<i64, _>("n") as u32,
         online_count: online,
         icon: looks::icon(c, g).await?,
         banner: look.banner,
         background: looks::invite_background(c, g).await?,
         tag: tags::load(c, g).await?.map(|t| t.worn(g)),
-        joined: members.contains(&u),
+        joined: r.get("joined"),
         apply: crate::community::admission_settings(c, g)
             .await?
             .applications,
@@ -277,10 +283,14 @@ pub(super) async fn art(
     h: HeaderMap,
 ) -> Result<Response> {
     let (key, mime, size) = {
-        let mut core = app.0.core.lock().await;
+        // The gate only for the budget; the reads run outside it.
         let mut c = app.0.pool.acquire().await?;
         let (_, u) = auth(&mut c, http::bearer(&h)?).await?;
-        core.rate(format!("file:{}", u.0), 600., 120.)?;
+        app.0
+            .core
+            .lock()
+            .await
+            .rate(format!("file:{}", u.0), 600., 120.)?;
         let (_, g) = usable(&mut c, &code).await?;
         let meta = match slot.as_str() {
             "icon" => looks::icon(&mut c, g).await?,

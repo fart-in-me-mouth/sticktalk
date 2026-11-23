@@ -205,6 +205,32 @@ pub(crate) async fn command(c: &mut SqliteConnection, cmd: Id) -> Result<Applica
     row(&r)
 }
 
+/// Everything a command shows people: names, descriptions, choices.
+fn command_text(drafts: &[CommandDraft]) -> String {
+    fn options(out: &mut String, list: &[CommandOption]) {
+        for o in list {
+            for s in [&o.name, &o.description] {
+                out.push_str(s);
+                out.push('\n');
+            }
+            for ch in &o.choices {
+                out.push_str(&ch.name);
+                out.push('\n');
+            }
+            options(out, &o.options);
+        }
+    }
+    let mut out = String::new();
+    for d in drafts {
+        out.push_str(&d.name);
+        out.push('\n');
+        out.push_str(&d.description);
+        out.push('\n');
+        options(&mut out, &d.options);
+    }
+    out
+}
+
 /// `SetCommands`: replaces one scope's commands; same-named commands keep
 /// their IDs (and so their per-server overrides).
 pub(crate) async fn set_commands(
@@ -226,6 +252,34 @@ pub(crate) async fn set_commands(
         .fetch_one(&mut *c)
         .await?;
         require(installed, ErrorCode::NotFound)?;
+    }
+    // Command names, descriptions and choices show in the picker of every
+    // server the commands reach: each server's AutoMod keyword rules apply,
+    // as to the bot's own messages.
+    let text = command_text(&drafts);
+    let bot: i64 = sqlx::query_scalar("SELECT bot_id FROM apps WHERE id=?")
+        .bind(id(app)?)
+        .fetch_one(&mut *c)
+        .await?;
+    let reach: Vec<i64> = match guild {
+        Some(g) => vec![id(g)?],
+        None => {
+            sqlx::query_scalar("SELECT guild_id FROM app_installs WHERE app_id=? LIMIT 1000")
+                .bind(id(app)?)
+                .fetch_all(&mut *c)
+                .await?
+        }
+    };
+    for g in reach {
+        crate::moderation::coverage::name_check(
+            core,
+            c,
+            Id(bot as u64),
+            Id(g as u64),
+            "command",
+            &text,
+        )
+        .await?;
     }
     let existing: Vec<(i64, String, String)> =
         sqlx::query_as("SELECT id,kind,name FROM app_commands WHERE app_id=? AND guild_id IS ?")

@@ -23,19 +23,25 @@ pub(crate) fn routes() -> Router<App> {
         )
         .route("/invite/{code}", get(vanity::redirect))
 }
-async fn rest<'a>(
-    app: &'a App,
-    h: &HeaderMap,
-) -> Result<(
-    tokio::sync::MutexGuard<'a, Core>,
-    sqlx::pool::PoolConnection<sqlx::Sqlite>,
-    Id,
-)> {
-    let mut core = app.0.core.lock().await;
+/// Every route here only reads: the command gate is taken just for the
+/// budget, never while the database is read.
+async fn rest(app: &App, h: &HeaderMap) -> Result<(sqlx::pool::PoolConnection<sqlx::Sqlite>, Id)> {
     let mut c = app.0.pool.acquire().await?;
     let (_, u) = auth(&mut c, http::bearer(h)?).await?;
-    core.rate(format!("identity-rest:{}", u.0), 120., 30.)?;
-    Ok((core, c, u))
+    app.0
+        .core
+        .lock()
+        .await
+        .rate(format!("identity-rest:{}", u.0), 120., 30.)?;
+    Ok((c, u))
+}
+/// Cards (a tag's, an invite's) answer anyone signed in: a tighter budget.
+async fn card_budget(app: &App, u: Id) -> Result<()> {
+    app.0
+        .core
+        .lock()
+        .await
+        .rate(format!("identity-card:{}", u.0), 30., 10.)
 }
 
 async fn admin(
@@ -43,7 +49,7 @@ async fn admin(
     Path(g): Path<String>,
     h: HeaderMap,
 ) -> Result<Json<IdentityAdmin>> {
-    let (_core, mut c, u) = rest(&app, &h).await?;
+    let (mut c, u) = rest(&app, &h).await?;
     let g = http::url_id(&g)?;
     guild_perm(&mut c, u, g, Permissions::MANAGE_GUILD).await?;
     let wearers: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE tag_guild=?")
@@ -69,7 +75,7 @@ async fn admin(
     }))
 }
 async fn my_tags(State(app): State<App>, h: HeaderMap) -> Result<Json<MyTags>> {
-    let (_core, mut c, u) = rest(&app, &h).await?;
+    let (mut c, u) = rest(&app, &h).await?;
     Ok(Json(tags::mine(&mut c, u).await?))
 }
 async fn tag_card(
@@ -77,7 +83,8 @@ async fn tag_card(
     Path(g): Path<String>,
     h: HeaderMap,
 ) -> Result<Json<TagCard>> {
-    let (_core, mut c, u) = rest(&app, &h).await?;
+    let (mut c, u) = rest(&app, &h).await?;
+    card_budget(&app, u).await?;
     Ok(Json(tags::card(&mut c, u, http::url_id(&g)?).await?))
 }
 async fn invite_card(
@@ -85,15 +92,16 @@ async fn invite_card(
     Path(code): Path<String>,
     h: HeaderMap,
 ) -> Result<Json<InviteCard>> {
-    let (core, mut c, u) = rest(&app, &h).await?;
-    Ok(Json(vanity::card(&mut c, &core, u, &code).await?))
+    let (mut c, u) = rest(&app, &h).await?;
+    card_budget(&app, u).await?;
+    Ok(Json(vanity::card(&app, &mut c, u, &code).await?))
 }
 async fn directory_art(
     State(app): State<App>,
     Path(g): Path<String>,
     h: HeaderMap,
 ) -> Result<Json<DirectoryArt>> {
-    let (_core, mut c, _u) = rest(&app, &h).await?;
+    let (mut c, _u) = rest(&app, &h).await?;
     let g = http::url_id(&g)?;
     require(
         crate::community::listed_icon(&mut c, g).await?,

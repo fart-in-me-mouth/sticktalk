@@ -74,6 +74,9 @@ pub(crate) async fn mutate(
                 p.contains(Permissions::OWNER) || high > 0,
                 ErrorCode::HierarchyViolation,
             )?;
+            // Role names show beside members everywhere: AutoMod's keyword rules
+            // apply, as to other names (Manage Server is exempt).
+            crate::moderation::coverage::name_check(core, c, u, g, "role_name", &s).await?;
             let position = 1u16;
             let r = core.id().await?;
             require(!list.iter().any(|v| v.id == r), ErrorCode::Conflict)?;
@@ -113,6 +116,17 @@ pub(crate) async fn mutate(
                 r.id != r.guild_id || (r.name == "@everyone" && !r.hoist && !r.mentionable),
                 ErrorCode::InvalidRequest,
             )?;
+            if r.name != old.name {
+                crate::moderation::coverage::name_check(
+                    core,
+                    c,
+                    u,
+                    r.guild_id,
+                    "role_name",
+                    &r.name,
+                )
+                .await?;
+            }
             sqlx::query("UPDATE roles SET name=?,color=?,hoist=?,mentionable=?,permissions=? WHERE guild_id=? AND id=?").bind(name(&r.name,100)?).bind(i64::from(r.color)).bind(r.hoist).bind(r.mentionable).bind(r.permissions.bits() as i64).bind(id(r.guild_id)?).bind(id(r.id)?).execute(&mut *c).await?;
             roles_event(c, out, r.guild_id).await?;
             Ok(CommandResult::Role(role(c, r.guild_id, r.id).await?))

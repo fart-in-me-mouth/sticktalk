@@ -42,6 +42,9 @@ removes Use Application Commands with everything else (`TIMED_OUT_KEEPS`).
   commands); a webhook credential may send only `execute_webhook`,
   `edit_webhook_message`, `delete_webhook_message`. Everything still runs the
   ordinary permission checks of the account.
+- **AutoMod** screens command names, descriptions and choices against each
+  server they reach (its blocking keyword rules; Manage Server exempt), and
+  webhook names on create and rename (a post's own name already was).
 - Guards (people): an app's managed role can't be deleted, given or taken;
   bots can't be DM'd, added to groups or given a server.
 - A webhook account is never a member. `permissions::evaluate` calls
@@ -112,7 +115,18 @@ Webhooks (no account; the secret URL): `GET|POST /api/v1/webhooks/{id}/{secret}`
 
 ## Behavior
 
-- **Events for bots.** `Core::emit_filtered` asks `apps::view` per stream:
+- **Events for bots: deny by default.** `apps::view` classifies every
+  `Event` variant for bots (an exhaustive match: a new variant does not
+  compile until it is classified). Anything carrying message content
+  (`privacy::gate::carries_content`: link previews, poll text) is treated like
+  a message: the Messages intent and Message Content granted for that
+  channel, or the bot does not get it. Thread names and settings pass like
+  channels'; profile text, presence, a person's own data (read states, saved
+  messages, Inbox, reminders, folders, sessions, relationships) and the
+  other features' events (moderation, expression, privacy, community,
+  scheduled events, appearance) never reach a bot. Server Members covers
+  `UserUpdated` too.
+- **Events for bots (details).** `Core::emit_filtered` asks `apps::view` per stream:
   people's streams are unchanged (except `Event::Apps` needs the opt-in);
   bots' streams drop what their intents don't cover, get member events of every
   server with Server Members, and get message events with content, files and
@@ -142,8 +156,13 @@ Webhooks (no account; the secret URL): `GET|POST /api/v1/webhooks/{id}/{secret}`
   resolution, caps, re-encoding). Stored in `app_images` (≤ 480 px; avatars
   128, thumbnails 160), then `MessageUpdated`. Deleting a message deletes them
   (trigger).
-- **Interactions** are in memory (`apps::interactions`), bounded (4,096; 16
-  open per person; 4,096 ephemeral messages), and expire on one timer task
+- **Interactions** are in memory (`apps::interactions`), bounded: 4,096 in
+  all, 1,024 per app and 64 per person counting answered ones (kept 15
+  minutes for edits and follow-ups), 16 waiting for an answer per person, 4,096
+  ephemeral messages. At the per-person, per-app or global cap the oldest
+  *answered* entry is forgotten (it can no longer be edited or followed up)
+  rather than refusing the new interaction, so a few accounts cannot fill
+  the table for everyone. They expire on one timer task
   that sleeps until the next deadline (3 s to answer, 2 s for autocomplete,
   15 minutes for edits and follow-ups) and is woken by `Notify`; with nothing
   pending it sleeps without a deadline. Tokens are random and compared in

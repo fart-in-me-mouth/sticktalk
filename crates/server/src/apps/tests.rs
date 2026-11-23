@@ -913,6 +913,38 @@ async fn intents_decide_what_a_bot_receives_and_content_needs_a_grant() {
     clear(&mut core, &quiet.key);
     core.emit(&[quiet.user], Event::MemberUpsert(m)).unwrap();
     assert!(events(&core, &quiet.key).is_empty());
+    // Message content in other events (a link's preview, a poll's text) is
+    // treated like a message: only the bot granted Message Content there gets
+    // it; profile text and the features' events reach no bot (deny by default).
+    let preview = Event::Content(ContentEvent::EmbedsUpdated {
+        channel_id: Id(11),
+        message_id: Id(1),
+        embeds: vec![LinkEmbed {
+            url: "https://internal.example/plan-q3".into(),
+            site_name: None,
+            title: Some("Q3 plan".into()),
+            description: Some("Launch dates".into()),
+            image: None,
+            video: false,
+        }],
+    });
+    let profile = Event::ProfileUpdated(UserProfile {
+        user: user(&mut c, Id(2)).await.unwrap(),
+        banner_color: 0,
+        pronouns: String::new(),
+        about_me: "My private bio".into(),
+        created_at: 0,
+    });
+    for b in [&quiet, &reader, &deaf] {
+        clear(&mut core, &b.key);
+        // A bot that sent a content command (a poll) gets content events.
+        core.streams.get_mut(&b.key).unwrap().content_features = true;
+        core.emit(&[b.user], preview.clone()).unwrap();
+        core.emit(&[b.user], profile.clone()).unwrap();
+    }
+    assert!(events(&core, &quiet.key).is_empty(), "no grant: no preview");
+    assert!(events(&core, &deaf.key).is_empty());
+    assert_eq!(events(&core, &reader.key), vec![preview]);
 }
 
 fn ping_commands() -> Vec<CommandDraft> {
@@ -2394,4 +2426,49 @@ async fn a_bot_downloads_only_the_files_passed_to_it_in_an_interaction() {
             .status(),
         404
     );
+}
+
+/// A server's AutoMod keyword rules apply to the commands its apps offer
+/// (names, descriptions, choices), for that server's commands and for an
+/// app's global ones in every server it is in.
+#[tokio::test]
+async fn automod_screens_command_names_and_descriptions() {
+    let (_dir, app) = fixture().await;
+    let mut core = app.0.core.lock().await;
+    let bot = create_app(&app, &mut core, 1, Intents::empty(), BASIC).await;
+    ok(install(&app, &mut core, &bot, 1, BASIC, false).await);
+    ok(as_user(
+        &app,
+        &mut core,
+        1,
+        Command::Launch(LaunchCommand::Moderation(
+            ModerationCommand::CreateAutoModRule(AutoModRule {
+                id: Id(0),
+                guild_id: Id(10),
+                name: "Words".into(),
+                enabled: true,
+                trigger: AutoModTrigger::Keyword {
+                    keywords: vec!["boo*".into()],
+                    allow: vec![],
+                },
+                actions: AutoModActions {
+                    block: true,
+                    ..Default::default()
+                },
+                exempt_roles: vec![],
+                exempt_channels: vec![],
+            }),
+        )),
+    )
+    .await);
+    let set = |guild_id: Option<Id>, description: &str| {
+        let mut commands = ping_commands();
+        commands[0].description = description.into();
+        Command::Apps(AppCommand::SetCommands { guild_id, commands })
+    };
+    for scope in [None, Some(Id(10))] {
+        let e = err(as_bot(&app, &mut core, &bot, set(scope, "Booze forecasts")).await);
+        assert_eq!(e.field.as_deref(), Some("automod"), "{scope:?}");
+        ok(as_bot(&app, &mut core, &bot, set(scope, "Weather")).await);
+    }
 }

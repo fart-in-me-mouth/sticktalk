@@ -1540,6 +1540,7 @@ async fn frames_have_their_own_policies_and_the_app_lists_no_third_party() {
     assert!(csp.contains("frame-src https://games.example;"), "{csp}");
     assert!(csp.contains("frame-ancestors http://localhost"), "{csp}");
     assert!(csp.contains("connect-src 'none'"), "{csp}");
+    assert!(csp.starts_with("sandbox allow-scripts;"), "{csp}");
     assert!(!r.headers().contains_key("x-frame-options"));
     let body = String::from_utf8(to_bytes(r.into_body(), 1 << 16).await.unwrap().to_vec()).unwrap();
     assert!(body.contains(r#"sandbox="allow-scripts""#));
@@ -1598,6 +1599,8 @@ async fn built_in_frames_are_served_from_the_web_root_with_their_policy() {
         csp.contains("connect-src 'none'") && csp.contains("frame-ancestors http://localhost"),
         "{csp}"
     );
+    // Sandboxed however it is loaded: opened top-level, it is not the app's origin.
+    assert!(csp.starts_with("sandbox allow-scripts;"), "{csp}");
     assert!(!r.headers().contains_key("x-frame-options"));
     assert_eq!(
         get("/activities/.secret").await.status(),

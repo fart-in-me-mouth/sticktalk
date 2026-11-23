@@ -1142,3 +1142,205 @@ async fn tag_changes_reach_every_wearer_in_batches_and_the_cli_revoke_is_live() 
     .unwrap();
     assert_eq!(reason, "Revoked by the instance administrator.");
 }
+
+/// AutoMod's blocking keyword rules apply to the other names members see:
+/// role names and webhook names (server tags: above). Manage Server holders
+/// are exempt, as for every name.
+#[tokio::test]
+async fn automod_screens_role_and_webhook_names() {
+    let (_d, app) = fixture().await;
+    let perms = Permissions::VIEW_CHANNEL
+        | Permissions::SEND_MESSAGES
+        | Permissions::MANAGE_ROLES
+        | Permissions::MANAGE_WEBHOOKS;
+    sql(
+        &app,
+        &format!(
+            "INSERT INTO roles(guild_id,id,name,position,permissions) VALUES(10,50,'Managers',2,{}); INSERT INTO member_roles VALUES(10,2,50);",
+            perms.bits()
+        ),
+    )
+    .await;
+    ok(&raw(
+        &app,
+        1,
+        Command::Launch(LaunchCommand::Moderation(
+            ModerationCommand::CreateAutoModRule(AutoModRule {
+                id: Id(0),
+                guild_id: Id(10),
+                name: "Words".into(),
+                enabled: true,
+                trigger: AutoModTrigger::Keyword {
+                    keywords: vec!["boo*".into()],
+                    allow: vec![],
+                },
+                actions: AutoModActions {
+                    block: true,
+                    ..Default::default()
+                },
+                exempt_roles: vec![],
+                exempt_channels: vec![],
+            }),
+        )),
+    )
+    .await);
+    let create = |name: &str| {
+        Command::Launch(LaunchCommand::CreateRole {
+            guild_id: Id(10),
+            name: name.into(),
+        })
+    };
+    let e = err(&raw(&app, 2, create("Boogeymen")).await);
+    assert_eq!(e.field.as_deref(), Some("automod"));
+    let CommandResult::Role(role) = ok(&raw(&app, 2, create("Helpers")).await) else {
+        panic!()
+    };
+    let rename = Role {
+        name: "Boomers".into(),
+        ..role.clone()
+    };
+    let e = err(&raw(
+        &app,
+        2,
+        Command::Launch(LaunchCommand::UpdateRole {
+            role: rename.clone(),
+        }),
+    )
+    .await);
+    assert_eq!(e.field.as_deref(), Some("automod"));
+    // The owner (Manage Server) is exempt.
+    ok(&raw(
+        &app,
+        1,
+        Command::Launch(LaunchCommand::UpdateRole { role: rename }),
+    )
+    .await);
+    let hook = |name: &str| {
+        Command::Apps(AppCommand::CreateWebhook {
+            channel_id: Id(11),
+            name: name.into(),
+            avatar_id: None,
+        })
+    };
+    let e = err(&raw(&app, 2, hook("Boost Bot")).await);
+    assert_eq!(e.field.as_deref(), Some("automod"));
+    ok(&raw(&app, 2, hook("CI")).await);
+}
+
+/// An invite card's online count comes from a short per-server cache (one
+/// query, outside the command gate), not a query per connected member; and
+/// cards have a budget of their own.
+#[tokio::test]
+async fn invite_card_counts_are_cached_and_cards_have_a_tight_budget() {
+    let (_d, app) = fixture().await;
+    let code = invite(&app).await;
+    let online = |body: Vec<u8>| -> u32 {
+        serde_json::from_slice::<InviteCard>(&body)
+            .unwrap()
+            .online_count
+    };
+    assert_eq!(
+        online(
+            get(&app, 3, &format!("/api/v1/invites/{code}/card"))
+                .await
+                .1
+        ),
+        0
+    );
+    // Member 2 connects: the count is reused for a while, then refreshed.
+    {
+        let mut core = app.0.core.lock().await;
+        core.cursor(&[2; 32], Id(2));
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let (close, _) = tokio::sync::watch::channel(None);
+        core.streams.get_mut(&vec![2u8; 32]).unwrap().connection = Some(crate::state::Connection {
+            id: "ws2".into(),
+            focused: false,
+            alive: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            tx,
+            budget: std::sync::Arc::new(tokio::sync::Semaphore::new(1 << 20)),
+            close,
+        });
+        std::mem::forget(rx);
+    }
+    assert_eq!(
+        online(
+            get(&app, 3, &format!("/api/v1/invites/{code}/card"))
+                .await
+                .1
+        ),
+        0
+    );
+    app.0.core.lock().await.identity.counts.clear();
+    assert_eq!(
+        online(
+            get(&app, 3, &format!("/api/v1/invites/{code}/card"))
+                .await
+                .1
+        ),
+        1
+    );
+    // A burst of card requests runs out of its own budget (not cleared
+    // between requests here, unlike `request`).
+    get(&app, 4, "/api/v1/users/@me/tags").await;
+    let t = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode([4u8; 32]);
+    let mut statuses = vec![];
+    for _ in 0..20 {
+        let r = crate::http::router(app.clone())
+            .oneshot(
+                axum::http::Request::get(format!("/api/v1/invites/{code}/card"))
+                    .header("authorization", format!("Bearer {t}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        statuses.push(r.status().as_u16());
+    }
+    assert!(statuses[..10].iter().all(|s| *s == 200), "{statuses:?}");
+    assert!(
+        statuses.contains(&429),
+        "cards have their own, tighter budget: {statuses:?}"
+    );
+}
+
+/// Released vanity codes are held for 30 days and then forgotten: lapsed
+/// holds are purged when codes are next claimed or released, and the table
+/// of holds is bounded.
+#[tokio::test]
+async fn lapsed_vanity_holds_are_purged() {
+    let (_d, app) = fixture().await;
+    sql(
+        &app,
+        &format!(
+            "INSERT INTO vanity_codes(code,guild_id,invite_id,held_by,held_until,uses_base,claimed_at) VALUES('old-one',NULL,NULL,10,1,0,0),('still-held',NULL,NULL,10,{},0,0);",
+            now() + 86_400_000
+        ),
+    )
+    .await;
+    ok(&run(
+        &app,
+        1,
+        IdentityCommand::SetVanity {
+            guild_id: Id(10),
+            code: Some("fresh-link".into()),
+        },
+    )
+    .await);
+    assert_eq!(
+        scalar(
+            &app,
+            "SELECT COUNT(*) FROM vanity_codes WHERE code='old-one'"
+        )
+        .await,
+        0
+    );
+    assert_eq!(
+        scalar(
+            &app,
+            "SELECT COUNT(*) FROM vanity_codes WHERE code IN('still-held','fresh-link')"
+        )
+        .await,
+        2
+    );
+}

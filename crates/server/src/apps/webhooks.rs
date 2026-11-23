@@ -115,6 +115,8 @@ pub(crate) async fn create(
     }
     let name = webhook_name(&name)?;
     core.rate(format!("webhook-create:{}", u.0), 10., 5.)?;
+    // A webhook's name is the author name of everything it posts.
+    crate::moderation::coverage::name_check(core, c, u, g, "webhook_name", &name).await?;
     let in_channel: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM webhooks WHERE channel_id=?")
         .bind(id(ch)?)
         .fetch_one(&mut *c)
@@ -171,6 +173,7 @@ pub(crate) async fn create(
 
 pub(crate) async fn update(
     c: &mut SqliteConnection,
+    core: &mut Core,
     u: Id,
     w: Id,
     name: Option<String>,
@@ -187,6 +190,8 @@ pub(crate) async fn update(
     );
     if let Some(n) = name {
         let n = webhook_name(&n)?;
+        crate::moderation::coverage::name_check(core, c, u, old.guild_id, "webhook_name", &n)
+            .await?;
         sqlx::query("UPDATE webhooks SET name=? WHERE id=?")
             .bind(&n)
             .bind(id(w)?)

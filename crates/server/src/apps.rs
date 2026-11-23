@@ -360,6 +360,16 @@ pub(crate) fn view(rt: &mut Runtime, s: &Stream, event: &Event) -> View {
         return View::Pass;
     };
     let has = |i: Intents| bot.intents.contains(i);
+    // Deny by default: every kind of event is classified here (the match is
+    // exhaustive, so a new `Event` variant does not compile until it is), and
+    // the feature events pass only the variants listed. Anything that carries
+    // message content (`privacy::gate::carries_content`) is treated like a
+    // message: the Messages intent, and Message Content for that channel.
+    let content = |bot: &BotStream, ch: Id| {
+        has(Intents::GUILD_MESSAGES)
+            && bot.intents.contains(Intents::MESSAGE_CONTENT)
+            && bot.content_channels.contains(&ch)
+    };
     match event {
         Event::MessageCreated { message, author } => {
             if !has(Intents::GUILD_MESSAGES) && message.author_id != bot.user {
@@ -382,9 +392,39 @@ pub(crate) fn view(rt: &mut Runtime, s: &Stream, event: &Event) -> View {
                 None => View::Pass,
             }
         }
-        Event::MessageDeleted { .. } if !has(Intents::GUILD_MESSAGES) => View::Skip,
-        Event::ReactionUpdated(_) if !has(Intents::GUILD_MESSAGE_REACTIONS) => View::Skip,
-        Event::Typing { .. } if !has(Intents::GUILD_MESSAGE_TYPING) => View::Skip,
+        Event::MessageDeleted { .. } | Event::PinsUpdated { .. } => {
+            if has(Intents::GUILD_MESSAGES) {
+                View::Pass
+            } else {
+                View::Skip
+            }
+        }
+        Event::ReactionUpdated(_) => {
+            if has(Intents::GUILD_MESSAGE_REACTIONS) {
+                View::Pass
+            } else {
+                View::Skip
+            }
+        }
+        Event::Typing { .. } => {
+            if has(Intents::GUILD_MESSAGE_TYPING) {
+                View::Pass
+            } else {
+                View::Skip
+            }
+        }
+        // A poll's text and a link's preview are message content.
+        Event::Content(ContentEvent::PollUpdated { channel_id, .. })
+        | Event::Content(ContentEvent::EmbedsUpdated { channel_id, .. }) => {
+            if content(bot, *channel_id) {
+                View::Pass
+            } else {
+                View::Skip
+            }
+        }
+        Event::Content(
+            ContentEvent::ScheduledUpserted(_) | ContentEvent::ScheduledRemoved { .. },
+        ) => View::Skip,
         Event::MemberUpsert(m) if m.user.id == bot.user => View::Member,
         Event::MemberUpsert(_) | Event::MemberRemoved { .. } => {
             if has(Intents::GUILD_MEMBERS) {
@@ -393,8 +433,20 @@ pub(crate) fn view(rt: &mut Runtime, s: &Stream, event: &Event) -> View {
                 View::Skip
             }
         }
-        Event::BanUpsert(_) | Event::BanRemoved { .. } if !has(Intents::GUILD_MODERATION) => {
-            View::Skip
+        // Names, avatars and tags of people the bot shares a server with.
+        Event::UserUpdated(_) => {
+            if has(Intents::GUILD_MEMBERS) {
+                View::Pass
+            } else {
+                View::Skip
+            }
+        }
+        Event::BanUpsert(_) | Event::BanRemoved { .. } => {
+            if has(Intents::GUILD_MODERATION) {
+                View::Pass
+            } else {
+                View::Skip
+            }
         }
         Event::ChannelUpsert(ch) => {
             if ch
@@ -407,7 +459,33 @@ pub(crate) fn view(rt: &mut Runtime, s: &Stream, event: &Event) -> View {
             }
             View::Pass
         }
+        // The server's structure, as any member sees it.
+        Event::GuildUpsert(_)
+        | Event::GuildJoined { .. }
+        | Event::GuildRemoved { .. }
+        | Event::ChannelRemoved { .. }
+        | Event::ChannelsReordered { .. }
+        | Event::RolesUpdated { .. }
+        | Event::SlowmodeUpdated { .. }
+        | Event::GuildEmojiUpdated { .. }
+        | Event::GuildProfileUpdated(_)
+        | Event::InviteUpsert(_)
+        | Event::InviteRemoved { .. }
+        | Event::SelfUpdated(_)
+        | Event::Apps(_) => View::Pass,
+        // Threads: their names and settings, like channels'.
+        Event::Threads(t) => match t {
+            ThreadEvent::ThreadUpsert(_)
+            | ThreadEvent::ThreadRemoved { .. }
+            | ThreadEvent::Membership { .. }
+            | ThreadEvent::ForumUpdated(_)
+            | ThreadEvent::Published { .. }
+            | ThreadEvent::FollowsChanged { .. } => View::Pass,
+        },
+        // A person's own data, profile text, presence, and the other features'
+        // events: no intent covers them.
         Event::PresenceUpdated(_)
+        | Event::ProfileUpdated(_)
         | Event::ReadStateUpdated(_)
         | Event::NotificationSettingsUpdated(_)
         | Event::NavUpdated(_)
@@ -417,8 +495,13 @@ pub(crate) fn view(rt: &mut Runtime, s: &Stream, event: &Event) -> View {
         | Event::DataExportUpdated(_)
         | Event::SessionsUpdated
         | Event::RelationshipUpsert(_)
-        | Event::RelationshipRemoved { .. } => View::Skip,
-        _ => View::Pass,
+        | Event::RelationshipRemoved { .. }
+        | Event::Moderation(_)
+        | Event::Expression(_)
+        | Event::Privacy(_)
+        | Event::Community(_)
+        | Event::Schedule(_)
+        | Event::Appearance(_) => View::Skip,
     }
 }
 
@@ -594,7 +677,7 @@ pub(crate) async fn mutate(
             name,
             avatar,
             channel_id,
-        } => webhooks::update(c, u, webhook_id, name, avatar, channel_id, out).await?,
+        } => webhooks::update(c, core, u, webhook_id, name, avatar, channel_id, out).await?,
         RotateWebhook { webhook_id } => webhooks::rotate(c, core, u, webhook_id, out).await?,
         DeleteWebhook { webhook_id } => webhooks::delete(c, u, webhook_id, out).await?,
         Invoke(inv) => interactions::invoke(c, core, key, u, inv, out).await?,

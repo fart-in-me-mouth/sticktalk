@@ -39,6 +39,58 @@ pub(crate) use routes::routes;
 pub(crate) struct Runtime {
     /// Wakes the fan-out task: wearers are waiting in `tag_announce`.
     pub(crate) wake: std::sync::Arc<tokio::sync::Notify>,
+    /// Invite cards' online counts by server: (counted at, online).
+    counts: std::collections::HashMap<Id, (u64, u32)>,
+}
+/// How long an invite card's online count is reused, and how many servers'
+/// counts are kept.
+const COUNT_TTL_MS: u64 = 30_000;
+const MAX_COUNTS: usize = 256;
+
+/// How many of `g`'s members are online and not invisible: from a cache
+/// refreshed at most every 30 s per server. The member query runs outside the
+/// command gate; the gate is held only to read who is connected.
+pub(crate) async fn online_count(
+    app: &crate::state::App,
+    c: &mut SqliteConnection,
+    g: Id,
+) -> Result<u32> {
+    if let Some((at, n)) = app.0.core.lock().await.identity.counts.get(&g) {
+        if now().saturating_sub(*at) < COUNT_TTL_MS {
+            return Ok(*n);
+        }
+    }
+    let present: Vec<i64> = sqlx::query_scalar("SELECT m.user_id FROM guild_members m JOIN users u ON u.id=m.user_id WHERE m.guild_id=? AND u.desired_presence NOT IN('invisible','offline')")
+        .bind(id(g)?)
+        .fetch_all(&mut *c)
+        .await?;
+    let mut core = app.0.core.lock().await;
+    let connected: std::collections::HashSet<Id> = core
+        .streams
+        .values()
+        .filter(|s| s.connection.is_some())
+        .map(|s| s.user)
+        .collect();
+    let n = present
+        .iter()
+        .filter(|u| connected.contains(&Id(**u as u64)))
+        .count() as u32;
+    let counts = &mut core.identity.counts;
+    if counts.len() >= MAX_COUNTS && !counts.contains_key(&g) {
+        let t = now();
+        counts.retain(|_, (at, _)| t.saturating_sub(*at) < COUNT_TTL_MS);
+        if counts.len() >= MAX_COUNTS {
+            if let Some(oldest) = counts
+                .iter()
+                .min_by_key(|(_, (at, _))| *at)
+                .map(|(k, _)| *k)
+            {
+                counts.remove(&oldest);
+            }
+        }
+    }
+    counts.insert(g, (now(), n));
+    Ok(n)
 }
 
 /// Tells the viewers of every wearer queued in `tag_announce` (a tag edited
@@ -183,6 +235,15 @@ async fn save_guild_look(c: &mut SqliteConnection, g: Id, l: &GuildLook) -> Resu
 /// The invite row a typed code names: a 22-character invite code exactly as
 /// given, or else a vanity code (any case). None for anything else.
 pub(crate) async fn find_invite(c: &mut SqliteConnection, code: &str) -> Result<Option<i64>> {
+    let found = lookup_invite(c, code).await?;
+    if let Some(i) = found {
+        vanity::rebase(c, i).await?;
+    }
+    Ok(found)
+}
+/// The invite row a code names, without moving a vanity link's use count
+/// (for read-only routes, which run outside the command gate).
+async fn lookup_invite(c: &mut SqliteConnection, code: &str) -> Result<Option<i64>> {
     if code.len() == 22 {
         let found: Option<i64> = sqlx::query_scalar("SELECT id FROM invites WHERE code_hash=?")
             .bind(hash(code.as_bytes()))
@@ -199,9 +260,6 @@ pub(crate) async fn find_invite(c: &mut SqliteConnection, code: &str) -> Result<
         .bind(hash(v.as_bytes()))
         .fetch_optional(&mut *c)
         .await?;
-    if let Some(i) = found {
-        vanity::rebase(c, i).await?;
-    }
     Ok(found)
 }
 /// `RevokeInvite` may not remove a vanity link; it is released on its page.

@@ -5,7 +5,15 @@ use super::*;
 use std::collections::{BTreeSet, VecDeque};
 use subtle::ConstantTimeEq;
 
+/// Interactions kept (answered ones stay for edits and follow-ups until the
+/// token expires). Every live entry counts against its user's and its app's
+/// share, so no account or app can fill the table for everyone; at a cap the
+/// oldest answered entry is forgotten (it can no longer be edited or followed
+/// up) instead of refusing the new one.
 const MAX_PENDING: usize = 4096;
+const MAX_PER_APP: usize = 1024;
+const MAX_PER_USER: usize = 64;
+/// Waiting for the bot's answer, per user.
 const MAX_PENDING_PER_USER: usize = 16;
 const MAX_EPHEMERAL: usize = 4096;
 const MAX_FOLLOWUPS: u8 = 10;
@@ -128,6 +136,47 @@ impl Interactions {
     fn put(&mut self, id: Id, p: Pending) {
         self.pending.insert(id, p);
     }
+    /// Makes room for one more interaction of `user` with `app`, or says why
+    /// there is none.
+    fn admit(&mut self, user: Id, app: Id) -> Result<()> {
+        let unanswered = self
+            .pending
+            .values()
+            .filter(|p| p.user == user && !p.answered)
+            .count();
+        require(unanswered < MAX_PENDING_PER_USER, ErrorCode::RateLimited)?;
+        let shares: [(&dyn Fn(&Pending) -> bool, usize, ErrorCode); 3] = [
+            (
+                &|p: &Pending| p.user == user,
+                MAX_PER_USER,
+                ErrorCode::RateLimited,
+            ),
+            (
+                &|p: &Pending| p.app == app,
+                MAX_PER_APP,
+                ErrorCode::Unavailable,
+            ),
+            (&|_: &Pending| true, MAX_PENDING, ErrorCode::Unavailable),
+        ];
+        for (mine, cap, code) in shares {
+            if self.pending.values().filter(|p| mine(p)).count() < cap {
+                continue;
+            }
+            let oldest = self
+                .pending
+                .iter()
+                .filter(|(_, p)| p.answered && mine(p))
+                .min_by_key(|(id, p)| (p.created, **id))
+                .map(|(id, _)| *id);
+            match oldest {
+                Some(id) => {
+                    self.pending.remove(&id);
+                }
+                None => return Err(Error::new(code)),
+            }
+        }
+        Ok(())
+    }
     /// Tests: pretend the interaction happened `ms` earlier.
     #[cfg(test)]
     pub(crate) fn backdate(&mut self, id: Id, ms: u64) {
@@ -208,17 +257,7 @@ async fn deliver(
     message: Option<Message>,
     out: &mut Deliveries,
 ) -> Result<Id> {
-    let table = &core.apps.interactions;
-    require(table.pending.len() < MAX_PENDING, ErrorCode::Unavailable)?;
-    require(
-        table
-            .pending
-            .values()
-            .filter(|p| p.user == u && !p.answered)
-            .count()
-            < MAX_PENDING_PER_USER,
-        ErrorCode::RateLimited,
-    )?;
+    core.apps.interactions.admit(u, app)?;
     if !online(core, bot) {
         let name: String = sqlx::query_scalar("SELECT name FROM apps WHERE id=?")
             .bind(id(app)?)
@@ -1029,4 +1068,79 @@ pub(crate) async fn follow_up(
     };
     core.apps.interactions.put(interaction, p);
     Ok(result)
+}
+
+#[cfg(test)]
+mod caps {
+    use super::*;
+
+    fn answered(user: u64, app: u64, created: u64) -> Pending {
+        Pending {
+            app: Id(app),
+            bot: Id(app + 1000),
+            channel: Id(11),
+            user: Id(user),
+            stream: String::new(),
+            token: String::new(),
+            kind: Kind::Autocomplete { request: 0 },
+            created,
+            answered: true,
+            defer: None,
+            original: None,
+            modal: None,
+            followups: 0,
+        }
+    }
+
+    /// A few accounts whose bot answers at once cannot fill the table: each
+    /// account and each app holds a bounded share, and at the cap its own
+    /// oldest answered entry makes room. Someone else's command still works.
+    #[test]
+    fn answered_interactions_count_and_one_user_or_app_cannot_fill_the_table() {
+        let mut t = Interactions::default();
+        let mut next = 1u64;
+        // Five accounts, one bot, 2,000 instantly answered interactions each.
+        for round in 0..2000u64 {
+            for user in 1..=5u64 {
+                t.admit(Id(user), Id(7)).unwrap();
+                t.put(Id(next), answered(user, 7, round));
+                next += 1;
+            }
+        }
+        assert_eq!(t.pending.len(), 5 * MAX_PER_USER);
+        // Thousands of accounts with that one bot: capped at its share.
+        for user in 100..3000u64 {
+            t.admit(Id(user), Id(7)).unwrap();
+            t.put(Id(next), answered(user, 7, 5000 + user));
+            next += 1;
+        }
+        let of =
+            |t: &Interactions, app: u64| t.pending.values().filter(|p| p.app == Id(app)).count();
+        assert_eq!(of(&t, 7), MAX_PER_APP);
+        // Everyone else's app is unaffected.
+        assert!(t.admit(Id(9), Id(8)).is_ok());
+        // The newest of the user's entries survive; the oldest went.
+        let kept: Vec<u64> = t
+            .pending
+            .values()
+            .filter(|p| p.user == Id(1))
+            .map(|p| p.created)
+            .collect();
+        assert!(
+            kept.iter().all(|c| *c >= 2000 - MAX_PER_USER as u64),
+            "{kept:?}"
+        );
+        // Still: at most 16 waiting for an answer per person.
+        let mut w = Interactions::default();
+        for i in 0..MAX_PENDING_PER_USER as u64 {
+            w.admit(Id(1), Id(7)).unwrap();
+            let mut p = answered(1, 7, i);
+            p.answered = false;
+            w.put(Id(i + 1), p);
+        }
+        assert_eq!(
+            w.admit(Id(1), Id(7)).unwrap_err().0.code,
+            ErrorCode::RateLimited
+        );
+    }
 }

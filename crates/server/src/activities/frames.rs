@@ -32,18 +32,21 @@ fn origin(app: &App) -> String {
         .unwrap_or_default()
 }
 
-/// The policy of a built-in activity's files.
+/// The policy of a built-in activity's files. `sandbox allow-scripts`: the
+/// page runs in an opaque origin however it is opened (top-level too), not
+/// only inside the app's sandboxed frame.
 pub(crate) fn builtin_policy(app_origin: &str) -> String {
     format!(
-        "default-src 'none'; script-src 'self' {o}; style-src 'self' {o}; style-src-attr 'unsafe-inline'; img-src 'self' {o} data: blob:; font-src 'self' {o}; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; frame-ancestors {o}; base-uri 'none'; form-action 'none'",
+        "sandbox allow-scripts; default-src 'none'; script-src 'self' {o}; style-src 'self' {o}; style-src-attr 'unsafe-inline'; img-src 'self' {o} data: blob:; font-src 'self' {o}; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; frame-ancestors {o}; base-uri 'none'; form-action 'none'",
         o = app_origin
     )
 }
 
-/// The policy of a registered activity's shell: only its origin may be framed.
+/// The policy of a registered activity's shell: only its origin may be
+/// framed, and the shell itself is sandboxed like a built-in activity.
 pub(crate) fn shell_policy(app_origin: &str, activity_origin: &str) -> String {
     format!(
-        "default-src 'none'; script-src 'self' {o}; style-src 'self' {o}; frame-src {a}; connect-src 'none'; frame-ancestors {o}; base-uri 'none'; form-action 'none'",
+        "sandbox allow-scripts; default-src 'none'; script-src 'self' {o}; style-src 'self' {o}; frame-src {a}; connect-src 'none'; frame-ancestors {o}; base-uri 'none'; form-action 'none'",
         o = app_origin,
         a = activity_origin
     )
