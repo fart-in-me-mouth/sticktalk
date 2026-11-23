@@ -1092,7 +1092,7 @@ async fn tag_changes_reach_every_wearer_in_batches_and_the_cli_revoke_is_live() 
     ok(&run(&app, 1, set_tag("GGWP")).await);
     // Queued in the edit's transaction, told once it committed.
     assert_eq!(scalar(&app, "SELECT COUNT(*) FROM tag_announce").await, 301);
-    assert!(301 > tags::ANNOUNCE_BATCH);
+    const { assert!(301 > tags::ANNOUNCE_BATCH) };
     fanout(&app).await.unwrap();
     assert_eq!(scalar(&app, "SELECT COUNT(*) FROM tag_announce").await, 0);
     {

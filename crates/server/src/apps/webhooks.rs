@@ -171,6 +171,7 @@ pub(crate) async fn create(
     })))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn update(
     c: &mut SqliteConnection,
     core: &mut Core,

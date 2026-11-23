@@ -145,7 +145,8 @@ impl Interactions {
             .filter(|p| p.user == user && !p.answered)
             .count();
         require(unanswered < MAX_PENDING_PER_USER, ErrorCode::RateLimited)?;
-        let shares: [(&dyn Fn(&Pending) -> bool, usize, ErrorCode); 3] = [
+        type Share<'a> = (&'a dyn Fn(&Pending) -> bool, usize, ErrorCode);
+        let shares: [Share; 3] = [
             (
                 &|p: &Pending| p.user == user,
                 MAX_PER_USER,
