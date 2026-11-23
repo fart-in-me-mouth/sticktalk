@@ -1,4 +1,5 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
+mod calls;
 mod operations;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
@@ -76,6 +77,8 @@ struct App {
     guild: Option<Id>,
     channel: Option<Id>,
     voice_channel: Option<Id>,
+    /// Direct and group calls, and the chat beside a call.
+    calls: calls::Calls,
     connection: Option<mpsc::Sender<ClientMsg>>,
     pending: BTreeMap<sticktalk_proto::Nonce, (Command, u64)>,
     epoch: u64,
@@ -157,6 +160,7 @@ impl App {
         self.guild = None;
         self.channel = None;
         self.voice_channel = None;
+        self.calls.reset();
         self.pending.clear();
         self.window_ids.clear();
         self.extent = None;
@@ -228,6 +232,7 @@ impl App {
                 }
             });
         }
+        calls::sync(self);
         before_render();
         self.revision.update(|v| *v = v.wrapping_add(1));
     }
@@ -302,6 +307,7 @@ pub fn mount() {
             }),
             connection: None,
             voice_channel: None,
+            calls: Default::default(),
             pending: BTreeMap::new(),
             epoch: 0,
             privacy_generation: 0,
@@ -997,6 +1003,15 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
         return;
     }
     if let Ok(event) = rmp_serde::from_slice::<VoiceEvent>(&payload.payload) {
+        if matches!(
+            event,
+            VoiceEvent::CallState(_)
+                | VoiceEvent::CallEnded { .. }
+                | VoiceEvent::CallSnapshot { .. }
+        ) {
+            calls::event(&app, event);
+            return;
+        }
         if matches!(
             event,
             VoiceEvent::GuildState(_)

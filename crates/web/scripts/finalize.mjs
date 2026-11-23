@@ -158,6 +158,7 @@ const paths = sizes
       !p.includes("media.js") &&
       !p.includes("push.js") &&
       !p.includes("viewer.js") &&
+      !p.includes("ptt.js") &&
       !p.includes("message-menu.js") &&
       !p.includes("gifs.js") &&
       !(p.endsWith(".wasm") && !p.endsWith("_bg.wasm")) &&

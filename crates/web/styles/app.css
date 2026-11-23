@@ -732,3 +732,64 @@
     @apply grid min-h-12 min-w-11 place-items-center rounded-lg bg-accent text-2xl hover:bg-secondary;
   }
 }
+
+/* Direct and group calls, voice channel chat and push to talk (calls engineer). */
+@layer components {
+  /* In a call: shown only in push-to-talk mode. On a phone it is the talk button itself. */
+  .ptt-button {
+    @apply inline-flex h-12 min-w-12 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium text-subtle select-none touch-none;
+  }
+  .ptt-button.is-live {
+    @apply bg-primary text-primary-foreground;
+  }
+  .ptt-button.is-muted {
+    @apply bg-destructive text-primary-foreground;
+  }
+  .ptt-button:not([hidden]) {
+    @apply phone:order-first phone:h-14 phone:w-full phone:text-base;
+  }
+  .call-controls:has(.ptt-button:not([hidden])) {
+    @apply phone:flex-wrap;
+  }
+  .voice-input-modes {
+    @apply flex flex-col gap-2;
+  }
+  .voice-input-mode {
+    @apply flex cursor-pointer items-start gap-3 rounded-lg bg-muted p-3 touch:min-h-12;
+  }
+  .voice-input-mode input {
+    @apply mt-1 size-4 flex-none accent-primary;
+  }
+  .voice-input-mode span {
+    @apply flex flex-col gap-0.5;
+  }
+  .voice-input-mode small,
+  .voice-shortcut small,
+  .voice-input-note {
+    @apply text-[13px] text-subtle;
+  }
+  .voice-shortcut {
+    @apply mt-6 flex flex-wrap items-center gap-3;
+  }
+  .voice-shortcut-label {
+    @apply flex min-w-48 flex-1 flex-col gap-0.5;
+  }
+  .voice-shortcut kbd {
+    @apply inline-flex h-9 min-w-16 items-center justify-center rounded-md border bg-field px-3 font-mono text-sm text-foreground;
+  }
+  .voice-release-delay {
+    @apply mt-6 grid grid-cols-[1fr_auto] items-center gap-x-3;
+  }
+  .voice-release-delay > span {
+    @apply col-span-2;
+  }
+  .voice-release-delay input {
+    @apply h-1 w-full cursor-pointer rounded-full border-0 bg-transparent p-0 shadow-none accent-primary;
+  }
+  .voice-release-delay output {
+    @apply w-16 text-right text-sm text-subtle;
+  }
+  .voice-input-note {
+    @apply mt-4 mb-0;
+  }
+}

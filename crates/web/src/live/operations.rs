@@ -670,6 +670,7 @@ pub(super) fn action(app: Shared, raw: &str) {
                 voice_action(app, kind, arg, epoch).await;
             });
         }
+        "call" => super::calls::action(app, arg),
         "media" => media_action(arg),
         "media-error" => fail(&app, arg.into()),
         "upload" | "avatar-upload" | "guild-icon-upload" => {
@@ -916,6 +917,7 @@ fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, targe
         .channels
         .get(&c)
         .is_some_and(|c| c.kind == ChannelKind::Voice)
+        && app.borrow().calls.chat != Some(c)
     {
         action(app, &format!("voice:{c}", c = c.0));
         return;
@@ -961,8 +963,20 @@ fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, targe
         a.completion_query.clear();
         a.channel = Some(c);
         a.guild = a.model.channels.get(&c).and_then(|c| c.guild_id);
-        a.screen = "chat".into();
-        a.last_text = Some(c);
+        // A call's own chat opens beside it; any other conversation replaces it.
+        let beside_call =
+            a.screen == "voice" && a.voice_channel == Some(c) && a.calls.chat == Some(c);
+        if a.calls.chat != Some(c) {
+            a.calls.chat = None;
+        }
+        a.screen = if beside_call { "voice" } else { "chat" }.into();
+        if a.model
+            .channels
+            .get(&c)
+            .is_none_or(|c| c.kind != ChannelKind::Voice)
+        {
+            a.last_text = Some(c);
+        }
         a.panel.clear();
         a.model.touch(c);
         let needs_topic = a.guild.is_some() && !a.model.topics.contains_key(&c);
@@ -2484,6 +2498,7 @@ fn voice_action(app: Shared, kind: String, arg: String, epoch: u64) {
                     {
                         let mut a = app.borrow_mut();
                         if left {
+                            super::calls::leaving(&mut a);
                             a.voice_channel = None;
                         }
                         if let Some(nonce) = request_nonce {
@@ -2504,6 +2519,7 @@ fn voice_action(app: Shared, kind: String, arg: String, epoch: u64) {
                 let mut a = app.borrow_mut();
                 if a.voice_channel != Some(c) {
                     if a.voice_channel.is_some() {
+                        super::calls::leaving(&mut a);
                         a.voice(VoiceSignal::Leave);
                     }
                     media_action("joining");

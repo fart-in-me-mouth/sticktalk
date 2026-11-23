@@ -1,5 +1,7 @@
 // Loaded only when a user joins a call or opens Voice & Video settings. One SFU
 // peer connection; no mesh, external ICE service, or media work while disconnected.
+import * as ptt from './ptt.js';
+import { ringtoneEnabled, setRingtoneEnabled } from './calls.js';
 const emit = (action) =>
   window.dispatchEvent(new CustomEvent("sticktalk-live", { detail: action }));
 const signal = (type, data) =>
@@ -50,6 +52,8 @@ let publications = new Map(),
   status = "Disconnected";
 const trace = [];
 let wantCall=false;
+// A video call, or a call answered with video: the camera starts once connected.
+let wantCamera=false;
 let callChannel = '', focusedTile = null;
 const requests=new Map();
 let nextRequest=crypto.getRandomValues(new Uint32Array(1))[0]||1;
@@ -344,6 +348,15 @@ function bindRemote() {
     if (entry.media.paused) entry.media.play().catch(() => {});
   }
 }
+// Push to talk: the microphone's sender carries the track only while the key is
+// held, so nothing at all is sent otherwise (not silence). Voice Activity always carries it.
+function gateAudio() {
+  const p = publications.get("audio");
+  if (!p) return Promise.resolve();
+  const want = ptt.transmitting() ? p.track : null;
+  if (p.transceiver.sender.track === want) return Promise.resolve();
+  return p.transceiver.sender.replaceTrack(want).catch(report);
+}
 async function publish(track, kind, stream) {
   let transceiver = senders.get(kind);
   if (transceiver) {
@@ -430,6 +443,8 @@ async function start(data) {
     }
     local = stream;
     await publish(stream.getAudioTracks()[0], "audio", stream);
+    ptt.attach(() => { gateAudio(); }, KEY_USAGE);
+    await gateAudio();
     elements.set(
       "self-audio",
       createTile(
@@ -443,6 +458,10 @@ async function start(data) {
     for (const participant of participants.values())
       await updateParticipant(participant);
     levelsTimer = setTimeout(levels, 200);
+    if (wantCamera) {
+      wantCamera = false;
+      if (!publications.has("camera")) enqueue(toggleCamera);
+    }
     // You are in: an earlier "microphone denied" notice no longer applies.
     if ($('.live-error')?.textContent.includes('Microphone')) emit('dismiss-error');
     mount();
@@ -1278,7 +1297,8 @@ function receiveControl(data) {
     tellHost({ control: "input", input: message.data.input });
 }
 function stop(notify) {
-  if(notify)wantCall=false;
+  if(notify){wantCall=false;wantCamera=false;}
+  ptt.detach();
   ++epoch;
   for(const request of [...requests.values()])request.reject(new Error('Call ended.'));
   clearTimeout(levelsTimer);
@@ -1335,6 +1355,7 @@ async function levels() {
 }
 export function mount() {
   bindRemote();
+  ptt.mount();
   const voiceView = $('.voice-view');
   if (voiceView) {
     callChannel = voiceView.dataset.callChannel;
@@ -1483,11 +1504,13 @@ async function devices() {
               },
             });
             const p = publications.get("audio");
-            await p.transceiver.sender.replaceTrack(stream.getAudioTracks()[0]);
-            p.track.stop();
+            const old = p.track;
             p.track = stream.getAudioTracks()[0];
             p.stream = stream;
             local = stream;
+            // The new microphone obeys push to talk like the old one did.
+            await gateAudio();
+            old.stop();
             applyState();
           }
         });
@@ -1535,7 +1558,8 @@ async function devices() {
   const note = document.createElement("p");
   note.textContent =
     "Echo cancellation, noise suppression, and automatic gain control are enabled for voice.";
-  root.append(note, micTest(root), cameraTest());
+  root.append(note, micTest(root), cameraTest(),
+    ptt.settingsView({ enabled: ringtoneEnabled, set: setRingtoneEnabled }));
   if (!deviceListener) {
     deviceListener = true;
     navigator.mediaDevices.addEventListener("devicechange", () => {
@@ -1696,6 +1720,9 @@ export function action(action) {
       emit(chat?.dataset.live ?? 'home');
       break;
     }
+    case "camera-on-join":
+      wantCamera=true;
+      break;
     case "joining":
       wantCall=true;
       status = "Connecting…";
@@ -1724,6 +1751,7 @@ export function action(action) {
       break;
     case "transport-lost":
       wantCall=false;
+      wantCamera=false;
       stop(false);
       break;
     case "reconnected":
@@ -1753,6 +1781,8 @@ export async function diagnostics() {
     state: pc?.connectionState,
     publications: publications.size,
     subscriptions: subscriptions.size,
+    transmitting: ptt.transmitting(),
+    microphoneSending: !!publications.get("audio")?.transceiver.sender.track,
     tracks: [...elements.values()].map((e) => ({
       kind: e.tile.dataset.kind,
       own: !!e.tile.dataset.self,
