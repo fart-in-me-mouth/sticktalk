@@ -130,6 +130,9 @@ pub enum AuditAction {
     StageStart,
     StageUpdate,
     StageEnd,
+    // Shared activities in guild voice channels (`activities.rs`).
+    ActivityStart,
+    ActivityEnd,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -201,6 +204,8 @@ impl AuditAction {
         Self::StageStart,
         Self::StageUpdate,
         Self::StageEnd,
+        Self::ActivityStart,
+        Self::ActivityEnd,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -273,6 +278,8 @@ impl AuditAction {
             Self::StageStart => "stage_start",
             Self::StageUpdate => "stage_update",
             Self::StageEnd => "stage_end",
+            Self::ActivityStart => "activity_start",
+            Self::ActivityEnd => "activity_end",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -349,6 +356,8 @@ impl AuditAction {
             Self::StageStart => "Started a Stage",
             Self::StageUpdate => "Updated a Stage",
             Self::StageEnd => "Ended a Stage",
+            Self::ActivityStart => "Started an activity",
+            Self::ActivityEnd => "Ended an activity",
         }
     }
 }

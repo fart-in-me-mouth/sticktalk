@@ -619,6 +619,8 @@ pub enum VoiceSignal {
     },
     /// Stage roles and lifecycle (`stage.rs`). Host-handled.
     Stage(crate::StageSignal),
+    /// Shared activities in this call (`activities.rs`). Host-handled.
+    Activities(crate::ActivitySignal),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -762,6 +764,8 @@ pub enum VoiceEvent {
     },
     /// Stage state (`stage.rs`).
     Stage(crate::StageEvent),
+    /// Shared activities in this call (`activities.rs`).
+    Activities(crate::ActivityEvent),
 }
 
 /// ONLY sent as binary named MessagePack on CONTROL_CHANNEL_LABEL, never WS.

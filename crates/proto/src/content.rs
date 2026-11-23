@@ -53,6 +53,9 @@ pub struct MessageExtra {
     /// A finished Stage's record, or a shared event's card (`stage.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stage: Option<Box<crate::StageMessage>>,
+    /// An activity invite card (`activities.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<Box<crate::ActivityCard>>,
 }
 impl MessageExtra {
     pub fn is_empty(&self) -> bool {
@@ -64,6 +67,7 @@ impl MessageExtra {
             && self.stickers.is_none()
             && self.super_reactions.is_none()
             && self.stage.is_none()
+            && self.activity.is_none()
     }
     pub fn stickers(&self) -> &[crate::StickerItem] {
         self.stickers.as_deref().map_or(&[], Vec::as_slice)

@@ -1,5 +1,6 @@
 //! StickTalk Phase 1 service. Mutations and snapshots share one serialization gate.
 mod account;
+mod activities;
 pub mod admin;
 #[cfg(test)]
 mod audit_tests;

@@ -127,6 +127,8 @@ pub(crate) struct Core {
     pub stage: crate::stage::Stages,
     /// The scheduled-event timer (`schedule.rs`).
     pub schedule: crate::schedule::Schedule,
+    /// Live activity sessions, one per call at most (`activities.rs`).
+    pub activities: crate::activities::Activities,
     last_id: u64,
     worker: u16,
 }
@@ -526,6 +528,7 @@ impl App {
                 community: Default::default(),
                 stage: Default::default(),
                 schedule: Default::default(),
+                activities: Default::default(),
                 last_id,
                 worker,
             }),
@@ -756,6 +759,7 @@ mod tests {
             community: Default::default(),
             stage: Default::default(),
             schedule: Default::default(),
+            activities: Default::default(),
             last_id: 0,
             worker: 0,
         }

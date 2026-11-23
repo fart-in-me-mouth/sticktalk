@@ -1,0 +1,11 @@
+#app { display: flex; flex-direction: column; height: 100%; overflow: auto; }
+.toolbar .now { flex: 1 1 160px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbar .time { font-variant-numeric: tabular-nums; font-size: 12px; }
+.seek { width: calc(100% - 16px); margin: 6px 8px 0; accent-color: var(--accent); }
+.queue { margin: 0; padding: 0 8px; list-style: none; }
+.queue li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.queue li.playing .name { color: var(--accent); font-weight: 600; }
+.queue .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actions { padding: 8px; flex-wrap: wrap; }
+.error { margin: 0 8px 8px; color: var(--danger); }
+select { min-height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }

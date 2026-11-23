@@ -105,6 +105,11 @@ pub enum AdminCommand {
         #[command(subcommand)]
         command: ReportAdmin,
     },
+    /// Activities registered by URL (`activities.rs`).
+    Activities {
+        #[command(subcommand)]
+        command: crate::activities::ActivityAdmin,
+    },
     /// The server directory: list, feature, hide or delist servers, or turn it off.
     Directory {
         #[command(subcommand)]
@@ -197,6 +202,9 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     crate::db::migrate(&mut c).await?;
     if let AdminCommand::Badge { command } = command {
         return crate::profiles::badges::run(&mut c, command).await;
+    }
+    if let AdminCommand::Activities { command } = command {
+        return crate::activities::run_admin(&mut c, command).await;
     }
     if let AdminCommand::Reports { command } = command {
         return crate::privacy::reports::admin(&mut c, command).await;

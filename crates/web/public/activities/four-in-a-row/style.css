@@ -1,0 +1,5 @@
+.c4 { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 6px; width: min(100%, 460px, calc((100vh - 140px) * 7 / 6)); padding: 8px; border-radius: 12px; background: var(--muted); }
+.c4-col { display: grid; gap: 6px; min-height: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; }
+.c4-col:not(:disabled):hover { background: var(--surface); }
+.c4-cell { display: block; aspect-ratio: 1; border-radius: 50%; background: var(--bg); }
+.c4-cell.last { outline: 2px solid var(--text); outline-offset: -2px; }

@@ -9,6 +9,7 @@
 @import "./profiles.css";
 @import "./stage.css";
 @import "./themes.css";
+@import "./activities.css";
 @source "../src/live";
 @source "../index.html";
 @source "../public/*.js";

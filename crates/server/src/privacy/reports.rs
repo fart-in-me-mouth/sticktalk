@@ -63,6 +63,11 @@ fn key(t: &ReportTarget) -> String {
         ReportTarget::Message { message_id, .. } => format!("m:{}", message_id.0),
         ReportTarget::User { user_id } => format!("u:{}", user_id.0),
         ReportTarget::Guild { guild_id } => format!("g:{}", guild_id.0),
+        ReportTarget::Activity {
+            session_id,
+            user_id,
+            ..
+        } => format!("a:{}:{}", session_id.0, user_id.0),
     }
 }
 fn summary(target: &ReportTarget, e: &ReportEvidence) -> String {
@@ -80,6 +85,7 @@ fn summary(target: &ReportTarget, e: &ReportEvidence) -> String {
             "The server {}",
             e.guild_name.clone().unwrap_or_else(|| "(deleted)".into())
         ),
+        ReportTarget::Activity { .. } => format!("What {who} did in an activity"),
     }
 }
 fn status_of(s: &str) -> ReportStatus {
@@ -243,6 +249,19 @@ pub(crate) async fn file(
             evidence.content = clip(&profile.description, MAX_REPORT_EVIDENCE_CHARS);
             evidence.user = Some(user(c, g.owner_id).await?);
             ("admin", None, None)
+        }
+        ReportTarget::Activity {
+            channel_id,
+            session_id,
+            user_id,
+        } => {
+            let (guild, e) =
+                crate::activities::report(core, c, u, channel_id, session_id, user_id).await?;
+            evidence = e;
+            match guild {
+                Some(g) => ("guild", Some(g), Some(user_id)),
+                None => ("admin", None, Some(user_id)),
+            }
         }
     };
     let report = core.id().await?;
