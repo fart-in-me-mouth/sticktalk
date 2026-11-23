@@ -106,8 +106,20 @@ pub(super) fn answer(app: &Shared, nonce: u64, event: &VoiceEvent) -> bool {
     true
 }
 
-/// `activity-signal:<nonce>:<json>` from `activities.js`: an activity signal to send.
+/// `activity-signal:<nonce>:<json>` from `activities.js`: an activity signal
+/// to send. Decoding JSON into a `VoiceSignal` is large code: it stays in a
+/// lazily loaded chunk, as the media host's signals do (`voice_action`).
 pub(super) fn signal(app: Shared, arg: &str) {
+    let epoch = app.borrow().epoch;
+    let arg = arg.to_owned();
+    spawn_local(async move { signal_lazy(app, arg, epoch).await });
+}
+
+#[lazy]
+fn signal_lazy(app: Shared, arg: String, epoch: u64) {
+    if app.borrow().epoch != epoch {
+        return;
+    }
     let Some((n, raw)) = arg.split_once(':') else {
         return;
     };
@@ -198,20 +210,6 @@ pub(super) fn action(app: Shared, arg: &str) {
                 operations::action(app, &format!("voice:{}", call.0));
             }
         }
-        // A report about someone's part in the activity: `report,<json ReportDraft>`.
-        "report" => {
-            let raw = arg.strip_prefix("report,").unwrap_or_default();
-            let mut v: serde_json::Value = serde_json::from_str(raw).unwrap_or_default();
-            numbers(&mut v);
-            if let Ok(draft) = serde_json::from_value::<ReportDraft>(v) {
-                if matches!(draft.target, ReportTarget::Activity { .. }) {
-                    let mut a = app.borrow_mut();
-                    a.command(Command::Privacy(PrivacyCommand::Report(draft)));
-                    a.notice = "Report sent. Thank you.".into();
-                    a.touch();
-                }
-            }
-        }
         "notice" => {
             let mut a = app.borrow_mut();
             a.notice = arg
@@ -222,24 +220,6 @@ pub(super) fn action(app: Shared, arg: &str) {
                 .collect();
             a.touch();
         }
-        _ => {}
-    }
-}
-
-fn numbers(v: &mut serde_json::Value) {
-    match v {
-        serde_json::Value::Object(m) => {
-            for (k, v) in m {
-                if k.ends_with("_id") {
-                    if let Some(n) = v.as_str().and_then(|s| s.parse::<u64>().ok()) {
-                        *v = n.into();
-                    }
-                } else {
-                    numbers(v);
-                }
-            }
-        }
-        serde_json::Value::Array(a) => a.iter_mut().for_each(numbers),
         _ => {}
     }
 }

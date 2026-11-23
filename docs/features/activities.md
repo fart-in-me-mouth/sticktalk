@@ -215,6 +215,15 @@ pages, a real server and SFU on loopback, debug server build):
 | Whiteboard stroke (30 moves) | one key; live cursor and stroke messages arrived before it |
 | Layout changes, browsing chat in mini mode | the frame never reloaded |
 
+Web size against the base commit (`8db8f6f`, same build steps): the core
+WASM grows from 1,185,435 to 1,200,564 bytes Brotli (+15 KB: the new
+protocol types' decoding, mainly the card on `MessageExtra`, and the
+card, banner and settings views); `firstLoadBytes` from 1,504,834 to
+1,532,154. The signal decoding (`decode_signal`) stays in a lazy chunk shared
+with the media host's signals; `activities.js` and every activity load on
+first use only. Moving card decoding out of the core belongs to the
+web-size restructuring (feature events handed undecoded to lazy modules).
+
 Server tests: `cargo test -p sticktalk-server activities` (24 tests: every
 signal, key mode, limit, permission, AutoMod, timeout, report, cards,
 routes, frame policies, the games' rules).
