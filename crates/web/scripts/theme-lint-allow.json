@@ -38,5 +38,20 @@
     "file": "styles/identity.css",
     "contains": "color-mix(in oklab, #",
     "reason": "the holographic role style's own hues (a cosmetic), each mixed toward the theme's text color for legibility"
+  },
+  {
+    "file": "styles/app.css",
+    "contains": "cursor-none overflow-hidden bg-black",
+    "reason": "a stream in its own window: the video's letterbox (media, not themed)"
+  },
+  {
+    "file": "styles/app.css",
+    "contains": "from-black/80 to-transparent",
+    "reason": "scrim under the name and full screen button over a stream's video (media overlay)"
+  },
+  {
+    "file": "public/media.js",
+    "contains": "doc.documentElement.style.background = doc.body.style.background",
+    "reason": "the stream window is black from its first paint, before the styles load (media letterbox)"
   }
 ]

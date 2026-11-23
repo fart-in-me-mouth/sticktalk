@@ -518,6 +518,7 @@ mod tests {
                 byte_size: 1,
                 content_type: "image/jpeg".into(),
             }),
+            meta: Default::default(),
         }
     }
     #[test]

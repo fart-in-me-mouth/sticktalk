@@ -144,13 +144,17 @@ first frame), or an MP4/WebM loop, each ≤10 MB.
 
 ### Video
 
-- Screen share: resolution 480p, 720p, 1080p, 1440p, 4K / Source (no size
-  constraint); 15, 30 or 60 fps; **Smoother motion** (`contentHint: motion`,
-  `degradationPreference: maintain-framerate`) or **Sharper text** (`detail`,
-  `maintain-resolution`). Default 1080p30, smoother motion. Camera: 480p–1440p,
-  15/30/60 fps, default 720p30. Remembered per device; also in Voice & Video and
-  More → Stream & Camera Quality, applied live (`applyConstraints`).
-- Encoder: `maxBitrate` from the choice (H.264 at 30 fps: 1.2, 2.5, 4.5, 8,
+- Screen share: **nothing to choose** (owner decision 2026-11-22, see
+  `docs/PHASE2_REQUIREMENTS.md`). Always 30 fps at the source's own size (up to
+  3840×2160), `contentHint: motion`, `degradationPreference:
+  maintain-framerate`, capped only by the SFU's allowance (`media.js`:
+  `displayVideo`, `streamEncoding`). The resolution, frame rate and
+  "Optimize For" pickers this task first shipped were removed when the branches
+  were merged; a shared screen sends no `TrackQuality`. The 1080p60 rows in the
+  measurements below are from before that.
+- Camera: 480p–1440p, 15/30/60 fps, default 720p30. Remembered per device; in
+  Voice & Video and More → Camera Quality, applied live.
+- Camera encoder: `maxBitrate` from the choice (H.264 at 30 fps: 1.2, 2.5, 4.5, 8,
   14 Mbps for 480p…4K; ×1.6 at 60 fps, ×0.6 at 15 fps), `maxFramerate`, and the
   degradation preference. Chromium's own default caps video near 2.5 Mbps; this
   is what lets 1080p60 and 4K60 actually be sent. The SFU's per-viewer allowance

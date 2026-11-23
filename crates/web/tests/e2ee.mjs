@@ -5,7 +5,7 @@
 //
 //   STICKTALK_SERVER_EXE=<server built with --features media-tap> node tests/e2ee.mjs
 //
-// Parts: two people in an encrypted call (audio, camera, 1080p60 screen); what
+// Parts: two people in an encrypted call (audio, camera, screen); what
 // the SFU can decode; a third person joining and leaving (rekeying); pairwise
 // verification with the QR scanner; reconnecting; a key change; a client that
 // cannot encrypt (refused, then allowed with everyone told); "only join
@@ -318,13 +318,10 @@ try {
   await shot(alice, 'panel');
   await alice.locator('.e2ee-panel .button.primary:has-text("Done")').click();
 
-  // Camera and a 1080p60 screen share, encrypted, decoded by the other side.
+  // Camera and a screen share, encrypted, decoded by the other side.
   await act(bob, 'media:camera');
   await until(async () => (await diag(alice)).tracks.some((t) => t.kind === 'camera' && t.videoWidth > 0), 30000);
   await act(bob, 'media:share');
-  await bob.waitForSelector('.live-share-options select[aria-label="Resolution"]');
-  await bob.locator('.live-share-options select[aria-label="Resolution"]').selectOption('1080');
-  await bob.locator('.live-share-options select[aria-label="Frame Rate"]').selectOption('60');
   await bob.locator('.live-share-options .button.primary').click();
   await until(async () => (await diag(alice)).tracks.some((t) => t.kind === 'screen' && t.videoWidth > 0), 30000);
   await wait(4000);
@@ -335,7 +332,7 @@ try {
   assert.ok(receiverOf(ra, ra.state.members[0].key, 'screen')?.count.ok > 100, 'screen frames decrypted');
   assert.ok(receiverOf(ra, ra.state.members[0].key, 'camera')?.count.ok > 30, 'camera frames decrypted');
   numbers.encryptedVideoFps = Math.round((v1.frames - v0.frames) / 3);
-  checks.push(`camera and 1080p60 screen share: encrypted, decrypted and decoded by the viewer (${numbers.encryptedVideoFps} decoded frames/s over both)`);
+  checks.push(`camera and screen share: encrypted, decrypted and decoded by the viewer (${numbers.encryptedVideoFps} decoded frames/s over both)`);
   await shot(alice, 'call-encrypted-video');
 
   // ---- 2. The SFU forwarded only ciphertext ----------------------------------------
@@ -579,11 +576,8 @@ async function measure(encrypted, loss) {
     out.cpuAudioPercentPerParticipant = +(((c1 - c0) / ((Date.now() - w0) / 1000)) * 100 / 2).toFixed(2);
     out.audioConcealedShare = +((a1.concealed - a0.concealed) / Math.max(1, a1.samples - a0.samples)).toFixed(4);
     if (encrypted) out.audioTransformMs = (await enc(p1)).send.audio ?? null, out.audioReceiveMs = (await enc(p2)).receive.audio ?? null;
-    // A 1080p60 screen share.
+    // A screen share.
     await act(p1, 'media:share');
-    await p1.waitForSelector('.live-share-options select[aria-label="Resolution"]');
-    await p1.locator('.live-share-options select[aria-label="Resolution"]').selectOption('1080');
-    await p1.locator('.live-share-options select[aria-label="Frame Rate"]').selectOption('60');
     await p1.locator('.live-share-options .button.primary').click();
     await until(async () => (await diag(p2)).tracks.some((t) => t.kind === 'screen' && t.videoWidth > 0), 30000);
     await wait(5000);

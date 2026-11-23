@@ -492,7 +492,7 @@ function more() {
   const items = [
     ['🔊', 'Soundboard', 'soundboard'],
     ['✨', 'Video Effects', 'backgrounds'],
-    ['🎚', 'Stream & Camera Quality', 'quality'],
+    ['🎚', 'Camera Quality', 'quality'],
     ...(clipsActive ? [['🎬', 'Save Clip', 'clip']] : []),
     ['🎞', prefs.clips.enabled ? 'Clips' : 'Turn On Clips', 'clips'],
     ['🎧', 'Audio Devices', 'output'],
@@ -511,7 +511,7 @@ function more() {
   list.querySelector('button')?.focus();
 }
 function qualityDialog() {
-  const d = dialog('Stream & Camera Quality');
+  const d = dialog('Camera Quality');
   d.append(qualityFields(() => liveQualityChanged()),
     button('Done', 'button primary', () => d.close()));
   d.showModal();
