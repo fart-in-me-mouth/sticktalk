@@ -24,7 +24,7 @@ pub(crate) mod catalog;
 pub(crate) mod frames;
 mod games;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub(crate) use cards::decorate;
 pub(crate) use catalog::{run_admin, ActivityAdmin};
@@ -778,6 +778,7 @@ pub(crate) async fn signal(
         ShareMedia {
             session_id,
             attachment_id,
+            confirmed,
         } => {
             let (channel, voice, me) = participant_of(core, session_id, voice)?;
             core.rate(format!("activity-media:{}", user.0), 30., 6.)?;
@@ -786,7 +787,16 @@ pub(crate) async fn signal(
                 return Ok(());
             }
             require(s.media.len() < MAX_ACTIVITY_MEDIA, ErrorCode::LimitExceeded)?;
+            // Everyone in the session can stream a shared file, even someone
+            // who cannot read where it came from: the sharer says so first.
+            if !confirmed {
+                let mut e = Error::new(ErrorCode::InvalidRequest);
+                e.0.field = Some("confirm".into());
+                e.0.message = "Everyone in this activity will be able to watch this file.".into();
+                return Err(e);
+            }
             let item = catalog::shareable(c, voice.user_id, attachment_id).await?;
+            cards::audit_share(c, channel, voice.user_id, &item).await?;
             let value = serde_json::json!({
                 "name": item.filename,
                 "type": item.content_type,

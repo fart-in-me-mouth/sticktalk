@@ -527,6 +527,7 @@ pub(crate) async fn execute(
             }
         }
         if durable {let result_bytes=rmp_serde::to_vec_named(&result).map_err(|_|Error::new(ErrorCode::Internal))?;sqlx::query("INSERT INTO command_receipts(session_hash,nonce,request_hash,result_msgpack,created_at,expires_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_hash,nonce) DO UPDATE SET request_hash=excluded.request_hash,result_msgpack=excluded.result_msgpack,created_at=excluded.created_at,expires_at=excluded.expires_at") .bind(key).bind(req.nonce as i64).bind(request_hash).bind(result_bytes).bind(now() as i64).bind((now()+600_000) as i64).execute(&mut *tx).await?;}
+        crate::apps::settle(&mut tx, core, u, &mut out).await?;
         crate::identity::settle(&mut tx, core, &mut out).await?;
         let changed=!out.is_empty();
         let orphaned=gc_uploads(&mut tx).await?;
@@ -792,7 +793,9 @@ async fn core_mutate(
     let adding_reaction = matches!(cmd, Command::AddReaction { .. });
     match cmd {
         Launch(_) | Content(_) | Threads(_) | Expression(_) | Privacy(_) | Community(_)
-        | Schedule(_) | Appearance(_) | Apps(_) | Identity(_) => Err(Error::new(ErrorCode::Internal)),
+        | Schedule(_) | Appearance(_) | Apps(_) | Identity(_) => {
+            Err(Error::new(ErrorCode::Internal))
+        }
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();

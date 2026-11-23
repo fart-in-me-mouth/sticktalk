@@ -2,6 +2,7 @@
 //! managed role, and the Integrations page.
 use super::*;
 use crate::moderation::audit;
+use std::collections::BTreeSet;
 
 /// Permission names for the audit log and the consent screen.
 fn permission_list(p: Permissions) -> String {
@@ -337,29 +338,7 @@ pub(crate) async fn remove(
         .execute(&mut *c)
         .await?;
     if let Some(rid) = role_id {
-        let position: Option<i64> =
-            sqlx::query_scalar("SELECT position FROM roles WHERE guild_id=? AND id=?")
-                .bind(id(g)?)
-                .bind(id(rid)?)
-                .fetch_optional(&mut *c)
-                .await?;
-        if let Some(position) = position {
-            sqlx::query("DELETE FROM permission_overwrites WHERE kind='role' AND target_id=? AND channel_id IN(SELECT id FROM channels WHERE guild_id=?)")
-                .bind(id(rid)?)
-                .bind(id(g)?)
-                .execute(&mut *c)
-                .await?;
-            sqlx::query("DELETE FROM roles WHERE guild_id=? AND id=?")
-                .bind(id(g)?)
-                .bind(id(rid)?)
-                .execute(&mut *c)
-                .await?;
-            sqlx::query("UPDATE roles SET position=position-1 WHERE guild_id=? AND position>?")
-                .bind(id(g)?)
-                .bind(position)
-                .execute(&mut *c)
-                .await?;
-        }
+        drop_role(c, g, rid).await?;
     }
     if role(c, bot, g).await.is_ok() {
         crate::commands::remove_member(c, out, g, bot, RemovalReason::Kicked).await?;
@@ -378,6 +357,86 @@ pub(crate) async fn remove(
     core.apps.interactions.forget_guild(app, g);
     integrations_changed(c, out, g).await?;
     commands_changed(c, out, g).await
+}
+
+/// Deletes an app's managed role, its overwrites, and closes the gap in the
+/// role order. False when the role is already gone.
+async fn drop_role(c: &mut SqliteConnection, g: Id, rid: Id) -> Result<bool> {
+    let position: Option<i64> =
+        sqlx::query_scalar("SELECT position FROM roles WHERE guild_id=? AND id=?")
+            .bind(id(g)?)
+            .bind(id(rid)?)
+            .fetch_optional(&mut *c)
+            .await?;
+    let Some(position) = position else {
+        return Ok(false);
+    };
+    sqlx::query("DELETE FROM permission_overwrites WHERE kind='role' AND target_id=? AND channel_id IN(SELECT id FROM channels WHERE guild_id=?)")
+        .bind(id(rid)?)
+        .bind(id(g)?)
+        .execute(&mut *c)
+        .await?;
+    sqlx::query("DELETE FROM roles WHERE guild_id=? AND id=?")
+        .bind(id(g)?)
+        .bind(id(rid)?)
+        .execute(&mut *c)
+        .await?;
+    sqlx::query("UPDATE roles SET position=position-1 WHERE guild_id=? AND position>?")
+        .bind(id(g)?)
+        .bind(position)
+        .execute(&mut *c)
+        .await?;
+    Ok(true)
+}
+
+/// A bot left a server in this command by kick, ban or prune: the trigger
+/// `apps_bot_left` removed its app's installation, commands and overrides and
+/// recorded its managed role, which goes now, in the same transaction, with
+/// an audit entry (Uninstall removes it itself). Runs only when the command
+/// removed someone.
+pub(crate) async fn settle(
+    c: &mut SqliteConnection,
+    core: &mut Core,
+    u: Id,
+    out: &mut Deliveries,
+) -> Result<()> {
+    if !out
+        .iter()
+        .any(|(_, e)| matches!(e, Event::MemberRemoved { .. } | Event::GuildRemoved { .. }))
+    {
+        return Ok(());
+    }
+    let drops = sqlx::query("DELETE FROM app_role_drops RETURNING guild_id,app_id,role_id,name")
+        .fetch_all(&mut *c)
+        .await?;
+    let mut changed = BTreeSet::new();
+    for r in drops {
+        let g = Id(r.get::<i64, _>("guild_id") as u64);
+        let app = Id(r.get::<i64, _>("app_id") as u64);
+        let rid = Id(r.get::<i64, _>("role_id") as u64);
+        // A deleted server took its roles with it.
+        if !drop_role(c, g, rid).await? {
+            continue;
+        }
+        audit::write(
+            c,
+            u,
+            audit::Entry::new(g, AuditAction::AppRemove, AuditTarget::App, Some(app))
+                .named(r.get::<String, _>("name"))
+                .reason(Some(
+                    "Its bot was removed from the server, and its role with it.".to_owned(),
+                )),
+        )
+        .await?;
+        core.apps.interactions.forget_guild(app, g);
+        changed.insert(g);
+    }
+    for g in changed {
+        roles_changed(c, out, g).await?;
+        integrations_changed(c, out, g).await?;
+        commands_changed(c, out, g).await?;
+    }
+    Ok(())
 }
 
 pub(crate) async fn installation(c: &mut SqliteConnection, g: Id, app: Id) -> Result<Installation> {

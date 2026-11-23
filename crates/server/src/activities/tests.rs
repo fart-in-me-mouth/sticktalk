@@ -16,14 +16,14 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tower::ServiceExt;
 
-const VOICE: Id = Id(12);
+pub(crate) const VOICE: Id = Id(12);
 const STAGE: Id = Id(13);
 const VOICE2: Id = Id(14);
 const DM: Id = Id(20);
 
 /// Guild 10 (owner 1, member 2, member 4) with text 11, voice 12 and 14 and
 /// stage 13; users 1 and 3 share DM 20.
-async fn world(app: &App) {
+pub(crate) async fn world(app: &App) {
     sqlx::raw_sql(
         "INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(12,'voice',10,'Voice',1,0),(13,'stage',10,'Stage',2,0),(14,'voice',10,'Voice 2',3,0);\
          INSERT INTO guild_members VALUES(10,4,'member',0);\
@@ -79,7 +79,7 @@ fn key(user: u64) -> Vec<u8> {
     vec![user as u8; 32]
 }
 
-fn attach(core: &mut Core, user: u64) -> mpsc::Receiver<Packet> {
+pub(crate) fn attach(core: &mut Core, user: u64) -> mpsc::Receiver<Packet> {
     let key = key(user);
     core.cursor(&key, Id(user));
     let (tx, rx) = mpsc::channel(512);
@@ -139,7 +139,7 @@ async fn signal(app: &App, core: &mut Core, user: u64, s: VoiceSignal) {
     .unwrap();
 }
 
-async fn act(app: &App, core: &mut Core, user: u64, s: ActivitySignal) {
+pub(crate) async fn act(app: &App, core: &mut Core, user: u64, s: ActivitySignal) {
     signal(app, core, user, VoiceSignal::Activities(s)).await;
 }
 
@@ -157,7 +157,7 @@ async fn try_act(
 }
 
 /// Join `channel` and act as if its media connected (the SFU's `Joined`).
-async fn join(app: &App, core: &mut Core, user: u64, channel: Id) -> VoiceSession {
+pub(crate) async fn join(app: &App, core: &mut Core, user: u64, channel: Id) -> VoiceSession {
     signal(
         app,
         core,
@@ -181,14 +181,14 @@ async fn join(app: &App, core: &mut Core, user: u64, channel: Id) -> VoiceSessio
     session
 }
 
-fn launch(channel: Id, id: &str) -> ActivitySignal {
+pub(crate) fn launch(channel: Id, id: &str) -> ActivitySignal {
     ActivitySignal::Launch {
         channel_id: channel,
         activity_id: id.into(),
     }
 }
 
-fn sid(core: &Core, channel: Id) -> Id {
+pub(crate) fn sid(core: &Core, channel: Id) -> Id {
     session_for_test(core, channel)
         .expect("a session")
         .session_id
@@ -981,6 +981,7 @@ async fn shared_media_must_be_readable_and_is_streamable_by_participants_only() 
     let share = |a| ActivitySignal::ShareMedia {
         session_id: s,
         attachment_id: Id(a),
+        confirmed: true,
     };
     assert_eq!(
         try_act(&app, &mut core, &mut r1, 1, share(601)).await,
@@ -991,7 +992,35 @@ async fn shared_media_must_be_readable_and_is_streamable_by_participants_only() 
         Some(ErrorCode::NotFound)
     );
     assert!(!super::file_access(&core, Id(4), Id(600)));
+    // Everyone in the session will be able to watch it: the sharer confirms.
+    assert_eq!(
+        try_act(
+            &app,
+            &mut core,
+            &mut r1,
+            1,
+            ActivitySignal::ShareMedia {
+                session_id: s,
+                attachment_id: Id(600),
+                confirmed: false,
+            }
+        )
+        .await,
+        Some(ErrorCode::InvalidRequest)
+    );
+    assert!(!super::file_access(&core, Id(4), Id(600)));
     assert_eq!(try_act(&app, &mut core, &mut r1, 1, share(600)).await, None);
+    // A guild call's share is in the audit log, with the file and its source.
+    let changes: String = sqlx::query_scalar(
+        "SELECT changes FROM audit_log WHERE guild_id=10 AND action='activity_media_share' AND actor_id=1",
+    )
+    .fetch_one(&app.0.pool)
+    .await
+    .unwrap();
+    assert!(
+        changes.contains("clip.mp4") && changes.contains("\"11\""),
+        "{changes}"
+    );
     let doc = &core.activities.sessions[&VOICE].doc;
     assert!(doc["s/media/600"].text.contains("clip.mp4"));
     // Streamable by participants while the session lasts, not by others.
@@ -1378,6 +1407,15 @@ async fn the_catalog_and_server_settings_routes() {
         StatusCode::NO_CONTENT
     );
     assert!(session_for_test(&*app.0.core.lock().await, VOICE).is_none());
+    // Which activities members can start is a server setting: each change is
+    // audited (on, then off); setting the same value again is not a change.
+    let toggles: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM audit_log WHERE guild_id=10 AND action='guild_update' AND changes LIKE '%activity %'",
+    )
+    .fetch_one(&app.0.pool)
+    .await
+    .unwrap();
+    assert_eq!(toggles, 2);
     assert_eq!(
         request(
             &app,

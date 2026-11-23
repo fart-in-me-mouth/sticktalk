@@ -101,7 +101,9 @@ Bots (`Authorization: Bot stkb_…`): `/api/v1/bot/@me`,
 WebSocket; POST send), `/bot/channels/{c}/messages/{m}` (PATCH, DELETE),
 `/bot/commands`, `/bot/guilds/{id}/commands` (GET, PUT),
 `/bot/interactions/{id}/{token}/{callback,original,followup}`,
-`PUT /bot/uploads/{channel}`. Mutations run as commands through
+`PUT /bot/uploads/{channel}`, `GET /bot/attachments/{id}` (a file passed to
+this bot in an interaction's attachment option, for 15 minutes, while the bot
+can read that channel's messages). Mutations run as commands through
 `commands::execute`.
 
 Webhooks (no account; the secret URL): `GET|POST /api/v1/webhooks/{id}/{secret}`
@@ -149,8 +151,10 @@ Webhooks (no account; the secret URL): `GET|POST /api/v1/webhooks/{id}/{secret}`
   invoking connection. Deferred answers show "thinking" to the person only,
   for public deferrals too.
 - **Removal.** Kicking, banning or pruning a bot removes its installation,
-  commands and overrides (trigger `apps_bot_left`); Uninstall also deletes the
-  managed role. Deleting an app removes it everywhere, deletes its sessions
+  commands and overrides (trigger `apps_bot_left`) and, in the same command,
+  its managed role, its overwrites and an `app_remove` audit entry saying so
+  (`apps::settle`, from the drops the trigger records in `app_role_drops`).
+  Uninstall does the same itself. Deleting an app removes it everywhere, deletes its sessions
   and disables the bot account; its messages stay.
 - **Admin.** `sticktalk-server admin apps list | disable <id> | enable <id> |
   creation everyone|allowlist|disabled | allow <user> | disallow <user>`.
@@ -158,8 +162,11 @@ Webhooks (no account; the secret URL): `GET|POST /api/v1/webhooks/{id}/{secret}`
   open connections close at the next housekeeping pass) and hides its
   commands. `creation disabled` turns the feature off: no new apps, no bot
   connects, no commands are offered. Webhooks are not affected.
-- **Audit.** Install, removal, command overrides, webhook create/update
-  (including rotation)/delete. Bots' own actions (kicks, role changes,
+- **Data export.** `apps.json`: the apps the account owns (never tokens), the
+  apps it added to servers, and the webhooks it created (never their URLs).
+- **Audit.** Install, removal (also when the bot is kicked, banned or
+  pruned), command overrides, webhook create/update (including
+  rotation)/delete. Bots' own actions (kicks, role changes,
   deletions) are recorded by the existing hooks with the bot as actor; the
   bot's name is the app's name and it carries the APP tag.
 
@@ -213,7 +220,7 @@ Webhooks (no account; the secret URL): `GET|POST /api/v1/webhooks/{id}/{secret}`
 - Ephemeral messages are not stored: they disappear on reload, and their embed
   images are not fetched.
 - Bots can't open DMs at all (simpler than "only people who interacted").
-- Attachment options resolve to the uploaded file's metadata; the bot can't
-  download a person's upload yet.
+- Attachment options resolve to the uploaded file's metadata, and the bot may
+  download that file (`GET /api/v1/bot/attachments/{id}`) for 15 minutes.
 - One connection per bot token (no sharding); one global `apps` timer task.
 - Webhook GitHub signatures are not verified; the secret URL is the credential.

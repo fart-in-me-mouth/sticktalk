@@ -366,19 +366,39 @@ async fn guild_toggle(
     let mut core = app.0.core.lock().await;
     core.rate(format!("activity-settings:{}", u.0), 30., 10.)?;
     let mut c = app.0.pool.acquire().await?;
-    require(
-        for_guild(&mut c, Some(g))
-            .await?
-            .iter()
-            .any(|(a, _)| a.id == activity),
-        ErrorCode::NotFound,
-    )?;
+    let (info, was) = for_guild(&mut c, Some(g))
+        .await?
+        .into_iter()
+        .find(|(a, _)| a.id == activity)
+        .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+    let mut tx = sqlx::Connection::begin(&mut *c).await?;
     sqlx::query("INSERT INTO guild_activities(guild_id,activity_id,enabled) VALUES(?,?,?) ON CONFLICT(guild_id,activity_id) DO UPDATE SET enabled=excluded.enabled")
         .bind(db::id(g)?)
         .bind(&activity)
         .bind(toggle.enabled)
-        .execute(&mut *c)
+        .execute(&mut *tx)
         .await?;
+    // Which activities members can start is a server setting: audited.
+    if was != toggle.enabled {
+        let state = |on: bool| Some(if on { "on" } else { "off" }.to_owned());
+        crate::moderation::audit::write(
+            &mut tx,
+            u,
+            crate::moderation::audit::Entry::new(
+                g,
+                AuditAction::GuildUpdate,
+                AuditTarget::Guild,
+                Some(g),
+            )
+            .change(
+                &format!("activity {}", info.name),
+                state(was),
+                state(toggle.enabled),
+            ),
+        )
+        .await?;
+    }
+    tx.commit().await?;
     if !toggle.enabled {
         super::disabled(&mut core, &mut c, g, &activity, u).await?;
     }

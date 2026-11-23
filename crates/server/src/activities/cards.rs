@@ -215,6 +215,37 @@ pub(super) async fn keep_result(
     Ok(())
 }
 
+/// A file shared into Watch Together in a guild call is in the audit log:
+/// everyone in the session can watch it, whatever they may read.
+pub(super) async fn audit_share(
+    c: &mut SqliteConnection,
+    call: Id,
+    actor: Id,
+    item: &ActivityMedia,
+) -> Result<()> {
+    let guild: Option<i64> = sqlx::query_scalar("SELECT guild_id FROM channels WHERE id=?")
+        .bind(db::id(call)?)
+        .fetch_optional(&mut *c)
+        .await?
+        .flatten();
+    let Some(guild) = guild else {
+        return Ok(());
+    };
+    use crate::moderation::audit::Entry;
+    let entry = Entry::new(
+        Id(guild as u64),
+        AuditAction::ActivityMediaShare,
+        AuditTarget::Channel,
+        Some(call),
+    )
+    .change("file", None, Some(item.filename.clone()))
+    .change("from_channel", None, Some(item.channel_id.0.to_string()));
+    let mut tx = c.begin().await?;
+    crate::moderation::audit::write(&mut tx, actor, entry).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 /// Starting and ending a session in a guild voice channel is in the audit log.
 pub(super) async fn audit(
     c: &mut SqliteConnection,

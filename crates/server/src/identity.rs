@@ -34,6 +34,92 @@ mod vanity;
 
 pub(crate) use routes::routes;
 
+/// In-memory state, under the command gate (`Core::identity`).
+#[derive(Default)]
+pub(crate) struct Runtime {
+    /// Wakes the fan-out task: wearers are waiting in `tag_announce`.
+    pub(crate) wake: std::sync::Arc<tokio::sync::Notify>,
+}
+
+/// Tells the viewers of every wearer queued in `tag_announce` (a tag edited
+/// or removed, revoked by the administrator, a big server's members leaving)
+/// in batches of `tags::ANNOUNCE_BATCH`: each batch holds the command gate
+/// only while it is read and sent, and no transaction stays open.
+pub(crate) async fn fanout(app: &crate::state::App) -> Result<()> {
+    loop {
+        let mut core = app.0.core.lock().await;
+        let mut c = app.0.pool.acquire().await?;
+        let batch: Vec<i64> = sqlx::query_scalar("DELETE FROM tag_announce WHERE user_id IN (SELECT user_id FROM tag_announce ORDER BY user_id LIMIT ?) RETURNING user_id")
+            .bind(tags::ANNOUNCE_BATCH)
+            .fetch_all(&mut *c)
+            .await?;
+        if batch.is_empty() {
+            return Ok(());
+        }
+        let mut out = vec![];
+        for u in batch {
+            let u = Id(u as u64);
+            if user(&mut c, u).await.is_ok() {
+                tags::announce(&mut c, &core, u, &mut out).await?;
+            }
+        }
+        for (to, event) in out {
+            core.emit(&to, event)?;
+        }
+        drop(c);
+        drop(core);
+        tokio::task::yield_now().await;
+    }
+}
+/// The fan-out task: runs when woken (a tag change, the housekeeping pass
+/// finding wearers the admin CLI queued), and once at start for wearers left
+/// queued by a restart. It sleeps with nothing to do.
+pub(crate) fn spawn(app: &crate::state::App) {
+    let app = app.clone();
+    tokio::spawn(async move {
+        let wake = app.0.core.lock().await.identity.wake.clone();
+        loop {
+            if let Err(error) = fanout(&app).await {
+                tracing::warn!(?error, "server tag fan-out failed");
+            }
+            tokio::select! {
+                _ = app.0.shutdown.cancelled() => break,
+                _ = wake.notified() => {}
+            }
+        }
+    });
+}
+/// The administrator CLI's changes to a server's identity are in that
+/// server's audit log. The administrator has no account there, and an entry
+/// needs an actor: it is the server's owner, with the reason saying who did it.
+async fn admin_audit(
+    c: &mut SqliteConnection,
+    g: Id,
+    action: AuditAction,
+    field: &str,
+    before: String,
+    reason: &str,
+) -> Result<()> {
+    let owner: i64 = sqlx::query_scalar("SELECT owner_id FROM guilds WHERE id=?")
+        .bind(id(g)?)
+        .fetch_one(&mut *c)
+        .await?;
+    let entry = audit::Entry::new(g, action, AuditTarget::Guild, Some(g))
+        .change(field, Some(before), None)
+        .reason(Some(reason.to_owned()));
+    audit::write(c, Id(owner as u64), entry).await
+}
+/// The housekeeping pass: wearers the admin CLI queued while the server ran.
+pub(crate) async fn housekeeping(c: &mut SqliteConnection, core: &Core) -> Result<()> {
+    let queued: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tag_announce)")
+        .fetch_one(&mut *c)
+        .await?;
+    if queued {
+        core.identity.wake.notify_one();
+    }
+    Ok(())
+}
+
 use crate::{
     db::*,
     error::{require, Error, Result},
@@ -257,7 +343,10 @@ pub(crate) async fn settle(
     {
         return Ok(());
     }
-    let dropped: Vec<i64> = sqlx::query_scalar("DELETE FROM tag_drops RETURNING user_id")
+    // A few are told at once; a big server's members (deleting it) in
+    // batches once this commits (`fanout`).
+    let dropped: Vec<i64> = sqlx::query_scalar("DELETE FROM tag_drops WHERE user_id IN (SELECT user_id FROM tag_drops ORDER BY user_id LIMIT ?) RETURNING user_id")
+        .bind(tags::ANNOUNCE_BATCH)
         .fetch_all(&mut *c)
         .await?;
     for u in dropped {
@@ -265,6 +354,17 @@ pub(crate) async fn settle(
         if user(c, u).await.is_ok() {
             tags::announce(c, core, u, out).await?;
         }
+    }
+    let queued =
+        sqlx::query("INSERT OR IGNORE INTO tag_announce(user_id) SELECT user_id FROM tag_drops")
+            .execute(&mut *c)
+            .await?
+            .rows_affected();
+    if queued > 0 {
+        sqlx::query("DELETE FROM tag_drops")
+            .execute(&mut *c)
+            .await?;
+        core.identity.wake.notify_one();
     }
     Ok(())
 }
@@ -336,9 +436,24 @@ pub(crate) async fn admin_cli(
                     .fetch_optional(&mut *tx)
                     .await?;
             let key = key.ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+            admin_audit(
+                &mut tx,
+                g,
+                AuditAction::ServerTagUpdate,
+                "tag",
+                key.clone(),
+                "Revoked by the instance administrator.",
+            )
+            .await?;
             sqlx::query("INSERT OR IGNORE INTO blocked_tags(tag_key,created_at) VALUES(?,?)")
                 .bind(&key)
                 .bind(now() as i64)
+                .execute(&mut *tx)
+                .await?;
+            // A running server tells the wearers' viewers at its next
+            // housekeeping pass (within a minute), in batches (`fanout`).
+            sqlx::query("INSERT OR IGNORE INTO tag_announce(user_id) SELECT id FROM users WHERE tag_guild=?")
+                .bind(id(g)?)
                 .execute(&mut *tx)
                 .await?;
             let n = sqlx::query("UPDATE users SET tag=NULL,tag_guild=NULL WHERE tag_guild=?")
@@ -347,7 +462,7 @@ pub(crate) async fn admin_cli(
                 .await?
                 .rows_affected();
             tx.commit().await?;
-            println!("Revoked tag {key} of server {guild_id}; {n} members stopped wearing it. Open apps show the change when they next reconnect.");
+            println!("Revoked tag {key} of server {guild_id}; {n} members stopped wearing it. Open apps show the change within a minute.");
             Ok(())
         }
         IdentityAdmin::UnblockTag { text } => {
@@ -370,6 +485,15 @@ pub(crate) async fn admin_cli(
                     .await?;
             let g = g.flatten().ok_or_else(|| Error::new(ErrorCode::NotFound))?;
             vanity::release(&mut tx, Id(g as u64)).await?;
+            admin_audit(
+                &mut tx,
+                Id(g as u64),
+                AuditAction::VanityUpdate,
+                "code",
+                code.clone(),
+                "Released by the instance administrator.",
+            )
+            .await?;
             tx.commit().await?;
             println!("Released {code} from server {g}; it is held for 30 days.");
             Ok(())

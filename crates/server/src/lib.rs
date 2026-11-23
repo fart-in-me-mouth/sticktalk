@@ -72,6 +72,7 @@ pub fn router(app: App) -> axum::Router {
     stage::spawn(&app);
     schedule::spawn(&app);
     apps::spawn(&app);
+    identity::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]

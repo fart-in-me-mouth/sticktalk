@@ -31,6 +31,7 @@ use sticktalk_proto::*;
 
 pub(crate) mod admin;
 mod install;
+pub(crate) use install::settle;
 mod interactions;
 mod messages;
 mod registry;
@@ -62,6 +63,8 @@ pub(crate) struct Runtime {
     pub(crate) subscribed: HashSet<String>,
     pub(crate) interactions: interactions::Interactions,
     pub(crate) images: messages::ImageQueue,
+    /// Files people passed to bots in interactions (`interactions::FileGrants`).
+    pub(crate) files: interactions::FileGrants,
     /// Wakes the timer task (interaction deadlines, image fetches).
     pub(crate) wake: Arc<tokio::sync::Notify>,
     /// `STICKTALK_PUBLIC_URL`, for webhook URLs.

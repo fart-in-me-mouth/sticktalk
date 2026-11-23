@@ -103,9 +103,13 @@ background is only served through an invite.
 
 - **Wearing.** The worn tag is copied onto `users.tag` (with `users.tag_guild`)
   so it rides on every user summary. Editing the tag updates every wearer's
-  copy at once; the first 250 wearers are told live (the rest see it when
-  their viewers next load). Removing the tag, or the administrator revoking
-  it, takes it off everyone.
+  copy at once and queues every wearer in `tag_announce`; once the edit
+  commits, the fan-out task (`identity::fanout`) tells each wearer's viewers
+  in batches of 64, holding the command gate only while a batch is read and
+  sent, with no transaction open across batches. Removing the tag, or the
+  administrator revoking it, takes it off everyone the same way. A big
+  server's members leaving at once (deleting the server) are queued there
+  too, past the first 64.
 - **Leaving drops it immediately.** A trigger on `guild_members` clears the
   tag the moment the membership row goes (leave, kick, ban, prune, server
   deletion, account erasure) and queues the user in `tag_drops`;
@@ -155,12 +159,12 @@ background is only served through an invite.
   fetched once when on screen and kept in a 32-entry cache; the card has its
   final size while loading. The join screen shows the invite background (or
   the banner) behind the card on a scrim.
-- **Invite codes** render through `ui::identity::invite_code`
-  (`.invite-code.streamer-invite`) on the identity pages, so Streamer Mode
-  (themes work, `.streamer-invite`) hides them. The tag's invite picker shows
-  only the last four characters of secret codes. Note for the merge: Streamer
-  Mode's message rule matches `a[href*="invite="]`; vanity links in messages
-  have the form `/invite/<code>` and need `a[href*="/invite/"]` added there.
+- **Invite codes and links** render through one helper, `ui::invite_text`
+  (codes and copied links: the invite list, the vanity page, a Stage event's
+  invite) or `ui::message_link` (links in messages, marked when they contain
+  `invite=` or `/invite/`), both `.streamer-invite`, so Streamer Mode hides
+  every invite, whatever its form. The tag's invite picker shows only the
+  last four characters of secret codes.
 - **Tag card.** Clicking a tag in a message (or on a profile, invite or join
   card) opens the card; in member, DM and friend rows the tag is a static chip
   because the row itself opens the profile.
@@ -216,15 +220,24 @@ sticktalk-server --data-dir <dir> admin identity unblock-tag <TEXT>
 sticktalk-server --data-dir <dir> admin identity release-vanity <code>
 ```
 
-The CLI edits the database while the server may be running; open apps see a
-revoked tag or released code when they next reconnect.
+The CLI edits the database while the server may be running. A revoked tag
+queues its wearers in `tag_announce`; the running server's housekeeping pass
+(every minute) finds them and wakes the fan-out task, so open apps see the
+change within a minute. Revoking a tag and releasing a vanity code are in the
+server's audit log (`server_tag_update`, `vanity_update`), attributed to the
+server's owner with the reason "Revoked/Released by the instance
+administrator" (an entry needs an actor, and the administrator has no
+account there).
 
 ## Decisions to revisit
 
 - Tags are ASCII only, so look-alike letters from other scripts cannot be
   used to imitate reserved words or other servers' tags.
-- A tag change is told live to its first 250 wearers; the rest catch up on
-  their viewers' next load. This bounds the work of one command.
+- A tag change is told to every wearer's viewers in batches after it commits
+  (the command itself only queues them).
+- The admin CLI's revoke is told at the next housekeeping pass (within a
+  minute), not instantly: the CLI is another process and the server does not
+  watch its database for changes.
 - The banner is 5:2 (like profile banners) rather than Discord's 16:9, which
   keeps the channel list visible on short screens.
 - The "Role colors: in names / dot / off" preference is not built here (it

@@ -559,8 +559,16 @@ async fn installing_grants_exactly_what_the_installer_may_and_removal_takes_only
         actions.contains(&"app_install".to_owned()) && actions.contains(&"app_remove".to_owned()),
         "{actions:?}"
     );
-    // Kicking a bot removes the app too (Discord's behavior).
-    ok(install(&app, &mut core, &bot, 1, BASIC, false).await);
+    // Kicking a bot removes the app too (Discord's behavior), and its
+    // managed role with it, in the same command, with an audit entry.
+    let AppResult::Installation(again) =
+        apps(ok(install(&app, &mut core, &bot, 1, BASIC, false).await))
+    else {
+        panic!()
+    };
+    let managed = again.role_id.unwrap();
+    core.cursor(&key(2), Id(2));
+    clear(&mut core, &key(2));
     ok(as_user(
         &app,
         &mut core,
@@ -576,6 +584,33 @@ async fn installing_grants_exactly_what_the_installer_may_and_removal_takes_only
         .await
         .unwrap();
     assert_eq!(left, 0);
+    assert!(
+        crate::permissions::roles(&mut c, Id(10))
+            .await
+            .unwrap()
+            .iter()
+            .all(|r| r.id != managed),
+        "the managed role went with the bot"
+    );
+    let drops: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_role_drops")
+        .fetch_one(&mut *c)
+        .await
+        .unwrap();
+    assert_eq!(drops, 0);
+    // Members are told (the server's roles and integrations changed).
+    let seen = events(&core, &key(2));
+    assert!(
+        seen.iter()
+            .any(|e| matches!(e, Event::Apps(AppEvent::IntegrationsUpdated { .. }))),
+        "{seen:?}"
+    );
+    let reason: Option<String> = sqlx::query_scalar(
+        "SELECT reason FROM audit_log WHERE guild_id=10 AND action='app_remove' ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_one(&mut *c)
+    .await
+    .unwrap();
+    assert!(reason.unwrap().contains("its role with it"));
 }
 
 #[tokio::test]
@@ -2242,4 +2277,121 @@ async fn embed_images_are_fetched_by_the_hardened_fetcher_and_served_from_here()
         "only readers of the channel"
     );
     core.limits.clear();
+}
+
+/// A bot may download a file a person passed to it in an interaction (an
+/// attachment option), and only that file, while it can read the channel the
+/// command was used in, as a member reading the message would.
+#[tokio::test]
+async fn a_bot_downloads_only_the_files_passed_to_it_in_an_interaction() {
+    let (_dir, app) = fixture().await;
+    let mut keep = vec![];
+    let bot = {
+        let mut core = app.0.core.lock().await;
+        core.cursor(&key(2), Id(2));
+        let bot = create_app(&app, &mut core, 1, Intents::empty(), BASIC).await;
+        ok(install(&app, &mut core, &bot, 1, BASIC, false).await);
+        let scan = CommandDraft {
+            kind: CommandKind::ChatInput,
+            name: "scan".into(),
+            description: "Scan a file".into(),
+            options: vec![CommandOption {
+                kind: OptionKind::Attachment,
+                name: "file".into(),
+                description: "File".into(),
+                required: true,
+                choices: vec![],
+                options: vec![],
+                min_value: None,
+                max_value: None,
+                min_length: None,
+                max_length: None,
+                autocomplete: false,
+            }],
+            default_member_permissions: None,
+        };
+        let AppResult::Commands(cmds) = apps(ok(as_bot(
+            &app,
+            &mut core,
+            &bot,
+            Command::Apps(AppCommand::SetCommands {
+                guild_id: None,
+                commands: vec![scan],
+            }),
+        )
+        .await)) else {
+            panic!()
+        };
+        online(&app, &mut core, &bot, &mut keep).await;
+        // Two of member 2's uploads in #general, waiting to be sent.
+        sqlx::raw_sql(
+            "INSERT INTO uploads(id,owner_id,purpose,channel_id,filename,content_type,byte_size,storage_key,created_at,expires_at) VALUES(80,2,'message',11,'report.txt','text/plain',6,'k80',0,99999999999999),(81,2,'message',11,'other.txt','text/plain',6,'k81',0,99999999999999);",
+        )
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+        for (k, body) in [("k80", "report"), ("k81", "secret")] {
+            tokio::fs::write(app.0.config.data_dir.join("files").join(k), body)
+                .await
+                .unwrap();
+        }
+        // Only 80 is passed to the bot.
+        ok(as_user(
+            &app,
+            &mut core,
+            2,
+            Command::Apps(AppCommand::Invoke(Invocation {
+                channel_id: Id(11),
+                command_id: cmds[0].id,
+                options: vec![option("file", OptionValue::Attachment(Id(80)))],
+                target_id: None,
+            })),
+        )
+        .await);
+        let i = interaction_of(&core, &bot);
+        let InteractionData::Command(data) = &i.data else {
+            panic!()
+        };
+        assert_eq!(data.resolved.attachments[0].id, Id(80));
+        bot
+    };
+    let get = |id: u64, auth: String| {
+        Request::get(format!("/api/v1/bot/attachments/{id}"))
+            .header("authorization", auth)
+            .body(Body::empty())
+            .unwrap()
+    };
+    let r = send(&app, get(80, format!("Bot {}", bot.token))).await;
+    assert_eq!(r.status(), 200);
+    assert_eq!(
+        to_bytes(r.into_body(), 1 << 20).await.unwrap().as_ref(),
+        b"report"
+    );
+    // Not a file it was not given, and the route is for bots only.
+    assert_eq!(
+        send(&app, get(81, format!("Bot {}", bot.token)))
+            .await
+            .status(),
+        404
+    );
+    let person = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, key(2));
+    assert_eq!(
+        send(&app, get(80, format!("Bearer {person}")))
+            .await
+            .status(),
+        401
+    );
+    // Once the bot can no longer read the channel's messages, not even that one.
+    sqlx::query("INSERT INTO permission_overwrites VALUES(11,'member',?,0,?)")
+        .bind(bot.user.0 as i64)
+        .bind(Permissions::READ_HISTORY.bits() as i64)
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        send(&app, get(80, format!("Bot {}", bot.token)))
+            .await
+            .status(),
+        404
+    );
 }

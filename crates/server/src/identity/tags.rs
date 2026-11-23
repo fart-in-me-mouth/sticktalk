@@ -5,10 +5,9 @@
 use super::*;
 use std::collections::HashSet;
 
-/// Wearers told about a tag change at once. A larger server's other wearers
-/// see the new tag when their viewers next load (the stored copy is updated
-/// for everyone at once).
-const MAX_ANNOUNCED: i64 = 250;
+/// Wearers told about a tag change per batch (`identity::fanout`), each batch
+/// under the command gate for a moment, with no transaction held open.
+pub(super) const ANNOUNCE_BATCH: i64 = 64;
 
 pub(super) async fn load(c: &mut SqliteConnection, g: Id) -> Result<Option<TagEdit>> {
     let s: Option<String> = sqlx::query_scalar("SELECT tag FROM server_tags WHERE guild_id=?")
@@ -133,7 +132,7 @@ pub(super) async fn set(
     u: Id,
     g: Id,
     tag: Option<TagEdit>,
-    out: &mut Deliveries,
+    _out: &mut Deliveries,
 ) -> Result<CommandResult> {
     guild_perm(c, u, g, Permissions::MANAGE_GUILD).await?;
     core.rate(format!("tag:{}", g.0), 6., 3.)?;
@@ -164,13 +163,15 @@ pub(super) async fn set(
     }
     let worn = |t: &Option<TagEdit>| t.as_ref().map(|t| t.worn(g));
     if worn(&old) != worn(&new) {
-        // The copy every wearer carries changes with it.
-        let announce_to: Vec<i64> =
-            sqlx::query_scalar("SELECT id FROM users WHERE tag_guild=? ORDER BY id LIMIT ?")
-                .bind(id(g)?)
-                .bind(MAX_ANNOUNCED)
-                .fetch_all(&mut *c)
-                .await?;
+        // The copy every wearer carries changes with it, and every wearer's
+        // viewers are told, in batches once this commits (`fanout`).
+        sqlx::query(
+            "INSERT OR IGNORE INTO tag_announce(user_id) SELECT id FROM users WHERE tag_guild=?",
+        )
+        .bind(id(g)?)
+        .execute(&mut *c)
+        .await?;
+        core.identity.wake.notify_one();
         match worn(&new) {
             Some(w) => {
                 sqlx::query("UPDATE users SET tag=? WHERE tag_guild=?")
@@ -186,9 +187,6 @@ pub(super) async fn set(
                     .await?
             }
         };
-        for v in announce_to {
-            announce(c, core, Id(v as u64), out).await?;
-        }
     }
     let describe = |t: &Option<TagEdit>, f: fn(&TagEdit) -> String| t.as_ref().map(f);
     let entry = audit::Entry::new(g, AuditAction::ServerTagUpdate, AuditTarget::Guild, Some(g))

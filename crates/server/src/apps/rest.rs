@@ -57,6 +57,7 @@ pub(super) fn routes() -> Router<App> {
             post(bot_follow_up),
         )
         .route("/api/v1/bot/uploads/{id}", put(bot_upload))
+        .route("/api/v1/bot/attachments/{id}", get(bot_attachment))
 }
 
 type Person<'a> = (sqlx::pool::PoolConnection<sqlx::Sqlite>, Id);
@@ -548,6 +549,39 @@ async fn bot_upload(
         .fetch_one(&mut *c)
         .await?;
     Ok((StatusCode::CREATED, http::json(attachment_row(&row))).into_response())
+}
+
+/// A file a person passed to this bot in an interaction (an attachment
+/// option), and nothing else: the grant is made when the interaction reaches
+/// the bot, and the bot must be able to read that channel's messages now, as
+/// a member reading the message would. Anything else is "not found".
+async fn bot_attachment(
+    State(app): State<App>,
+    Path(a): Path<u64>,
+    h: HeaderMap,
+) -> Result<Response> {
+    let b = bot(&app, &h).await?;
+    let a = Id(a);
+    let row = {
+        let mut core = app.0.core.lock().await;
+        core.rate(format!("file:{}", b.user.0), 600., 120.)?;
+        let ch = core
+            .apps
+            .files
+            .channel(b.user, a)
+            .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+        let mut c = app.0.pool.acquire().await?;
+        text(&mut c, b.user, ch, Permissions::READ_HISTORY)
+            .await
+            .map_err(|_| Error::new(ErrorCode::NotFound))?;
+        sqlx::query("SELECT * FROM uploads WHERE id=? AND (expires_at IS NULL OR expires_at>?)")
+            .bind(id(a)?)
+            .bind(now() as i64)
+            .fetch_optional(&mut *c)
+            .await?
+            .ok_or_else(|| Error::new(ErrorCode::NotFound))?
+    };
+    crate::files::serve(&app, a, &row, &h, false).await
 }
 
 /// Stores one multipart file for `owner` in `ch`, with the same checks,

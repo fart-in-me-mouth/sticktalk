@@ -131,6 +131,8 @@ pub(crate) struct Core {
     pub activities: crate::activities::Activities,
     /// Bots' event filters, interactions, embed image fetches (`apps.rs`).
     pub(crate) apps: crate::apps::Runtime,
+    /// Wakes the server tag fan-out (`identity.rs`).
+    pub(crate) identity: crate::identity::Runtime,
     last_id: u64,
     worker: u16,
 }
@@ -543,6 +545,7 @@ impl App {
                 schedule: Default::default(),
                 activities: Default::default(),
                 apps: Default::default(),
+                identity: Default::default(),
                 last_id,
                 worker,
             }),
@@ -614,6 +617,7 @@ impl App {
         sqlx::query("DELETE FROM mcp_access_tokens WHERE token_hash IN (SELECT token_hash FROM mcp_access_tokens WHERE expires_at<=? LIMIT 1024)").bind(now() as i64).execute(&mut *conn).await?;
         crate::voice::reconcile(self, &mut core, &mut conn).await?;
         crate::commands::expire_invites(&mut conn, &mut core).await?;
+        crate::identity::housekeeping(&mut conn, &core).await?;
         let mut expired_users = vec![];
         let active: Vec<Vec<u8>> = core.streams.keys().cloned().collect();
         for key in active {
@@ -775,6 +779,7 @@ mod tests {
             schedule: Default::default(),
             activities: Default::default(),
             apps: Default::default(),
+            identity: Default::default(),
             last_id: 0,
             worker: 0,
         }

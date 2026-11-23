@@ -184,6 +184,13 @@ mixed with other options; up to 25 choices of the option's type, not with
 autocomplete. Option kinds: `string`, `integer`, `number`, `boolean`, `user`,
 `channel`, `role`, `mentionable`, `attachment`, `sub_command`, `sub_command_group`.
 
+An `attachment` option's file (its metadata is in the interaction's
+`resolved.attachments`) can be downloaded by the bot that received the
+interaction, and by no one else through this route:
+`GET /api/v1/bot/attachments/{id}` with the bot's token. It works for 15
+minutes (the interaction token's life), and only while the bot can still read
+messages in the channel the command was used in; otherwise `404`.
+
 Who may use a command: members need **Use Application Commands** in the
 channel (on for @everyone by default) and the command's
 `default_member_permissions`. Server Settings › Integrations can allow or deny

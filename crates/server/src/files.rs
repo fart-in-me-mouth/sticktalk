@@ -486,6 +486,19 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
             }
         }
     }
+    drop(c);
+    drop(core);
+    serve(&app, a, &row, &headers, thumb).await
+}
+/// Sends upload `a` (its row) to someone already allowed to read it: the
+/// original or its thumbnail, with ranges and conditional requests.
+pub(crate) async fn serve(
+    app: &App,
+    a: Id,
+    row: &sqlx::sqlite::SqliteRow,
+    headers: &HeaderMap,
+    thumb: bool,
+) -> Result<Response> {
     require(
         (!thumb || !headers.contains_key("range")) && headers.get_all("range").iter().count() <= 1,
         ErrorCode::InvalidRequest,
@@ -581,9 +594,7 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
     builder = builder
         .header("content-type", mime)
         .header("content-length", length);
-    drop(c);
-    drop(core);
-    let body = app.0.tier.get(&app, &key, start, length).await?;
+    let body = app.0.tier.get(app, &key, start, length).await?;
     builder
         .body(body)
         .map_err(|_| Error::new(ErrorCode::Internal))

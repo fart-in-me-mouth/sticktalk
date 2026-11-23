@@ -43,6 +43,37 @@ struct Pending {
     followups: u8,
 }
 
+/// Files people passed to a bot as an attachment option: the bot may download
+/// each one (`GET /api/v1/bot/attachments/{id}`), and only those, while the
+/// interaction's token lasts, if it can still read the channel the command
+/// was used in. Bounded; expired grants are dropped when the table is full
+/// or when one is read. No timer.
+#[derive(Default)]
+pub(crate) struct FileGrants(HashMap<(Id, Id), (Id, u64)>);
+const MAX_FILE_GRANTS: usize = 4096;
+impl FileGrants {
+    fn grant(&mut self, bot: Id, file: Id, channel: Id, until: u64) {
+        if self.0.len() >= MAX_FILE_GRANTS {
+            let t = now();
+            self.0.retain(|_, (_, until)| *until > t);
+        }
+        if self.0.len() < MAX_FILE_GRANTS || self.0.contains_key(&(bot, file)) {
+            self.0.insert((bot, file), (channel, until));
+        }
+    }
+    /// The channel the file was passed in, while `bot` may download it.
+    pub(crate) fn channel(&mut self, bot: Id, file: Id) -> Option<Id> {
+        match self.0.get(&(bot, file)).copied() {
+            Some((channel, until)) if until > now() => Some(channel),
+            Some(_) => {
+                self.0.remove(&(bot, file));
+                None
+            }
+            None => None,
+        }
+    }
+}
+
 struct Ephemeral {
     app: Id,
     user: Id,
@@ -232,6 +263,13 @@ async fn deliver(
     d.insert((created + window, interaction));
     d.insert((created + INTERACTION_TOKEN_MS, interaction));
     core.apps.wake.notify_one();
+    if let InteractionData::Command(command) = &data {
+        for f in &command.resolved.attachments {
+            core.apps
+                .files
+                .grant(bot, f.id, ctx.channel, created + INTERACTION_TOKEN_MS);
+        }
+    }
     out.push((
         vec![bot],
         Event::Apps(AppEvent::Interaction(Box::new(Interaction {

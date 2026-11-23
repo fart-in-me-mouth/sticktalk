@@ -1038,3 +1038,107 @@ async fn the_worn_tag_is_exported_and_erased_with_the_account() {
     erase(&mut c, Id(2)).await.unwrap();
     assert!(summary(&app, 2).await.style.tag.is_none());
 }
+
+/// A tag edit reaches every wearer, not only the first few hundred: after the
+/// edit commits, `fanout` tells them in batches. A tag the instance
+/// administrator revokes from the CLI is queued the same way and delivered at
+/// the server's next housekeeping pass; both are in the audit log.
+#[tokio::test]
+async fn tag_changes_reach_every_wearer_in_batches_and_the_cli_revoke_is_live() {
+    let (_d, app) = fixture().await;
+    ok(&run(&app, 1, set_tag("GG")).await);
+    ok(&run(
+        &app,
+        2,
+        IdentityCommand::WearTag {
+            guild_id: Some(Id(10)),
+        },
+    )
+    .await);
+    // 300 more members wear it, each with a stream of their own.
+    let wearers = 1000..1300u64;
+    let mut q = String::new();
+    for u in wearers.clone() {
+        q.push_str(&format!("INSERT INTO users(id,username,password_hash,desired_presence,created_at) VALUES({u},'wearer{u}','x','online',0); INSERT INTO guild_members VALUES(10,{u},'member',0);"));
+    }
+    sql(&app, &q).await;
+    sql(
+        &app,
+        "UPDATE users SET tag=(SELECT tag FROM users WHERE id=2),tag_guild=10 WHERE id>=1000",
+    )
+    .await;
+    let stream = |u: u64| u.to_be_bytes().repeat(4);
+    let worn = |core: &Core, u: u64| -> Vec<Option<String>> {
+        core.streams[&stream(u)]
+            .ring
+            .iter()
+            .filter_map(
+                |(_, _, b)| match rmp_serde::from_slice::<ServerMsg>(b).unwrap() {
+                    ServerMsg::Event(e) => match e.event {
+                        Event::SelfUpdated(m) => Some(m.user.style.tag.map(|t| t.text)),
+                        _ => None,
+                    },
+                    _ => None,
+                },
+            )
+            .collect()
+    };
+    {
+        let mut core = app.0.core.lock().await;
+        for u in wearers.clone() {
+            core.cursor(&stream(u), Id(u));
+        }
+    }
+    ok(&run(&app, 1, set_tag("GGWP")).await);
+    // Queued in the edit's transaction, told once it committed.
+    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM tag_announce").await, 301);
+    assert!(301 > tags::ANNOUNCE_BATCH);
+    fanout(&app).await.unwrap();
+    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM tag_announce").await, 0);
+    {
+        let core = app.0.core.lock().await;
+        for u in wearers.clone() {
+            assert_eq!(worn(&core, u).last(), Some(&Some("GGWP".to_owned())), "{u}");
+        }
+        // The fan-out task is woken; take that wake so the next is the CLI's.
+        let wake = core.identity.wake.clone();
+        drop(core);
+        tokio::time::timeout(std::time::Duration::from_millis(50), wake.notified())
+            .await
+            .unwrap();
+    }
+    // The administrator revokes it while the server runs.
+    let mut c = app.0.pool.acquire().await.unwrap();
+    admin_cli(
+        &mut c,
+        &crate::admin::IdentityCli::RevokeTag { guild_id: 10 },
+    )
+    .await
+    .unwrap();
+    drop(c);
+    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM tag_announce").await, 301);
+    // The housekeeping pass notices and wakes the fan-out task.
+    let wake = {
+        let core = app.0.core.lock().await;
+        let mut c = app.0.pool.acquire().await.unwrap();
+        housekeeping(&mut c, &core).await.unwrap();
+        core.identity.wake.clone()
+    };
+    tokio::time::timeout(std::time::Duration::from_millis(50), wake.notified())
+        .await
+        .expect("housekeeping woke the fan-out");
+    fanout(&app).await.unwrap();
+    {
+        let core = app.0.core.lock().await;
+        for u in wearers {
+            assert_eq!(worn(&core, u).last(), Some(&None), "{u}");
+        }
+    }
+    let reason: String = sqlx::query_scalar(
+        "SELECT reason FROM audit_log WHERE guild_id=10 AND action='server_tag_update' ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_one(&app.0.pool)
+    .await
+    .unwrap();
+    assert_eq!(reason, "Revoked by the instance administrator.");
+}

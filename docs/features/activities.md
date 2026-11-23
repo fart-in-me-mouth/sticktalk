@@ -75,7 +75,7 @@ with the signal's nonce.
 | `Write { session_id, ops: [{ key, value?, expect? }] }` | participant; key modes in ACTIVITIES.md | 600/min per device, 1800/min per session |
 | `Send { session_id, to, data }` | participant | 1200/min per device, 3600/min per session |
 | `Action { session_id, data }` | participant of a built-in game | 240/min |
-| `ShareMedia { session_id, attachment_id }` | participant who can read the file | 30/min; audio/video only |
+| `ShareMedia { session_id, attachment_id, confirmed }` | participant who can read the file, `confirmed: true` | 30/min; audio/video only; audited in guild calls |
 | `SaveResult { session_id, text }` | host (not for games: they save their own) | 10/min; ≤160 chars |
 | `Invite { session_id, channel_id }` | participant with Send Messages there | 6/min; ≤4 per session |
 
@@ -100,7 +100,11 @@ options ("Report …"), through the app's report dialog.
 `AuditAction::ActivityStart`, `ActivityEnd` (appended; `activity_start`,
 `activity_end`), target the channel, with the activity's name; an end by
 everyone leaving is noted with the starter as actor and the reason "Everyone
-left".
+left". `ActivityMediaShare` (`activity_media_share`, appended): a file shared
+into Watch Together in a guild call, with its name and the channel it is
+from. Turning an activity on or off in Server Settings is a `guild_update`
+(field `activity <name>`). Sessions are not kept per person (only the
+conversation's results), so the account export has nothing of them.
 
 `MessageExtra.activity: Option<Box<ActivityCard>>` (appended): an invite card.
 Older apps show the message text ("X invited you to Y in a call…").
@@ -172,9 +176,13 @@ ACTIVITIES.md §7). The app's own policy gains `frame-src 'self'`; frames under
   Join, updates as people join and leave, and the summary at the end. Join
   joins the call (answering a DM call) and then the activity, in one step.
 - Server Settings › Activities (Manage Server): a switch per activity.
-- Loading: nothing at sign-in. `activities.js` loads only when an activity
-  is seen in the call or the launcher opens; each activity loads only when
-  launched or joined. Neither is in the service worker's precache.
+- Loading: nothing at sign-in. The call's activity events go to the
+  activities feature's small state module (`activities_state`); someone
+  else's session is shown by the call view's own banner. `activities.js` (the
+  host) loads only when this client opens the launcher, joins or takes part;
+  each activity loads only when launched or joined; an invite card's renderer
+  (`load_activity_card`) loads with the first card on screen. None of it is
+  in the service worker's precache.
 
 ## Decisions to revisit
 
@@ -186,7 +194,10 @@ ACTIVITIES.md §7). The app's own policy gains `frame-src 'self'`; frames under
   the price of the strict sandbox.
 - A file shared into Watch Together can be streamed by everyone in the
   session, even someone who cannot read the conversation it came from (like
-  showing it on a screen share); the sharer must be able to read it.
+  showing it on a screen share); the sharer must be able to read it, and
+  confirms once per file ("Everyone in this activity will be able to watch
+  …"; the server refuses a share without `confirmed`, field `confirm`). In
+  guild calls each share is in the audit log.
 - Host-authoritative (`h/`) keys trust the host's client; the built-in games
   run on the server instead.
 - Cards are limited to four per session and only in the same server's
