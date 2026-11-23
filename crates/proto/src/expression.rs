@@ -46,7 +46,9 @@ pub fn valid_sticker_description(text: &str) -> bool {
 pub fn plausible_unicode_emoji(e: &str) -> bool {
     !e.is_empty()
         && e.len() <= 32
-        && !e.chars().any(|c| c.is_ascii() || c.is_control() || c.is_whitespace())
+        && !e
+            .chars()
+            .any(|c| c.is_ascii() || c.is_control() || c.is_whitespace())
 }
 /// The custom verb in a typing indicator: 1 to 20 characters, letters and
 /// single spaces, apostrophes or hyphens, starting and ending with a letter.
@@ -172,7 +174,10 @@ impl StickerItem {
     /// Where the image is: the built-in pack ships with the app.
     pub fn url(&self) -> String {
         match self.guild_id {
-            None => format!("/public/stickers/{}.svg", builtin_slug(self.id).unwrap_or("")),
+            None => format!(
+                "/public/stickers/{}.svg",
+                builtin_slug(self.id).unwrap_or("")
+            ),
             Some(_) => format!("/api/v1/stickers/{}", self.id.0),
         }
     }
@@ -190,21 +195,72 @@ impl StickerItem {
 /// IDs are below every Snowflake, so they never collide with uploads.
 pub const BUILTIN_STICKERS: &[(u64, &str, &str, &str, &str)] = &[
     (1, "hello", "Hello", "👋", "A stick figure waving hello"),
-    (2, "thumbs-up", "Nice One", "👍", "A stick figure giving a thumbs up"),
-    (3, "heart", "Big Love", "❤️", "A stick figure hugging a big heart"),
-    (4, "party", "Party Time", "🎉", "A stick figure jumping under confetti"),
-    (5, "coffee", "Coffee First", "☕", "A stick figure holding a steaming mug"),
-    (6, "sleepy", "Sleepy", "😴", "A stick figure dozing with floating Zs"),
-    (7, "thinking", "Hmm", "🤔", "A stick figure thinking under a question mark"),
-    (8, "laugh", "LOL", "😂", "A stick figure laughing with tears of joy"),
-    (9, "high-five", "High Five", "🙌", "Two stick figures doing a high five"),
-    (10, "on-it", "On It", "🚀", "A stick figure riding a small rocket"),
+    (
+        2,
+        "thumbs-up",
+        "Nice One",
+        "👍",
+        "A stick figure giving a thumbs up",
+    ),
+    (
+        3,
+        "heart",
+        "Big Love",
+        "❤️",
+        "A stick figure hugging a big heart",
+    ),
+    (
+        4,
+        "party",
+        "Party Time",
+        "🎉",
+        "A stick figure jumping under confetti",
+    ),
+    (
+        5,
+        "coffee",
+        "Coffee First",
+        "☕",
+        "A stick figure holding a steaming mug",
+    ),
+    (
+        6,
+        "sleepy",
+        "Sleepy",
+        "😴",
+        "A stick figure dozing with floating Zs",
+    ),
+    (
+        7,
+        "thinking",
+        "Hmm",
+        "🤔",
+        "A stick figure thinking under a question mark",
+    ),
+    (
+        8,
+        "laugh",
+        "LOL",
+        "😂",
+        "A stick figure laughing with tears of joy",
+    ),
+    (
+        9,
+        "high-five",
+        "High Five",
+        "🙌",
+        "Two stick figures doing a high five",
+    ),
+    (
+        10,
+        "on-it",
+        "On It",
+        "🚀",
+        "A stick figure riding a small rocket",
+    ),
 ];
 pub fn builtin_slug(id: Id) -> Option<&'static str> {
-    BUILTIN_STICKERS
-        .iter()
-        .find(|s| s.0 == id.0)
-        .map(|s| s.1)
+    BUILTIN_STICKERS.iter().find(|s| s.0 == id.0).map(|s| s.1)
 }
 pub fn builtin_stickers() -> Vec<Sticker> {
     BUILTIN_STICKERS
@@ -308,7 +364,13 @@ pub enum TypingMotion {
     Still,
 }
 impl TypingMotion {
-    pub const ALL: [Self; 5] = [Self::Bounce, Self::Wave, Self::Pulse, Self::Float, Self::Still];
+    pub const ALL: [Self; 5] = [
+        Self::Bounce,
+        Self::Wave,
+        Self::Pulse,
+        Self::Float,
+        Self::Still,
+    ];
     pub fn name(self) -> &'static str {
         match self {
             Self::Bounce => "bounce",
@@ -415,9 +477,9 @@ pub enum ExpressionCommand {
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum ExpressionResult {
     Ack,
-    SuperReaction(ReactionUpdate),
-    Settings(ExpressionSettings),
-    Sticker(Sticker),
+    SuperReaction(Box<ReactionUpdate>),
+    Settings(Box<ExpressionSettings>),
+    Sticker(Box<Sticker>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -432,10 +494,7 @@ pub enum ExpressionEvent {
     /// short burst when `added` is true.
     SuperReactionUpdated(ReactionUpdate),
     /// Sent just before a `Typing` event from someone with a custom indicator.
-    TypingStyle {
-        user_id: UserId,
-        style: TypingStyle,
-    },
+    TypingStyle { user_id: UserId, style: TypingStyle },
     /// Your own settings changed on another device.
     SettingsUpdated(ExpressionSettings),
 }
@@ -448,13 +507,28 @@ mod tests {
     fn names_verbs_and_tokens_are_strict() {
         assert!(valid_sticker_name("Party Time"));
         assert!(valid_sticker_name("ok_2-go"));
-        for bad in ["x", " lead", "trail ", "two  spaces", "semi;colon", &"a".repeat(31)] {
+        for bad in [
+            "x",
+            " lead",
+            "trail ",
+            "two  spaces",
+            "semi;colon",
+            &"a".repeat(31),
+        ] {
             assert!(!valid_sticker_name(bad), "{bad}");
         }
         assert!(valid_typing_verb("writing"));
         assert!(valid_typing_verb("cooking up something"));
         assert!(valid_typing_verb("rock'n-rolling"));
-        for bad in ["", " typing", "typing!", "type1", "a  b", "<b>", &"a".repeat(21)] {
+        for bad in [
+            "",
+            " typing",
+            "typing!",
+            "type1",
+            "a  b",
+            "<b>",
+            &"a".repeat(21),
+        ] {
             assert!(!valid_typing_verb(bad), "{bad}");
         }
         let tokens = emoji_tokens("hi <:wave:42> <:bad:x> <:ok_2:7>!");

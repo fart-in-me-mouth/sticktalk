@@ -93,14 +93,14 @@ pub(crate) async fn mutate(
             let mut settings = library::settings(c, u).await?;
             settings.typing = style;
             library::store(c, u, &settings, out).await?;
-            ExpressionResult::Settings(settings)
+            ExpressionResult::Settings(Box::new(settings))
         }
         SetStickerFavorites { sticker_ids } => {
             stickers::validate_favorites(c, u, &sticker_ids).await?;
             let mut settings = library::settings(c, u).await?;
             settings.sticker_favorites = sticker_ids;
             library::store(c, u, &settings, out).await?;
-            ExpressionResult::Settings(settings)
+            ExpressionResult::Settings(Box::new(settings))
         }
     };
     Ok(CommandResult::Expression(result))
@@ -333,9 +333,9 @@ async fn super_reaction(
             ));
         }
     }
-    Ok(ExpressionResult::SuperReaction(
+    Ok(ExpressionResult::SuperReaction(Box::new(
         result.ok_or_else(|| Error::new(ErrorCode::Internal))?,
-    ))
+    )))
 }
 
 /// Up to three emoji (Unicode, or custom ones the person may use), a motion
@@ -401,8 +401,8 @@ pub(crate) async fn typing(
 
 /// Fills in `Message::extra.stickers` and `super_reactions` for one viewer.
 pub(crate) async fn decorate(c: &mut SqliteConnection, viewer: Id, m: &mut Message) -> Result<()> {
-    m.extra.stickers = stickers::load(c, m.id).await?;
-    m.extra.super_reactions = sqlx::query("SELECT emoji,COUNT(*) AS n,MAX(user_id=?) AS me FROM super_reactions WHERE message_id=? GROUP BY emoji ORDER BY emoji")
+    m.extra.set_stickers(stickers::load(c, m.id).await?);
+    let supers = sqlx::query("SELECT emoji,COUNT(*) AS n,MAX(user_id=?) AS me FROM super_reactions WHERE message_id=? GROUP BY emoji ORDER BY emoji")
         .bind(id(viewer)?)
         .bind(id(m.id)?)
         .fetch_all(&mut *c)
@@ -414,6 +414,7 @@ pub(crate) async fn decorate(c: &mut SqliteConnection, viewer: Id, m: &mut Messa
             me: r.get::<i64, _>("me") != 0,
         })
         .collect();
+    m.extra.set_super_reactions(supers);
     Ok(())
 }
 

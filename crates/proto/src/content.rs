@@ -39,13 +39,14 @@ pub struct MessageExtra {
     /// add the GIF to their favorites. The message text is its media URL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gif: Option<String>,
-    /// Stickers sent with the message (`expression.rs`), at most three.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub stickers: Vec<crate::StickerItem>,
+    /// Stickers sent with the message (`expression.rs`), at most three. Boxed
+    /// so an ordinary message stays small; on the wire it is a plain list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stickers: Option<Box<Vec<crate::StickerItem>>>,
     /// Super Reactions, kept apart from `Message::reactions` so older apps
     /// never see them (`expression.rs`).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub super_reactions: Vec<ReactionSummary>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub super_reactions: Option<Box<Vec<ReactionSummary>>>,
 }
 impl MessageExtra {
     pub fn is_empty(&self) -> bool {
@@ -53,8 +54,21 @@ impl MessageExtra {
             && self.forwarded.is_none()
             && self.embeds.is_empty()
             && self.gif.is_none()
-            && self.stickers.is_empty()
-            && self.super_reactions.is_empty()
+            && self.stickers.is_none()
+            && self.super_reactions.is_none()
+    }
+    pub fn stickers(&self) -> &[crate::StickerItem] {
+        self.stickers.as_deref().map_or(&[], Vec::as_slice)
+    }
+    pub fn super_reactions(&self) -> &[ReactionSummary] {
+        self.super_reactions.as_deref().map_or(&[], Vec::as_slice)
+    }
+    /// Sets a list, leaving it out entirely when empty.
+    pub fn set_stickers(&mut self, v: Vec<crate::StickerItem>) {
+        self.stickers = (!v.is_empty()).then(|| Box::new(v));
+    }
+    pub fn set_super_reactions(&mut self, v: Vec<ReactionSummary>) {
+        self.super_reactions = (!v.is_empty()).then(|| Box::new(v));
     }
 }
 

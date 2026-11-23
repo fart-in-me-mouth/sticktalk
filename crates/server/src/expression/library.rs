@@ -33,17 +33,20 @@ async fn who(app: &App, h: &HeaderMap) -> Result<(sqlx::pool::PoolConnection<sql
 }
 
 pub(super) async fn settings(c: &mut SqliteConnection, u: Id) -> Result<ExpressionSettings> {
-    let row = sqlx::query("SELECT typing,sticker_favorites FROM expression_settings WHERE user_id=?")
-        .bind(id(u)?)
-        .fetch_optional(&mut *c)
-        .await?;
-    Ok(row.map_or_else(ExpressionSettings::default, |r| ExpressionSettings {
-        typing: r
-            .get::<Option<String>, _>("typing")
-            .and_then(|t| serde_json::from_str(&t).ok()),
-        sticker_favorites: serde_json::from_str(&r.get::<String, _>("sticker_favorites"))
-            .unwrap_or_default(),
-    }))
+    let row =
+        sqlx::query("SELECT typing,sticker_favorites FROM expression_settings WHERE user_id=?")
+            .bind(id(u)?)
+            .fetch_optional(&mut *c)
+            .await?;
+    Ok(
+        row.map_or_else(ExpressionSettings::default, |r| ExpressionSettings {
+            typing: r
+                .get::<Option<String>, _>("typing")
+                .and_then(|t| serde_json::from_str(&t).ok()),
+            sticker_favorites: serde_json::from_str(&r.get::<String, _>("sticker_favorites"))
+                .unwrap_or_default(),
+        }),
+    )
 }
 pub(super) async fn store(
     c: &mut SqliteConnection,

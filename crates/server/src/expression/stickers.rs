@@ -20,9 +20,7 @@ fn sticker_row(r: &sqlx::sqlite::SqliteRow) -> Sticker {
         description: r.get("description"),
         format: StickerFormat::parse(&r.get::<String, _>("format")).unwrap_or(StickerFormat::Png),
         animated: r.get("animated"),
-        creator_id: r
-            .get::<Option<i64>, _>("creator_id")
-            .map(|v| Id(v as u64)),
+        creator_id: r.get::<Option<i64>, _>("creator_id").map(|v| Id(v as u64)),
         created_at: r.get::<i64, _>("created_at") as u64,
     }
 }
@@ -123,7 +121,10 @@ async fn audit(
         s.map(|s| f(s).to_owned()).filter(|v| !v.is_empty())
     };
     for (field, get) in [
-        ("name", (|s: &Sticker| s.name.as_str()) as fn(&Sticker) -> &str),
+        (
+            "name",
+            (|s: &Sticker| s.name.as_str()) as fn(&Sticker) -> &str,
+        ),
         ("emoji", |s: &Sticker| s.emoji.as_str()),
         ("description", |s: &Sticker| s.description.as_str()),
     ] {
@@ -161,10 +162,19 @@ pub(super) async fn update(
         .await?
         .ok_or_else(|| Error::new(ErrorCode::Internal))?;
     if after != before {
-        audit(c, u, g, AuditAction::StickerUpdate, s, Some(&before), Some(&after)).await?;
+        audit(
+            c,
+            u,
+            g,
+            AuditAction::StickerUpdate,
+            s,
+            Some(&before),
+            Some(&after),
+        )
+        .await?;
         changed(c, g, out).await?;
     }
-    Ok(ExpressionResult::Sticker(after))
+    Ok(ExpressionResult::Sticker(Box::new(after)))
 }
 
 pub(super) async fn delete(
@@ -189,15 +199,8 @@ pub(super) async fn delete(
 }
 
 /// Favorites: built-in stickers, or stickers of servers the person is in.
-pub(super) async fn validate_favorites(
-    c: &mut SqliteConnection,
-    u: Id,
-    ids: &[Id],
-) -> Result<()> {
-    require(
-        ids.len() <= MAX_STICKER_FAVORITES,
-        ErrorCode::LimitExceeded,
-    )?;
+pub(super) async fn validate_favorites(c: &mut SqliteConnection, u: Id, ids: &[Id]) -> Result<()> {
+    require(ids.len() <= MAX_STICKER_FAVORITES, ErrorCode::LimitExceeded)?;
     for (i, s) in ids.iter().enumerate() {
         require(!ids[..i].contains(s), ErrorCode::InvalidRequest)?;
         let sticker = find(c, *s)
@@ -240,7 +243,15 @@ pub(super) async fn send(
             .await?
             .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
         if let Some(g) = sticker.guild_id {
-            if !usable(c, u, &channel.summary, g, Permissions::USE_EXTERNAL_STICKERS).await? {
+            if !usable(
+                c,
+                u,
+                &channel.summary,
+                g,
+                Permissions::USE_EXTERNAL_STICKERS,
+            )
+            .await?
+            {
                 let mut e = Error::new(ErrorCode::Forbidden);
                 e.0.message = "You can't use that sticker here.".into();
                 e.0.field = Some("sticker".into());
@@ -295,7 +306,7 @@ pub(super) async fn send(
             .await?;
         message.content.clear();
     }
-    message.extra.stickers = items;
+    message.extra.set_stickers(items);
     for (_, e) in out.iter_mut() {
         if let Event::MessageCreated { message: m, .. } = e {
             if m.id == message.id {
@@ -411,7 +422,16 @@ pub(super) async fn upload(
     let created = find(&mut tx, sid)
         .await?
         .ok_or_else(|| Error::new(ErrorCode::Internal))?;
-    audit(&mut tx, u, g, AuditAction::StickerCreate, sid, None, Some(&created)).await?;
+    audit(
+        &mut tx,
+        u,
+        g,
+        AuditAction::StickerCreate,
+        sid,
+        None,
+        Some(&created),
+    )
+    .await?;
     core.persist_id(&mut tx).await?;
     let mut out = vec![];
     changed(&mut tx, g, &mut out).await?;
@@ -446,11 +466,12 @@ async fn serve(app: App, s: Id, h: HeaderMap, still: bool) -> Result<Response> {
         .lock()
         .await
         .rate(format!("file:{}", u.0), 600., 120.)?;
-    let r = sqlx::query("SELECT guild_id,format,animated,data,still FROM guild_stickers WHERE id=?")
-        .bind(id(s)?)
-        .fetch_optional(&mut *c)
-        .await?
-        .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+    let r =
+        sqlx::query("SELECT guild_id,format,animated,data,still FROM guild_stickers WHERE id=?")
+            .bind(id(s)?)
+            .fetch_optional(&mut *c)
+            .await?
+            .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
     let g = Id(r.get::<i64, _>("guild_id") as u64);
     require(
         may_see(&mut c, u, "sticker", s, g).await?,

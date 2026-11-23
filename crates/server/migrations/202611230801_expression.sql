@@ -81,11 +81,11 @@ CREATE TABLE expression_settings (
  sticker_favorites TEXT NOT NULL DEFAULT '[]'
 );
 
--- Use External Emoji (bit 40) and Use External Stickers (bit 41) are on for
+-- Use External Emoji (bit 44) and Use External Stickers (bit 45) are on for
 -- @everyone by default, in existing servers and new ones.
-UPDATE roles SET permissions = permissions | 3298534883328 WHERE id = guild_id;
+UPDATE roles SET permissions = permissions | 52776558133248 WHERE id = guild_id;
 CREATE TRIGGER expression_everyone_defaults AFTER INSERT ON roles
 WHEN NEW.id = NEW.guild_id BEGIN
- UPDATE roles SET permissions = permissions | 3298534883328
+ UPDATE roles SET permissions = permissions | 52776558133248
  WHERE guild_id = NEW.guild_id AND id = NEW.id;
 END;
