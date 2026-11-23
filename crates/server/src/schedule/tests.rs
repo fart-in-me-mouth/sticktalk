@@ -297,7 +297,7 @@ async fn recurring_edits_this_or_following_and_cancellations() {
     )
     .await
     .unwrap();
-    let s = load(&mut *app.0.pool.acquire().await.unwrap(), weekly.id)
+    let s = load(&mut app.0.pool.acquire().await.unwrap(), weekly.id)
         .await
         .unwrap();
     let second = s.rule.nth(1).unwrap();
@@ -447,7 +447,7 @@ async fn the_timer_announces_starts_runs_external_events_and_cleans_up() {
     assert_eq!(next as u64, start);
     tokio::time::sleep(std::time::Duration::from_millis(400)).await;
     tick(&app).await.unwrap();
-    let s = load(&mut *app.0.pool.acquire().await.unwrap(), e.id)
+    let s = load(&mut app.0.pool.acquire().await.unwrap(), e.id)
         .await
         .unwrap();
     assert_eq!(s.status, EventStatus::Live);
@@ -673,4 +673,88 @@ async fn sharing_posts_a_card_and_event_invites_mark_new_members_interested() {
     assert_eq!(people.users.len(), 1);
     let (status, body) = get(format!("/api/v1/events/{}/calendar.ics", e.id.0)).await;
     assert!(status.is_success() && body.starts_with(b"BEGIN:VCALENDAR"));
+}
+
+#[tokio::test]
+async fn cover_images_need_the_manage_right_and_a_real_picture() {
+    let (_dir, app) = fixture().await;
+    world(&app).await;
+    let e = event_of(
+        cmd(
+            &app,
+            1,
+            ScheduleCommand::Create(external(now() + DAY, EventRecurrence::None)),
+        )
+        .await,
+    );
+    let token = |u: u8| base64::engine::general_purpose::URL_SAFE_NO_PAD.encode([u + 100; 32]);
+    for u in [1u8, 3] {
+        sqlx::query("INSERT INTO sessions VALUES(?,?,?,?,?)")
+            .bind(crate::state::hash(token(u).as_bytes()))
+            .bind(i64::from(u))
+            .bind(now() as i64)
+            .bind((now() + 600_000) as i64)
+            .bind(now() as i64)
+            .execute(&app.0.pool)
+            .await
+            .unwrap();
+    }
+    let call = |u: u8, method: &'static str, body: Vec<u8>| {
+        let app = app.clone();
+        let path = format!("/api/v1/events/{}/cover", e.id.0);
+        async move {
+            crate::http::router(app)
+                .oneshot(
+                    axum::http::Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .header("authorization", format!("Bearer {}", token(u)))
+                        .body(axum::body::Body::from(body))
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+                .status()
+        }
+    };
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::new_rgb8(64, 36)
+        .write_to(&mut png, image::ImageFormat::Png)
+        .unwrap();
+    let png = png.into_inner();
+    assert_eq!(
+        call(3, "PUT", png.clone()).await,
+        axum::http::StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(1, "PUT", b"not a picture".to_vec()).await,
+        axum::http::StatusCode::UNSUPPORTED_MEDIA_TYPE
+    );
+    assert_eq!(call(1, "PUT", png).await, axum::http::StatusCode::OK);
+    assert_eq!(call(3, "GET", vec![]).await, axum::http::StatusCode::OK);
+    assert_eq!(
+        row_count(&app, "SELECT cover_version FROM scheduled_events").await,
+        1
+    );
+    assert_eq!(
+        call(3, "DELETE", vec![]).await,
+        axum::http::StatusCode::FORBIDDEN
+    );
+    assert_eq!(call(1, "DELETE", vec![]).await, axum::http::StatusCode::OK);
+    assert_eq!(
+        call(3, "GET", vec![]).await,
+        axum::http::StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn start_pushes_respect_do_not_disturb() {
+    let (_dir, app) = fixture().await;
+    let mut c = app.0.pool.acquire().await.unwrap();
+    assert!(push_allowed(&mut c, Id(2), Id(10)).await.unwrap());
+    sqlx::query("UPDATE users SET desired_presence='dnd' WHERE id=2")
+        .execute(&mut *c)
+        .await
+        .unwrap();
+    assert!(!push_allowed(&mut c, Id(2), Id(10)).await.unwrap());
 }

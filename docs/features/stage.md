@@ -289,6 +289,8 @@ invite is logged as `invite_create` with the event named.
   and end in your time zone, repeats, "this event / this and following", description.
 - Event cards in chat (LIVE and Join when live), the Stage record card, and the
   event in the Join dialog's invite preview.
+- An event's link, `/?event=<id>` (Copy Link, the start notification, the
+  calendar entry), opens that event after sign-in.
 
 ## Decisions to revisit
 

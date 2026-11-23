@@ -121,13 +121,11 @@ impl Rule {
     }
     /// The first occurrence at or after `t`, and its index.
     pub(crate) fn next_from(&self, t: u64) -> Option<(u64, u64)> {
-        let mut n = self.estimate(t);
-        for _ in 0..64 {
+        for n in (self.estimate(t)..).take(64) {
             let at = self.nth(n)?;
             if at >= t {
                 return Some((n, at));
             }
-            n += 1;
         }
         None
     }

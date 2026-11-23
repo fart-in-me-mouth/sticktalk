@@ -238,6 +238,11 @@ try {
   await dan.waitForSelector('.stage-event-item [aria-pressed="true"]');
   await act(dan, 'close');
   checks.push('an event invite shows the event and marks the new member interested');
+  // The event's link (Copy Link, the start notification) opens it.
+  await dan.goto(`${h.origin}/?event=${eventId}`);
+  await dan.waitForSelector('.stage-event-detail h2:has-text("Weekly town hall")');
+  await act(dan, 'close');
+  checks.push('an event link opens the event');
 
   // ---- Ending the Stage -------------------------------------------------------------------------
   await act(alice, `voice:${stageId}`);

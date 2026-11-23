@@ -54,6 +54,8 @@ pub(super) struct State {
     /// The last event invite link created here.
     pub invite_link: Option<(Id, String)>,
     pub busy: bool,
+    /// This page's `?event=` link was opened already.
+    linked: bool,
 }
 
 fn me(a: &App) -> Option<Id> {
@@ -256,8 +258,29 @@ fn sync(a: &mut App) {
 // ---- events (scheduled) ----------------------------------------------------------
 
 pub(super) fn ready(app: Shared) {
-    let mut a = app.borrow_mut();
-    a.command(Command::Schedule(ScheduleCommand::Subscribe));
+    let link = {
+        let mut a = app.borrow_mut();
+        a.command(Command::Schedule(ScheduleCommand::Subscribe));
+        if a.stage.linked {
+            None
+        } else {
+            a.stage.linked = true;
+            event_link()
+        }
+    };
+    // An event link (Copy Link, the start notification): open that event.
+    if let Some(e) = link {
+        open(app, e, None);
+    }
+}
+fn event_link() -> Option<Id> {
+    window()
+        .location()
+        .search()
+        .ok()?
+        .trim_start_matches('?')
+        .split('&')
+        .find_map(|part| part.strip_prefix("event=").and_then(id))
 }
 
 fn summary(a: &mut App, s: GuildEvents) {
