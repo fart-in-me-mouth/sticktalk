@@ -63,6 +63,51 @@ try {
   const at = order.indexOf('category:Projects');
   check('nested channel is listed under its category', at >= 0 && order[at + 1] === 'nested:roadmap', order.join(' | '));
 
+  // ---- Nesting to any depth: a channel inside a channel inside a category ----
+  // Sidebar rows as "depth:name", in the order shown.
+  const tree = () => page.locator('.channel-scroll').evaluate(nav => [...nav.querySelectorAll('.category-row,.channel-row')].map(e => `${e.dataset.depth}:${e.textContent.trim()}`));
+  const create = async (name, type) => {
+    await page.waitForSelector('[data-live-form="channel"]');
+    if (type) await page.locator('#f-extra').selectOption(type);
+    await page.locator('#f-name').fill(name);
+    await page.locator('[data-live-form="channel"] [type=submit]').click();
+    await page.waitForFunction(name => [...document.querySelectorAll('.category-row,.channel-row')].some(e => e.textContent.trim() === name), name);
+  };
+  const rowOf = name => page.locator('.channel-row,.category-row').filter({ hasText: new RegExp(`^${name}$`) });
+  await rowOf('roadmap').hover();
+  await rowOf('roadmap').locator('.channel-add').click();
+  const inside = await page.locator('#f-value').evaluate(e => e.selectedOptions[0].textContent.trim());
+  check('"+" on a channel row preselects that channel', inside === 'roadmap', inside);
+  await create('q3');
+  await rowOf('q3').hover();
+  await rowOf('q3').locator('.channel-add').click();
+  await create('Archive', 'category');
+  await rowOf('Archive').locator('button').click();
+  await create('notes');
+  let rows = await tree();
+  const from = rows.indexOf('0:Projects');
+  check('channels nest four levels deep, each under its parent', rows.slice(from, from + 5).join(' | ') === '0:Projects | 1:roadmap | 2:q3 | 3:Archive | 4:notes', rows.join(' | '));
+  const lefts = await page.locator('.channel-scroll').evaluate(nav => [...nav.querySelectorAll('.category-row,.channel-row')].filter(e => ['roadmap', 'q3', 'notes'].includes(e.textContent.trim())).map(e => Math.round(e.getBoundingClientRect().left)));
+  check('each level is indented 12 px further', lefts.length === 3 && lefts[1] - lefts[0] === 12 && lefts[2] - lefts[1] === 24, lefts.join(','));
+  await shot('03b-nested-channels');
+
+  // ---- Move Channel: a subtree moves together, and never into itself ---------
+  const idOf = name => rowOf(name).locator('[data-live^="dialog:channel-in:"]').first().getAttribute('data-live').then(v => v.split(':').pop());
+  const q3 = await idOf('q3');
+  await act(page, `dialog:channel-move:${q3}`);
+  await page.waitForSelector('[data-live-form="channel-move"]');
+  const places = await page.locator('#f-value option').evaluateAll(options => options.map(o => o.textContent.trim()));
+  check('a channel cannot be moved inside itself or what it holds', places.includes('roadmap') && places.includes('general') && !['q3', 'Archive', 'notes'].some(n => places.includes(n)), places.join(','));
+  await shot('03c-move-channel');
+  await page.locator('#f-value').selectOption({ label: 'general' });
+  await page.locator('[data-live-form="channel-move"] [type=submit]').click();
+  await page.waitForFunction(() => [...document.querySelectorAll('.channel-row')].some(e => e.textContent.trim() === 'q3' && e.dataset.depth === '1'));
+  await act(page, 'close');
+  rows = await tree();
+  const moved = rows.indexOf('0:general');
+  check('moving a channel takes everything inside it along', rows.slice(moved, moved + 4).join(' | ') === '0:general | 1:q3 | 2:Archive | 3:notes' && rows.includes('1:roadmap'), rows.join(' | '));
+  await shot('03d-moved-subtree');
+
   // ---- Dialog (ui-dialog) ----------------------------------------------------
   await act(page, 'dialog:friend');
   await page.waitForSelector('.live-modal [data-live-form="friend"]');

@@ -80,7 +80,7 @@ const TOOLS: &[Tool] = &[
     Tool {
         name: "list_channels",
         title: "List channels",
-        description: "Channels in a server that the user can see, in sidebar order, with category, topic, unread counts and whether the user can send there.",
+        description: "Channels in a server that the user can see, in sidebar order, with category, the channels each is nested inside (outermost first), topic, unread counts and whether the user can send there.",
         write: false,
         destructive: false,
         idempotent: true,
@@ -737,8 +737,26 @@ impl Ctx<'_> {
                 continue;
             }
             let mut v = json!({"id": sid(ch.id), "name": ch.name, "type": kind(ch.kind)});
-            if let Some(cat) = ch.parent_id.and_then(|p| list.iter().find(|x| x.id == p)) {
+            // Every channel this one is nested in, outermost first.
+            let mut inside = vec![];
+            let mut at = ch.parent_id;
+            while let Some(p) = at.and_then(|p| list.iter().find(|x| x.id == p)) {
+                if inside.len() == list.len() {
+                    break;
+                }
+                inside.push(p);
+                at = p.parent_id;
+            }
+            if let Some(cat) = inside.first().filter(|p| p.kind == ChannelKind::Category) {
                 v["category"] = cat.name.clone().into();
+            }
+            if !inside.is_empty() {
+                v["inside"] = inside
+                    .iter()
+                    .rev()
+                    .map(|p| p.name.clone())
+                    .collect::<Vec<_>>()
+                    .into();
             }
             if let Some(topic) = db::channel(&mut c, ch.id).await?.topic {
                 v["topic"] = topic.into();

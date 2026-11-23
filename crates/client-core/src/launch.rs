@@ -365,7 +365,14 @@ pub fn permissions(model: &crate::model::Model, channel: Id) -> Permissions {
     if p.contains(Permissions::ADMINISTRATOR) {
         return Permissions::all() & !Permissions::OWNER;
     }
-    for scope in [c.parent_id, Some(channel)].into_iter().flatten() {
+    // Every channel this one is nested in, outermost first, then the channel itself.
+    let mut scopes = vec![channel];
+    let mut at = c.parent_id;
+    while let Some(p) = at.filter(|p| !scopes.contains(p)) {
+        scopes.push(p);
+        at = model.channels.get(&p).and_then(|c| c.parent_id);
+    }
+    for scope in scopes.into_iter().rev() {
         let Some(ows) = model.launch.overwrites.get(&scope) else {
             continue;
         };

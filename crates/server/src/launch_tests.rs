@@ -1408,3 +1408,466 @@ async fn s1_empty_partial_and_bit_removal_preserve_protected_acl() {
     )
     .await);
 }
+
+async fn nest(
+    app: &App,
+    core: &mut Core,
+    nonce: u64,
+    kind: ChannelKind,
+    name: &str,
+    parent: Option<Id>,
+) -> Id {
+    match ok(command(
+        app,
+        core,
+        1,
+        nonce,
+        Command::CreateChannel {
+            guild_id: Id(10),
+            kind,
+            name: name.into(),
+            parent_id: parent,
+            topic: None,
+        },
+    )
+    .await)
+    {
+        CommandResult::Channel(ch) => {
+            assert_eq!(ch.summary.parent_id, parent);
+            ch.summary.id
+        }
+        other => panic!("{other:?}"),
+    }
+}
+/// Channel IDs with the parent each is shown under, in sidebar order.
+async fn tree(app: &App, user: u64) -> Vec<(Id, Option<Id>)> {
+    let mut c = app.0.pool.acquire().await.unwrap();
+    db::channels(&mut c, Id(user), Some(Id(10)))
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|ch| (ch.id, ch.parent_id))
+        .collect()
+}
+fn place(channel: Id, parent: Option<Id>, position: u16) -> ChannelPlacement {
+    ChannelPlacement {
+        channel_id: channel,
+        parent_id: parent,
+        position,
+    }
+}
+async fn reorder(
+    app: &App,
+    core: &mut Core,
+    nonce: u64,
+    placements: Vec<ChannelPlacement>,
+) -> CommandOutcome {
+    command(
+        app,
+        core,
+        1,
+        nonce,
+        Command::ReorderChannels {
+            guild_id: Id(10),
+            placements,
+        },
+    )
+    .await
+}
+
+#[tokio::test]
+async fn any_channel_nests_in_any_other_and_inherits_every_level() {
+    let (_dir, app) = fixture().await;
+    let mut core = app.0.core.lock().await;
+    // Category in category, text in category, text in text, voice in text.
+    let a = nest(&app, &mut core, 1, ChannelKind::Category, "a", None).await;
+    let b = nest(&app, &mut core, 2, ChannelKind::Category, "b", Some(a)).await;
+    let c = nest(&app, &mut core, 3, ChannelKind::Text, "c", Some(b)).await;
+    let d = nest(&app, &mut core, 4, ChannelKind::Text, "d", Some(c)).await;
+    let e = nest(&app, &mut core, 5, ChannelKind::Voice, "e", Some(d)).await;
+    let general = Id(11);
+    assert_eq!(
+        tree(&app, 2).await,
+        [
+            (general, None),
+            (a, None),
+            (b, Some(a)),
+            (c, Some(b)),
+            (d, Some(c)),
+            (e, Some(d))
+        ]
+    );
+    // A category still cannot have a topic, and a parent must be in the same guild.
+    denied(
+        command(
+            &app,
+            &mut core,
+            1,
+            6,
+            Command::CreateChannel {
+                guild_id: Id(10),
+                kind: ChannelKind::Category,
+                name: "topic".into(),
+                parent_id: Some(e),
+                topic: Some("no".into()),
+            },
+        )
+        .await,
+    );
+    denied(
+        command(
+            &app,
+            &mut core,
+            1,
+            7,
+            Command::CreateChannel {
+                guild_id: Id(10),
+                kind: ChannelKind::Text,
+                name: "orphan".into(),
+                parent_id: Some(Id(999)),
+                topic: None,
+            },
+        )
+        .await,
+    );
+    // Hiding the outermost channel hides everything inside it, four levels down.
+    let everyone = |allow, deny| overwrite(10, OverwriteKind::Role, allow, deny);
+    let member = |allow, deny| overwrite(2, OverwriteKind::Member, allow, deny);
+    let view = Permissions::VIEW_CHANNEL;
+    let none = Permissions::empty();
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        8,
+        LaunchCommand::SetOverwrites {
+            channel_id: a,
+            overwrites: vec![everyone(none, view)],
+        },
+    )
+    .await);
+    assert_eq!(tree(&app, 2).await, [(general, None)]);
+    {
+        let mut conn = app.0.pool.acquire().await.unwrap();
+        assert!(!acl::evaluate(&mut conn, Id(2), Id(10), Some(e))
+            .await
+            .unwrap()
+            .contains(view));
+    }
+    // An allow part-way down applies to everything below it. Channels inside a
+    // hidden one are shown under the nearest visible channel above them.
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        9,
+        LaunchCommand::SetOverwrites {
+            channel_id: d,
+            overwrites: vec![member(view, none)],
+        },
+    )
+    .await);
+    assert_eq!(
+        tree(&app, 2).await,
+        [(general, None), (d, None), (e, Some(d))]
+    );
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        10,
+        LaunchCommand::SetOverwrites {
+            channel_id: b,
+            overwrites: vec![member(view, none)],
+        },
+    )
+    .await);
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        11,
+        LaunchCommand::SetOverwrites {
+            channel_id: c,
+            overwrites: vec![member(none, view)],
+        },
+    )
+    .await);
+    // b is visible, c (inside it) is hidden again, d re-allows: d is shown in b.
+    assert_eq!(
+        tree(&app, 2).await,
+        [(general, None), (b, None), (d, Some(b)), (e, Some(d))]
+    );
+    let mut conn = app.0.pool.acquire().await.unwrap();
+    for (channel, parent) in [(b, None), (d, Some(b)), (e, Some(d))] {
+        let seen = db::access(&mut conn, Id(2), channel, view).await.unwrap();
+        assert_eq!(seen.summary.parent_id, parent);
+    }
+    assert!(db::access(&mut conn, Id(2), c, view).await.is_err());
+    // The owner still sees the real tree.
+    drop(conn);
+    assert_eq!(
+        tree(&app, 1).await[1..],
+        [
+            (a, None),
+            (b, Some(a)),
+            (c, Some(b)),
+            (d, Some(c)),
+            (e, Some(d))
+        ]
+    );
+}
+
+#[tokio::test]
+async fn nesting_is_as_deep_as_the_guild_channel_limit() {
+    let (_dir, app) = fixture().await;
+    let mut core = app.0.core.lock().await;
+    // `general` plus a chain of 31, each inside the one before it.
+    let mut chain = vec![];
+    for n in 0..31 {
+        let kind = if n % 2 == 0 {
+            ChannelKind::Text
+        } else {
+            ChannelKind::Category
+        };
+        let parent = chain.last().copied();
+        chain.push(nest(&app, &mut core, n + 1, kind, &format!("level{n}"), parent).await);
+    }
+    denied(
+        command(
+            &app,
+            &mut core,
+            1,
+            40,
+            Command::CreateChannel {
+                guild_id: Id(10),
+                kind: ChannelKind::Text,
+                name: "one-too-many".into(),
+                parent_id: chain.last().copied(),
+                topic: None,
+            },
+        )
+        .await,
+    );
+    let listed = tree(&app, 2).await;
+    assert_eq!(listed.len(), 32);
+    assert_eq!(listed[31], (chain[30], Some(chain[29])));
+    // A deny on the outermost level reaches the innermost one.
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        41,
+        LaunchCommand::SetOverwrites {
+            channel_id: chain[0],
+            overwrites: vec![overwrite(
+                10,
+                OverwriteKind::Role,
+                Permissions::empty(),
+                Permissions::SEND_MESSAGES,
+            )],
+        },
+    )
+    .await);
+    let mut conn = app.0.pool.acquire().await.unwrap();
+    let deepest = acl::evaluate(&mut conn, Id(2), Id(10), Some(chain[30]))
+        .await
+        .unwrap();
+    assert!(deepest.contains(Permissions::VIEW_CHANNEL));
+    assert!(!deepest.contains(Permissions::SEND_MESSAGES));
+}
+
+#[tokio::test]
+async fn moving_channels_keeps_subtrees_rejects_loops_and_delete_moves_children_up() {
+    let (_dir, app) = fixture().await;
+    let mut core = app.0.core.lock().await;
+    core.cursor(&[2; 32], Id(2));
+    let general = Id(11);
+    let x = nest(&app, &mut core, 1, ChannelKind::Text, "x", None).await;
+    let y = nest(&app, &mut core, 2, ChannelKind::Text, "y", Some(x)).await;
+    let z = nest(&app, &mut core, 3, ChannelKind::Text, "z", Some(y)).await;
+    // A channel cannot go inside itself, directly or through what it contains.
+    denied(
+        reorder(
+            &app,
+            &mut core,
+            4,
+            vec![
+                place(general, None, 0),
+                place(x, Some(z), 0),
+                place(y, Some(x), 0),
+                place(z, Some(y), 0),
+            ],
+        )
+        .await,
+    );
+    denied(
+        reorder(
+            &app,
+            &mut core,
+            5,
+            vec![
+                place(general, None, 0),
+                place(x, Some(x), 0),
+                place(y, Some(x), 0),
+                place(z, Some(y), 0),
+            ],
+        )
+        .await,
+    );
+    // Sibling positions that change must stay dense.
+    denied(
+        reorder(
+            &app,
+            &mut core,
+            6,
+            vec![
+                place(general, None, 0),
+                place(x, None, 1),
+                place(y, None, 3),
+                place(z, Some(y), 0),
+            ],
+        )
+        .await,
+    );
+    assert_eq!(
+        tree(&app, 1).await,
+        [(general, None), (x, None), (y, Some(x)), (z, Some(y))]
+    );
+    // Moving y to the top takes z with it.
+    core.invalidate(&[Id(2)]);
+    ok(reorder(
+        &app,
+        &mut core,
+        7,
+        vec![
+            place(general, None, 0),
+            place(x, None, 1),
+            place(y, None, 2),
+            place(z, Some(y), 0),
+        ],
+    )
+    .await);
+    assert_eq!(
+        tree(&app, 1).await,
+        [(general, None), (x, None), (y, None), (z, Some(y))]
+    );
+    assert!(events(&core, 2).iter().any(|e| matches!(
+        e,
+        Event::ChannelsReordered { placements, .. }
+            if placements.contains(&place(y, None, 2)) && placements.contains(&place(z, Some(y), 0))
+    )));
+    // A text channel can go three levels down, inside other text channels.
+    ok(reorder(
+        &app,
+        &mut core,
+        8,
+        vec![
+            place(general, Some(z), 0),
+            place(x, None, 0),
+            place(y, None, 1),
+            place(z, Some(y), 0),
+        ],
+    )
+    .await);
+    assert_eq!(
+        tree(&app, 1).await,
+        [(x, None), (y, None), (z, Some(y)), (general, Some(z))]
+    );
+    // Deleting a channel keeps what is inside it, one level up.
+    ok(command(
+        &app,
+        &mut core,
+        1,
+        9,
+        Command::DeleteChannel { channel_id: z },
+    )
+    .await);
+    assert_eq!(
+        tree(&app, 1).await,
+        [(x, None), (y, None), (general, Some(y))]
+    );
+    ok(command(
+        &app,
+        &mut core,
+        1,
+        10,
+        Command::DeleteChannel { channel_id: y },
+    )
+    .await);
+    assert_eq!(tree(&app, 1).await, [(x, None), (general, None)]);
+    let mut conn = app.0.pool.acquire().await.unwrap();
+    let moved = db::channel(&mut conn, general).await.unwrap();
+    assert_eq!(moved.summary.position, 1);
+}
+
+#[tokio::test]
+async fn nested_channel_migration_keeps_data_and_lets_categories_nest() {
+    let mut c = sqlx::SqliteConnection::connect("sqlite::memory:")
+        .await
+        .unwrap();
+    sqlx::query("PRAGMA foreign_keys=OFF")
+        .execute(&mut c)
+        .await
+        .unwrap();
+    let mut old = sqlx::migrate!();
+    old.migrations = std::borrow::Cow::Owned(
+        old.iter()
+            .filter(|m| m.version < 202611220001)
+            .cloned()
+            .collect(),
+    );
+    old.run(&mut c).await.unwrap();
+    sqlx::raw_sql("INSERT INTO users(id,username,password_hash,desired_presence,created_at) VALUES(1,'owner','','online',0),(2,'guest','','online',0); INSERT INTO guilds VALUES(10,1,'old',NULL,0); INSERT INTO guild_members VALUES(10,1,'owner',0),(10,2,'member',0); INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(11,'category',10,'cat',0,0); INSERT INTO channels(id,kind,guild_id,parent_id,name,topic,position,created_at) VALUES(12,'text',10,11,'chat','topic',0,0); INSERT INTO messages(id,channel_id,author_id,content,created_at) VALUES(13,12,1,'retained',0); INSERT INTO read_states(user_id,channel_id) VALUES(2,12); INSERT INTO permission_overwrites VALUES(11,'member',2,0,2);").execute(&mut c).await.unwrap();
+    // The old schema refused a category inside anything.
+    assert!(sqlx::query("INSERT INTO channels(id,kind,guild_id,parent_id,name,position,created_at) VALUES(14,'category',10,12,'inner',0,0)")
+        .execute(&mut c)
+        .await
+        .is_err());
+    db::migrate(&mut c).await.unwrap();
+    db::migrate(&mut c).await.unwrap();
+    let kept: (i64, String, String) = sqlx::query_as(
+        "SELECT c.parent_id,c.topic,m.content FROM channels c JOIN messages m ON m.channel_id=c.id WHERE c.id=12",
+    )
+    .fetch_one(&mut c)
+    .await
+    .unwrap();
+    assert_eq!(kept, (11, "topic".into(), "retained".into()));
+    let rows: (i64, i64, i64) = sqlx::query_as(
+        "SELECT (SELECT COUNT(*) FROM read_states),(SELECT COUNT(*) FROM permission_overwrites),(SELECT COUNT(*) FROM history_entries)",
+    )
+    .fetch_one(&mut c)
+    .await
+    .unwrap();
+    assert_eq!(rows, (1, 1, 1));
+    // The category's deny still reaches the channel inside it.
+    assert!(!acl::evaluate(&mut c, Id(2), Id(10), Some(Id(12)))
+        .await
+        .unwrap()
+        .contains(Permissions::SEND_MESSAGES));
+    sqlx::query("INSERT INTO channels(id,kind,guild_id,parent_id,name,position,created_at) VALUES(14,'category',10,12,'inner',0,0)")
+        .execute(&mut c)
+        .await
+        .unwrap();
+    // A category still has no topic, and deleting a channel still cascades.
+    assert!(sqlx::query("UPDATE channels SET topic='no' WHERE id=14")
+        .execute(&mut c)
+        .await
+        .is_err());
+    sqlx::query("DELETE FROM channels WHERE id=12")
+        .execute(&mut c)
+        .await
+        .unwrap();
+    let left: (i64, Option<i64>) = sqlx::query_as(
+        "SELECT (SELECT COUNT(*) FROM messages),(SELECT parent_id FROM channels WHERE id=14)",
+    )
+    .fetch_one(&mut c)
+    .await
+    .unwrap();
+    assert_eq!(left, (0, None));
+    assert!(sqlx::query("PRAGMA foreign_key_check")
+        .fetch_all(&mut c)
+        .await
+        .unwrap()
+        .is_empty());
+}

@@ -38,6 +38,7 @@ pub(super) fn is_server_page(page: &str) -> bool {
         "role:",
         "channel-edit:",
         "channel-delete:",
+        "channel-move:",
         "invite-revoke:",
         "unban:",
     ]
@@ -92,6 +93,7 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
                 "role" => "Edit Role",
                 "channel-edit" => "Edit Channel",
                 "channel-delete" => "Delete Channel",
+                "channel-move" => "Move Channel",
                 "ban" => "Ban a Member",
                 "unban" => "Revoke Ban",
                 "invite-revoke" => "Revoke Invite",
@@ -103,7 +105,7 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
     // A page opened from a list goes back to that list.
     let back = match kind {
         "role" => ("Back to Roles", "dialog:roles"),
-        "channel-edit" | "channel-delete" | "private" => {
+        "channel-edit" | "channel-delete" | "channel-move" | "private" => {
             ("Back to Channels", "dialog:server-channels")
         }
         "ban" | "unban" => ("Back to Bans", "dialog:server-bans"),
@@ -165,10 +167,10 @@ pub(super) fn server_overview(a: &App) -> AnyView {
 }
 pub(super) fn channels(a: &App) -> AnyView {
     let allowed = can(a, Permissions::MANAGE_CHANNELS);
-    // The same order as the sidebar, with each category's channels under it.
+    // The same order as the sidebar, with everything nested in a channel under it.
     let channels = channel_tree(a);
     view!{<h2>"Channels"</h2>{if allowed{button("Create Channel","dialog:channel","primary")}else{view!{<p class="muted-copy">"You need Manage Channels permission to edit channels."</p>}.into_any()}}
-        {channels.into_iter().map(|c|view!{<div class=format!("settings-list-row flex flex-wrap items-center gap-3 border-b py-4 {}",if c.parent_id.is_some(){"pl-6"}else{""})><span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere"><strong class="font-semibold">{a.model.channel_name(c)}</strong><small>{match c.kind{ChannelKind::Category=>"Category",ChannelKind::Voice=>"Voice channel",_=>"Text channel"}}</small></span><button class="icon-button" aria-label=format!("Edit {}",a.model.channel_name(c)) disabled=!allowed data-live=format!("dialog:channel-edit:{}",c.id.0)>{icon("settings")}</button></div>}).collect_view()}
+        {channels.into_iter().map(|(c,depth)|view!{<div class="settings-list-row flex flex-wrap items-center gap-3 border-b py-4" style=indent(depth,24) data-depth=depth.to_string()><span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere"><strong class="font-semibold">{a.model.channel_name(c)}</strong><small>{match c.kind{ChannelKind::Category=>"Category",ChannelKind::Voice=>"Voice channel",_=>"Text channel"}}</small></span><button class="icon-button" aria-label=format!("Edit {}",a.model.channel_name(c)) disabled=!allowed data-live=format!("dialog:channel-edit:{}",c.id.0)>{icon("settings")}</button></div>}).collect_view()}
     }.into_any()
 }
 pub(super) fn channel_editor(a: &App, page: &str) -> AnyView {
@@ -179,16 +181,36 @@ pub(super) fn channel_editor(a: &App, page: &str) -> AnyView {
         return ().into_any();
     };
     form_with("Edit Channel","channel-save",view!{<fieldset disabled=!can(a,Permissions::MANAGE_CHANNELS)>{field("f-name","Name",c.name.as_deref().unwrap_or(""),"text")}{field("f-value","Topic",a.model.topics.get(&c.id).and_then(|t|t.as_deref()).unwrap_or(""),"text")}<input id="f-extra" type="hidden" value=c.id.0.to_string()/></fieldset>
-        <div class="settings-divider"></div>{if can(a,Permissions::MANAGE_CHANNELS){button(if c.kind==ChannelKind::Category{"Delete Category"}else{"Delete Channel"},&format!("dialog:channel-delete:{}",c.id.0),"danger-text")}else{().into_any()}}
+        <div class="settings-divider"></div>{if can(a,Permissions::MANAGE_CHANNELS){view!{{button(if c.kind==ChannelKind::Category{"Move Category"}else{"Move Channel"},&format!("dialog:channel-move:{}",c.id.0),"secondary")}{button(if c.kind==ChannelKind::Category{"Delete Category"}else{"Delete Channel"},&format!("dialog:channel-delete:{}",c.id.0),"danger-text")}}.into_any()}else{().into_any()}}
     }.into_any(),"dialog:server-channels",can(a,Permissions::MANAGE_CHANNELS))
+}
+/// Put a channel inside another one, or back at the top level.
+pub(super) fn channel_move(a: &App, page: &str) -> AnyView {
+    let Some(c) = id(page.trim_start_matches("channel-move:"))
+        .and_then(|id| a.model.channels.get(&id))
+        .filter(|c| c.guild_id == a.guild)
+    else {
+        return ().into_any();
+    };
+    let label = a.model.channel_name(c);
+    form_with("Move Channel","channel-move",view!{<p>{format!("Choose where {label} goes. Everything inside it moves with it.")}</p>
+        <label class="field">"Inside"<select id="f-value" aria-describedby="channel-move-help">{inside_options(a,c.parent_id,Some(c.id))}</select><small id="channel-move-help">"A channel also follows the permissions of everything it is inside."</small></label><input id="f-extra" type="hidden" value=c.id.0.to_string()/>
+    }.into_any(),&format!("dialog:channel-edit:{}",c.id.0),can(a,Permissions::MANAGE_CHANNELS))
 }
 pub(super) fn channel_delete(a: &App, page: &str) -> AnyView {
     let channel =
         id(page.trim_start_matches("channel-delete:")).and_then(|id| a.model.channels.get(&id));
     let label = channel.map_or("this channel".into(), |c| a.model.channel_name(c));
-    // Deleting a category keeps its channels; deleting a channel loses its messages.
+    // Deleting a category loses nothing; deleting a channel loses its messages.
+    // Either way, whatever is nested inside is kept and moves up one level.
     let category = channel.is_some_and(|c| c.kind == ChannelKind::Category);
-    form_with(if category{"Delete Category"}else{"Delete Channel"},"channel-delete",view!{<p>{if category{format!("Delete the category {label}? The channels inside it are kept and move out of the category.")}else{format!("Permanently delete {label} and its messages? This cannot be undone.")}}</p>
+    let kept =
+        if channel.is_some_and(|c| a.model.channels.values().any(|v| v.parent_id == Some(c.id))) {
+            " The channels inside it are kept and move up one level."
+        } else {
+            ""
+        };
+    form_with(if category{"Delete Category"}else{"Delete Channel"},"channel-delete",view!{<p>{if category{format!("Delete the category {label}?{kept}")}else{format!("Permanently delete {label} and its messages? This cannot be undone.{kept}")}}</p>
         {field("f-name","Type DELETE to confirm","","text")}<input id="f-extra" type="hidden" value=channel.map_or(String::new(),|c|c.id.0.to_string())/>
     }.into_any(),"dialog:server-channels",true)
 }

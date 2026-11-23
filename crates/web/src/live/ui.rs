@@ -150,17 +150,18 @@ fn auth(a: &App) -> AnyView {
         {if signup{().into_any()}else{view!{<p class="auth-switch mt-6 text-[15px] text-subtle phone:text-center">{if register{"Already have an account? "}else{"Need an account? "}}<button class="inline-flex min-h-11 items-center px-1 font-semibold text-primary hover:underline" type="button" data-live="register">{if register{"Log in"}else{"Register"}}</button></p>}.into_any()}}
     </form></main>}.into_any()
 }
-/// Channels in display order. In a server: channels outside any category first
-/// (so none reads as part of the category above it), then each category followed
-/// by the channels nested inside it. Direct messages: most recently active first.
-fn channel_tree(a: &App) -> Vec<&ChannelSummary> {
-    let mut root = a
-        .model
-        .channels
-        .values()
-        .filter(|c| c.guild_id == a.guild && c.parent_id.is_none())
-        .collect::<Vec<_>>();
+/// Channels in display order, each with how deeply it is nested. In a server, at
+/// every level the channels come before the categories (so none reads as part of
+/// the category above it) and each one is followed by everything nested inside
+/// it. Direct messages: most recently active first.
+fn channel_tree(a: &App) -> Vec<(&ChannelSummary, usize)> {
     if a.guild.is_none() {
+        let mut root = a
+            .model
+            .channels
+            .values()
+            .filter(|c| c.guild_id.is_none())
+            .collect::<Vec<_>>();
         root.sort_by_key(|c| {
             std::cmp::Reverse(
                 a.model
@@ -170,24 +171,55 @@ fn channel_tree(a: &App) -> Vec<&ChannelSummary> {
                     .unwrap_or(c.id),
             )
         });
-        return root;
+        return root.into_iter().map(|c| (c, 0)).collect();
     }
-    root.sort_by_key(|c| (c.kind == ChannelKind::Category, c.position, c.id));
-    let mut out = Vec::with_capacity(root.len());
-    for c in root {
-        out.push(c);
-        if c.kind == ChannelKind::Category {
-            let mut children = a
-                .model
-                .channels
-                .values()
-                .filter(|v| v.parent_id == Some(c.id))
-                .collect::<Vec<_>>();
-            children.sort_by_key(|v| (v.position, v.id));
-            out.extend(children);
-        }
+    let mut inside: BTreeMap<Option<Id>, Vec<&ChannelSummary>> = BTreeMap::new();
+    for c in a.model.channels.values().filter(|c| c.guild_id == a.guild) {
+        // A channel whose parent has not arrived (or just left) is listed at the top.
+        let parent = c.parent_id.filter(|p| a.model.channels.contains_key(p));
+        inside.entry(parent).or_default().push(c);
+    }
+    let mut level = |parent: Option<Id>, depth: usize| {
+        let mut list = inside.remove(&parent).unwrap_or_default();
+        // Reversed, because the walk below takes channels from the end.
+        list.sort_by_key(|c| {
+            std::cmp::Reverse((c.kind == ChannelKind::Category, c.position, c.id))
+        });
+        list.into_iter().map(move |c| (c, depth))
+    };
+    let mut out = Vec::with_capacity(a.model.channels.len());
+    let mut next = level(None, 0).collect::<Vec<_>>();
+    while let Some((c, depth)) = next.pop() {
+        next.extend(level(Some(c.id), depth + 1));
+        out.push((c, depth));
     }
     out
+}
+/// How far a nested row is moved in, as a style attribute: `step` px per level.
+/// Past eight levels rows stop moving in, so a deep tree still fits the sidebar.
+fn indent(depth: usize, step: usize) -> Option<String> {
+    (depth > 0).then(|| format!("margin-left:{}px", depth.min(8) * step))
+}
+/// "Create channel in ..." beside a row, for people who manage channels.
+fn create_inside(c: &ChannelSummary, label: &str, class: &'static str) -> AnyView {
+    view!{<button class=class aria-label=format!("Create channel in {label}") title=format!("Create channel in {label}") data-live=format!("dialog:channel-in:{}",c.id.0)>{icon_with("plus","icon size-4")}</button>}.into_any()
+}
+/// The places a channel can go, as options: every channel of this server in
+/// sidebar order, moved in by depth. `moving` and everything nested in it are
+/// left out, because a channel cannot go inside itself.
+fn inside_options(a: &App, selected: Option<Id>, moving: Option<Id>) -> AnyView {
+    let mut skip = None;
+    let mut options = vec![];
+    for (c, depth) in channel_tree(a) {
+        if skip.is_some_and(|d| depth > d) {
+            continue;
+        }
+        skip = (Some(c.id) == moving).then_some(depth);
+        if skip.is_none() {
+            options.push(view!{<option value=c.id.0.to_string() selected=selected==Some(c.id)>{format!("{}{}","\u{2003}".repeat(depth),a.model.channel_name(c))}</option>});
+        }
+    }
+    view!{<option value="" selected=selected.is_none()>"None (top level)"</option>{options.into_iter().collect_view()}}.into_any()
 }
 /// You are online to yourself; everyone else is as the server last reported.
 fn online(a: &App, user: Id) -> bool {
@@ -208,7 +240,7 @@ fn avatar_status(a: &App, u: &UserSummary) -> AnyView {
     view!{<span class="relative flex flex-none">{avatar(u,"small")}{if dot.is_empty(){().into_any()}else{view!{<span class=format!("presence-dot absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-sidebar {dot}") aria-hidden="true"></span>}.into_any()}}</span>}.into_any()
 }
 /// Who is in a voice channel, listed under it for everyone in the server.
-fn voice_occupants(a: &App, channel: Id) -> AnyView {
+fn voice_occupants(a: &App, channel: Id, depth: usize) -> AnyView {
     let mut people = BTreeMap::new();
     for v in a
         .model
@@ -222,7 +254,7 @@ fn voice_occupants(a: &App, channel: Id) -> AnyView {
     if people.is_empty() {
         return ().into_any();
     }
-    view!{<ul class="voice-occupants m-0 mb-1 flex list-none flex-col gap-0.5 p-0 pl-9">{people.into_iter().map(|(user,p)|view!{<li class="flex min-h-7 items-center gap-2 pr-2 text-[13px] text-sidebar-foreground"><span class="min-w-0 flex-1 truncate">{a.model.name(user)}</span>{if p.deafened{icon_with("headphone-off","icon size-3.5 text-muted-foreground")}else if p.muted{icon_with("mic-off","icon size-3.5 text-muted-foreground")}else{().into_any()}}</li>}).collect_view()}</ul>}.into_any()
+    view!{<ul class="voice-occupants m-0 mb-1 flex list-none flex-col gap-0.5 p-0 pl-9" style=indent(depth,12)>{people.into_iter().map(|(user,p)|view!{<li class="flex min-h-7 items-center gap-2 pr-2 text-[13px] text-sidebar-foreground"><span class="min-w-0 flex-1 truncate">{a.model.name(user)}</span>{if p.deafened{icon_with("headphone-off","icon size-3.5 text-muted-foreground")}else if p.muted{icon_with("mic-off","icon size-3.5 text-muted-foreground")}else{().into_any()}}</li>}).collect_view()}</ul>}.into_any()
 }
 fn shell(a: &App) -> AnyView {
     let channel = a.channel.and_then(|id| a.model.channels.get(&id));
@@ -281,7 +313,6 @@ fn shell(a: &App) -> AnyView {
             }
         })
         .unwrap_or_default();
-    let nested = |c: &ChannelSummary| a.guild.is_some() && c.parent_id.is_some();
     view!{<div class=format!("app-shell live-shell relative top-(--viewport-offset) flex h-(--viewport-height) bg-background phone:pt-(--safe-top) panel-{} {}",a.panel,if channel.is_some(){"in-channel"}else{""})>
         <div class=format!("left-panel flex w-[312px] flex-none touch-pan-y bg-sidebar xl:w-[344px] 2xl:w-[384px] phone:absolute phone:top-(--safe-top) phone:bottom-0 phone:left-0 phone:z-30 phone:w-[min(340px,90vw)] {}",if a.panel=="left"{"phone:translate-x-0"}else{"phone:-translate-x-full"})><nav class="server-rail flex w-[72px] flex-none touch-pan-y flex-col items-center gap-2 overflow-y-auto overscroll-contain bg-rail p-3" aria-label="Servers"><button class="server-icon brand relative grid size-12 min-h-12 place-items-center rounded-2xl" data-live="home" aria-label="Home"><img class="rounded-2xl" src="/public/icons/icon-192.png" alt="" width="48" height="48"/>{request_badge("live-unread absolute -right-1 -bottom-1 ml-0 border-2 border-rail")}</button><div class="rail-divider min-h-0.5 w-8 bg-border"></div>
             {a.model.guilds.values().map(|g|{let selected=a.guild==Some(g.guild.id);let unread=!selected&&a.model.channels.values().any(|c|c.guild_id==Some(g.guild.id)&&a.model.reads.get(&c.id).is_some_and(|r|r.unread_count>0));view!{<ui-tooltip class="contents"><ui-tooltip-trigger><button class=format!("server-icon relative grid size-12 min-h-12 place-items-center font-semibold text-foreground transition-[border-radius,background-color] hover:rounded-2xl hover:bg-secondary {}",if selected{"selected rounded-2xl bg-secondary"}else{"rounded-full bg-muted"}) data-live=format!("guild:{}",g.guild.id.0) aria-label=g.guild.name.clone()>{if selected{view!{<span class="absolute -left-3 h-10 w-1 rounded-r-sm bg-foreground" aria-hidden="true"></span>}.into_any()}else if unread{view!{<span class="server-unread absolute -left-3 h-2 w-1 rounded-r-sm bg-foreground" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}{if let Some(id)=g.guild.icon_id{view!{<img class="size-full rounded-[inherit] object-cover" src=format!("/api/v1/files/{}/thumbnail",id.0) alt="" loading="lazy"/>}.into_any()}else{view!{<span>{g.guild.name.chars().take(2).collect::<String>()}</span>}.into_any()}}</button></ui-tooltip-trigger><ui-tooltip-content class="tooltip" side="right" side-offset="8" hidden=true>{g.guild.name.clone()}</ui-tooltip-content></ui-tooltip>}}).collect_view()}
@@ -298,16 +329,16 @@ fn shell(a: &App) -> AnyView {
                 {if manage_channels{ib("plus","Create Channel","dialog:channel")}else{().into_any()}}{if admin{ib("settings","Server Settings","dialog:server")}else{().into_any()}}}.into_any()}else{view!{<strong class="min-w-0 flex-1 truncate px-1 text-base font-semibold">{guild_name}</strong>{ib("users","New Group Message","dialog:group")}}.into_any()}}</div>
             <nav class="channel-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2" aria-label="Channels">
             <button class="nav-row flex w-full items-center justify-start gap-2 rounded-md p-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground touch:min-h-11 phone:text-base" data-live="home">{icon_with("users","icon text-muted-foreground")}"Friends"{request_badge("live-unread")}</button>
-            {channel_tree(a).into_iter().map(|c|{
+            {channel_tree(a).into_iter().map(|(c,depth)|{
                 let label=a.model.channel_name(c);
-                if c.kind==ChannelKind::Category{return view!{<div class="category-row mt-4 flex min-h-7 items-center gap-1 pr-1 pl-2"><h2 class="category min-w-0 flex-1 truncate" title=label.clone()>{label.clone()}</h2>{if manage_channels{view!{<button class="grid size-6 flex-none place-items-center rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground touch:size-11" aria-label=format!("Create channel in {label}") title=format!("Create channel in {label}") data-live=format!("dialog:channel-in:{}",c.id.0)>{icon_with("plus","icon size-4")}</button>}.into_any()}else{().into_any()}}</div>}.into_any()}
+                if c.kind==ChannelKind::Category{return view!{<div class=format!("category-row flex min-h-7 items-center gap-1 pr-1 pl-2 {}",if depth>0{"nested mt-2"}else{"mt-4"}) style=indent(depth,12) data-depth=depth.to_string()><h2 class="category min-w-0 flex-1 truncate" title=label.clone()>{label.clone()}</h2>{if manage_channels{create_inside(c,&label,"grid size-6 flex-none place-items-center rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground touch:size-11")}else{().into_any()}}</div>}.into_any()}
                 let selected=a.channel==Some(c.id);
                 let read=a.model.reads.get(&c.id);
                 let unread=read.is_some_and(|r|r.unread_count>0);
                 // A direct message is always for you; in a server only mentions are counted.
                 let count=read.map_or(0,|r|if c.guild_id.is_none(){r.unread_count}else{r.mention_count});
                 let voice=c.kind==ChannelKind::Voice;
-                view!{<div class=format!("channel-row min-h-[34px] rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if nested(c){"nested ml-2"}else{""})><button class=format!("channel-main flex w-full items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=format!("{}:{}",if voice{"voice"}else{"channel"},c.id.0)>{icon_with(if voice{"volume-2"}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button></div>{if voice{voice_occupants(a,c.id)}else{().into_any()}}}.into_any()
+                view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()><button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=format!("{}:{}",if voice{"voice"}else{"channel"},c.id.0)>{icon_with(if voice{"volume-2"}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}</div>{if voice{voice_occupants(a,c.id,depth)}else{().into_any()}}}.into_any()
             }).collect_view()}
             </nav>
             <section id="live-connected" class="voice-connected border-t p-3 text-sm" hidden><div class="voice-connection-line flex min-w-0 flex-col"><strong class="text-primary">"Voice Connected"</strong><small class="truncate" title=call_name.clone()>{call_name.clone()}</small></div><div class="voice-tiles mt-2 flex gap-2 [&_.icon-button]:flex-1 [&_.icon-button]:bg-accent">{ib("video","Camera","media:camera")}{ib("monitor","Share Screen","media:share")}{ib("phone-off","Disconnect","media:leave")}</div></section>
@@ -618,6 +649,7 @@ fn form_with(title: &str, kind: &str, fields: AnyView, back: &str, enabled: bool
     let (label, class) = match kind {
         "delete-account" => ("Delete Account", "danger"),
         "channel-delete" => ("Delete", "danger"),
+        "channel-move" => ("Move Channel", "primary"),
         "guild-delete" => ("Delete Server", "danger"),
         "invite-revoke" => ("Revoke Invite", "danger"),
         "unban" => ("Revoke Ban", "primary"),
@@ -692,15 +724,15 @@ fn dialog_label(dialog: &str) -> &'static str {
         _ => "Dialog",
     }
 }
-/// Create Channel. `kind` and `parent` preselect the type and the category the
-/// new channel is nested in (the "+" beside a category, or Create Category).
+/// Create Channel. `kind` and `parent` preselect the type and the channel the new
+/// one goes inside (the "+" beside a row, or Create Category).
 fn channel_form(a: &App, kind: &str, parent: Option<Id>) -> AnyView {
     let title = if kind == "category" {
         "Create Category"
     } else {
         "Create Channel"
     };
-    form(title,"channel",view!{{field("f-name","Name","","text")}<label class="field">"Type"<select id="f-extra"><option value="text" selected=kind=="text">"Text"</option><option value="voice" selected=kind=="voice">"Voice"</option><option value="category" selected=kind=="category">"Category"</option></select></label><label class="field">"Category"<select id="f-value" aria-describedby="channel-category-help"><option value="">"None"</option>{a.model.channels.values().filter(|c|c.guild_id==a.guild&&c.kind==ChannelKind::Category).map(|c|view!{<option value=c.id.0.to_string() selected=parent==Some(c.id)>{c.name.clone().unwrap_or_default()}</option>}).collect_view()}</select><small id="channel-category-help">"Text and voice channels can be nested inside a category."</small></label>}.into_any())
+    form(title,"channel",view!{{field("f-name","Name","","text")}<label class="field">"Type"<select id="f-extra"><option value="text" selected=kind=="text">"Text"</option><option value="voice" selected=kind=="voice">"Voice"</option><option value="category" selected=kind=="category">"Category"</option></select></label><label class="field">"Inside"<select id="f-value" aria-describedby="channel-inside-help">{inside_options(a,parent,None)}</select><small id="channel-inside-help">"Channels and categories can go inside any other channel or category, as deep as you like."</small></label>}.into_any())
 }
 const DEVICE_ROW: &str =
     "device-row my-4 flex items-center justify-between gap-4 phone:items-start";
@@ -747,6 +779,7 @@ fn dialog(a: &App) -> AnyView {
         value if value.starts_with("role:")=>{let r=id(value.trim_start_matches("role:")).and_then(|id|a.roles.get(&id));if let Some(r)=r{form_with("Edit Role","role-save",view!{<fieldset disabled=!settings::can(a,Permissions::MANAGE_ROLES)>{field("f-name","Role Name",&r.name,"text")}{field("f-value","Color",&format!("#{:06x}",r.color),"color")}<input id="f-permissions" type="hidden" value=r.permissions.bits().to_string()/><div class="live-permissions my-4">{role_permissions(r)}</div><label class="live-checkbox"><input id="f-hoist" type="checkbox" checked=r.hoist/>"Display role members separately"</label><label class="live-checkbox"><input id="f-mentionable" type="checkbox" checked=r.mentionable/>"Allow anyone to mention this role"</label><input id="f-extra" type="hidden" value=r.id.0.to_string()/>{if r.id!=r.guild_id{button("Delete Role",&format!("role-delete:{}",r.id.0),"danger-text")}else{().into_any()}}</fieldset>}.into_any(),"dialog:roles",settings::can(a,Permissions::MANAGE_ROLES))}else{().into_any()}},
         value if value.starts_with("channel-edit:")=>settings::channel_editor(a,value),
         value if value.starts_with("channel-delete:")=>settings::channel_delete(a,value),
+        value if value.starts_with("channel-move:")=>settings::channel_move(a,value),
         value if value.starts_with("invite-revoke:")=>form_with("Revoke Invite","invite-revoke",view!{<p>"This invite link will stop working immediately."</p><input id="f-name" type="hidden" value=value.trim_start_matches("invite-revoke:").to_owned()/>}.into_any(),"dialog:invite",true),
         value if value.starts_with("unban:")=>form_with("Revoke Ban","unban",view!{<p>"This person will be able to join again with an invite."</p><input id="f-name" type="hidden" value=value.trim_start_matches("unban:").to_owned()/>}.into_any(),"dialog:server-bans",true),
         "guild-delete"=>form_with("Delete Server","guild-delete",view!{<p>"This permanently deletes the server, its channels and every message in them, for everyone. It cannot be undone."</p>{field("f-name","Type the server’s name to confirm","","text")}}.into_any(),"dialog:server-overview",true),

@@ -180,15 +180,13 @@ async fn joined(c: &mut SqliteConnection, out: &mut Deliveries, g: Id, u: Id) ->
     guild_events(c, out, g).await?;
     member_event(c, out, g, u).await
 }
+/// A channel may be nested in any other channel of its guild.
 async fn parent(c: &mut SqliteConnection, g: Id, p: Option<Id>) -> Result<()> {
     if let Some(p) = p {
         let ch = channel(c, p)
             .await
             .map_err(|_| Error::new(ErrorCode::InvalidRequest))?;
-        require(
-            ch.summary.guild_id == Some(g) && ch.summary.kind == ChannelKind::Category,
-            ErrorCode::InvalidRequest,
-        )?;
+        require(ch.summary.guild_id == Some(g), ErrorCode::InvalidRequest)?;
     }
     Ok(())
 }
@@ -1550,7 +1548,7 @@ async fn mutate(
                 ErrorCode::InvalidRequest,
             )?;
             require(
-                kind != ChannelKind::Category || (p.is_none() && topic.is_none()),
+                kind != ChannelKind::Category || topic.is_none(),
                 ErrorCode::InvalidRequest,
             )?;
             let s = name(&s, 64)?;
@@ -1652,7 +1650,10 @@ async fn mutate(
             require(placements.len() == list.len(), ErrorCode::InvalidRequest)?;
             let ids: Vec<_> = placements.iter().map(|p| p.channel_id).collect();
             unique(&ids, 32)?;
-            let mut siblings: HashMap<Option<Id>, Vec<u16>> = HashMap::new();
+            // Only placements that differ from what the actor sees are applied, so a
+            // channel shown to them outside a hidden parent stays where it really is.
+            let mut moved = vec![];
+            let mut siblings: HashMap<Option<Id>, (bool, Vec<u16>)> = HashMap::new();
             for p in &placements {
                 access(c, u, p.channel_id, Permissions::MANAGE_CHANNELS).await?;
                 if let Some(parent) = p.parent_id {
@@ -1662,14 +1663,15 @@ async fn mutate(
                     .iter()
                     .find(|ch| ch.id == p.channel_id)
                     .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
-                require(
-                    ch.kind != ChannelKind::Category || p.parent_id.is_none(),
-                    ErrorCode::InvalidRequest,
-                )?;
                 parent(c, g, p.parent_id).await?;
-                siblings.entry(p.parent_id).or_default().push(p.position);
+                let set = siblings.entry(p.parent_id).or_default();
+                set.1.push(p.position);
+                if ch.position != p.position || ch.parent_id != p.parent_id {
+                    set.0 = true;
+                    moved.push(p);
+                }
             }
-            for positions in siblings.values_mut() {
+            for (_, positions) in siblings.values_mut().filter(|(changed, _)| *changed) {
                 positions.sort();
                 require(
                     positions
@@ -1679,14 +1681,33 @@ async fn mutate(
                     ErrorCode::InvalidRequest,
                 )?;
             }
-            let changed = placements.iter().any(|p| {
-                list.iter().any(|ch| {
-                    ch.id == p.channel_id
-                        && (ch.position != p.position || ch.parent_id != p.parent_id)
-                })
-            });
-            if changed {
-                for p in &placements {
+            if !moved.is_empty() {
+                // No channel may end up inside itself, however deep, including
+                // through channels the actor cannot see.
+                let mut inside: HashMap<Id, Option<Id>> =
+                    sqlx::query("SELECT id,parent_id FROM channels WHERE guild_id=?")
+                        .bind(id(g)?)
+                        .fetch_all(&mut *c)
+                        .await?
+                        .into_iter()
+                        .map(|r| {
+                            (
+                                Id(r.get::<i64, _>(0) as u64),
+                                r.get::<Option<i64>, _>(1).map(|v| Id(v as u64)),
+                            )
+                        })
+                        .collect();
+                for p in &moved {
+                    inside.insert(p.channel_id, p.parent_id);
+                }
+                for p in &moved {
+                    let mut at = p.parent_id;
+                    for _ in 0..inside.len() {
+                        require(at != Some(p.channel_id), ErrorCode::InvalidRequest)?;
+                        at = at.and_then(|v| inside.get(&v).copied().flatten());
+                    }
+                }
+                for p in &moved {
                     sqlx::query("UPDATE channels SET parent_id=?,position=? WHERE id=?")
                         .bind(opt(p.parent_id)?)
                         .bind(i64::from(p.position))
@@ -1711,20 +1732,33 @@ async fn mutate(
                 .summary
                 .guild_id
                 .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
-            if old.summary.kind == ChannelKind::Category {
-                let mut position = append_position(c, g, None).await?;
-                for child in channels(c, u, Some(g))
-                    .await?
-                    .into_iter()
-                    .filter(|v| v.parent_id == Some(ch))
-                {
-                    sqlx::query("UPDATE channels SET parent_id=NULL,position=? WHERE id=?")
+            // Channels nested in the deleted one are kept: they move up one level, to
+            // the end of the channel it was nested in (the top when it was not nested).
+            let children: Vec<i64> = sqlx::query_scalar(
+                "SELECT id FROM channels WHERE parent_id=? ORDER BY position,id",
+            )
+            .bind(id(ch)?)
+            .fetch_all(&mut *c)
+            .await?;
+            if !children.is_empty() {
+                // `old` carries the parent as the actor sees it; use the real one.
+                let up = sqlx::query_scalar::<_, Option<i64>>(
+                    "SELECT parent_id FROM channels WHERE id=?",
+                )
+                .bind(id(ch)?)
+                .fetch_one(&mut *c)
+                .await?
+                .map(|v| Id(v as u64));
+                let mut position = append_position(c, g, up).await?;
+                for child in children {
+                    sqlx::query("UPDATE channels SET parent_id=?,position=? WHERE id=?")
+                        .bind(opt(up)?)
                         .bind(position)
-                        .bind(id(child.id)?)
+                        .bind(child)
                         .execute(&mut *c)
                         .await?;
                     position += 1;
-                    channel_event(c, out, child.id).await?;
+                    channel_event(c, out, Id(child as u64)).await?;
                 }
             }
             let previous_audience = audience(c, ch).await?;

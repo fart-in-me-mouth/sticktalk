@@ -70,7 +70,7 @@ See `ARCHITECTURE.md` for implementation, storage, limits and resource budgets.
 
 Guild/user/DM/session quotas and all rate limits in ARCHITECTURE apply in
 addition. Self-friend/block/DM, duplicate recipient IDs, invalid enum combinations,
-cross-guild parents, recursive categories, and cross-channel message targets
+cross-guild parents, a channel nested inside itself, and cross-channel message targets
 are invalid_request. Limits are atomic, never partial success or truncation.
 
 ## 2. Shared entity field reference
@@ -116,15 +116,19 @@ group_dm, voice (Phase 2); `RemovalReason` = left, kicked, banned, deleted;
 ### Channel invariants
 
 Guild text/category: guild_id present, recipient_ids empty, owner_id null, name
-present. Category parent_id/topic null; text parent null or a category in that
-guild. No nested categories. Positions are zero-based/dense per sibling set.
+present. Category topic null. **Nesting:** parent_id is null or any other
+category, text or voice channel of the same guild, so channels nest to any
+depth (bounded only by the guild channel limit); a channel is never inside
+itself, directly or through its descendants. Positions are zero-based/dense
+per sibling set.
 Direct: guild/parent/name/topic/owner null, position 0, exactly two sorted
 recipient_ids **including self**. Group: guild/parent/topic null, position 0,
 name present, 1..16 sorted recipient_ids including self, owner one of them.
 Categories cannot have messages, typing, reactions or read states.
 
 Ready channels and GuildDetail channels are sorted root siblings by position/id,
-with each category followed by its similarly sorted children; DMs follow by ID.
+with each channel followed, depth first, by its similarly sorted children; DMs
+follow by ID.
 The client may reorder DM display by latest_message_id without mutating position.
 
 ### Permissions numeric bits
@@ -629,11 +633,11 @@ ones. No operation returns partial success. Ack means unit `{"type":"ack"}`.
 | unban_member | `guild_id:GuildId,user_id:UserId` | ack | ban_members; absent ban no-op; does not restore membership |
 | create_invite | `guild_id:GuildId,ttl_seconds:u32,max_uses:u32` | invite(Invite) | create_invites; max 100 active invites/guild, 10/creator/guild |
 | revoke_invite | `guild_id:GuildId,code:String` | ack | Creator or manage_guild; no-op if already absent but same guild authority required |
-| create_channel | `guild_id:GuildId,kind:ChannelKind,name:String,parent_id:?ChannelId,topic:?String` | channel(Channel) | manage_channels; kind category/text only; append to sibling list |
+| create_channel | `guild_id:GuildId,kind:ChannelKind,name:String,parent_id:?ChannelId,topic:?String` | channel(Channel) | manage_channels in the guild and in the parent; kind category/text/voice; any guild channel may be the parent; append to sibling list |
 | set_voice_permission | `channel_id,user_id,connect:bool` | ack | Voice only; Manage Channels and strict target role hierarchy; section 10 |
 | update_channel | `channel_id:ChannelId,patch:ChannelPatch` | channel(Channel) | Guild manage_channels; group owner can change name only; direct rename/topic invalid; category topic cannot set |
-| reorder_channels | `guild_id:GuildId,placements:[ChannelPlacement]` | ack | manage_channels; complete permutation of **all** guild channels; unique dense sibling positions, valid parents; atomic |
-| delete_channel | `channel_id:ChannelId` | ack | Guild manage_channels only; deleting category moves children to end of root preserving order; deleting text deletes its history; no group/DM deletion through this command |
+| reorder_channels | `guild_id:GuildId,placements:[ChannelPlacement]` | ack | manage_channels; complete permutation of **all** guild channels the actor can see; only placements differing from the actor's current view are applied; each sibling set with a change has unique dense positions; parents are any channel of the guild; a move that would put a channel inside itself (through any depth, hidden channels included) is invalid_request; atomic |
+| delete_channel | `channel_id:ChannelId` | ack | Guild manage_channels only; children of the deleted channel (any kind) move up one level, to the end of its parent's siblings (root when it had none), preserving order; deleting text deletes its history; no group/DM deletion through this command |
 | send_message | MessageDraft | message(Message) | send_messages (+attach_files if needed), participant for DM; own pending channel-bound files; reply must be live same-channel; invalid_attachment/blocked |
 | edit_message | MessageEdit | message(Message) | Author only, still has channel access/send rights; attachments/reply immutable; no time limit; same content/mentions no-op, else edited_at now |
 | delete_message | `channel_id:ChannelId,message_id:MessageId` | ack | Author or guild manage_messages; tombstone same-channel repeated delete ack; absent ID not_found |
@@ -690,7 +694,7 @@ field is listed here or is the shared entity of that exact type.
 | ban_removed | `guild_id:GuildId,user_id:UserId` | Current ban_members streams on unban |
 | channel_upsert | Channel | All authorized guild members or visible DM/group participants; full replacement metadata; needed user profiles precede new DM |
 | channel_removed | `channel_id:ChannelId,reason:RemovalReason` | Channel deletion to guild members; own closed DM=left, removed group member=kicked, leaving member=left; purge sidebar/history/typing/read state/media |
-| channels_reordered | `guild_id:GuildId,placements:[ChannelPlacement]` | All guild members, complete post-change placement list; category deletion emits removal then reordered |
+| channels_reordered | `guild_id:GuildId,placements:[ChannelPlacement]` | All guild members, complete post-change placement list; deleting a channel emits removal then reordered |
 | message_created | `message:Message,author:UserSummary` | All current guild/channel or DM/group member streams, including author; no history subscription needed |
 | message_updated | Message | Same access audience; full post-edit state including personalized reactions |
 | message_deleted | `channel_id:ChannelId,message_id:MessageId` | Same access audience; remove body or show reply placeholder, remove cached reactions/attachments |
@@ -1299,12 +1303,12 @@ session teardown. This patch does not implement the concurrent voice host.
    determined from guilds.owner_id, not an assignable mask.
 2. OR @everyone and all assigned role masks. Strip OWNER. Administrator grants
    all known action bits and bypasses all overwrites, but not ownership/hierarchy.
-3. For channel evaluation, apply category overwrites first, then channel
-   overwrites. At **each scope** apply @everyone deny then allow; aggregate all
+3. For channel evaluation, apply the overwrites of every channel it is nested
+   in, outermost first, then its own. At **each scope** apply @everyone deny then allow; aggregate all
    matching role denies/allows and apply deny then allow; apply the member's
    deny then allow last. Role positions do not alter overwrite precedence;
-   one role's allow wins another role's deny. This launch category-inheritance
-   contract is explicit; there is no separate category-sync flag. The per-scope
+   one role's allow wins another role's deny. This launch inheritance
+   contract is explicit at every level of nesting; there is no separate sync flag. The per-scope
    formula follows [Discord's overwrite algorithm](https://docs.discord.com/developers/topics/permissions).
 4. Without View Channel, channel message/history/reaction/media capabilities
    are ineffective. Without Send Messages, Attach Files/Embed Links/broadcast
@@ -1328,9 +1332,10 @@ permission-mask magnitude. No Administrator hierarchy bypass.
 Every guild channel access, history/file/upload route, message mutation,
 read-state projection and channel-bearing event uses the evaluator. Unauthorized
 channels are absent from Ready, GuildDetail, channel lists, unread/mention
-counts, reorder placements and event audiences. An otherwise visible child of
-an invisible category is projected at the root with parent_id=null, including
-single-channel snapshots/events (no hidden parent-ID leak). ACL changes clear
+counts, reorder placements and event audiences. An otherwise visible channel
+nested in an invisible one is projected under its nearest visible ancestor
+(parent_id=null when there is none), after that ancestor's own children,
+including single-channel snapshots/events (no hidden parent-ID leak). ACL changes clear
 body-bearing replay and emit per-user additions/removals/read-state projections.
 Connections which lose channel visibility close with **4003** to discard queued
 pre-revocation packets; reconnect/resume receives safe removals or Ready.
