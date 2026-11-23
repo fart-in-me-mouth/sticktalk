@@ -4,6 +4,7 @@
 //! `message` or `live-modal` carry no styles of their own here: they are stable
 //! hooks for `public/*.js` and the browser tests.
 use super::*;
+mod call_extras;
 mod call_views;
 mod content;
 mod moderation;
@@ -685,7 +686,7 @@ fn voice(a: &App) -> AnyView {
     people.extend(call_views::people(a));
     people.sort();
     people.dedup();
-    view!{<div class="voice-view flex min-h-0 flex-1 flex-col bg-rail p-4 phone:p-2 phone:pb-[max(8px,var(--safe-bottom))]" data-call-channel=a.voice_channel.map_or(String::new(),|id|id.0.to_string())><ul id="live-call-people" hidden>{people.into_iter().map(|u|view!{<li data-user=u.0.to_string() data-name=a.model.name(u) data-avatar=a.model.users.get(&u).and_then(|u|u.avatar_id).map_or(String::new(),|id|format!("/api/v1/files/{}/thumbnail",id.0))></li>}).collect_view()}</ul><button class="call-minimize flex min-h-11 flex-none items-center gap-2 px-2 text-[13px] text-subtle" data-live="media:minimize" aria-label="Minimize call">{icon("chevron-down")}<span>"Minimize call"</span></button>{call_views::ring_list(a)}<div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls flex flex-none justify-center gap-3 p-3 phone:gap-2 phone:px-0 [&_.icon-button]:size-12 [&_.icon-button]:rounded-full [&_.icon-button]:bg-muted [&_[data-live='media:leave']]:w-20 [&_[data-live='media:leave']]:rounded-[32px] [&_[data-live='media:leave']]:bg-destructive [&_[data-live='media:leave']]:text-primary-foreground">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share contents">{ib("monitor","Share Screen","media:share")}</span>{ib("volume-2","Audio Devices","media:output")}{call_views::controls(a)}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection m-0 min-h-4 text-center text-[13px] text-subtle" role="status">"Connecting…"</p></div>}.into_any()
+    view!{<div class="voice-view flex min-h-0 flex-1 flex-col bg-rail p-4 phone:p-2 phone:pb-[max(8px,var(--safe-bottom))]" data-call-channel=a.voice_channel.map_or(String::new(),|id|id.0.to_string())><ul id="live-call-people" hidden>{people.into_iter().map(|u|view!{<li data-user=u.0.to_string() data-name=a.model.name(u) data-avatar=a.model.users.get(&u).and_then(|u|u.avatar_id).map_or(String::new(),|id|format!("/api/v1/files/{}/thumbnail",id.0))></li>}).collect_view()}</ul><button class="call-minimize flex min-h-11 flex-none items-center gap-2 px-2 text-[13px] text-subtle" data-live="media:minimize" aria-label="Minimize call">{icon("chevron-down")}<span>"Minimize call"</span></button>{call_views::ring_list(a)}<div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls flex flex-none justify-center gap-3 p-3 phone:gap-2 phone:px-0 [&_.icon-button]:size-12 [&_.icon-button]:rounded-full [&_.icon-button]:bg-muted [&_[data-live='media:leave']]:w-20 [&_[data-live='media:leave']]:rounded-[32px] [&_[data-live='media:leave']]:bg-destructive [&_[data-live='media:leave']]:text-primary-foreground">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share contents">{ib("monitor","Share Screen","media:share")}</span><span class="contents phone:hidden">{ib("volume-2","Audio Devices","media:output")}</span>{call_views::controls(a)}{call_extras::controls(a)}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection m-0 min-h-4 text-center text-[13px] text-subtle" role="status">"Connecting…"</p></div>}.into_any()
 }
 fn form(title: &str, kind: &str, fields: AnyView) -> AnyView {
     form_with(title, kind, fields, "", true)
@@ -919,6 +920,8 @@ fn role_permissions(role: &Role) -> AnyView {
                 ("Share Screen", Permissions::STREAM),
                 ("Video", Permissions::VIDEO),
                 ("Voice Activity", Permissions::USE_VOICE_ACTIVITY),
+                ("Use Soundboard", Permissions::USE_SOUNDBOARD),
+                ("Manage Soundboard", Permissions::MANAGE_SOUNDBOARD),
             ],
         ),
         (

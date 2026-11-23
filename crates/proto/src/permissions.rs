@@ -36,6 +36,11 @@ bitflags::bitflags! {
         const VIEW_AUDIT_LOG = 1 << 29;
         /// Time out members (Discord's "Moderate Members").
         const MODERATE_MEMBERS = 1 << 30;
+        /// Play soundboard sounds in a guild voice channel (Discord's "Use Soundboard").
+        /// High bits keep clear of other additions to this list.
+        const USE_SOUNDBOARD = 1 << 40;
+        /// Upload, rename and delete a server's soundboard sounds.
+        const MANAGE_SOUNDBOARD = 1 << 41;
     }
 }
 

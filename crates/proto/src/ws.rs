@@ -567,6 +567,22 @@ pub enum VoiceSignal {
     DeclineCall {
         channel_id: ChannelId,
     },
+    /// Play a soundboard sound to everyone in this call. Host-handled.
+    PlaySound {
+        sound_id: Id,
+    },
+    /// This user keeps a rolling clip buffer of the call's streams. Host-handled.
+    SetClipping {
+        enabled: bool,
+    },
+    /// This user just saved a clip. Host-handled.
+    ClipTaken,
+    /// The most this video track needs (its chosen resolution and frame rate).
+    /// The SFU gives unused share to the tracks that need more. SFU-handled.
+    TrackQuality {
+        mid: String,
+        max_bps: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -686,6 +702,27 @@ pub enum VoiceEvent {
     /// Sent after Ready and Resumed: the calls in this user's conversations.
     CallSnapshot {
         calls: Vec<DmCall>,
+    },
+    /// Someone in this call played a soundboard sound (or joined with one).
+    SoundPlayed {
+        channel_id: ChannelId,
+        sound: SoundPlay,
+        by: VoiceSession,
+        entrance: bool,
+    },
+    /// Someone in this call turned clipping on or off.
+    Clipping {
+        session: VoiceSession,
+        enabled: bool,
+    },
+    /// Someone in this call saved a clip.
+    ClipTaken {
+        session: VoiceSession,
+    },
+    /// The Opus bitrate this call's microphones use, enforced by the SFU.
+    AudioQuality {
+        channel_id: ChannelId,
+        bitrate: u32,
     },
 }
 

@@ -202,6 +202,21 @@ SVC extraction or automatic RID ladder algorithm: receiver policy picks a RID.
   actual emitted UDP bytes (not cap-rejected writes). Marker FPS is a transport
   measure, not decoded/rendered FPS; RTT/loss/path remain unknown until measured.
 
+### Track needs and the voice bitrate (call extras)
+
+- `VoiceSignal::TrackQuality { mid, max_bps }` (100 kbps–64 Mbps, own published
+  video MIDs only, dropped when the track is withdrawn) declares what a track
+  needs. `allocate()` splits the global, room and per-viewer video budgets
+  max-min fairly (`quality::waterfill`), so a small camera leaves its unused
+  share to a 1080p60/4K60 screen share. With no declared needs it is exactly the
+  previous equal split.
+- `Authorizer::audio_bitrate(session)` (default `None`): the host's channel
+  bitrate. Microphone (`TrackKind::Audio`) RTP payload above 1.5x that rate,
+  after half a second of burst, is dropped (`quality::AudioPolicer`). Stream
+  sound (`SystemAudio`) is not limited by it.
+- `PlaySound`, `SetClipping` and `ClipTaken` are host-handled; the SFU rejects
+  them like `Ring`.
+
 ### Remote control: fail closed
 
 Only the sharer can approve a pending 30-second request, while a monitor/window

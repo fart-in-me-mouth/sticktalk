@@ -223,7 +223,7 @@ pub(super) fn channel_editor(a: &App, page: &str) -> AnyView {
     };
     // Slowmode, safety and permissions are separate forms, after this one.
     let safety = super::moderation::channel_safety(a, c);
-    let edit = form_with("Edit Channel","channel-save",view!{<fieldset disabled=!can(a,Permissions::MANAGE_CHANNELS)>{field("f-name","Name",c.name.as_deref().unwrap_or(""),"text")}{field("f-value","Topic",a.model.topics.get(&c.id).and_then(|t|t.as_deref()).unwrap_or(""),"text")}<input id="f-extra" type="hidden" value=c.id.0.to_string()/></fieldset>
+    let edit = form_with("Edit Channel","channel-save",view!{<fieldset disabled=!can(a,Permissions::MANAGE_CHANNELS)>{field("f-name","Name",c.name.as_deref().unwrap_or(""),"text")}{field("f-value","Topic",a.model.topics.get(&c.id).and_then(|t|t.as_deref()).unwrap_or(""),"text")}<input id="f-extra" type="hidden" value=c.id.0.to_string()/></fieldset>{super::call_extras::bitrate_section(a,c)}
         <div class="settings-divider"></div>{if can(a,Permissions::MANAGE_CHANNELS){view!{{button(if c.kind==ChannelKind::Category{"Move Category"}else{"Move Channel"},&format!("dialog:channel-move:{}",c.id.0),"secondary")}{button(if c.kind==ChannelKind::Category{"Delete Category"}else{"Delete Channel"},&format!("dialog:channel-delete:{}",c.id.0),"danger-text")}}.into_any()}else{().into_any()}}
     }.into_any(),"dialog:server-channels",can(a,Permissions::MANAGE_CHANNELS));
     view! {{edit}{safety}}.into_any()

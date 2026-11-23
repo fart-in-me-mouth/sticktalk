@@ -5,6 +5,7 @@ import {join,resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {hostGraphFingerprint} from './version-runtime.mjs';
 import {buildStyles,copyUiSdk} from './styles.mjs';
+import {copySegmentation} from './vendor.mjs';
 const target=resolve(process.env.CARGO_TARGET_DIR), dist=resolve(process.env.TRUNK_STAGING_DIR);
 await mkdir(dist,{recursive:true});
 const wasm=await readFile(join(target,'wasm32-unknown-unknown/web-release/sticktalk-web.wasm'));
@@ -16,6 +17,7 @@ const graph=await hostGraphFingerprint(wasm,'public');
 const pkg=`pkg/${graph}`;
 await cp('public',join(dist,'public'),{recursive:true});
 await copyUiSdk(join(dist,'public'));
+await copySegmentation(join(dist,'public'));
 await writeFile(join(dist,style),css);
 let html=await readFile('index.html','utf8');
 html=html.replace(/<link data-trunk rel="rust"[^>]*>/,`<script type="module">import init, * as bindings from './${pkg}/${entry}.js'; await init({module_or_path:'./${pkg}/${entry}_bg.wasm'});</script>`)

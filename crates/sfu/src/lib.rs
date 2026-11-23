@@ -3,6 +3,7 @@ mod boundary;
 mod control;
 mod engine;
 pub mod pacing;
+pub mod quality;
 mod transport;
 mod validation;
 

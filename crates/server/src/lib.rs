@@ -6,6 +6,7 @@ mod audit_tests;
 pub mod backup;
 pub mod blob;
 pub mod browser;
+mod callextras;
 mod calls;
 mod capacity;
 mod commands;

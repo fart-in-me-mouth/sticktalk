@@ -162,6 +162,9 @@ const paths = sizes
       !p.includes("message-menu.js") &&
       !p.includes("gifs.js") &&
       !p.includes("content.js") &&
+      // Call extras and the segmentation model load only when used.
+      !/\/(callextras|soundboard|backgrounds|backgrounds-worker|clips)\.js$/.test(p) &&
+      !p.includes("/public/vendor/") &&
       !(p.endsWith(".wasm") && !p.endsWith("_bg.wasm")) &&
       !p.includes("__wasm_split_manifest"),
   );
