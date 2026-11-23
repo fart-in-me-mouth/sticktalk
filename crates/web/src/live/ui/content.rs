@@ -451,7 +451,11 @@ fn forward_picker(a: &App, m: Id) -> AnyView {
         .filter(|c| {
             matches!(
                 c.kind,
-                ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm
+                ChannelKind::Text
+                    | ChannelKind::Direct
+                    | ChannelKind::GroupDm
+                    | ChannelKind::Announcement
+                    | ChannelKind::Thread
             )
         })
         .map(|c| {

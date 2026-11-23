@@ -684,6 +684,8 @@ pub(super) fn action(app: Shared, kind: &str, arg: &str) {
             {
                 app.borrow_mut().dialog.clear();
                 super::operations::load_history(app, c, None, None, Some(m));
+            } else if let Some((c, m)) = target {
+                super::threads::jump(app, c, m);
             }
         }
         "voice-error" => {
