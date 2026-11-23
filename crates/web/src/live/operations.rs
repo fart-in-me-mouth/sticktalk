@@ -975,7 +975,10 @@ pub(super) fn load_history(
                 }
             }
             a.attachments = a.channel_attachments.remove(&c).unwrap_or_default();
-            a.extent = None;
+            let extent = a.extent.take();
+            if let Some(previous) = a.channel {
+                a.history_cache.park(previous, extent);
+            }
             a.window_ids.clear();
         }
         a.completions.clear();
@@ -1063,6 +1066,15 @@ pub(super) fn load_history(
         app.borrow_mut().history_busy = false;
         return;
     }
+    // Back to a recently visited conversation, at the present: from the cache.
+    if anchor.is_none()
+        && rank.is_none()
+        && edge.is_none()
+        && target.is_none()
+        && super::history_cache::reopen(&app, c)
+    {
+        return;
+    }
     let request = async move {
         let path = format!(
             "/channels/{c}/messages?limit=50{}",
@@ -1083,6 +1095,7 @@ pub(super) fn load_history(
         a.history_busy = false;
         match result {
             Ok(mut page) => {
+                let page_cursor = page.cursor.clone();
                 page.items.sort_by_key(|m| m.id);
                 a.window_ids = page.items.iter().map(|m| m.id).collect();
                 if let Ok(extent) = extent {
@@ -1109,7 +1122,9 @@ pub(super) fn load_history(
                 } else {
                     crate::wire::page_rank(count, page.items.len(), None)
                 };
-                a.model.merge_page(c, page);
+                if a.model.merge_page(c, page) {
+                    a.history_cache.loaded(c, page_cursor, latest);
+                }
                 // A message that arrived while this page was on its way is not
                 // in it, but a view of the present must still end with it.
                 if latest {

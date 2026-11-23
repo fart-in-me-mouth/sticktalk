@@ -351,6 +351,17 @@ pub struct ModerationState {
     /// Of those, the ones this viewer has confirmed they are an adult for.
     pub age_confirmed: Vec<ChannelId>,
     pub server_time: UnixMillis,
+    /// Channels in this server the viewer can see that have slowmode, with its
+    /// interval in seconds (appended; kept current by `SlowmodeUpdated`). A
+    /// client only asks a channel's slowmode status when it is listed here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub slowmode: Vec<ChannelSlowmode>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChannelSlowmode {
+    pub channel_id: ChannelId,
+    pub seconds: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

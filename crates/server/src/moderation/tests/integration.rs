@@ -63,3 +63,76 @@ async fn direct_calls_follow_the_shared_servers_dm_rules_and_timeouts() {
     .await;
     admit(3).await.unwrap();
 }
+
+#[tokio::test]
+async fn moderation_state_lists_slowmode_of_visible_channels_only() {
+    let (_dir, app) = guild(Permissions::empty()).await;
+    // #12 is hidden from @everyone; both have slowmode.
+    sql(
+        &app,
+        "INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(12,'text',10,'staff',1,0)",
+    )
+    .await;
+    sql(
+        &app,
+        "INSERT INTO permission_overwrites VALUES(12,'role',10,0,1)",
+    )
+    .await;
+    for (n, ch) in [11_u64, 12].into_iter().enumerate() {
+        ok(&run(
+            &app,
+            1,
+            10 + n as u64,
+            Command::Launch(LaunchCommand::SetSlowmode {
+                channel_id: Id(ch),
+                seconds: 15,
+            }),
+        )
+        .await);
+    }
+    let listed = |body: Vec<u8>| -> Vec<(u64, u32)> {
+        let s: ModerationState = serde_json::from_slice(&body).unwrap();
+        s.slowmode
+            .iter()
+            .map(|s| (s.channel_id.0, s.seconds))
+            .collect()
+    };
+    let (status, body) = http_get(&app, 3, "/api/v1/guilds/10/moderation/me").await;
+    assert_eq!(status, 200);
+    assert_eq!(listed(body), vec![(11, 15)]);
+    let (_, body) = http_get(&app, 1, "/api/v1/guilds/10/moderation/me").await;
+    let mut all = listed(body);
+    all.sort();
+    assert_eq!(all, vec![(11, 15), (12, 15)]);
+    // Turned off: no longer listed.
+    ok(&run(
+        &app,
+        1,
+        20,
+        Command::Launch(LaunchCommand::SetSlowmode {
+            channel_id: Id(11),
+            seconds: 0,
+        }),
+    )
+    .await);
+    let (_, body) = http_get(&app, 3, "/api/v1/guilds/10/moderation/me").await;
+    assert!(listed(body).is_empty());
+}
+
+/// Switching conversations reads history pages and extents on their own
+/// budget: 60 at once, without spending the budget of other reads.
+#[tokio::test]
+async fn history_reads_have_their_own_budget() {
+    let (_dir, app) = guild(Permissions::empty()).await;
+    let mut core = app.0.core.lock().await;
+    core.limits.clear();
+    assert!(crate::history::is_history_page("channels/11/messages"));
+    assert!(!crate::history::is_history_page("channels/11/messages/12"));
+    assert!(!crate::history::is_history_page("channels/11"));
+    for _ in 0..60 {
+        crate::history::rate(&mut core, Id(3)).unwrap();
+    }
+    assert!(crate::history::rate(&mut core, Id(3)).is_err());
+    // Other reads are untouched.
+    core.rate("rest:3".into(), 120., 30.).unwrap();
+}

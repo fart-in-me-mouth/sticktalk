@@ -122,8 +122,17 @@ pub(super) fn refresh(app: Shared, g: Id) {
             return;
         }
         if let Ok(state) = result {
+            // The open channel's slowmode status waited for this state.
+            let open = a
+                .channel
+                .filter(|c| state.slowmode.iter().any(|s| s.channel_id == *c));
             a.moderation.states.insert(g, state);
             a.touch();
+            drop(a);
+            if let Some(c) = open {
+                let app = app.clone();
+                spawn_local(async move { slowmode(app, c).await });
+            }
         }
     });
 }
@@ -139,10 +148,22 @@ pub(super) fn channel_opened(app: Shared, c: Id) {
         )
     };
     let Some(g) = guild else { return };
-    if !app.borrow().moderation.states.contains_key(&g) {
-        refresh(app.clone(), g);
-    }
-    if !text {
+    // Only channels with slowmode have a status to ask for; the server's
+    // state lists them (and asks for the open one when it arrives).
+    let known = app
+        .borrow()
+        .moderation
+        .states
+        .get(&g)
+        .map(|state| state.slowmode.iter().any(|s| s.channel_id == c));
+    let slowed = match known {
+        Some(slowed) => slowed,
+        None => {
+            refresh(app.clone(), g);
+            false
+        }
+    };
+    if !text || !slowed {
         return;
     }
     spawn_local(async move { slowmode(app, c).await });
@@ -204,8 +225,24 @@ pub(super) fn event(a: &mut App, e: &ModerationEvent) {
                 }
             }
         }
-        ModerationEvent::SlowmodeUpdated { channel_id, .. } => {
-            if a.channel == Some(*channel_id) {
+        ModerationEvent::SlowmodeUpdated {
+            channel_id,
+            seconds,
+        } => {
+            let guild = a.model.channels.get(channel_id).and_then(|c| c.guild_id);
+            if let Some(state) = guild.and_then(|g| a.moderation.states.get_mut(&g)) {
+                state.slowmode.retain(|s| s.channel_id != *channel_id);
+                if *seconds > 0 {
+                    state.slowmode.push(ChannelSlowmode {
+                        channel_id: *channel_id,
+                        seconds: *seconds,
+                    });
+                }
+            }
+            if *seconds == 0 && a.channel == Some(*channel_id) {
+                a.moderation.slowmode = None;
+                a.touch();
+            } else if a.channel == Some(*channel_id) {
                 if let Some(app) = a.owner.upgrade() {
                     let c = *channel_id;
                     spawn_local(async move { slowmode(app, c).await });
@@ -643,6 +680,22 @@ pub(super) const CHANNEL_PERMISSIONS: &[(&str, &[(&str, Permissions)])] = &[
             ("Add Reactions", Permissions::ADD_REACTIONS),
             ("Mention @everyone and Roles", Permissions::MENTION_EVERYONE),
             ("Manage Messages", Permissions::MANAGE_MESSAGES),
+            ("Publish Messages", Permissions::PUBLISH_MESSAGES),
+        ],
+    ),
+    (
+        "Threads",
+        &[
+            ("Create Public Threads", Permissions::CREATE_PUBLIC_THREADS),
+            (
+                "Create Private Threads",
+                Permissions::CREATE_PRIVATE_THREADS,
+            ),
+            (
+                "Send Messages in Threads",
+                Permissions::SEND_MESSAGES_IN_THREADS,
+            ),
+            ("Manage Threads", Permissions::MANAGE_THREADS),
         ],
     ),
     (
@@ -653,6 +706,7 @@ pub(super) const CHANNEL_PERMISSIONS: &[(&str, &[(&str, Permissions)])] = &[
             ("Video", Permissions::VIDEO),
             ("Share Screen", Permissions::STREAM),
             ("Voice Activity", Permissions::USE_VOICE_ACTIVITY),
+            ("Use Soundboard", Permissions::USE_SOUNDBOARD),
             ("Priority Speaker", Permissions::PRIORITY_SPEAKER),
             ("Mute Members", Permissions::MUTE_MEMBERS),
             ("Deafen Members", Permissions::DEAFEN_MEMBERS),
@@ -660,6 +714,35 @@ pub(super) const CHANNEL_PERMISSIONS: &[(&str, &[(&str, Permissions)])] = &[
         ],
     ),
 ];
+/// Whether a channel permission means anything for a channel of this kind.
+/// Server-wide rights (Manage Soundboard, View Audit Log, Time Out Members,
+/// Manage Server...) are only in role settings, like Discord.
+pub(super) fn applies(bit: Permissions, kind: ChannelKind) -> bool {
+    use ChannelKind::*;
+    let voice = Permissions::CONNECT
+        | Permissions::SPEAK
+        | Permissions::VIDEO
+        | Permissions::STREAM
+        | Permissions::USE_VOICE_ACTIVITY
+        | Permissions::USE_SOUNDBOARD
+        | Permissions::PRIORITY_SPEAKER
+        | Permissions::MUTE_MEMBERS
+        | Permissions::DEAFEN_MEMBERS
+        | Permissions::MOVE_MEMBERS;
+    // Threads are offered in text and announcement channels, posts in forums;
+    // not in voice-channel chat.
+    let threads = Permissions::CREATE_PUBLIC_THREADS
+        | Permissions::CREATE_PRIVATE_THREADS
+        | Permissions::SEND_MESSAGES_IN_THREADS
+        | Permissions::MANAGE_THREADS;
+    match kind {
+        Category => true,
+        _ if bit == Permissions::PUBLISH_MESSAGES => kind == Announcement,
+        _ if threads.contains(bit) => matches!(kind, Text | Announcement | Forum),
+        _ if voice.contains(bit) => kind == Voice,
+        _ => true,
+    }
+}
 pub(super) fn radio_name(o: &PermissionOverwrite, bit: Permissions) -> String {
     format!(
         "ow-{}-{}-{}",
