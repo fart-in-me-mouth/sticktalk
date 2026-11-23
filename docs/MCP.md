@@ -71,7 +71,7 @@ other devices update instantly when the assistant sends or reads.
 |---|---|---|
 | `get_me` | read | Your account and the connection's access level |
 | `list_servers` | read | Your servers with unread/mention totals |
-| `list_channels` | read | A server's channels: category, topic, unread, whether you can send |
+| `list_channels` | read | A server's channels: category, the channels each is nested inside, topic, unread, whether you can send |
 | `list_direct_messages` | read | DMs and group DMs, most recent first |
 | `list_unread` | read | Everything with unread messages, mentions first |
 | `read_messages` | read | Channel/DM history, oldest first, paged with `before`/`after`/`around` |

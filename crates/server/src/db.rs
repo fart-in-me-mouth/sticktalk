@@ -4,7 +4,7 @@ use crate::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{sqlite::SqliteRow, Row, SqliteConnection};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use sticktalk_proto::*;
 use subtle::ConstantTimeEq;
 /// Run schema upgrades on a dedicated connection before accepting requests.
@@ -257,14 +257,7 @@ pub async fn access(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> 
             ErrorCode::NotFound,
         )?;
         require(effective.contains(p), ErrorCode::Forbidden)?;
-        if let Some(parent) = channel.summary.parent_id {
-            if !crate::permissions::evaluate(c, u, g, Some(parent))
-                .await?
-                .contains(Permissions::VIEW_CHANNEL)
-            {
-                channel.summary.parent_id = None;
-            }
-        }
+        channel.summary.parent_id = visible_parent(c, u, g, channel.summary.parent_id).await?;
     } else {
         require(
             channel.summary.recipient_ids.contains(&u),
@@ -272,6 +265,32 @@ pub async fn access(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> 
         )?;
     }
     Ok(channel)
+}
+/// The nearest channel above a nested one that `u` can see, starting at `parent`.
+/// A channel inside one its viewer cannot see is shown one level further out (at
+/// the top when nothing above it is visible), so a hidden channel's ID never leaks.
+pub async fn visible_parent(
+    c: &mut SqliteConnection,
+    u: Id,
+    g: Id,
+    mut parent: Option<Id>,
+) -> Result<Option<Id>> {
+    for _ in 0..crate::permissions::MAX_DEPTH {
+        let Some(p) = parent else { break };
+        if crate::permissions::evaluate(c, u, g, Some(p))
+            .await?
+            .contains(Permissions::VIEW_CHANNEL)
+        {
+            return Ok(Some(p));
+        }
+        parent = sqlx::query_scalar::<_, Option<i64>>("SELECT parent_id FROM channels WHERE id=?")
+            .bind(id(p)?)
+            .fetch_optional(&mut *c)
+            .await?
+            .flatten()
+            .map(|v| Id(v as u64));
+    }
+    Ok(None)
 }
 pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Result<Channel> {
     let channel = access(c, u, ch, p).await?;
@@ -316,9 +335,11 @@ pub async fn channels(
         sqlx::query_scalar("SELECT c.id FROM channels c WHERE c.guild_id IN (SELECT guild_id FROM guild_members WHERE user_id=?) OR c.id IN(SELECT channel_id FROM dm_members WHERE user_id=? AND visible=1) ORDER BY c.position,c.id").bind(id(u)?).bind(id(u)?).fetch_all(&mut *c).await?
     };
     let mut list = vec![];
+    let mut parents: HashMap<Id, Option<Id>> = HashMap::new();
     for i in ids {
         let ch = channel(c, Id(i as u64)).await?.summary;
         if let Some(g) = ch.guild_id {
+            parents.insert(ch.id, ch.parent_id);
             if !crate::permissions::evaluate(c, u, g, Some(ch.id))
                 .await?
                 .contains(Permissions::VIEW_CHANNEL)
@@ -328,37 +349,42 @@ pub async fn channels(
         }
         list.push(ch);
     }
-    // Tree ordering: each root is followed by its children; DMs last by ID.
-    let mut roots: Vec<_> = list
-        .iter()
-        .filter(|c| c.parent_id.is_none() && c.guild_id.is_some())
-        .cloned()
-        .collect();
-    roots.sort_by_key(|c| (c.guild_id, c.position, c.id));
-    let mut out = vec![];
-    for root in roots {
-        let mut children: Vec<_> = list
-            .iter()
-            .filter(|c| c.parent_id == Some(root.id))
-            .cloned()
-            .collect();
-        children.sort_by_key(|c| (c.position, c.id));
-        out.push(root);
-        out.extend(children);
+    let visible: HashSet<Id> = list.iter().map(|c| c.id).collect();
+    let (nested, mut dms): (Vec<_>, Vec<_>) = list.into_iter().partition(|c| c.guild_id.is_some());
+    // A channel inside one the user cannot see is listed under the nearest visible
+    // channel above it (see `visible_parent`), after that channel's own children.
+    let mut children: HashMap<Option<Id>, Vec<(bool, ChannelSummary)>> = HashMap::new();
+    for mut ch in nested {
+        let inside = ch.parent_id;
+        for _ in 0..=parents.len() {
+            match ch.parent_id {
+                Some(p) if !visible.contains(&p) => {
+                    ch.parent_id = parents.get(&p).copied().flatten()
+                }
+                _ => break,
+            }
+        }
+        if ch.parent_id.is_some_and(|p| !visible.contains(&p)) {
+            ch.parent_id = None;
+        }
+        children
+            .entry(ch.parent_id)
+            .or_default()
+            .push((ch.parent_id != inside, ch));
     }
-    // A visible child can have an invisible category; expose it as a root without
-    // leaking the category ID or dropping the otherwise accessible channel.
-    for ch in list
-        .iter()
-        .filter(|ch| ch.parent_id.is_some() && !out.iter().any(|v| v.id == ch.id))
-        .cloned()
-        .collect::<Vec<_>>()
-    {
-        let mut ch = ch;
-        ch.parent_id = None;
+    let mut sorted = |parent: Option<Id>| {
+        let mut v = children.remove(&parent).unwrap_or_default();
+        // Reversed, because the walk below takes channels from the end.
+        v.sort_by_key(|(moved, c)| std::cmp::Reverse((c.guild_id, *moved, c.position, c.id)));
+        v.into_iter().map(|(_, c)| c)
+    };
+    // Tree ordering: each channel is followed by everything nested in it; DMs last by ID.
+    let mut out = vec![];
+    let mut next: Vec<ChannelSummary> = sorted(None).collect();
+    while let Some(ch) = next.pop() {
+        next.extend(sorted(Some(ch.id)));
         out.push(ch);
     }
-    let mut dms: Vec<_> = list.into_iter().filter(|c| c.guild_id.is_none()).collect();
     dms.sort_by_key(|c| c.id);
     out.extend(dms);
     Ok(out)

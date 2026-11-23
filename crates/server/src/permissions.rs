@@ -8,7 +8,8 @@ use sqlx::{Row, SqliteConnection};
 use sticktalk_proto::*;
 
 /// Owner bypass is based on guild ownership, never on assignable bits.
-/// `channel=None` computes guild permissions; Some also applies category then channel ACLs.
+/// `channel=None` computes guild permissions; Some also applies the ACLs of every
+/// channel it is nested in, outermost first, then its own.
 /// Nonmembers and cross-guild channels are NotFound. Administrator bypasses overwrites,
 /// but does not grant the legacy OWNER sentinel (ownership-only operations).
 pub async fn evaluate(
@@ -20,20 +21,10 @@ pub async fn evaluate(
     let owner: Option<i64> = sqlx::query_scalar("SELECT owner_id FROM guilds WHERE id=? AND EXISTS(SELECT 1 FROM guild_members WHERE guild_id=? AND user_id=?)")
         .bind(id(guild)?).bind(id(guild)?).bind(id(user)?).fetch_optional(&mut *c).await?;
     let owner = owner.ok_or_else(|| Error::new(ErrorCode::NotFound))? == id(user)?;
-    let mut scopes = vec![];
-    if let Some(ch) = channel {
-        let parent: Option<Option<i64>> =
-            sqlx::query_scalar("SELECT parent_id FROM channels WHERE id=? AND guild_id=?")
-                .bind(id(ch)?)
-                .bind(id(guild)?)
-                .fetch_optional(&mut *c)
-                .await?;
-        let parent = parent.ok_or_else(|| Error::new(ErrorCode::NotFound))?;
-        if let Some(parent) = parent {
-            scopes.push(Id(parent as u64));
-        }
-        scopes.push(ch);
-    }
+    let scopes = match channel {
+        Some(ch) => lineage(c, guild, ch).await?,
+        None => vec![],
+    };
     if owner {
         return Ok(Permissions::all());
     }
@@ -53,6 +44,23 @@ pub async fn evaluate(
         p = implicit(p);
     }
     Ok(p)
+}
+/// The longest chain of nested channels that is followed. A guild holds fewer
+/// channels than this, so the bound only stops a corrupt, cyclic chain.
+pub(crate) const MAX_DEPTH: i64 = 64;
+/// `ch` and every channel it is nested in, outermost first. NotFound when `ch`
+/// is not a channel of `guild`.
+pub(crate) async fn lineage(c: &mut SqliteConnection, guild: Id, ch: Id) -> Result<Vec<Id>> {
+    let chain: Vec<i64> = sqlx::query_scalar(
+        "WITH RECURSIVE up(id,parent_id,depth) AS (         SELECT id,parent_id,0 FROM channels WHERE id=?1 AND guild_id=?2          UNION ALL          SELECT c.id,c.parent_id,up.depth+1 FROM channels c JOIN up ON c.id=up.parent_id          WHERE c.guild_id=?2 AND up.depth<?3)          SELECT id FROM up ORDER BY depth DESC",
+    )
+    .bind(id(ch)?)
+    .bind(id(guild)?)
+    .bind(MAX_DEPTH)
+    .fetch_all(c)
+    .await?;
+    require(!chain.is_empty(), ErrorCode::NotFound)?;
+    Ok(chain.into_iter().map(|v| Id(v as u64)).collect())
 }
 fn apply(
     mut p: Permissions,

@@ -1459,6 +1459,51 @@ fn submit(app: Shared, form: String, submission: Submission) {
             }
             id(&extra).map(|channel_id| Command::DeleteChannel { channel_id })
         }
+        "channel-move" => {
+            let Some((guild_id, moving)) = guild.zip(id(&extra)) else {
+                return;
+            };
+            let target = id(&text);
+            let Some(from) = a.model.channels.get(&moving).map(|c| c.parent_id) else {
+                return;
+            };
+            if from == target {
+                drop(a);
+                open_dialog(app, "server-channels");
+                return;
+            }
+            // The server takes the whole list: the moved channel goes to the end of
+            // where it lands, and the ones it leaves behind close the gap.
+            let mut sets: BTreeMap<Option<Id>, Vec<&ChannelSummary>> = BTreeMap::new();
+            for c in a
+                .model
+                .channels
+                .values()
+                .filter(|c| c.guild_id == Some(guild_id) && c.id != moving)
+            {
+                sets.entry(c.parent_id).or_default().push(c);
+            }
+            let mut placements = vec![];
+            for (parent, mut set) in sets {
+                set.sort_by_key(|c| (c.position, c.id));
+                let renumber = parent == from || parent == target;
+                placements.extend(set.iter().enumerate().map(|(i, c)| ChannelPlacement {
+                    channel_id: c.id,
+                    parent_id: parent,
+                    position: if renumber { i as u16 } else { c.position },
+                }));
+            }
+            let position = placements.iter().filter(|p| p.parent_id == target).count() as u16;
+            placements.push(ChannelPlacement {
+                channel_id: moving,
+                parent_id: target,
+                position,
+            });
+            Some(Command::ReorderChannels {
+                guild_id,
+                placements,
+            })
+        }
         "invite-revoke" => guild.map(|guild_id| Command::RevokeInvite {
             guild_id,
             code: name,
@@ -1519,8 +1564,8 @@ fn submit(app: Shared, form: String, submission: Submission) {
                 ChannelKind::Text
             },
             name,
-            // Categories are never nested; text and voice channels may sit in one.
-            parent_id: if extra == "category" { None } else { id(&text) },
+            // Any kind of channel can go inside any other.
+            parent_id: id(&text),
             topic: None,
         }),
         "invite" => guild.map(|guild_id| Command::CreateInvite {
@@ -1874,11 +1919,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             }
             // An admin page's save returns to the list it came from, not out of settings.
             let back = match &operation {
-                Some(Command::UpdateChannel { .. } | Command::DeleteChannel { .. })
-                    if a.dialog.starts_with("channel-") =>
-                {
-                    Some("server-channels")
-                }
+                Some(
+                    Command::UpdateChannel { .. }
+                    | Command::DeleteChannel { .. }
+                    | Command::ReorderChannels { .. },
+                ) if a.dialog.starts_with("channel-") => Some("server-channels"),
                 Some(Command::BanMember { .. } | Command::UnbanMember { .. }) => {
                     Some("server-bans")
                 }
