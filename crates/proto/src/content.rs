@@ -50,6 +50,10 @@ pub struct MessageExtra {
     /// never see them (`expression.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub super_reactions: Option<Box<Vec<ReactionSummary>>>,
+    /// Sent with `/tts` (`themes.rs`): read aloud to the people viewing the
+    /// channel when it arrives. Only on the live event, never in history.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub tts: bool,
 }
 impl MessageExtra {
     pub fn is_empty(&self) -> bool {
@@ -60,6 +64,7 @@ impl MessageExtra {
             && self.threads.is_none()
             && self.stickers.is_none()
             && self.super_reactions.is_none()
+            && !self.tts
     }
     pub fn stickers(&self) -> &[crate::StickerItem] {
         self.stickers.as_deref().map_or(&[], Vec::as_slice)

@@ -31,6 +31,8 @@ pub use profiles::*;
 mod rest;
 mod threads;
 pub use threads::*;
+mod themes;
+pub use themes::*;
 mod ws;
 
 pub use browser::*;

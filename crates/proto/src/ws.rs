@@ -292,6 +292,8 @@ pub enum Command {
     Expression(ExpressionCommand),
     /// Status, nicknames, notes, ignore, requests, notifications, reports (`privacy.rs`).
     Privacy(PrivacyCommand),
+    /// Custom and server themes, `/tts` messages (`themes.rs`).
+    Appearance(AppearanceCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -335,6 +337,7 @@ pub enum CommandResult {
     Threads(ThreadResult),
     Expression(ExpressionResult),
     Privacy(PrivacyResult),
+    Appearance(AppearanceResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -454,6 +457,8 @@ pub enum Event {
     Expression(ExpressionEvent),
     /// Only sent to streams that sent `PrivacyCommand::Subscribe`.
     Privacy(PrivacyEvent),
+    /// Only sent to streams that sent `AppearanceCommand::Subscribe`.
+    Appearance(AppearanceEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:
