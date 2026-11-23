@@ -105,6 +105,9 @@ async fn upload(
     let (_, current) = auth(&mut c, http::bearer(&h)?).await?;
     require(current == u, ErrorCode::Unauthenticated)?;
     manage(&mut c, u, Id(g)).await?;
+    // AutoMod screens the name (security review F6).
+    crate::moderation::coverage::name_check(&mut core, &mut c, u, Id(g), "emoji name", &q.name)
+        .await?;
     let mut tx = c.begin().await?;
     // Still and animated emoji have their own slots (expression.md).
     let n: i64 =
@@ -220,9 +223,16 @@ async fn preview(State(app): State<App>, Path(e): Path<u64>, h: HeaderMap) -> Re
     serve(app, Id(e), h, true).await
 }
 async fn serve(app: App, e: Id, h: HeaderMap, preview: bool) -> Result<Response> {
-    let _gate = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
     let (_, u) = auth(&mut c, http::bearer(&h)?).await?;
+    // The shared budget for pictures (security review F5). The global lock is
+    // held for the budget only: the checks below just read, and a browser
+    // that has the image asks with If-None-Match and gets a 304.
+    app.0
+        .core
+        .lock()
+        .await
+        .rate(format!("file:{}", u.0), 600., 120.)?;
     let r = sqlx::query("SELECT * FROM guild_emoji WHERE id=?")
         .bind(id(e)?)
         .fetch_optional(&mut *c)

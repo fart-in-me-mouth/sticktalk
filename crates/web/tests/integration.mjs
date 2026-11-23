@@ -6,6 +6,10 @@
 // offers each feature's permissions only where they apply.
 // Real local server, headless Chromium, loopback only.
 // STICKTALK_INTEGRATION_ASSERT=0 only measures and screenshots (for a "before" run).
+// STICKTALK_INTEGRATION_THEME=light runs it all in the light theme (task qa2:
+// every flow in the default dark theme and a light one). Also checked (qa2):
+// the composer beside a call has room to type, settings pages fit, and nothing
+// throws, logs a console error or breaks the CSP.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -13,6 +17,9 @@ import { harness, register, act, form, wait, output } from './qa-harness.mjs';
 
 const shots = process.env.STICKTALK_INTEGRATION_SHOTS ?? join(output, 'integration');
 const strict = process.env.STICKTALK_INTEGRATION_ASSERT !== '0';
+const theme = process.env.STICKTALK_INTEGRATION_THEME ?? 'dark';
+const suffix = theme === 'dark' ? '' : `-${theme}`;
+const consoleErrors = [];
 await mkdir(shots, { recursive: true });
 const h = await harness();
 const checks = [], errors = [], report = {};
@@ -63,7 +70,7 @@ async function view(p, name, open) {
     if (width > 600 && await last.count()) await last.hover();
     const m = await measure(p);
     report[name][`${width}x${height}`] = m;
-    await p.screenshot({ path: join(shots, `${name}-${width}x${height}.png`) });
+    await p.screenshot({ path: join(shots, `${name}${suffix}-${width}x${height}.png`) });
     if (!strict) continue;
     const where = `${name} at ${width}px`;
     assert.equal(m.pageOverflow, false, `${where}: the page scrolls sideways`);
@@ -89,9 +96,18 @@ let alice, bob;
 try {
   alice = await h.phone(1440, 900);
   bob = await h.phone(1440, 900);
-  for (const p of [alice, bob]) p.on('pageerror', (e) => errors.push(e.stack ?? String(e)));
+  for (const p of [alice, bob]) {
+    p.on('pageerror', (e) => errors.push(e.stack ?? String(e)));
+    p.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(`${m.text()} ${m.location()?.url ?? ''}`); });
+  }
   await register(alice, h.origin, 'integ_alice');
   await register(bob, h.origin, 'integ_bob');
+  if (theme !== 'dark') {
+    for (const p of [alice, bob]) {
+      await act(p, `appearance:theme,${theme}`);
+      await p.waitForFunction((t) => document.documentElement.dataset.themeBase === t, theme);
+    }
+  }
   await form(alice, 'create', { 'f-name': 'Integration Lab' });
   await closed(alice);
   await alice.waitForSelector('#live-input');
@@ -137,6 +153,32 @@ try {
     checks.push('voice-channel chat offers no thread actions; text and announcement channels do');
   }
 
+  // Joined to the voice channel, with its chat beside the call: room to type.
+  await act(alice, `voice:${voice}`);
+  await alice.waitForSelector('.voice-view, .call-stage, [data-call-view]', { timeout: 15000 }).catch(() => {});
+  await act(alice, `call:chat,${voice}`);
+  await alice.waitForSelector('.call-chat #live-input', { timeout: 15000 }).catch(() => {});
+  report.callChat = {};
+  for (const [width, height] of SIZES) {
+    await alice.setViewportSize({ width, height });
+    await wait(300);
+    const m = await alice.evaluate(() => {
+      const input = document.querySelector('.call-chat #live-input');
+      const r = input?.getBoundingClientRect();
+      return { input: r ? Math.round(r.width) : 0, pageOverflow: document.documentElement.scrollWidth > innerWidth + 1 };
+    });
+    report.callChat[`${width}x${height}`] = m;
+    await alice.screenshot({ path: join(shots, `call-chat${suffix}-${width}x${height}.png`) });
+    if (strict) {
+      assert.ok(m.input >= 80, `call chat at ${width}px: the message box is ${m.input}px wide`);
+      assert.equal(m.pageOverflow, false, `call chat at ${width}px: the page scrolls sideways`);
+    }
+  }
+  await alice.setViewportSize({ width: 1440, height: 900 });
+  await act(alice, 'media:leave');
+  await act(alice, 'call:chat-close');
+  if (strict) checks.push('the message box beside a call has room to type at 1440 and 390 px');
+
   // A DM with a friend.
   await act(alice, 'home');
   await alice.waitForSelector('.live-home');
@@ -181,13 +223,52 @@ try {
     assert.ok(!text.includes('Publish Messages'), 'Publish Messages only on announcement channels');
     checks.push('channel permission editor: thread permissions on text channels, Use Soundboard and voice permissions on voice channels');
   }
+  // Settings pages fit at both sizes: nothing scrolls sideways or is cut off.
+  report.settings = {};
+  for (const page of ['settings', 'account', 'profile-edit', 'privacy', 'notifications', 'appearance', 'accessibility', 'expression-settings', 'media-settings', 'server', 'roles']) {
+    for (const [width, height] of SIZES) {
+      await alice.setViewportSize({ width, height });
+      await act(alice, `dialog:${page}`);
+      await alice.waitForFunction((n) => document.querySelector('.live-modal')?.dataset.dialog === n, page);
+      await alice.evaluate(() => document.fonts.ready);
+      await wait(300);
+      const m = await alice.evaluate(() => {
+        const modal = document.querySelector('.live-modal');
+        const shown = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+        const clipped = [...modal.querySelectorAll('button,label,h1,h2,h3')].filter(shown).filter((e) => {
+          const r = e.getBoundingClientRect();
+          return r.right > innerWidth + 1 || r.left < -1;
+        }).map((e) => (e.getAttribute('aria-label') || e.textContent.trim()).slice(0, 40));
+        return { pageOverflow: document.documentElement.scrollWidth > innerWidth + 1, clipped };
+      });
+      report.settings[`${page}-${width}`] = m;
+      await alice.screenshot({ path: join(shots, `settings-${page}${suffix}-${width}x${height}.png`) });
+      if (strict) {
+        assert.equal(m.pageOverflow, false, `${page} at ${width}px: the page scrolls sideways`);
+        assert.deepEqual(m.clipped, [], `${page} at ${width}px: cut off`);
+      }
+    }
+    await act(alice, 'close');
+  }
+  await alice.setViewportSize({ width: 1440, height: 900 });
+  if (strict) checks.push('settings pages fit at 1440 and 390 px');
+  // Nothing threw, logged an error or broke the content security policy.
+  const csp = [];
+  for (const p of [alice, bob]) csp.push(...await p.evaluate(() => window.__qaCsp ?? []));
+  report.consoleErrors = consoleErrors;
+  report.csp = csp;
   assert.deepEqual(errors, []);
+  if (strict) {
+    assert.deepEqual(consoleErrors, [], 'console errors');
+    assert.deepEqual(csp, [], 'CSP violations');
+    checks.push(`no page errors, console errors or CSP violations (${theme} theme)`);
+  }
 } catch (e) {
   for (const [p, n] of [[alice, 'alice'], [bob, 'bob']]) await p?.screenshot({ path: join(shots, `failure-${n}.png`) }).catch(() => {});
   console.error(h.log().slice(-3000));
   throw e;
 } finally {
-  await writeFile(join(shots, 'integration-results.json'), JSON.stringify({ revision: h.revision, strict, checks, report }, null, 2));
+  await writeFile(join(shots, `integration-results${suffix}.json`), JSON.stringify({ revision: h.revision, strict, theme, checks, report }, null, 2));
   await h.close();
 }
 console.log(JSON.stringify({ checks, shots }, null, 2));

@@ -1802,3 +1802,124 @@ async fn events_reminders_and_rings_go_through_the_one_notification_decision() {
         assert_eq!(decide(n).await, None, "{n:?}");
     }
 }
+
+/// Security review F2: a message request the recipient has not accepted, or a
+/// caller they ignore, never rings them, pushes "Incoming call" or shows them
+/// the hidden conversation.
+#[tokio::test]
+async fn requests_and_ignored_callers_never_ring_or_unhide_the_conversation() {
+    let (_dir, app) = fixture().await;
+    // 20: user 1's first-contact DM to user 2, still a request (hidden for 2).
+    // 21: an accepted DM between 3 and 2, where 2 ignores 3. 22: a group DM
+    // of 1, 2 and 4 (the group-DM equivalent: 2 ignores 1 there too).
+    sql(&app, "INSERT INTO channels(id,kind,position,created_at) VALUES(20,'direct',0,0),(21,'direct',0,0);
+        INSERT INTO channels(id,kind,name,position,owner_id,created_at) VALUES(22,'group_dm','group',0,1,0);
+        INSERT INTO dm_members VALUES(20,1,0,1),(20,2,0,0),(21,3,0,1),(21,2,0,1),(22,1,0,1),(22,2,0,1),(22,4,0,1);
+        INSERT INTO read_states(user_id,channel_id) VALUES(1,20),(2,20),(2,21),(3,21),(1,22),(2,22),(4,22);
+        INSERT INTO message_requests VALUES(20,2,1,'pending',0);").await;
+    let visible = |ch: u64| {
+        let app = app.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT visible FROM dm_members WHERE channel_id=? AND user_id=2",
+            )
+            .bind(ch as i64)
+            .fetch_one(&app.0.pool)
+            .await
+            .unwrap()
+        }
+    };
+    let mut c = app.0.pool.acquire().await.unwrap();
+    for state in ["pending", "spam", "ignored"] {
+        sqlx::query("UPDATE message_requests SET state=? WHERE channel_id=20")
+            .bind(state)
+            .execute(&mut *c)
+            .await
+            .unwrap();
+        let ch = crate::db::channel(&mut c, Id(20)).await.unwrap();
+        let refused = crate::calls::admit(&mut c, Id(1), &ch).await.unwrap_err();
+        assert_eq!(refused.0.code, ErrorCode::Forbidden, "{state}");
+        // The recipient may still call the sender back.
+        crate::calls::admit(&mut c, Id(2), &ch).await.unwrap();
+    }
+    {
+        // Even a call that got started never rings or un-hides a request.
+        let mut core = app.0.core.lock().await;
+        crate::calls::joining(&app, &mut core, &mut c, Id(1), Id(20))
+            .await
+            .unwrap();
+        assert!(!core.calls.ringing(Id(20)).contains(&Id(2)));
+    }
+    assert_eq!(visible(20).await, 0, "the request stays hidden");
+    // The push decision agrees.
+    let ring = |channel, caller| notify::Notice::Ring { channel, caller };
+    assert_eq!(
+        notify::notice(&mut c, Id(2), ring(Id(20), Id(1)))
+            .await
+            .unwrap(),
+        None
+    );
+    // Accepted: calls work and ring.
+    sqlx::query("UPDATE message_requests SET state='accepted' WHERE channel_id=20")
+        .execute(&mut *c)
+        .await
+        .unwrap();
+    let ch = crate::db::channel(&mut c, Id(20)).await.unwrap();
+    crate::calls::admit(&mut c, Id(1), &ch).await.unwrap();
+    // An ignored caller in an ordinary DM and in a group DM: not rung.
+    drop(c);
+    ok(&run(&app, 2, p(PrivacyCommand::Ignore { user_id: Id(3) })).await);
+    ok(&run(&app, 2, p(PrivacyCommand::Ignore { user_id: Id(1) })).await);
+    let mut c = app.0.pool.acquire().await.unwrap();
+    {
+        let mut core = app.0.core.lock().await;
+        crate::calls::joining(&app, &mut core, &mut c, Id(3), Id(21))
+            .await
+            .unwrap();
+        assert!(!core.calls.ringing(Id(21)).contains(&Id(2)));
+        crate::calls::joining(&app, &mut core, &mut c, Id(1), Id(22))
+            .await
+            .unwrap();
+        let rung = core.calls.ringing(Id(22));
+        assert!(rung.contains(&Id(4)) && !rung.contains(&Id(2)), "{rung:?}");
+    }
+    assert_eq!(
+        notify::notice(&mut c, Id(2), ring(Id(21), Id(3)))
+            .await
+            .unwrap(),
+        None
+    );
+}
+
+/// Security review F4: a moderator who cannot read the channel a reported
+/// message is in sees the report, its category and the reported person, not
+/// what was said.
+#[tokio::test]
+async fn reported_text_is_shown_only_to_moderators_who_can_read_the_channel() {
+    let (_dir, app) = moderated().await;
+    // #staff (13): moderator 2 may not view it; 3 and 4 may.
+    sql(&app, "INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(13,'text',10,'staff',3,0);
+        INSERT INTO permission_overwrites VALUES(13,'member',2,0,1);
+        INSERT INTO read_states(user_id,channel_id) VALUES(1,13),(3,13),(4,13);").await;
+    let m = message_id(&ok(
+        &run(&app, 4, send(13, "staff-only words", vec![])).await
+    ));
+    let target = ReportTarget::Message {
+        channel_id: Id(13),
+        message_id: m,
+    };
+    filed(&ok(&run(&app, 3, report(target, None)).await));
+    let (s, v) = call(&app, 2, "GET", "/api/v1/guilds/10/reports", None).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let r = &v["data"]["reports"][0];
+    assert_eq!(r["evidence_hidden"], true);
+    assert_eq!(r["evidence"]["user"]["username"], "user4");
+    assert!(!v.to_string().contains("staff-only words") && !v.to_string().contains("\"staff\""));
+    // The owner can read #staff and sees the text.
+    let (_, v) = call(&app, 1, "GET", "/api/v1/guilds/10/reports", None).await;
+    assert_eq!(
+        v["data"]["reports"][0]["evidence"]["content"],
+        "staff-only words"
+    );
+    assert!(v["data"]["reports"][0].get("evidence_hidden").is_none());
+}

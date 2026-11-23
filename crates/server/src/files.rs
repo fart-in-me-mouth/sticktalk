@@ -443,12 +443,16 @@ pub async fn thumbnail(
 }
 async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Response> {
     let token = bearer(&headers)?;
-    let mut core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
     let (_, u) = auth(&mut c, token).await?;
     // Its own budget: a screen of avatars and pictures must not use up the
-    // allowance for the rest of the API, nor the other way round.
-    core.rate(format!("file:{}", u.0), 600., 120.)?;
+    // allowance for the rest of the API, nor the other way round. The global
+    // lock is for the budget only; the checks below just read.
+    app.0
+        .core
+        .lock()
+        .await
+        .rate(format!("file:{}", u.0), 600., 120.)?;
     let row = sqlx::query("SELECT * FROM uploads WHERE id=?")
         .bind(id(a)?)
         .fetch_optional(&mut *c)
@@ -582,7 +586,6 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
         .header("content-type", mime)
         .header("content-length", length);
     drop(c);
-    drop(core);
     let body = app.0.tier.get(&app, &key, start, length).await?;
     builder
         .body(body)

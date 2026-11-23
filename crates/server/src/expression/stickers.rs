@@ -393,6 +393,18 @@ pub(super) async fn upload(
     let (_, current) = auth(&mut c, http::bearer(&h)?).await?;
     require(current == u, ErrorCode::Unauthenticated)?;
     manage(&mut c, u, g).await?;
+    // AutoMod screens the name and description (security review F6).
+    crate::moderation::coverage::name_check(&mut core, &mut c, u, g, "sticker name", &edit.name)
+        .await?;
+    crate::moderation::coverage::name_check(
+        &mut core,
+        &mut c,
+        u,
+        g,
+        "sticker description",
+        &edit.description,
+    )
+    .await?;
     let mut tx = c.begin().await?;
     let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM guild_stickers WHERE guild_id=?")
         .bind(id(g)?)

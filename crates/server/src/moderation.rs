@@ -317,6 +317,8 @@ pub(crate) async fn precheck(
         join: None,
         slowmode: None,
     };
+    // Names and other member-written text that is not a message.
+    coverage::names(core, c, u, cmd).await?;
     match cmd {
         Command::SendMessage(d) => {
             message_check(

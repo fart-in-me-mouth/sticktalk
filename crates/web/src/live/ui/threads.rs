@@ -452,17 +452,25 @@ pub(super) fn forum(a: &App, title: &str) -> AnyView {
         let t = &p.thread;
         let author = f.users.get(&t.owner_id).or_else(|| a.model.users.get(&t.owner_id)).map(name).unwrap_or_else(|| "Someone".into());
         let tags: Vec<&ForumTag> = t.tag_ids.iter().filter_map(|id| s.tags.iter().find(|x| x.id == *id)).collect();
-        let excerpt = p.first.as_ref().map(|m| preview(a, m)).unwrap_or_default();
+        // A post by someone you ignore is collapsed like their messages
+        // (privacy.md): no title, excerpt or picture until opened.
+        let ignored = crate::live::privacy::ignored(t.owner_id);
+        let excerpt = if ignored {
+            "Ignored post".to_owned()
+        } else {
+            p.first.as_ref().map(|m| preview(a, m)).unwrap_or_default()
+        };
+        let title = if ignored { "Ignored post".to_owned() } else { t.name.clone() };
         let unread = a.model.reads.get(&t.id).is_some_and(|r| r.unread_count > 0);
         let replies = t.message_count.saturating_sub(1);
-        let image = (layout == ForumLayout::Gallery).then(|| cover(p)).flatten();
+        let image = (layout == ForumLayout::Gallery && !ignored).then(|| cover(p)).flatten();
         let react = s.default_reaction.clone().zip(p.first.as_ref().map(|m| m.id));
         view!{<li class=format!("forum-post relative rounded-lg border bg-card hover:bg-accent {}",if layout==ForumLayout::Gallery{"flex flex-col overflow-hidden"}else{"flex items-start gap-3 p-3"}) data-post=t.id.0.to_string()>
             {image.map(|(id,alt)|view!{<img class="forum-cover aspect-video w-full object-cover" src=format!("/api/v1/files/{}/thumbnail",id.0) alt=alt loading="lazy"/>})}
             <div class=if layout==ForumLayout::Gallery{"flex min-w-0 flex-1 flex-col gap-1 p-3"}else{"flex min-w-0 flex-1 flex-col gap-1"}>
                 <div class="flex flex-wrap items-center gap-1">{if t.pinned{view!{<span class="text-primary" title="Pinned" aria-label="Pinned">{icon_with("pin","icon size-4")}</span>}.into_any()}else{().into_any()}}{tags.into_iter().map(|x|tag_chip(x,None,String::new())).collect_view()}</div>
-                <button class=format!("forum-post-title text-left text-base after:absolute after:inset-0 after:content-[''] {}",if unread{"font-bold text-foreground"}else{"font-semibold"}) data-live=format!("thread-open:{}",t.id.0)>{t.name.clone()}</button>
-                <p class="line-clamp-2 m-0 text-sm text-subtle wrap-anywhere">{format!("{author}: {excerpt}")}</p>
+                <button class=format!("forum-post-title text-left text-base after:absolute after:inset-0 after:content-[''] {}",if unread{"font-bold text-foreground"}else{"font-semibold"}) data-live=format!("thread-open:{}",t.id.0)>{title}</button>
+                <p class="line-clamp-2 m-0 text-sm text-subtle wrap-anywhere">{if ignored{excerpt}else{format!("{author}: {excerpt}")}}</p>
                 <p class="m-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span class="inline-flex items-center gap-1">{icon_with("message-square","icon size-3.5")}{count(replies,"reply","replies")}</span>
                     <span>{count(p.reaction_count,"reaction","reactions")}</span>

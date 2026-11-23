@@ -139,7 +139,8 @@ pub(crate) async fn icon_endpoint(
     Path(b): Path<String>,
     h: HeaderMap,
 ) -> Result<Response> {
-    let (_core, mut c, _) = rest(&app, &h).await?;
+    let (core, mut c, _) = rest(&app, &h).await?;
+    drop(core);
     let b = http::url_id(&b)?;
     let icon: Vec<u8> = sqlx::query_scalar("SELECT icon FROM badges WHERE id=?")
         .bind(id(b)?)

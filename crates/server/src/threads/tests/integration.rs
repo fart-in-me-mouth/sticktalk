@@ -432,3 +432,77 @@ async fn crossposts_are_screened_by_the_receiving_servers_automod() {
     );
     assert_eq!(audit(&app, 20, AuditAction::AutomodBlock).await.len(), 2);
 }
+
+/// Security review F6: AutoMod screens member-written text that is not a
+/// message: your own nickname, event names and descriptions, emoji and
+/// sticker names, and application answers. Each refusal is logged.
+#[tokio::test]
+async fn nicknames_events_and_expression_names_are_screened_by_automod() {
+    let (_dir, app) = world().await;
+    ok(run(&app, 1, 1, blocks(10, "heck")).await);
+    everyone(
+        &app,
+        Permissions::CHANGE_NICKNAME | Permissions::CREATE_EVENTS | Permissions::MANAGE_EMOJI,
+        Permissions::empty(),
+    )
+    .await;
+    let nick = |n: &str| {
+        Command::Launch(LaunchCommand::SetNickname {
+            guild_id: Id(10),
+            user_id: Id(3),
+            nickname: Some(n.into()),
+        })
+    };
+    refused(&run(&app, 3, 2, nick("heck yes")).await, "automod");
+    ok(run(&app, 3, 3, nick("Sunny")).await);
+    let event = |name: &str, description: &str| {
+        Command::Schedule(ScheduleCommand::Create(NewEvent {
+            guild_id: Id(10),
+            name: name.into(),
+            description: description.into(),
+            start_at: now() + 86_400_000,
+            end_at: Some(now() + 90_000_000),
+            location: EventLocation::External {
+                place: "the park".into(),
+            },
+            recurrence: EventRecurrence::None,
+            time_zone: "UTC".into(),
+        }))
+    };
+    refused(&run(&app, 3, 4, event("heck fest", "")).await, "automod");
+    refused(
+        &run(&app, 3, 5, event("Picnic", "bring heck")).await,
+        "automod",
+    );
+    sql(&app, "INSERT INTO guild_emoji(id,guild_id,name,animated,content_type,data,preview,creator_id,created_at) VALUES(600,10,'smile',0,'image/png',x'00',x'',1,0)").await;
+    refused(
+        &run(
+            &app,
+            3,
+            6,
+            Command::Launch(LaunchCommand::RenameEmoji {
+                guild_id: Id(10),
+                emoji_id: Id(600),
+                name: "heck".into(),
+            }),
+        )
+        .await,
+        "automod",
+    );
+    // The server owner (Manage Server) is exempt, as for soundboard names.
+    ok(run(&app, 1, 7, nick_of(1, "heck")).await);
+    let logged = audit(&app, 10, AuditAction::AutomodBlock).await;
+    for what in ["nickname", "event name", "event description", "emoji name"] {
+        assert!(
+            logged.iter().any(|(_, c)| c.contains(what)),
+            "{what}: {logged:?}"
+        );
+    }
+}
+fn nick_of(u: u64, n: &str) -> Command {
+    Command::Launch(LaunchCommand::SetNickname {
+        guild_id: Id(10),
+        user_id: Id(u),
+        nickname: Some(n.into()),
+    })
+}

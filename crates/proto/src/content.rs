@@ -279,6 +279,10 @@ pub enum ContentCommand {
         /// held until the message is sent. Older clients send none.
         #[serde(default)]
         attachment_ids: Vec<AttachmentId>,
+        /// Descriptions and spoiler flags of those files, kept with them as
+        /// when sending (`SendMessage`). Older clients send none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        attachments: Vec<AttachmentMetaPatch>,
     },
     UpdateScheduled {
         id: Id,

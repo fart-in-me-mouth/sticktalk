@@ -115,11 +115,13 @@ impl Dom {
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace"))]
     pub fn set_attribute(node: &Element, name: &str, value: &str) {
         or_debug!(node.set_attribute(name, value), node, "setAttribute");
+        live_state(node, name, true);
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace"))]
     pub fn remove_attribute(node: &Element, name: &str) {
         or_debug!(node.remove_attribute(name), node, "removeAttribute");
+        live_state(node, name, false);
     }
 
     #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace"))]
@@ -749,5 +751,16 @@ where
 {
     fn cast_from(source: Element) -> Option<Self> {
         source.dyn_into::<T>().ok()
+    }
+}
+
+/// StickTalk patch: `checked` and `selected` set as attributes only change the
+/// default once the person has touched the control, so a view whose state
+/// changed (a saved setting, a refused change, another device) would keep
+/// showing the old choice. These are written only when the view's value
+/// changes, so the live state follows the view, like `prop:checked`.
+fn live_state(node: &Element, name: &str, on: bool) {
+    if name == "checked" || name == "selected" {
+        let _ = js_sys::Reflect::set(node, &JsValue::from_str(name), &JsValue::from_bool(on));
     }
 }

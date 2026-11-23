@@ -283,8 +283,36 @@ fn decorated(u: &UserSummary, size: &str) -> AnyView {
     let deco = known_or_none(DECORATIONS, face.style.decoration.take().as_deref());
     view!{<span class="avatar-frame">{avatar(&face,size)}<span class=format!("avatar-deco cosmetic deco-{}{}",deco.unwrap_or("none"),self_class(u.id)) data-pv="deco" hidden=deco.is_none() aria-hidden="true"></span></span>}.into_any()
 }
+/// The name style as a card tinted with these colors can show it: one that
+/// does not reach AA contrast on the card (a pale name on a light card) is
+/// drawn in the card's own text color, in its font (task `qa2`).
+fn on_card(
+    style: Option<&NameStyle>,
+    primary: Option<u32>,
+    accent: Option<u32>,
+) -> Option<NameStyle> {
+    let style = style?;
+    if primary.is_none() && accent.is_none() {
+        return Some(style.clone());
+    }
+    let (p, a) = (
+        primary.or(accent).unwrap_or(0),
+        accent.or(primary).unwrap_or(0),
+    );
+    if sticktalk_proto::name_reads_on_card(style, p, a) {
+        return Some(style.clone());
+    }
+    let text = sticktalk_proto::card_theme(p, a).text;
+    Some(NameStyle {
+        color: text,
+        color2: None,
+        effect: NameEffect::Solid,
+        ..style.clone()
+    })
+}
 fn card_view(a: &App, c: Card, below: AnyView) -> AnyView {
     let (class, vars) = tint(c.primary, c.accent);
+    let name_style = on_card(c.user.style.name.as_ref(), c.primary, c.accent);
     let effect = known_or_none(EFFECTS, c.effect);
     let frame = known_or_none(FRAMES, c.frame);
     let u = &c.user;
@@ -293,7 +321,7 @@ fn card_view(a: &App, c: Card, below: AnyView) -> AnyView {
         {banner_view(c.banner_color, c.banner)}
         <div class="relative z-[1] flex items-end justify-between gap-2 px-4 -mt-10">{decorated(u,"large")}<div data-pv="badges">{badges_row(c.badges)}</div></div>
         <div class="profile-preview-copy relative z-[1] px-4 pt-3 pb-4 wrap-anywhere">
-            <h2 class="m-0 text-xl leading-tight font-semibold wrap-anywhere" data-pv="name" data-preview-name>{styled(&name(u),u.style.name.as_ref(),own(u.id))}</h2>
+            <h2 class="m-0 text-xl leading-tight font-semibold wrap-anywhere" data-pv="name" data-preview-name>{styled(&name(u),name_style.as_ref(),own(u.id))}</h2>
             <p class="profile-username mt-1 mb-0 text-sm text-subtle">{format!("@{}",u.username)}<span data-pv="pronouns">{if c.pronouns.is_empty(){String::new()}else{format!(" · {}",c.pronouns)}}</span></p>
             <p class="mt-2 mb-0 text-sm whitespace-pre-wrap empty:hidden" data-preview-status>{c.status.clone().unwrap_or_default()}</p>
             <section class=section data-pv="about-box" hidden=c.about.is_empty()><h3 class="category mb-1">"About Me"</h3><div data-pv="about">{rich_text(a,u.id,&c.about)}</div><p class="m-0 whitespace-pre-wrap" data-pv="about-draft" hidden></p></section>

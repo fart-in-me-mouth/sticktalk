@@ -724,6 +724,8 @@ pub(crate) async fn signal(
             let (_, guild) = stage_channel(c, u, ch).await?;
             moderator(c, u, ch).await?;
             let topic = text(&topic, MAX_STAGE_TOPIC_CHARS)?;
+            crate::moderation::coverage::name_check(core, c, u, guild, "stage topic", &topic)
+                .await?;
             let note = note(privacy_note)?;
             require(
                 !core.stage.rooms.get(&ch).is_some_and(|r| r.live.is_some()),
@@ -773,6 +775,8 @@ pub(crate) async fn signal(
             let (_, guild) = stage_channel(c, u, ch).await?;
             moderator(c, u, ch).await?;
             let topic = text(&topic, MAX_STAGE_TOPIC_CHARS)?;
+            crate::moderation::coverage::name_check(core, c, u, guild, "stage topic", &topic)
+                .await?;
             let note = note(privacy_note)?;
             let room = live_room(core, ch)?;
             let live = room.live.as_mut().unwrap();

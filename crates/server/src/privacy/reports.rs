@@ -108,7 +108,34 @@ fn row(r: &sqlx::sqlite::SqliteRow) -> Result<Report> {
         action: r.get("action"),
         created_at: r.get::<i64, _>("created_at") as u64,
         resolved_at: r.get::<Option<i64>, _>("resolved_at").map(|v| v as u64),
+        evidence_hidden: false,
     })
+}
+/// A report as `viewer` (a moderator) may see it: the captured text of a
+/// reported message only if they can read its channel now (private channels
+/// and threads, age restriction). Otherwise they see that it exists, its
+/// category, target and the reported person (security review F4).
+async fn for_viewer(c: &mut SqliteConnection, viewer: Id, mut r: Report) -> Result<Report> {
+    if let ReportTarget::Message { channel_id, .. } = r.target {
+        if text(
+            c,
+            viewer,
+            channel_id,
+            Permissions::VIEW_CHANNEL | Permissions::READ_HISTORY,
+        )
+        .await
+        .is_err()
+        {
+            let e = &mut r.evidence;
+            e.content.clear();
+            e.attachments.clear();
+            e.channel_name = None;
+            e.sent_at = None;
+            e.edited_at = None;
+            r.evidence_hidden = true;
+        }
+    }
+    Ok(r)
 }
 fn mine(r: &Report) -> MyReport {
     MyReport {
@@ -425,7 +452,7 @@ pub(crate) async fn resolve_endpoint(
         Event::Privacy(PrivacyEvent::ReportUpdated(mine(&updated))),
     ));
     super::deliver(&mut core, &mut c, out).await?;
-    Ok(http::json(updated))
+    Ok(http::json(for_viewer(&mut c, u, updated).await?))
 }
 
 /// `GET /api/v1/users/@me/reports`: your reports, newest first.
@@ -484,7 +511,7 @@ pub(crate) async fn queue_endpoint(
     .await?;
     let mut reports = vec![];
     for r in rows.iter().take(MAX_REPORTS_PAGE) {
-        reports.push(row(r)?);
+        reports.push(for_viewer(&mut c, u, row(r)?).await?);
     }
     let next_before = (rows.len() > MAX_REPORTS_PAGE)
         .then(|| reports.last().map(|r| r.id))

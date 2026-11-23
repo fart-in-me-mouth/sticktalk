@@ -544,9 +544,50 @@ pub fn card_theme(primary: u32, accent: u32) -> CardTheme {
     }
 }
 
+/// Whether a name in `style` reads on a profile card tinted with `primary`
+/// and `accent`: every color the name is filled with reaches
+/// `MIN_NAME_CONTRAST` against both ends of the card's gradient, after its
+/// scrim. A style is checked against the dark chat surface when it is saved
+/// (`legible_name_color`); a card can be light, so it is checked again here.
+pub fn name_reads_on_card(style: &NameStyle, primary: u32, accent: u32) -> bool {
+    let t = card_theme(primary, accent);
+    let ends = [darken(primary, t.scrim), darken(accent, t.scrim)];
+    let second = matches!(style.effect, NameEffect::Gradient | NameEffect::Shimmer)
+        .then_some(style.color2)
+        .flatten();
+    [Some(style.color), second]
+        .into_iter()
+        .flatten()
+        .all(|fill| {
+            ends.iter()
+                .all(|bg| contrast(fill, *bg) >= MIN_NAME_CONTRAST)
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn names_are_checked_against_the_card_they_are_on() {
+        let pale = NameStyle {
+            color: 0xFFF3B0,
+            ..Default::default()
+        };
+        assert!(legible_name_color(pale.color), "fine on the dark chat");
+        // A light card (dark text): a pale name is not readable there.
+        assert!(!name_reads_on_card(&pale, 0xFDF6E3, 0xF5E6C8));
+        // A dark card: it is.
+        assert!(name_reads_on_card(&pale, 0x1B1B3A, 0x2A1E4F));
+        // A gradient is judged by both of its colors.
+        let gradient = NameStyle {
+            color: 0xFFF3B0,
+            color2: Some(0x7A3B00),
+            effect: NameEffect::Gradient,
+            ..Default::default()
+        };
+        assert!(!name_reads_on_card(&gradient, 0x1B1B3A, 0x2A1E4F));
+    }
 
     #[test]
     fn styles_are_omitted_when_empty_and_old_payloads_decode() {

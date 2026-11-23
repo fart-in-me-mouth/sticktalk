@@ -81,7 +81,7 @@ try {
     assert.equal(await page.locator('.permission-group').count(),6);
     assert.equal(await page.locator('[data-role-bit]').count(),42);
     screenshots.push(await shot(page,'role-editor'));
-    await act(page,'dialog:roles');await page.waitForSelector('.role-color');
+    await act(page,'dialog:roles');await page.waitForSelector('.live-modal .role-color');
     screenshots.push(await shot(page,'roles'));
     await page.getByRole('button',{name:'Reorder',exact:true}).click();
     screenshots.push(await shot(page,'roles-reorder-mode'));

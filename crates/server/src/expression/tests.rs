@@ -806,6 +806,26 @@ async fn emoji_images_are_cached_and_revalidated_against_permissions() {
     // JSON under /api is never stored.
     let r = request(&app, &t4, "/api/v1/emoji/resolve?ids=500", None).await;
     assert_eq!(r.headers()["cache-control"], "no-store");
+    // The route draws on the per-user picture budget (security review F5):
+    // a loop of requests is refused once the burst is spent.
+    app.0.core.lock().await.limits.clear();
+    let mut refused = 0;
+    for _ in 0..130 {
+        let r = http::router(app.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/emoji/500")
+                    .header("authorization", format!("Bearer {t4}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        if r.status() == StatusCode::TOO_MANY_REQUESTS {
+            refused += 1;
+        }
+    }
+    assert!(refused >= 5, "{refused}");
     // Leaving the emoji's server: the next revalidation is refused.
     sql(
         &app,

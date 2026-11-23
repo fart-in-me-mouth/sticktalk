@@ -565,6 +565,7 @@ fn schedule(ch: u64, text: &str, at: u64) -> ContentCommand {
         mention_ids: vec![],
         send_at: at,
         attachment_ids: vec![],
+        attachments: vec![],
     }
 }
 fn scheduled_of(r: CommandResult) -> ScheduledMessage {
