@@ -376,7 +376,7 @@ pub enum ReportAction {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum PrivacyCommand {
-    /// Opt this event stream in to `Event::Privacy`.
+    /// Opt this event stream in to `Event::Privacy`. Answers with the settings.
     Subscribe,
     /// Online, Idle, Do Not Disturb or Invisible, optionally until a time.
     SetStatus {

@@ -341,6 +341,8 @@ pub(super) fn action(app: Shared, raw: &str) {
             }
         }
         "mod" => super::moderation::action(app, arg),
+        "privacy" => super::privacy::action(app, arg),
+        "submit" if arg.starts_with("privacy-") => super::privacy::submit(app, arg),
         "submit" if arg.starts_with("mod-") => super::moderation::submit(app, arg),
         "pins-refresh" => {
             let (epoch, generation) = {
@@ -1221,6 +1223,7 @@ fn open_dialog(app: Shared, name: &str) {
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
     super::moderation::opened(app.clone(), name);
+    super::privacy::opened(app.clone(), name);
     let name = name.to_owned();
     spawn_local(async move {
         dialog_data(app, name, epoch, generation).await;
@@ -1719,15 +1722,24 @@ fn submit(app: Shared, form: String, submission: Submission) {
             } else {
                 (a.model.channels.get(&id).and_then(|c| c.guild_id), Some(id))
             };
+            let current = a
+                .model
+                .settings
+                .notifications
+                .get(&(guild_id, channel_id))
+                .cloned();
             Some(Command::Launch(LaunchCommand::SetNotifications(
                 NotificationSettings {
                     guild_id,
                     channel_id,
                     level,
                     muted: checked("f-muted"),
-                    mute_until: None,
+                    mute_until: current
+                        .as_ref()
+                        .filter(|_| checked("f-muted"))
+                        .and_then(|c| c.mute_until),
                     suppress_everyone: checked("f-suppress"),
-                    hide_muted_channels: false,
+                    hide_muted_channels: current.is_some_and(|c| c.hide_muted_channels),
                 },
             )))
         }
@@ -1857,6 +1869,9 @@ fn saved_form(command: &Command) -> Option<&'static str> {
         Command::Launch(LaunchCommand::UpdateUserProfile { .. }) => Some("about"),
         Command::Launch(LaunchCommand::UpdateGuildProfile { .. }) => Some("server-profile"),
         Command::Launch(LaunchCommand::SetNotifications(_)) => Some("notifications"),
+        Command::Privacy(PrivacyCommand::SetNotifications(_)) => Some("privacy-notify"),
+        Command::Privacy(PrivacyCommand::SetNote { .. }) => Some("privacy-note"),
+        Command::Privacy(PrivacyCommand::SetFriendNickname { .. }) => Some("privacy-nickname"),
         _ => None,
     }
 }
@@ -1891,6 +1906,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                         | Command::Typing { .. }
                         | Command::Launch(LaunchCommand::UpdateDevice { .. })
                         | Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe))
+                        | Command::Privacy(PrivacyCommand::Subscribe)
                 )
             ) {
                 return;
@@ -1910,6 +1926,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     Some(Command::JoinGuild { .. }),
                     ErrorCode::AlreadyExists | ErrorCode::Conflict,
                 ) => "You’re already in that server.".into(),
+                (Some(Command::Privacy(c)), code) => super::privacy::refused(c, code).map_or_else(
+                    || sticktalk_client_core::http::error_text(&error),
+                    str::to_owned,
+                ),
                 (Some(Command::Content(c)), code) => super::content::refused(c, code).map_or_else(
                     || sticktalk_client_core::http::error_text(&error),
                     str::to_owned,
@@ -1988,6 +2008,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             if let Some(page) = back.filter(|_| !a.dialog.is_empty()) {
                 drop(a);
                 open_dialog(app, page);
+                return;
+            }
+            if let Some(Command::Privacy(op)) = &operation {
+                super::privacy::answered(&mut a, op, &result);
+                a.touch();
                 return;
             }
             if let CommandResult::Content(result) = result {
@@ -2615,6 +2640,8 @@ fn profile_request(app: Shared, arg: String, epoch: u64) {
                     a.profile = Some(p.data);
                     a.dialog = "profile".into();
                     a.touch();
+                    drop(a);
+                    super::privacy::profile_opened(app.clone(), u);
                 }
                 Err(e) => fail(&app, e),
             }

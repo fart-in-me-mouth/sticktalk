@@ -4,6 +4,7 @@ mod content;
 mod moderation;
 mod nav;
 mod operations;
+mod privacy;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
 use futures_channel::mpsc;
@@ -148,6 +149,8 @@ struct App {
     /// Polls, forwarding, scheduled messages, voice messages, GIF favorites.
     content: content::State,
     moderation: moderation::State,
+    /// Status, nicknames, notes, ignore, requests, notifications, reports.
+    privacy: privacy::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -211,6 +214,8 @@ impl App {
         self.screen = "home".into();
         self.nav = Default::default();
         self.moderation = Default::default();
+        self.privacy = Default::default();
+        privacy::reset();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -371,6 +376,7 @@ pub fn mount() {
             nav: Default::default(),
             content: Default::default(),
             moderation: Default::default(),
+            privacy: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -649,6 +655,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 operations::ready(app.clone());
                                 nav::ready(app.clone());
                                 moderation::connected(app.clone());
+                                privacy::connected(app.clone());
                                 let channel = app.borrow().channel;
                                 if let Some(c) = channel {
                                     operations::load_channel(app.clone(), c, None);
@@ -740,6 +747,7 @@ async fn socket(app: Shared, epoch: u64) {
                                             }
                                         }
                                         Event::Moderation(e) => moderation::event(&mut a, e),
+                                        Event::Privacy(e) => privacy::event(&mut a, e),
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id
@@ -781,7 +789,18 @@ async fn socket(app: Shared, epoch: u64) {
                                 };
                                 let profile_changed =
                                     matches!(&event.event, Event::ProfileUpdated(_));
+                                let badge = matches!(
+                                    &event.event,
+                                    Event::ReadStateUpdated(_)
+                                        | Event::MessageCreated { .. }
+                                        | Event::NotificationSettingsUpdated(_)
+                                        | Event::ChannelRemoved { .. }
+                                        | Event::GuildRemoved { .. }
+                                );
                                 let applied = a.model.apply(*event);
+                                if applied && badge {
+                                    privacy::badge(&a);
+                                }
                                 // Someone who has just sent their message is no longer typing it.
                                 if let Some(sent) = created {
                                     a.model.typing.remove(&sent);

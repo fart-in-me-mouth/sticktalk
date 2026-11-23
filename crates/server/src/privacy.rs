@@ -140,7 +140,8 @@ pub(crate) async fn mutate(
             if core.privacy.subscribed.len() < MAX_SUBSCRIBED {
                 core.privacy.subscribed.insert(stream);
             }
-            Ok(CommandResult::Ack)
+            // The settings come with the subscription: no separate request.
+            settings_result(settings(c, core, u).await?)
         }
         SetStatus { status, until } => {
             status::set(c, core, u, status, until, out).await?;
