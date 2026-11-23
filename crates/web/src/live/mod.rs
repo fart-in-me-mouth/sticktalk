@@ -1,6 +1,7 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
 mod calls;
 mod content;
+mod expression;
 mod moderation;
 mod nav;
 mod operations;
@@ -148,6 +149,8 @@ struct App {
     /// Polls, forwarding, scheduled messages, voice messages, GIF favorites.
     content: content::State,
     moderation: moderation::State,
+    /// Custom emoji everywhere, stickers, Super Reactions, typing indicators.
+    expression: expression::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -211,6 +214,7 @@ impl App {
         self.screen = "home".into();
         self.nav = Default::default();
         self.moderation = Default::default();
+        self.expression = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -371,6 +375,7 @@ pub fn mount() {
             nav: Default::default(),
             content: Default::default(),
             moderation: Default::default(),
+            expression: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -615,7 +620,8 @@ async fn socket(app: Shared, epoch: u64) {
                                 if send(
                                     &mut outgoing,
                                     &ClientMsg::Identify(Identify {
-                                        text_features: false,
+                                        // Custom emoji list updates (expression.md).
+                                        text_features: true,
                                         version: PROTOCOL_VERSION,
                                         token: String::new(),
                                         resume,
@@ -751,6 +757,9 @@ async fn socket(app: Shared, epoch: u64) {
                                         | Event::SavedUpdated(_)
                                         | Event::ReminderDue(_) => nav::event(&mut a, &event.event),
                                         Event::Content(e) => content::event(&mut a, e.clone()),
+                                        Event::Expression(e) => {
+                                            expression::event(&mut a, e.clone())
+                                        }
                                         _ => {}
                                     }
                                 }

@@ -1,0 +1,213 @@
+/* Expression: custom emoji, stickers, Super Reactions and typing indicators.
+ Layout is utility classes in src/live/ui/expression.rs; these are the sizes,
+ states and motion. Every animation is transform/opacity only (compositor),
+ runs only while its element is on screen, and stops under reduced motion.
+ Unlayered on purpose: a state must win over the utilities it changes. */
+
+/* Custom emoji sit on the text line like the bundled ones. */
+.custom-emoji {
+  display: inline-block;
+  width: 1.375em;
+  height: 1.375em;
+  vertical-align: -0.3em;
+  object-fit: contain;
+}
+.custom-emoji.animated {
+  position: relative;
+}
+.custom-emoji.animated > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.custom-emoji.size-6,
+.custom-emoji.size-8,
+.custom-emoji.size-12 {
+  vertical-align: middle;
+}
+.custom-emoji.size-6 { width: 1.5rem; height: 1.5rem; }
+.custom-emoji.size-8 { width: 2rem; height: 2rem; }
+.custom-emoji.size-12 { width: 3rem; height: 3rem; }
+.emoji-button {
+  display: inline;
+  padding: 0;
+  border-radius: 4px;
+  vertical-align: baseline;
+}
+.emoji-button:focus-visible {
+  outline: 2px solid var(--color-ring, var(--accent));
+  outline-offset: 1px;
+}
+/* A message of only emoji (up to 27) shows them large, as in Discord. */
+.jumbo-emoji p {
+  font-size: 2.5rem;
+  line-height: 1.2;
+}
+.jumbo-emoji .custom-emoji {
+  width: 3rem;
+  height: 3rem;
+  vertical-align: -0.35em;
+}
+.reaction .custom-emoji {
+  width: 1.125rem;
+  height: 1.125rem;
+  vertical-align: -0.2em;
+}
+.typing-custom .custom-emoji {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Animated emoji and stickers: the moving image shows; with reduced motion
+   the still frame shows until the message (or button) is hovered or focused.
+   A hidden lazy image is never fetched. */
+.animated > .emoji-still {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animated > .emoji-still {
+    display: block;
+  }
+  .animated > .emoji-motion {
+    display: none;
+  }
+  .message:hover .animated > .emoji-motion,
+  .message:focus-within .animated > .emoji-motion,
+  button:hover > .animated > .emoji-motion,
+  button:focus-visible > .animated > .emoji-motion,
+  button:hover .animated > .emoji-motion,
+  button:focus-visible .animated > .emoji-motion {
+    display: block;
+  }
+  .message:hover .animated > .emoji-still,
+  .message:focus-within .animated > .emoji-still,
+  button:hover .animated > .emoji-still,
+  button:focus-visible .animated > .emoji-still {
+    display: none;
+  }
+}
+.emoji-gone {
+  color: var(--text-muted, inherit);
+}
+
+/* Stickers. */
+.sticker-pick .sticker,
+.sticker-suggestion .sticker {
+  width: 100%;
+  height: 100%;
+}
+.sticker-cell .sticker-tools {
+  opacity: 0;
+}
+.sticker-cell:hover .sticker-tools,
+.sticker-cell:focus-within .sticker-tools,
+.sticker-cell .sticker-tools [aria-pressed="true"] {
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .sticker-cell .sticker-tools {
+    opacity: 1;
+  }
+}
+
+/* Super Reactions: a distinct chip, with a one-shot burst when added. */
+.reaction.super {
+  border-color: color-mix(in srgb, #f2b84b 55%, transparent);
+  background-image: linear-gradient(135deg, color-mix(in srgb, #f2b84b 18%, transparent), color-mix(in srgb, var(--color-primary) 18%, transparent));
+}
+.reaction.super.mine {
+  border-color: #f2b84b;
+}
+.reaction.super .super-mark {
+  color: #f2b84b;
+}
+.reaction.super-burst::before,
+.reaction.super-burst::after {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  pointer-events: none;
+  border-radius: 999px;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: super-burst 900ms cubic-bezier(0.2, 0.7, 0.3, 1) 1 both;
+  animation-delay: var(--burst-delay, 0ms);
+}
+.reaction.super-burst::before {
+  background:
+    radial-gradient(circle at 50% 4%, #f2b84b 0 3px, transparent 4px),
+    radial-gradient(circle at 96% 50%, #ff7ab6 0 3px, transparent 4px),
+    radial-gradient(circle at 50% 96%, #7ad7ff 0 3px, transparent 4px),
+    radial-gradient(circle at 4% 50%, #a98bff 0 3px, transparent 4px);
+}
+.reaction.super-burst::after {
+  background:
+    radial-gradient(circle at 16% 16%, #7ad7ff 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 84% 16%, #f2b84b 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 84% 84%, #a98bff 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 16% 84%, #ff7ab6 0 2.5px, transparent 3.5px);
+  animation-name: super-burst-2;
+}
+@keyframes super-burst {
+  0% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.35) rotate(25deg); }
+}
+@keyframes super-burst-2 {
+  0% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.15) rotate(-20deg); }
+}
+/* Reduced motion, or Settings › Expression turned off: a static highlight. */
+@media (prefers-reduced-motion: reduce) {
+  .reaction.super-burst::before,
+  .reaction.super-burst::after {
+    animation: none;
+    display: none;
+  }
+  .reaction.super-burst {
+    box-shadow: 0 0 0 2px #f2b84b;
+  }
+}
+[data-super-reactions="false"] .reaction.super-burst::before,
+[data-super-reactions="false"] .reaction.super-burst::after {
+  animation: none;
+  display: none;
+}
+[data-super-reactions="false"] .reaction.super-burst {
+  box-shadow: 0 0 0 2px #f2b84b;
+}
+
+/* Custom typing indicators. The element exists only while someone types. */
+.typing-custom .typing-glyph {
+  animation-duration: 1.2s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  animation-delay: calc(var(--i, 0) * 0.15s);
+}
+.typing-custom.motion-bounce .typing-glyph { animation-name: typing-bounce; }
+.typing-custom.motion-wave .typing-glyph { animation-name: typing-wave; }
+.typing-custom.motion-pulse .typing-glyph { animation-name: typing-pulse; }
+.typing-custom.motion-float .typing-glyph { animation-name: typing-float; animation-duration: 2s; }
+@keyframes typing-bounce {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-4px); }
+}
+@keyframes typing-wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-14deg); }
+  75% { transform: rotate(14deg); }
+}
+@keyframes typing-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.75; }
+}
+@keyframes typing-float {
+  0%, 100% { transform: translateY(1px); }
+  50% { transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typing-custom .typing-glyph {
+    animation: none;
+  }
+}

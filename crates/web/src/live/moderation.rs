@@ -641,6 +641,8 @@ pub(super) const CHANNEL_PERMISSIONS: &[(&str, &[(&str, Permissions)])] = &[
             ("Attach Files", Permissions::ATTACH_FILES),
             ("Embed Links", Permissions::EMBED_LINKS),
             ("Add Reactions", Permissions::ADD_REACTIONS),
+            ("Use External Emoji", Permissions::USE_EXTERNAL_EMOJI),
+            ("Use External Stickers", Permissions::USE_EXTERNAL_STICKERS),
             ("Mention @everyone and Roles", Permissions::MENTION_EVERYONE),
             ("Manage Messages", Permissions::MANAGE_MESSAGES),
         ],

@@ -13,6 +13,8 @@ const confirmations = [
   [/^logout-others$/, 'Log out all other devices?', 'Every other device signed in to your account is signed out.', 'Log Out Devices'],
   [/^device-revoke:/, 'Log out that device?', 'It will have to sign in again.', 'Log Out'],
   [/^role-delete:/, 'Delete this role?', 'Members who have it lose its permissions. This can’t be undone.', 'Delete Role'],
+  [/^expr-emoji-delete:/, 'Delete this emoji?', 'Messages that used it will show its :name: instead. This can’t be undone.', 'Delete Emoji'],
+  [/^expr-sticker-delete:/, 'Delete this sticker?', 'Messages that carried it will show its name instead. This can’t be undone.', 'Delete Sticker'],
   [/^friend:block,/, 'Block this person?', 'They won’t be able to message you or add you as a friend.', 'Block'],
   [/^friend:remove,/, 'Remove this friend?', 'You can add each other again later.', 'Remove Friend'],
   [/^leave-guild$/, 'Leave this server?', 'You’ll need a new invite to come back.', 'Leave Server'],
@@ -255,6 +257,15 @@ export async function directItems(key, ids) {
 }
 // Voice recording and playback (public/content.js), loaded on first use.
 let content, forwardTimer;
+// Expression (expression.js): reaction-chip holds, and sticker suggestions for
+// the emoji the composer ends with.
+let expression, stickerHint = '';
+const expressionModule = () => expression ??= import('/public/expression.js');
+const endsWithEmoji = /(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*)\s*$/u;
+function hintStickers(text) {
+  const hint = (endsWithEmoji.exec(text) ?? [])[1] ?? '';
+  if (hint !== stickerHint) { stickerHint = hint; emit(`expr-suggest:${hint}`); }
+}
 const contentModule = () => content ??= import('/public/content.js');
 export function contentAction(action) { if (content) void content.then((m) => m.action(action)); }
 export async function recoverSession() {
@@ -640,6 +651,7 @@ function send() {
   clearTimeout(typingTimer);
   completionRequest = ''; completionRange = null;
   if (input) emit(`send:${input.value}`);
+  if (stickerHint) hintStickers('');
 }
 export function installPlatform() {
   if (installed) return;
@@ -708,7 +720,8 @@ export function installPlatform() {
       // a dialog is then replayed after that entry is popped (navigation.js);
       // sent earlier, the pop would close the dialog it had just opened.
       if(target.closest('#live-message-menu'))messageMenu?.closeMessageMenu();
-      const action = target.dataset.live;
+      // Shift or Alt picks a reaction chip's other kind (Super or normal).
+      const action = (e.shiftKey || e.altKey) && target.dataset.liveAlt ? target.dataset.liveAlt : target.dataset.live;
       if (!target.closest('.live-modal,#live-message-menu')) opener = action;
       if (action.startsWith('reply:')) focusComposer = true;
       if (action === "pick-image") { emit("close"); $("#live-file")?.click(); }
@@ -819,6 +832,7 @@ export function installPlatform() {
       countMessage(e.target);
       // The app sends this at most once every few seconds.
       if (c && e.target.value) emit('typing');
+      hintStickers(e.target.value);
     }
     if (e.target.matches("[data-emoji-query]")) {
       clearTimeout(typingTimer);
@@ -1064,6 +1078,7 @@ export function installPlatform() {
   let touch, press;
   const cancelPress=()=>{if(press)clearTimeout(press.timer);press=null;};
   document.addEventListener('contextmenu',e=>{
+    if(e.target.closest('[data-live-alt]')){e.preventDefault();return;}
     const member=e.target.closest('.member-row[data-live]');
     if(member&&!member.closest('.live-modal')){e.preventDefault();void request(member.dataset.live);return;}
     const row=e.target.closest('.message');
@@ -1075,6 +1090,8 @@ export function installPlatform() {
   });
   document.addEventListener("pointerdown", (e) => {
     cancelPress();
+    const chip=e.pointerType!=='mouse'&&e.target.closest('[data-live-alt]');
+    if(chip)void expressionModule().then((m)=>m.press(chip,e,(action)=>void request(action)));
     if(e.target.closest('#live-message-menu'))lastSwipe=undefined;
     const hit=e.pointerType==='touch'?document.elementFromPoint(e.clientX,e.clientY)??e.target:e.target;
     const row=hit.closest('.message');

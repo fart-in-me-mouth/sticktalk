@@ -35,6 +35,7 @@ pub(super) fn is_server_page(page: &str) -> bool {
             | "invite"
             | "guild-delete"
     ) || super::moderation::is_server_page(page)
+        || super::expression::is_server_page(page)
         || [
             "role:",
             "channel-edit:",
@@ -77,6 +78,19 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             "Invites",
             "invite",
             can_any(a, Permissions::CREATE_INVITES | Permissions::MANAGE_GUILD),
+        ),
+        // Expression (expression.rs): emoji and stickers.
+        (
+            "smile",
+            "Emoji",
+            "server-emoji",
+            can(a, Permissions::MANAGE_EMOJI),
+        ),
+        (
+            "sticker",
+            "Stickers",
+            "server-stickers",
+            can(a, Permissions::MANAGE_EMOJI),
         ),
     ];
     // Moderation, as its own group.
@@ -135,6 +149,8 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
                 "guild-delete" => "Delete Server",
                 "automod-rule" => "AutoMod Rule",
                 "channel-perms" => "Channel Permissions",
+                "emoji-edit" => "Edit Emoji",
+                "sticker-edit" => "Edit Sticker",
                 _ => "Server Settings",
             },
             |(_, label, _, _)| *label,
@@ -150,6 +166,8 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
         "guild-delete" => ("Back to Overview", "dialog:server-overview"),
         "automod-rule" => ("Back to AutoMod", "dialog:automod"),
         "channel-perms" => ("Back to Channels", "dialog:server-channels"),
+        "emoji-edit" => ("Back to Emoji", "dialog:server-emoji"),
+        "sticker-edit" => ("Back to Stickers", "dialog:server-stickers"),
         _ => ("Back to Server Settings", "dialog:server"),
     };
     settings_page(

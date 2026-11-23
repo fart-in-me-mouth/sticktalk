@@ -847,8 +847,12 @@ pub(super) fn submit(app: Shared, form: &str) {
             let answers: Vec<PollAnswerDraft> = (0..n)
                 .map(|i| PollAnswerDraft {
                     text: value(&format!("poll-answer-{i}")).trim().to_owned(),
-                    emoji: Some(value(&format!("poll-emoji-{i}")).trim().to_owned())
-                        .filter(|e| !e.is_empty()),
+                    // A custom emoji's :name: becomes its token (expression.rs).
+                    emoji: Some(super::expression::prepare_send(
+                        &a,
+                        value(&format!("poll-emoji-{i}")).trim(),
+                    ))
+                    .filter(|e| !e.is_empty()),
                 })
                 .filter(|v| !v.text.is_empty())
                 .collect();
