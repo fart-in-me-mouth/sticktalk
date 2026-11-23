@@ -68,6 +68,8 @@ pub(super) enum Call {
 
 /// A command's result: decoded by the core, or the feature's own result
 /// payload for the feature to decode.
+// One per answer, moved straight into the feature (as `Call`).
+#[allow(clippy::large_enum_variant)]
 pub(super) enum Reply {
     Core(CommandResult),
     Raw(Raw),

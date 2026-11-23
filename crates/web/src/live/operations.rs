@@ -1370,6 +1370,11 @@ fn open_dialog(app: Shared, name: &str) {
     }
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
+    // The Roles page leads to the role editor: fetch its identity controls
+    // now, as on intent (a role editor opened from here waits for them).
+    if name == "roles" && super::features::fast_connection() {
+        spawn_local(super::ui::__preload_load_identity_dialog());
+    }
     let name = name.to_owned();
     spawn_local(async move {
         dialog_data(app, name, epoch, generation).await;
@@ -2407,6 +2412,12 @@ fn prefetch_for(action: &str) {
         }
         "call" => {
             spawn_local(super::calls::__preload_action());
+            None
+        }
+        // A role in Server Settings › Roles: its editor's style and icon
+        // controls are in the identity view module.
+        "role" => {
+            spawn_local(super::ui::__preload_load_identity_dialog());
             None
         }
         "voice" | "signal" | "signal-request" => {

@@ -1,4 +1,4 @@
-# Web first load, idle memory and server stack depth (tasks `perf`, `lazy`)
+# Web first load, idle memory and server stack depth (tasks `perf`, `lazy`, `lazy2`)
 
 Ten feature branches roughly doubled the web app's first load and idle
 memory. This file records what the cost was, the structure that removes it,
@@ -7,6 +7,146 @@ depth work. Numbers are from headless Chromium on the owner's PC.
 
 **Feature engineers converting a branch:** read "The structure", then follow
 "Converting a feature branch" below step by step.
+The latest additions to the method (task `lazy2`: per-message and per-user
+extras kept undecoded with `Deferred`, composer paths as their own splits,
+lazily loaded feature stylesheets, the service worker's size) are in the
+next section.
+
+## Activities, apps and identity (task `lazy2`)
+
+Three more eager-style branches (shared Activities, apps/bots/webhooks,
+server identity) were merged from the staging branch and converted. Before:
+the staging branch as found (`2ed7b7c`). After: this branch. Same method as
+below (release web build, headless Chromium, a real local server, one server
+binary for both: this branch's `--profile server`).
+
+| | Before (`2ed7b7c`) | After | Target |
+| --- | ---: | ---: | ---: |
+| Core WASM, Brotli | 1,348,192 B | **487,007 B** | 490,000 B |
+| First load (installable shell inventory) | 1,685,192 B | **649,871 B** | 650,000 B |
+| First screen's JavaScript, Brotli | 113,533 B | 60,692 B | |
+| WASM loaded at idle | 7,538,008 B in 26 modules | 1,912,939 B in 13 modules | |
+| Script loaded at idle | 431,153 B | 367,547 B | |
+| Idle private memory over a blank browser | 97.4 MiB | **55.5 MiB** | 45 MiB |
+| - renderer / browser process | 75.3 / 18.1 MiB | 46.0 / 7.0 MiB | |
+| Idle CPU, one logical core | 0.061% | 0.061% | not higher |
+
+Against the integration tree before this merge (`0cbace0`: core 471,007 B,
+first load 637,224 B, 51.9 MiB) the three features cost 16 KB of core,
+12.6 KB of first load and 3.6 MiB at idle. The first load is 129 B under its
+target: the next feature has to pay for itself (see "Finding where the
+bytes are"). What is left of them in the core is
+what every name, row and message draws: the APP label, the server tag chip,
+a role's gradient and icon, the sidebar banner and animated rail icon, the
+invite and activity cards' placeholders, and the `/` hook in the composer.
+
+### First-open latency (`tests/perf.mjs`, median of 3)
+
+| Feature | Before, press | After, press | Before, intent | After, intent |
+| --- | ---: | ---: | ---: | ---: |
+| `/` command picker | 97 ms | 97 ms | 85 ms | 84 ms |
+| Activities launcher (in a call) | 64 ms | 65 ms | 54 ms | 66 ms |
+| Server tag card | 119 ms | 100 ms | 98 ms | 67 ms |
+| Role editor (style and icon controls) | 69 ms | 80 ms | 41 ms | 63 ms |
+| User Settings | 105 ms | 77 ms | 99 ms | 56 ms |
+| Emoji picker | 1,021 ms | 74 ms | 1,101 ms | 150 ms |
+| Inbox | 100 ms | 99 ms | 97 ms | 74 ms |
+| Profile card | 109 ms | 90 ms | 97 ms | 71 ms |
+| Server menu | 39 ms | 39 ms | 17 ms | 17 ms |
+
+- The `/` picker loads two small modules (`compose_lazy` 7.5 KB, its view
+  `load_picker` 2 KB), not the apps feature (20 KB) or its pages (62 KB); the
+  built-in commands are a constant in it. Typing `/` in a server also fetches
+  that channel's command list.
+- The role editor's style and icon controls are in the identity view module
+  (24 KB): it is fetched when the Roles page opens and on pointing at a role,
+  so the editor does not wait for it (without that: 87 ms press, 69 ms
+  intent). The 11-22 ms still left is rendering, not a download: no request
+  follows the press. Not chased further.
+- The launcher's time is `activities.js` and its stylesheet, both loaded on
+  the press; the activity's own code, SDK and shell load only when one is
+  launched or joined.
+
+### What was done (beyond "Converting a feature branch")
+
+- **Composer paths as small splits.** The apps feature's `run` module (pages,
+  forms) is not what the composer waits for: the picker, sending a command
+  (`run_slash`) and a channel's command list (`load_catalog`) are `#[lazy]`
+  functions of their own. A feature's latency-critical path can be its own
+  split; the doc's state/run split is the default, not the limit.
+- **Apps' answers go to `run`** (`features::dispatch`): they answer what its
+  pages and the picker sent, so the module is already loaded; its 44 KB
+  event module (`apps_state`) loads only for an app event.
+- **Identity is one module** (`identity`, no `state`): it has no events or
+  results of its own; its answers are core Acks, dispatched to `run`.
+- **Activities' host script loads only when needed.** Someone else's session
+  is drawn by the call view's own banner; `activities.js` loads when this
+  client opens the launcher, joins or takes part (`activities::wake_host`
+  then hands it the session it missed).
+- **`Deferred<T>` in proto (wasm32 only).** A large type that rides on every
+  message, user, server or role puts its decoder in the core even when only
+  one feature draws it. In the web build these fields are
+  `sticktalk_proto::Deferred<T>` (the JSON, decoded on first use by the
+  feature that draws it); the wire and the native types are unchanged:
+  `MessageExtra.app` and `.activity`, `UserStyle.tag`, `Guild.look`,
+  `Role.look`, and the `Event::Apps` / `CommandResult::Apps` payloads (the
+  core never builds those variants, but their clone and drop code was in it).
+  A hot-path renderer reads the few fields it draws from `raw()`
+  (`ui::identity::worn_tag`, `role_style`, `guild_image`; `ui::apps::author`)
+  instead of calling `get()`, which would bring the decoder back. Saved about
+  10 KB Brotli of core.
+- **Feature stylesheets can load with the feature.** `styles/activities.css`
+  is built on its own (`@reference "./app.css"`, so `@apply` and the theme
+  work; `scripts/styles.mjs` `LAZY_STYLES`) into `public/activities.css`,
+  which `activities.js` links on import. Only for styles nothing on the first
+  screen uses.
+- **The service worker is part of the first load, uncompressed.** It lists
+  every asset; the lists are now grouped by directory (17.3 KB to 9 KB), and
+  an activity frame's files are left out (an opaque-origin frame is never
+  controlled by the worker).
+- **Precache exclusions must match the fingerprinted path.** Feature scripts
+  are served from `/public/runtime/<hash>/x.js`: an exclusion written as
+  `/public/x.js` does not match it (`activities.js`, 10 KB, was precached).
+
+### Finding where the bytes are
+
+To see exactly what a merge added to the core, build the core of the tree
+before it too and diff the two `twiggy` listings by function name (hashes in
+symbol names removed): `git archive <commit>` into a scratch directory,
+`cargo build -p sticktalk-web --target wasm32-unknown-unknown --profile
+web-release` there with the same target directory, then the names-split
+commands of "Measuring" below for each. The "function names" subsection is
+not shipped; group the rest by crate and module. Here the growth was 74 KB
+uncompressed: 42 KB of the features' own code and decoders, 12 KB of view
+code (each extra child in a `view!` changes the whole element's type: give
+several hooks one slot, as `ui::feature_extras` and `identity::row_after` do),
+5 KB of `serde_json::Value`, the rest data and tables. For the first load,
+compare `sw.js`'s shell list sizes the same way (`firstLoadBytes` counts
+compressed files and the worker as is).
+
+### Server stack depth (debug build, `stack_tests::measure`)
+
+| Path | Combined tree (`lazy`) | This branch |
+| --- | ---: | ---: |
+| A bot answers a command with embeds and buttons | | 1,158 KiB |
+| Create a forum post | 1,031 KiB | 1,094 KiB |
+| Share an event into a channel | 1,031 KiB | 1,094 KiB |
+| Send a `/tts` message | 903 KiB | 1,031 KiB |
+| Send a message with mentions | 839 KiB | 903 KiB |
+| Scheduled message delivery (timer) | 775 KiB | 839 KiB |
+| Publish an announcement + crosspost delivery | 455 KiB | 519 KiB |
+| Build a server from a template | 455 KiB | 519 KiB |
+| A server tag edit told to 400 wearers (fan-out) | | 455 KiB |
+| An activity launched, its invite card posted | | 391 KiB |
+| Opening the server (migrations, timers) | 271 KiB | 327 KiB |
+| An event starts (timer) | 199 KiB | 263 KiB |
+
+The send path grew one 64 KiB step (the merged features' hooks on it:
+`apps::gate`, `apps::settle`, the bots' event filter). The deepest path is a
+bot's answer (`Respond` → `commands::mutate(SendMessage)` through the boxed
+apps module): 1,158 KiB of the 2 MiB debug budget. All server tests pass with
+the default 2 MiB test stack.
+
 
 ## The combined tree (task `lazy`)
 
