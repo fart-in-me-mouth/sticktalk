@@ -1324,7 +1324,7 @@ pub(crate) async fn mutate(
                 .execute(&mut *c)
                 .await?;
             joined(c, out, g, u).await?;
-            crate::schedule::joined_by_invite(c, i.id, u).await?;
+            crate::schedule::joined_by_invite(c, i.id, g, u, out).await?;
             let i = invite(c, i.id).await?;
             if i.uses == i.max_uses {
                 sqlx::query("UPDATE invites SET inactive_notified=1 WHERE id=?")

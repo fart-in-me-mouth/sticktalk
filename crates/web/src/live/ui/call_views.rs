@@ -91,6 +91,9 @@ pub(super) fn banner(a: &App, c: Id) -> AnyView {
     if a.screen == "voice" {
         return ().into_any();
     }
+    if channel.kind == ChannelKind::Stage {
+        return super::stage::chat_banner(a, c);
+    }
     if channel.kind == ChannelKind::Voice {
         let mut people: Vec<Id> = a
             .model

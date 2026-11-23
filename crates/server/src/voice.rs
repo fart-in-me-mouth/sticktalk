@@ -406,10 +406,22 @@ async fn broadcast(
     guild: Id,
     event: &VoiceEvent,
 ) -> Result<()> {
+    broadcast_except(core, c, guild, event, None).await
+}
+/// `broadcast`, leaving out one connection (a Stage speaker moving to the
+/// audience stays in the call: its own `GuildLeft` would end it).
+async fn broadcast_except(
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    guild: Id,
+    event: &VoiceEvent,
+    except: Option<&[u8]>,
+) -> Result<()> {
     let users = db::guild_users(c, guild).await?;
     let keys: Vec<_> = core
         .streams
         .iter()
+        .filter(|(k, _)| Some(k.as_slice()) != except)
         .filter(|(_, s)| s.connection.is_some() && users.contains(&s.user))
         .map(|(k, _)| k.clone())
         .collect();
@@ -502,6 +514,17 @@ pub(crate) async fn remove(
                 },
             )
             .await?;
+        } else if entry.listener {
+            // Nobody else knew; the listener's own devices still need to.
+            let _ = send(
+                core,
+                &entry.key,
+                0,
+                &VoiceEvent::GuildLeft {
+                    guild_id: entry.state.guild_id,
+                    session,
+                },
+            );
         }
     }
     Ok(())
@@ -602,7 +625,8 @@ pub(crate) async fn restage(
         p.generation += 1;
     }
     if listener && !was && joined {
-        broadcast(
+        let key = core.voice[&session].key.clone();
+        broadcast_except(
             core,
             c,
             guild,
@@ -610,6 +634,7 @@ pub(crate) async fn restage(
                 guild_id: guild,
                 session,
             },
+            Some(&key),
         )
         .await?;
     }

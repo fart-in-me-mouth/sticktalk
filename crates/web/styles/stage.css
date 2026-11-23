@@ -1,0 +1,52 @@
+/* Stage channels and scheduled events (docs/features/stage.md). Imported by
+   app.css; same tokens and component classes. */
+@layer components {
+  /* Speakers: the call's tiles, smaller, so the audience stays in view. */
+  .stage-view .participant-grid.stage-speakers {
+    @apply max-w-none flex-none grid-cols-[repeat(auto-fill,minmax(180px,1fr))] py-0;
+    max-height: 46vh;
+  }
+  .stage-view .participant-grid.stage-speakers:empty::before {
+    @apply col-span-full grid min-h-[120px] place-items-center rounded-lg border border-dashed text-sm text-subtle content-['No_one_is_speaking_yet.'];
+  }
+  /* The audience: a virtual list (public/stage.js). Rows are absolutely
+     placed inside a spacer as tall as the whole list. */
+  .stage-audience {
+    @apply relative flex min-h-0 flex-col overflow-hidden rounded-lg bg-panel;
+  }
+  .stage-audience-list {
+    @apply relative min-h-0 flex-1 overflow-y-auto overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+  .stage-audience-spacer {
+    @apply relative w-full;
+  }
+  .stage-member {
+    @apply absolute inset-x-0 flex h-11 items-center gap-3 px-3 text-sm hover:bg-sidebar-accent;
+  }
+  .stage-member-avatar {
+    @apply grid size-8 flex-none place-items-center overflow-hidden rounded-full bg-brand-avatar text-xs uppercase;
+  }
+  .stage-member-avatar img {
+    @apply size-full object-cover;
+  }
+  .stage-member-name {
+    @apply min-w-0 flex-1 truncate;
+  }
+  .stage-member-hand {
+    @apply size-4 flex-none text-warning;
+  }
+  .stage-member-note {
+    @apply flex-none text-xs text-subtle;
+  }
+  .stage-audience-empty {
+    @apply absolute inset-0 m-0 grid place-items-center text-sm text-subtle;
+  }
+  .quiet-count {
+    @apply bg-muted text-foreground;
+  }
+  .stage-events .modal,
+  .live-modal.stage-events,
+  .live-modal.stage-event {
+    @apply max-h-[min(760px,calc(100vh-32px))] overflow-y-auto;
+  }
+}

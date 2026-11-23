@@ -1311,14 +1311,22 @@ async fn publish(core: &mut Core, c: &mut SqliteConnection, e: Id) -> Result<()>
 }
 
 /// Someone joined the server through an invite: an event invite marks them
-/// Interested.
-pub(crate) async fn joined_by_invite(c: &mut SqliteConnection, invite: Id, u: Id) -> Result<()> {
+/// Interested, and they get the server's events summary.
+pub(crate) async fn joined_by_invite(
+    c: &mut SqliteConnection,
+    invite: Id,
+    g: Id,
+    u: Id,
+    out: &mut Deliveries,
+) -> Result<()> {
     sqlx::query("INSERT OR IGNORE INTO event_interest(event_id,user_id,created_at) SELECT e.id,?,? FROM invite_events i JOIN scheduled_events e ON e.id=i.event_id WHERE i.invite_id=? AND e.status IN ('scheduled','live')")
         .bind(id(u)?)
         .bind(now() as i64)
         .bind(id(invite)?)
         .execute(&mut *c)
         .await?;
+    let s = summary(c, u, g).await?;
+    out.push((vec![u], Event::Schedule(ScheduleUpdate::Summary(s))));
     Ok(())
 }
 

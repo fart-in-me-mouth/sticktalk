@@ -101,6 +101,7 @@ pub(super) fn rail(a: &App) -> AnyView {
 fn conv_icon(c: &ChannelSummary) -> &'static str {
     match c.kind {
         ChannelKind::Voice => "volume-2",
+        ChannelKind::Stage => "audio-lines",
         ChannelKind::GroupDm => "users",
         ChannelKind::Direct => "message-circle",
         _ => "hash",
