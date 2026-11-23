@@ -50,6 +50,9 @@ pub(super) struct State {
     /// Server settings: (server, its emoji and stickers).
     pub admin: Option<(Id, GuildExpressionAdmin)>,
     pub busy: bool,
+    /// How much of the picker's emoji grid is drawn, for (category, query):
+    /// the first rows, then more as it scrolls (`ui::expression::PICKER_WINDOW`).
+    pub window: (String, String, usize),
 }
 
 pub(super) const ACTIONS: &[&str] = &[
@@ -60,6 +63,7 @@ pub(super) const ACTIONS: &[&str] = &[
     "super-react",
     "expr-tab",
     "expr-category",
+    "expr-more",
     "expr-sticker",
     "expr-sticker-tray",
     "expr-sticker-send",
@@ -304,7 +308,7 @@ fn resolve_soon(a: &App) {
         features::defer(
             app,
             features::Feature::Expression,
-            features::Call::Other("resolve", String::new()),
+            features::Call::State("resolve", String::new()),
         );
     }
 }
@@ -639,6 +643,12 @@ pub(super) fn action(app: Shared, kind: &str, arg: &str) {
         }
         "expr-category" => {
             a.expression.category = arg.into();
+            a.touch();
+        }
+        // The end of the drawn part of the picker's grid scrolled near: draw more.
+        "expr-more" => {
+            let shown = arg.parse().unwrap_or(0);
+            a.expression.window = (a.expression.category.clone(), a.query.clone(), shown);
             a.touch();
         }
         // Send one sticker now.
@@ -1169,7 +1179,7 @@ pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
             };
             answered(app, op, result);
         }
-        Call::Other("resolve", _) => resolve(app),
+        Call::State("resolve", _) => resolve(app),
 
         _ => {}
     }

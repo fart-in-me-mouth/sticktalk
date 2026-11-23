@@ -845,13 +845,10 @@ fn dialog(a: &App) -> AnyView {
     if let Some((body, label, class)) = threads::dialog(a) {
         return modal(a, class, label, body);
     }
-    if let Some((body, label, class)) = stage::dialog(a) {
-        return modal(a, class, label, body);
-    }
-    if let Some(view) = expression::dialog(a) {
+    if let Some(view) = feature_dialog(a) {
         return view;
     }
-    if let Some(view) = community::dialog(a) {
+    if let Some(view) = expression::dialog(a) {
         return view;
     }
     let body=match a.dialog.as_str(){
@@ -863,8 +860,8 @@ fn dialog(a: &App) -> AnyView {
         "ban" if !a.model.members.values().any(|m|Some(m.guild_id)==a.guild&&m.role!=MemberRole::Owner&&a.model.me.as_ref().is_some_and(|me|me.user.id!=m.user.id))=>view!{<h2>"Ban a Member"</h2><div class=SETTINGS_EMPTY>{icon("users")}<p>"There is no one else in this server to ban."</p>{button("Back to Bans","dialog:server-bans","secondary")}</div>}.into_any(),
         "ban"=>form_with("Ban a Member","ban",view!{<p>"This removes the member and prevents them from rejoining until you revoke the ban."</p><label class="field"><span>"Member"</span><select id="f-name">{a.model.members.values().filter(|m|m.guild_id==a.guild.unwrap_or_default()&&m.role!=MemberRole::Owner&&a.model.me.as_ref().is_some_and(|me|me.user.id!=m.user.id)).map(|m|view!{<option value=m.user.id.0.to_string()>{name(&m.user)}</option>}).collect_view()}</select></label>{field("f-value","Reason (optional)","","text")}}.into_any(),"dialog:server-bans",true),
         "server-emoji"=>view!{<h2>"Emoji"</h2><p class="muted-copy">"Custom server emoji are not available yet. Everyone can use the emoji picker in chat."</p>}.into_any(),
-        "appearance"=>themes::appearance(a),
-        value if themes::title(value).is_some()=>themes::page(a,value).unwrap_or_else(||().into_any()),
+        "appearance"=>themes_page(a),
+        value if themes::title(value).is_some()=>themes_page(a),
         "privacy"=>settings::privacy(a),
         "group-members"=>group_members(a),
         "group" if a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend).count()<2=>view!{<h2>"New Group Message"</h2><div class=SETTINGS_EMPTY>{icon("users")}<p>"Add at least two friends to start a group message."</p>{button("Add Friends","dialog:friend","primary")}</div>}.into_any(),
@@ -1058,6 +1055,53 @@ type Loading<F> = std::pin::Pin<Box<dyn std::future::Future<Output = F>>>;
 pub(super) struct LazyViews {
     pub forum: LazyView<fn(&App, &str) -> AnyView>,
     pub search: LazyView<fn(&App) -> AnyView>,
+    /// Feature pages and dialogs, each in its feature's view module: opening
+    /// User Settings does not download them.
+    pub community: LazyView<fn(&App) -> Option<AnyView>>,
+    pub stage: LazyView<StageDialog>,
+    pub themes: LazyView<fn(&App, &str) -> Option<AnyView>>,
+}
+type StageDialog = fn(&App) -> Option<(AnyView, &'static str, &'static str)>;
+#[lazy]
+pub(super) fn load_community_dialog() -> fn(&App) -> Option<AnyView> {
+    community::dialog
+}
+#[lazy]
+pub(super) fn load_stage_dialog() -> StageDialog {
+    stage::dialog
+}
+#[lazy]
+pub(super) fn load_themes_page() -> fn(&App, &str) -> Option<AnyView> {
+    themes::page
+}
+/// The dialogs whose views are in a feature's view module (`LazyViews`),
+/// with a placeholder while that module downloads.
+fn feature_dialog(a: &App) -> Option<AnyView> {
+    let d = a.dialog.as_str();
+    if super::stage::owns_dialog(d) {
+        let view = lazy_view(a, |a| &a.views.stage, || Box::pin(load_stage_dialog()));
+        return Some(match view.and_then(|v| v(a)) {
+            Some((body, label, class)) => modal(a, class, label, body),
+            None => loading_dialog(a),
+        });
+    }
+    if community::owns(d) {
+        let view = lazy_view(
+            a,
+            |a| &a.views.community,
+            || Box::pin(load_community_dialog()),
+        );
+        return Some(view.and_then(|v| v(a)).unwrap_or_else(|| loading_dialog(a)));
+    }
+    None
+}
+/// A themes page's body (it goes in the settings frame like any page).
+fn themes_page(a: &App) -> AnyView {
+    let view = lazy_view(a, |a| &a.views.themes, || Box::pin(load_themes_page()));
+    view.and_then(|v| v(a, &a.dialog)).unwrap_or_else(|| {
+        let title = themes::title(&a.dialog).unwrap_or("Appearance");
+        view! {<h2>{title}</h2><p class="muted-copy" role="status">"Loading…"</p>}.into_any()
+    })
 }
 /// The view in `slot`, or None while its module is still downloading.
 fn lazy_view<F: Copy + 'static>(

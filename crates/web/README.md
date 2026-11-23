@@ -91,10 +91,14 @@ the socket routes frames (`src/inbound.rs`) and decodes only the core's own
 events; a feature's events and command results go, undecoded, to that feature's
 lazily loaded module (`src/live/features.rs`: one `run` entry for its pages and
 forms, one `state` entry for its events and answers). Every typed value is read
-through one decoder (MessagePack rewritten as JSON, `inbound::de`). The UI
-SDK's dialog, menu and tooltip are defined on first use. `npm run test:sizes`
-(also part of `npm run audit`) checks every module against
-`scripts/budgets.json`; `npm run test:perf` measures first-open latency.
+through one decoder (MessagePack rewritten as JSON, `inbound::de`). A
+feature's pages and dialogs are in its own view module (`ui::LazyViews`), not
+in the shared dialog module. The UI SDK's dialog and tooltip are defined on
+first use, the menu when the browser is idle after one is on the page.
+`npm run test:sizes` (also part of `npm run audit`) checks every module against
+`scripts/budgets.json`; `npm run test:perf` measures first-open latency. A
+branch still in the eager style converts itself with the checklist in
+"Converting a feature branch" in perf.md.
 
 Fonts preload and use font-display: swap. Production CSS is the Tailwind build of `styles/app.css`;
 the much larger fixture stylesheet and media/push modules are not on the login

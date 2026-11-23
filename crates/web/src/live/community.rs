@@ -101,6 +101,8 @@ fn emoji_of(raw: String) -> Option<String> {
 }
 
 /// Every Ready: opt in to community events, and act on a `?template=` link.
+/// In the core: the subscription is a hand-written frame, and this module's
+/// state loads only when the open server needs it (docs/features/perf.md).
 pub(super) fn ready(app: Shared) {
     {
         let mut a = app.borrow_mut();
@@ -135,11 +137,28 @@ pub(super) fn ready(app: Shared) {
         super::operations::action(app.clone(), &format!("dialog:template:{code}"));
     }
     if let Some(g) = guild {
-        refresh(app, g, true);
+        load_state(app, g);
     }
 }
-/// A server was opened: know its community state; offer the new-member flow.
+/// Fetch a server's community state in this feature's state module, then
+/// offer the new-member flow.
+fn load_state(app: Shared, g: Id) {
+    features::spawn(
+        app,
+        features::Feature::Community,
+        features::Call::State("guild", g.0.to_string()),
+    );
+}
+/// A server was opened: know its community state; offer the new-member flow
+/// (both in the state module, which runs at once when it is loaded).
 pub(super) fn guild_opened(app: Shared, g: Id) {
+    features::spawn(
+        app,
+        features::Feature::Community,
+        features::Call::State("open", g.0.to_string()),
+    );
+}
+fn opened_guild(app: Shared, g: Id) {
     let known = app.borrow().community.states.contains_key(&g);
     if known {
         offer(&app, g);
@@ -147,7 +166,16 @@ pub(super) fn guild_opened(app: Shared, g: Id) {
         refresh(app, g, true);
     }
 }
-pub(super) fn refresh(app: Shared, g: Id, offer_flow: bool) {
+/// Ask a page of this feature's `run` module to fetch again (an event or an
+/// answer in the state module changed what it shows).
+fn page(app: Shared, what: &'static str, g: Id) {
+    features::defer(
+        app,
+        features::Feature::Community,
+        features::Call::Other(what, g.0.to_string()),
+    );
+}
+fn refresh(app: Shared, g: Id, offer_flow: bool) {
     let (http, epoch) = {
         let mut a = app.borrow_mut();
         if !a.community.loading.insert(g) {
@@ -262,7 +290,7 @@ pub(super) fn channel_opened(app: Shared, c: Id) {
     }
 }
 
-pub(super) fn event(a: &mut App, e: &CommunityEvent) {
+fn event(a: &mut App, e: &CommunityEvent) {
     match e {
         CommunityEvent::Updated { guild_id } => {
             if a.community.states.contains_key(guild_id) {
@@ -306,8 +334,7 @@ pub(super) fn event(a: &mut App, e: &CommunityEvent) {
                 .is_some_and(|(g, _)| g == guild_id)
             {
                 if let Some(app) = a.owner.upgrade() {
-                    let g = *guild_id;
-                    spawn_local(async move { load_queue(app, g).await });
+                    page(app, "queue", *guild_id);
                 }
             }
         }
@@ -328,7 +355,7 @@ pub(super) fn admin_page(name: &str) -> bool {
     )
 }
 /// A dialog opened: fetch what its page shows.
-pub(super) fn opened(app: Shared, name: &str) {
+fn opened(app: Shared, name: &str) {
     let guild = app.borrow().guild;
     let name = name.to_owned();
     match name.as_str() {
@@ -544,7 +571,7 @@ fn load_directory(app: Shared) {
     });
 }
 /// The Join field holds an invite: learn what its server asks of new members.
-pub(super) fn invite_gate(app: Shared, code: String) {
+fn invite_gate(app: Shared, code: String) {
     let http = app.borrow().http();
     app.borrow_mut().community.gate = None;
     spawn_local(async move {
@@ -609,7 +636,7 @@ pub(super) fn shown<'a>(
 }
 
 /// `data-live="cm:<what>,<arg>"` actions.
-pub(super) fn action(app: Shared, arg: &str) {
+fn action(app: Shared, arg: &str) {
     let (what, rest) = arg.split_once(',').unwrap_or((arg, ""));
     let guild = app.borrow().guild;
     match what {
@@ -1092,7 +1119,7 @@ fn read_questions() -> Vec<ApplicationQuestion> {
         .collect()
 }
 
-pub(super) fn submit(app: Shared, form: &str) {
+fn submit(app: Shared, form: &str) {
     media_action(&format!("form-sent:{form}"));
     let mut a = app.borrow_mut();
     let guild = a.guild;
@@ -1304,7 +1331,7 @@ fn saved(a: &mut App, form: &'static str, text: &str) {
         a.error = text.into();
     }
 }
-pub(super) fn answered(app: Shared, op: Command, result: CommandResult) {
+fn answered(app: Shared, op: Command, result: CommandResult) {
     let Command::Community(cmd) = op else { return };
     let mut a = app.borrow_mut();
     a.error.clear();
@@ -1415,7 +1442,7 @@ pub(super) fn answered(app: Shared, op: Command, result: CommandResult) {
             a.touch();
             drop(a);
             if let Some(g) = guild {
-                spawn_local(async move { load_queue(app, g).await });
+                page(app, "queue", g);
             }
             return;
         }
@@ -1459,11 +1486,91 @@ pub(super) fn answered(app: Shared, op: Command, result: CommandResult) {
             }
             drop(a);
             if let Some(g) = guild {
-                spawn_local(async move { load_templates(app, g).await });
+                page(app, "templates", g);
             }
             return;
         }
         _ => {}
     }
     a.touch();
+}
+
+/// The community feature's pages, forms and dialogs (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    community,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    match call {
+        Call::Action(_, arg) => action(app, &arg),
+        Call::Submit(form) => submit(app, &form),
+        Call::Opened(name) => opened(app, &name),
+        Call::Other("gate", code) => invite_gate(app, code),
+        Call::Other("queue", g) => {
+            if let Some(g) = id(&g) {
+                spawn_local(async move { load_queue(app, g).await });
+            }
+        }
+        Call::Other("templates", g) => {
+            if let Some(g) = id(&g) {
+                spawn_local(async move { load_templates(app, g).await });
+            }
+        }
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// The community feature's state: a server's community state (fetched when
+/// the server opens), its events and the answers to its commands.
+#[leptos::wasm_split::wasm_split(
+    community_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    use features::{Call, Reply};
+    match call {
+        Call::State("guild", g) => {
+            if let Some(g) = id(&g) {
+                refresh(app, g, true);
+            }
+        }
+        Call::State("open", g) => {
+            if let Some(g) = id(&g) {
+                opened_guild(app, g);
+            }
+        }
+        Call::Event(raw) => {
+            let Ok(e) = crate::inbound::feature::community_event(&raw.data) else {
+                return Ok(false);
+            };
+            event(&mut app.borrow_mut(), &e);
+        }
+        Call::Answer(Some(op), reply) => {
+            let result = match reply {
+                Reply::Core(result) => result,
+                Reply::Raw(raw) => match crate::inbound::feature::community_result(&raw.data) {
+                    Ok(r) => CommandResult::Community(r),
+                    Err(()) => return Ok(false),
+                },
+            };
+            answered(app, op, result);
+        }
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// Dialogs this feature loads data for when they open (`opened`), and whose
+/// views are in its view module (`ui::community`).
+pub(super) fn owns_dialog(name: &str) -> bool {
+    name.starts_with("cm-")
+        || name == "discover"
+        || name == "create"
+        || name.starts_with("discover:")
+        || name.starts_with("template:")
 }

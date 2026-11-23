@@ -30,6 +30,9 @@ pub(super) fn from_name(name: &str) -> Option<Feature> {
             "nav" => Feature::Nav,
             "profiles" => Feature::Profiles,
             "authsec" => Feature::Authsec,
+            "community" => Feature::Community,
+            "stage" => Feature::Stage,
+            "themes" => Feature::Themes,
             _ => return None,
         })
     }
@@ -53,8 +56,11 @@ pub(super) enum Call {
     /// The answer to a command the feature cares about.
     Answer(Option<Command>, Reply),
 
-    /// Anything else, named by the feature (`"card"`, `"gif"`, ...).
+    /// Anything else, named by the feature (`"card"`, `"gif"`, ...): runs in its `run` module.
     Other(&'static str, String),
+    /// Keeping the feature's state current, named by the feature (`"guild"`,
+    /// `"paint"`, ...): runs in its small `state` module, like events.
+    State(&'static str, String),
 }
 
 /// A command's result: decoded by the core, or the feature's own result
@@ -82,7 +88,7 @@ pub(super) type Outcome = Result<bool, Unavailable>;
 fn is_state(call: &Call) -> bool {
     matches!(
         call,
-        Call::Event(_) | Call::Ready | Call::Answer(..) | Call::Other("resolve", _)
+        Call::Event(_) | Call::Ready | Call::Answer(..) | Call::State(..)
     )
 }
 fn dispatch(
@@ -105,6 +111,12 @@ fn dispatch(
         (Feature::Nav, false) => Box::pin(super::nav::run(app, call)),
         (Feature::Profiles, _) => Box::pin(super::profiles::run(app, call)),
         (Feature::Authsec, _) => Box::pin(super::authsec::run(app, call)),
+        (Feature::Community, true) => Box::pin(super::community::state(app, call)),
+        (Feature::Community, false) => Box::pin(super::community::run(app, call)),
+        (Feature::Stage, true) => Box::pin(super::stage::state(app, call)),
+        (Feature::Stage, false) => Box::pin(super::stage::run(app, call)),
+        (Feature::Themes, true) => Box::pin(super::themes::state(app, call)),
+        (Feature::Themes, false) => Box::pin(super::themes::run(app, call)),
     }
 }
 
@@ -152,6 +164,9 @@ pub(super) fn prefetch(f: Feature) {
             Feature::Nav => super::nav::prefetch().await,
             Feature::Profiles => super::profiles::prefetch().await,
             Feature::Authsec => super::authsec::prefetch().await,
+            Feature::Community => super::community::prefetch().await,
+            Feature::Stage => super::stage::prefetch().await,
+            Feature::Themes => super::themes::prefetch().await,
         };
     });
 }

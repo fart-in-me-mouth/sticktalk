@@ -88,6 +88,14 @@ function save() {
 export function preferencesJson() {
   return JSON.stringify(preferences);
 }
+/// What Rust reads (themes.rs `reload_prefs`), in this order: tab-separated,
+/// booleans as 1/0, numbers whole (the speech rate in hundredths). Every value
+/// is normalized and holds no tab.
+export function preferencesLine() {
+  const p = preferences, b = (v) => (v ? '1' : '0');
+  return [p.theme, p.themeId, p.themeCode, p.saturation, b(p.saturationCustom), b(p.contrastBoost), b(p.ttsPlayback),
+    p.ttsNotify, Math.round(p.ttsRate * 100), b(p.streamer), b(p.streamerPopups), b(p.streamerSounds), p.appIcon].join('\t');
+}
 export function loadPreferences() {
   try {
     const raw = localStorage.getItem(STORE);
@@ -110,6 +118,14 @@ export function loadPreferences() {
   applyPreferences();
 }
 export function systemLight() { return prefersLight.matches; }
+// Text to speech (themes.rs): speech.js is imported with the first thing
+// spoken, not with the page.
+let speech = null;
+export function speak(text, rate) {
+  (speech ??= import('/public/speech.js')).then((m) => m.speak(text, rate), () => { speech = null; });
+}
+/// Deafened in a call (media.js keeps this current): speech stays quiet.
+export function deafened() { return globalThis.__sticktalkDeafened === true; }
 let installed = false;
 const SECRET = '.streamer-invite,.streamer-account,.streamer-note,#p-note,.streamer-request,.request-messages,.markdown a[href*="invite="],section[aria-labelledby="authsec-email-title"] :is(p,strong,code),section[aria-labelledby="authsec-passkeys-title"] li';
 function install() {

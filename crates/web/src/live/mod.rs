@@ -889,7 +889,6 @@ async fn socket(app: Shared, epoch: u64) {
                                                 a.roles.insert(r.id, r.clone());
                                             }
                                         }
-                                        Event::Appearance(e) => themes::event(&mut a, e),
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id
@@ -897,10 +896,6 @@ async fn socket(app: Shared, epoch: u64) {
                                             });
                                             a.notifications.push(n.clone());
                                         }
-                                        Event::Schedule(e) => {
-                                            stage::schedule_event(&mut a, e.clone())
-                                        }
-                                        Event::Community(e) => community::event(&mut a, e),
                                         _ => {}
                                     }
                                     // Read aloud (`/tts`, TTS notifications): themes.rs.
@@ -1068,7 +1063,42 @@ async fn socket(app: Shared, epoch: u64) {
                                 // while no call is known: do not load the voice module for it.
                                 let idle = payload.payload == crate::wire::EMPTY_CALL_SNAPSHOT
                                     && app.borrow().calls.live.is_empty();
-                                if payload.version == VOICE_VERSION
+                                // Stage state (the channel list's live Stages, the roster)
+                                // is the stage feature's, not the media host's: it goes,
+                                // undecoded, to that feature's state module. The empty list
+                                // sent after every Ready changes nothing while none is known.
+                                let stage = (payload.version == VOICE_VERSION
+                                    && payload.kind == "event")
+                                    .then(|| inbound::tagged(&payload.payload).ok())
+                                    .flatten()
+                                    .filter(|(tag, _)| *tag == "stage")
+                                    .and_then(|(_, data)| data);
+                                if let Some(data) = stage {
+                                    let idle = payload.payload == crate::wire::EMPTY_STAGE_SNAPSHOT
+                                        && app.borrow().stage.live.is_empty();
+                                    if !idle {
+                                        let raw = inbound::Raw {
+                                            tag: stage::VOICE_TAG,
+                                            data: data.to_vec(),
+                                        };
+                                        let call = features::Call::Event(raw);
+                                        match features::run(
+                                            app.clone(),
+                                            features::Feature::Stage,
+                                            call,
+                                        )
+                                        .await
+                                        {
+                                            Ok(true) => {}
+                                            Ok(false) => {
+                                                app.borrow_mut().error =
+                                                    "Invalid server protocol frame".into();
+                                                break;
+                                            }
+                                            Err(_) => break,
+                                        }
+                                    }
+                                } else if payload.version == VOICE_VERSION
                                     && payload.kind == "event"
                                     && !idle
                                 {
@@ -1197,9 +1227,8 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
         return;
     }
     if let Ok(event) = inbound::de::<VoiceEvent>(&payload.payload) {
-        // Stage state is for the channel list and the Stage view, not the media host.
-        if let VoiceEvent::Stage(e) = event {
-            stage::voice_event(&app, e);
+        // Stage state goes to the stage feature before this (`socket`).
+        if matches!(event, VoiceEvent::Stage(_)) {
             return;
         }
         if matches!(

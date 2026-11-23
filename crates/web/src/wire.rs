@@ -180,6 +180,13 @@ pub fn encode_small(nonce: Nonce, msg: Small<'_>) -> Option<Vec<u8>> {
                     w.unit_in("expression", "subscribe")
                 }
                 Command::Privacy(PrivacyCommand::Subscribe) => w.unit_in("privacy", "subscribe"),
+                Command::Community(CommunityCommand::Subscribe) => {
+                    w.unit_in("community", "subscribe")
+                }
+                Command::Schedule(ScheduleCommand::Subscribe) => w.unit_in("schedule", "subscribe"),
+                Command::Appearance(AppearanceCommand::Subscribe) => {
+                    w.unit_in("appearance", "subscribe")
+                }
                 Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe)) => {
                     w.tag("launch").unit_in("moderation", "subscribe")
                 }
@@ -426,6 +433,14 @@ fn message_group_boundaries() {
 /// SFU encodes events). A client that knows of no calls has nothing to do with
 /// it, so it need not load the voice module on an idle screen.
 pub const EMPTY_CALL_SNAPSHOT: &[u8] = b"\x82\xa4type\xadcall_snapshot\xa4data\x81\xa5calls\x90";
+/// The answer to the events subscription after Ready when none of your
+/// servers has an upcoming event (`ScheduleResult::Summary { guilds: [] }`).
+pub const EMPTY_EVENT_SUMMARY: &[u8] = b"\x82\xa4type\xa7summary\xa4data\x81\xa6guilds\x90";
+/// The Stage list sent after every Ready when none of your servers has a live
+/// Stage (`VoiceEvent::Stage(StageEvent::Snapshot { stages: [] })`): nothing
+/// to load the stage feature for while none is known.
+pub const EMPTY_STAGE_SNAPSHOT: &[u8] =
+    b"\x82\xa4type\xa5stage\xa4data\x82\xa4type\xa8snapshot\xa4data\x81\xa6stages\x90";
 
 #[cfg(test)]
 mod tests {
@@ -440,6 +455,9 @@ mod tests {
             Command::Threads(ThreadCommand::Subscribe),
             Command::Expression(ExpressionCommand::Subscribe),
             Command::Privacy(PrivacyCommand::Subscribe),
+            Command::Community(CommunityCommand::Subscribe),
+            Command::Schedule(ScheduleCommand::Subscribe),
+            Command::Appearance(AppearanceCommand::Subscribe),
             Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe)),
             Command::Launch(LaunchCommand::UpdateDevice {
                 device_name: "Chrome on Windows".into(),
@@ -525,6 +543,12 @@ mod tests {
     fn the_empty_call_snapshot_bytes_match_the_encoding() {
         let encoded = rmp_serde::to_vec_named(&VoiceEvent::CallSnapshot { calls: vec![] }).unwrap();
         assert_eq!(encoded, EMPTY_CALL_SNAPSHOT);
+        let encoded =
+            rmp_serde::to_vec_named(&VoiceEvent::Stage(StageEvent::Snapshot { stages: vec![] }))
+                .unwrap();
+        assert_eq!(encoded, EMPTY_STAGE_SNAPSHOT);
+        let encoded = rmp_serde::to_vec_named(&ScheduleResult::Summary { guilds: vec![] }).unwrap();
+        assert_eq!(encoded, EMPTY_EVENT_SUMMARY);
     }
     #[test]
     fn invite_links_are_parsed_as_data_not_navigation() {

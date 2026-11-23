@@ -27,6 +27,12 @@ pub enum Feature {
     Nav,
     Profiles,
     Authsec,
+    /// Rules screening, applications, onboarding, Discover, templates, insights.
+    Community,
+    /// Stage channels and scheduled events.
+    Stage,
+    /// Themes, appearance, text-to-speech.
+    Themes,
 }
 
 /// What one server frame says, as far as the core reads it.
@@ -232,9 +238,6 @@ routes! {
         "message_updated" => MessageUpdated(Message),
         "reaction_updated" => ReactionUpdated(ReactionUpdate),
         "read_state_updated" => ReadStateUpdated(ReadState),
-        "community" => Community(CommunityEvent),
-        "schedule" => Schedule(ScheduleUpdate),
-        "appearance" => Appearance(AppearanceEvent),
     }
     fields {
         "slowmode_updated" => SlowmodeUpdated { channel_id: ChannelId, seconds: u32 },
@@ -266,6 +269,9 @@ routes! {
         "threads" => Threads,
         "expression" => Expression,
         "privacy" => Privacy,
+        "community" => Community,
+        "schedule" => Stage,
+        "appearance" => Themes,
     }
 }
 
@@ -284,9 +290,6 @@ routes! {
         "message" => Message(Message),
         "reaction" => Reaction(ReactionUpdate),
         "read_state" => ReadState(ReadState),
-        "community" => Community(CommunityResult),
-        "schedule" => Schedule(ScheduleResult),
-        "appearance" => Appearance(AppearanceResult),
     }
     fields {
         "subscription" => Subscription { presences: Vec<Presence> },
@@ -300,6 +303,9 @@ routes! {
         "threads" => Threads,
         "expression" => Expression,
         "privacy" => Privacy,
+        "community" => Community,
+        "schedule" => Stage,
+        "appearance" => Themes,
     }
 }
 
@@ -438,6 +444,82 @@ pub mod feature {
         }
         fields { "poll" => Poll { channel_id: ChannelId, message_id: MessageId, poll: Poll }, }
         unit { "ack" => Ack, }
+    }
+    crate::decode_tagged! {
+        pub fn community_event -> CommunityEvent, tags COMMUNITY_EVENT;
+        newtype {
+            "me" => Me(Box<MemberCommunity>),
+            "application" => Application(Box<MyApplication>),
+        }
+        fields {
+            "updated" => Updated { guild_id: GuildId },
+            "queue" => Queue { guild_id: GuildId, pending: u32 },
+        }
+        unit {}
+    }
+    crate::decode_tagged! {
+        pub fn community_result -> CommunityResult, tags COMMUNITY_RESULT;
+        newtype {
+            "admission" => Admission(Box<Admission>),
+            "onboarding" => Onboarding(Box<Onboarding>),
+            "me" => Me(Box<MemberCommunity>),
+            "application" => Application(Box<MyApplication>),
+            "listing" => Listing(Option<Box<Listing>>),
+            "template" => Template(Box<GuildTemplate>),
+        }
+        fields {}
+        unit { "ack" => Ack, }
+    }
+    crate::decode_tagged! {
+        pub fn schedule_update -> ScheduleUpdate, tags SCHEDULE_UPDATE;
+        newtype {
+            "upsert" => Upsert(ScheduledEvent),
+            "summary" => Summary(GuildEvents),
+            "starting" => Starting(ScheduledEvent),
+        }
+        fields {
+            "removed" => Removed { guild_id: GuildId, event_id: Id },
+            "interest" => Interest { event_id: Id, interested: bool },
+        }
+        unit {}
+    }
+    crate::decode_tagged! {
+        pub fn schedule_result -> ScheduleResult, tags SCHEDULE_RESULT;
+        newtype {
+            "event" => Event(ScheduledEvent),
+            "message" => Message(Message),
+            "invite" => Invite(Invite),
+        }
+        fields { "summary" => Summary { guilds: Vec<GuildEvents> }, }
+        unit { "ack" => Ack, }
+    }
+    crate::decode_tagged! {
+        pub fn stage_event -> StageEvent, tags STAGE_EVENT;
+        newtype {
+            "live" => Live(StageInstance),
+            "roster" => Roster(StageRoster),
+        }
+        fields {
+            "ended" => Ended { guild_id: GuildId, channel_id: ChannelId },
+            "snapshot" => Snapshot { stages: Vec<StageInstance> },
+            "members" => Members { channel_id: ChannelId, upserts: Vec<StageMember>, removed: Vec<UserId> },
+        }
+        unit {}
+    }
+    crate::decode_tagged! {
+        pub fn appearance_event -> AppearanceEvent, tags APPEARANCE_EVENT;
+        newtype { "library" => Library(Box<ThemeLibrary>), }
+        fields {
+            "server_theme" => ServerTheme { guild_id: GuildId, #[serde(default)] theme: Option<ThemeChoice> },
+            "tts" => Tts { channel_id: ChannelId, message_id: MessageId },
+        }
+        unit {}
+    }
+    crate::decode_tagged! {
+        pub fn appearance_result -> AppearanceResult, tags APPEARANCE_RESULT;
+        newtype { "library" => Library(Box<ThemeLibrary>), }
+        fields {}
+        unit {}
     }
 }
 
@@ -745,10 +827,7 @@ pub fn owner(e: &Event) -> Option<Feature> {
         | MessageDeleted { .. }
         | ReactionUpdated(_)
         | Typing { .. }
-        | ReadStateUpdated(_)
-        | Community(_)
-        | Schedule(_)
-        | Appearance(_) => None,
+        | ReadStateUpdated(_) => None,
         NavUpdated(_) | SavedUpdated(_) | ReminderDue(_) => Some(Feature::Nav),
         Content(_) => Some(Feature::Content),
         Moderation(_) => Some(Feature::Moderation),
@@ -756,6 +835,9 @@ pub fn owner(e: &Event) -> Option<Feature> {
         Threads(_) => Some(Feature::Threads),
         Expression(_) => Some(Feature::Expression),
         Privacy(_) => Some(Feature::Privacy),
+        Community(_) => Some(Feature::Community),
+        Schedule(_) => Some(Feature::Stage),
+        Appearance(_) => Some(Feature::Themes),
     }
 }
 
@@ -784,6 +866,164 @@ mod tests {
             style: Default::default(),
             status_emoji: Some("🙂".into()),
         }
+    }
+
+    /// serde's own variant names of an adjacently tagged enum: the error for
+    /// an unknown tag lists every one of them.
+    fn serde_tags<T: DeserializeOwned>() -> std::collections::BTreeSet<String> {
+        let error = serde_json::from_str::<T>(r#"{"type":"\u0001"}"#)
+            .err()
+            .expect("an unknown tag is refused")
+            .to_string();
+        let expected = error
+            .split_once("expected")
+            .expect("serde lists the variants")
+            .1;
+        expected
+            .split('`')
+            .skip(1)
+            .step_by(2)
+            .map(str::to_owned)
+            .collect()
+    }
+    fn listed(tags: &[&str]) -> std::collections::BTreeSet<String> {
+        let set: std::collections::BTreeSet<String> = tags.iter().map(|t| t.to_string()).collect();
+        assert_eq!(set.len(), tags.len(), "a tag is listed twice");
+        set
+    }
+
+    /// The routing tables and the feature decoders list exactly serde's
+    /// variants: a variant added to the protocol fails here until it is routed
+    /// (to the core or to a feature) and decoded (docs/features/perf.md).
+    #[test]
+    fn every_variant_is_listed_with_its_serde_tag() {
+        use feature::*;
+        assert_eq!(
+            listed(EVENT_TAGS),
+            serde_tags::<Event>(),
+            "Event: route_event"
+        );
+        assert_eq!(
+            listed(RESULT_TAGS),
+            serde_tags::<CommandResult>(),
+            "CommandResult: route_result"
+        );
+        let decoders: [(&str, &[&str], std::collections::BTreeSet<String>); 15] = [
+            ("PrivacyEvent", PRIVACY_EVENT, serde_tags::<PrivacyEvent>()),
+            (
+                "PrivacyResult",
+                PRIVACY_RESULT,
+                serde_tags::<PrivacyResult>(),
+            ),
+            ("ThreadEvent", THREAD_EVENT, serde_tags::<ThreadEvent>()),
+            ("ThreadResult", THREAD_RESULT, serde_tags::<ThreadResult>()),
+            (
+                "ExpressionEvent",
+                EXPRESSION_EVENT,
+                serde_tags::<ExpressionEvent>(),
+            ),
+            (
+                "ExpressionResult",
+                EXPRESSION_RESULT,
+                serde_tags::<ExpressionResult>(),
+            ),
+            ("ContentEvent", CONTENT_EVENT, serde_tags::<ContentEvent>()),
+            (
+                "ContentResult",
+                CONTENT_RESULT,
+                serde_tags::<ContentResult>(),
+            ),
+            (
+                "CommunityEvent",
+                COMMUNITY_EVENT,
+                serde_tags::<CommunityEvent>(),
+            ),
+            (
+                "CommunityResult",
+                COMMUNITY_RESULT,
+                serde_tags::<CommunityResult>(),
+            ),
+            (
+                "ScheduleUpdate",
+                SCHEDULE_UPDATE,
+                serde_tags::<ScheduleUpdate>(),
+            ),
+            (
+                "ScheduleResult",
+                SCHEDULE_RESULT,
+                serde_tags::<ScheduleResult>(),
+            ),
+            ("StageEvent", STAGE_EVENT, serde_tags::<StageEvent>()),
+            (
+                "AppearanceEvent",
+                APPEARANCE_EVENT,
+                serde_tags::<AppearanceEvent>(),
+            ),
+            (
+                "AppearanceResult",
+                APPEARANCE_RESULT,
+                serde_tags::<AppearanceResult>(),
+            ),
+        ];
+        for (name, tags, serde) in decoders {
+            assert_eq!(listed(tags), serde, "{name}: its decode_tagged! table");
+        }
+    }
+
+    /// Each feature decoder reads exactly what the server writes.
+    #[test]
+    fn feature_decoders_read_what_the_server_writes() {
+        use feature::*;
+        fn check<T: serde::Serialize + PartialEq + std::fmt::Debug>(
+            value: T,
+            decode: fn(&[u8]) -> Result<T, ()>,
+        ) {
+            let bytes = rmp_serde::to_vec_named(&value).unwrap();
+            assert_eq!(decode(&bytes).unwrap(), value);
+        }
+        check(
+            CommunityEvent::Queue {
+                guild_id: Id(3),
+                pending: 2,
+            },
+            community_event,
+        );
+        check(CommunityEvent::Updated { guild_id: Id(3) }, community_event);
+        check(CommunityResult::Ack, community_result);
+        check(CommunityResult::Listing(None), community_result);
+        check(
+            ScheduleUpdate::Interest {
+                event_id: Id(4),
+                interested: true,
+            },
+            schedule_update,
+        );
+        check(ScheduleResult::Summary { guilds: vec![] }, schedule_result);
+        check(ScheduleResult::Ack, schedule_result);
+        check(StageEvent::Snapshot { stages: vec![] }, stage_event);
+        check(
+            StageEvent::Members {
+                channel_id: Id(1),
+                upserts: vec![],
+                removed: vec![Id(2)],
+            },
+            stage_event,
+        );
+        check(
+            AppearanceEvent::ServerTheme {
+                guild_id: Id(5),
+                theme: None,
+            },
+            appearance_event,
+        );
+        check(
+            AppearanceEvent::Tts {
+                channel_id: Id(1),
+                message_id: Id(2),
+            },
+            appearance_event,
+        );
+        check(AppearanceResult::Library(Box::default()), appearance_result);
     }
 
     #[test]

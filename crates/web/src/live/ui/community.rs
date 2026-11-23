@@ -10,6 +10,10 @@ use std::fmt::Write as _;
 pub(super) fn is_server_page(page: &str) -> bool {
     crate::live::community::admin_page(page)
 }
+/// The dialogs `dialog` draws (in this module's own WASM module: `ui::LazyViews`).
+pub(super) fn owns(d: &str) -> bool {
+    crate::live::community::owns_dialog(d) && d != "create"
+}
 fn state(a: &App) -> Option<&CommunityState> {
     a.guild.and_then(|g| a.community.states.get(&g))
 }
