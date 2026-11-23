@@ -1719,3 +1719,6 @@ async fn rest_reads_list_threads_members_and_details_only_for_people_who_can_see
 mod routes_test {
     pub(super) use super::super::routes::{threads_page as page, ListQuery};
 }
+
+/// Cross-feature rules (moderation, timeouts, audit log) on these paths.
+mod integration;

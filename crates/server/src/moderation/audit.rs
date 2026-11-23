@@ -129,6 +129,19 @@ pub(crate) fn permission_names(p: Permissions) -> String {
         (Permissions::MANAGE_EMOJI, "Manage Emoji"),
         (Permissions::VIEW_AUDIT_LOG, "View Audit Log"),
         (Permissions::MODERATE_MEMBERS, "Time Out Members"),
+        (Permissions::CREATE_PUBLIC_THREADS, "Create Public Threads"),
+        (
+            Permissions::CREATE_PRIVATE_THREADS,
+            "Create Private Threads",
+        ),
+        (
+            Permissions::SEND_MESSAGES_IN_THREADS,
+            "Send Messages in Threads",
+        ),
+        (Permissions::MANAGE_THREADS, "Manage Threads"),
+        (Permissions::PUBLISH_MESSAGES, "Publish Messages"),
+        (Permissions::USE_SOUNDBOARD, "Use Soundboard"),
+        (Permissions::MANAGE_SOUNDBOARD, "Manage Soundboard"),
     ];
     let names: Vec<&str> = NAMES
         .iter()
@@ -164,6 +177,8 @@ pub(crate) fn slowmode_text(seconds: u32) -> String {
 
 /// The state a command may change, read before it runs.
 pub(crate) enum Pending {
+    /// Threads, forums, announcements and polls (`feature_audit.rs`).
+    Feature(super::feature_audit::Pending),
     Guild {
         g: Id,
         name: String,
@@ -366,6 +381,11 @@ pub(crate) async fn prepare(c: &mut SqliteConnection, cmd: &Command) -> Option<P
 async fn prepare_inner(c: &mut SqliteConnection, cmd: &Command) -> Result<Option<Pending>> {
     use Command::*;
     let pending: Pending = match cmd {
+        Threads(_) | Content(_) => {
+            return Ok(super::feature_audit::prepare(c, cmd)
+                .await?
+                .map(Pending::Feature))
+        }
         UpdateGuild { guild_id: g, .. } => {
             let (name, icon, _) = guild_row(c, *g).await?;
             Pending::Guild { g: *g, name, icon }
@@ -651,6 +671,7 @@ pub(crate) async fn record(
     use AuditAction as A;
     use AuditTarget as T;
     let entry = match pending {
+        Pending::Feature(p) => return super::feature_audit::record(c, actor, p, result).await,
         Pending::Guild { g, name, icon } => {
             let (after, after_icon, _) = guild_row(c, g).await?;
             Entry::new(g, A::GuildUpdate, T::Guild, Some(g))

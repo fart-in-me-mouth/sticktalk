@@ -118,7 +118,7 @@ pub(super) async fn queue_change(c: &mut SqliteConnection, m: Id, action: &str) 
     Ok(())
 }
 
-async fn follow_row(c: &mut SqliteConnection, f: Id) -> Result<ChannelFollow> {
+pub(super) async fn follow_row(c: &mut SqliteConnection, f: Id) -> Result<ChannelFollow> {
     let r = sqlx::query("SELECT f.*,s.guild_id AS sg,s.name AS sn,t.guild_id AS tg,t.name AS tn,(SELECT name FROM guilds WHERE id=s.guild_id) AS sgn,(SELECT name FROM guilds WHERE id=t.guild_id) AS tgn FROM channel_follows f JOIN channels s ON s.id=f.source_channel_id JOIN channels t ON t.id=f.target_channel_id WHERE f.id=?")
         .bind(id(f)?)
         .fetch_optional(&mut *c)
@@ -295,6 +295,33 @@ pub(super) async fn deliver_queue(app: &App) -> Result<()> {
     }
 }
 
+/// Removes delivered copies through the ordinary delete path, acting as the
+/// target server's owner.
+async fn delete_copies(
+    c: &mut SqliteConnection,
+    core: &mut Core,
+    owner: Id,
+    target: Id,
+    copies: Vec<i64>,
+    out: &mut Deliveries,
+) -> Result<()> {
+    for m in copies {
+        Box::pin(crate::commands::mutate(
+            c,
+            core,
+            &[],
+            owner,
+            Command::DeleteMessage {
+                channel_id: target,
+                message_id: Id(m as u64),
+            },
+            out,
+        ))
+        .await?;
+    }
+    Ok(())
+}
+
 async fn deliver(
     c: &mut SqliteConnection,
     core: &mut Core,
@@ -324,25 +351,27 @@ async fn deliver(
             .fetch_one(&mut *c)
             .await? as u64,
     );
+    let text = match &original {
+        Some(r) if action != "delete" => {
+            Some(crate::content::plain_text(c, &r.get::<String, _>("content")).await?)
+        }
+        _ => None,
+    };
+    // The receiving server's AutoMod keyword rules: a blocked copy is not
+    // delivered, and an edit that is blocked removes the copy already there.
+    let blocked = match &text {
+        Some(t) => crate::moderation::coverage::crosspost_blocked(core, c, &f, t).await?,
+        None => false,
+    };
     match (action, original) {
         ("delete", _) | (_, None) => {
-            for m in copies {
-                Box::pin(crate::commands::mutate(
-                    c,
-                    core,
-                    &[],
-                    owner,
-                    Command::DeleteMessage {
-                        channel_id: target,
-                        message_id: Id(m as u64),
-                    },
-                    out,
-                ))
-                .await?;
-            }
+            delete_copies(c, core, owner, target, copies, out).await?;
         }
-        ("update", Some(r)) => {
-            let text = crate::content::plain_text(c, &r.get::<String, _>("content")).await?;
+        _ if blocked => {
+            delete_copies(c, core, owner, target, copies, out).await?;
+        }
+        ("update", Some(_)) => {
+            let text = text.unwrap_or_default();
             for m in copies {
                 sqlx::query("UPDATE messages SET content=?,edited_at=? WHERE id=?")
                     .bind(&text)
@@ -366,7 +395,7 @@ async fn deliver(
             if !copies.is_empty() {
                 return Ok(());
             }
-            let text = crate::content::plain_text(c, &r.get::<String, _>("content")).await?;
+            let text = text.unwrap_or_default();
             let m = core.id().await?;
             sqlx::query("INSERT INTO messages(id,channel_id,author_id,content,created_at) VALUES(?,?,?,?,?)")
                 .bind(id(m)?)

@@ -37,6 +37,12 @@ const SETTINGS_TABLES: &[&str] = &[
     "read_states",
     "reactions",
     "session_devices",
+    // Added by the later features (`docs/features/integration.md`).
+    "poll_votes",
+    "thread_members",
+    "soundboard_favorites",
+    "soundboard_entrance",
+    "soundboard_entrance_enabled",
 ];
 
 #[derive(Default)]
@@ -796,6 +802,8 @@ pub(super) fn build(
     let copied = listing.iter().filter(|e| e["file"].is_string()).count();
     a.json("attachments/index.json", &Value::Array(listing))?;
 
+    let extra = features(&mut a, u)?;
+
     // Human-readable index. Every user-controlled string is HTML-escaped.
     let readme = format!(
         "StickTalk data export for @{username}\nGenerated {now} (Unix milliseconds) by {server}.\n\n\
@@ -804,14 +812,21 @@ settings.json       Your settings, saved messages, pins, favorites and folders.\
 servers.json        Servers you are in, and your role in each.\n\
 relationships.json  Friends, friend requests and blocked people.\n\
 messages/           One JSON file per conversation with every message you wrote ({total} in {conversations} conversations). messages/index.json lists them.\n\
-attachments/        Files you attached ({copied} of {attachments} copied here; attachments/index.json lists all of them with their links).\n\n\
+attachments/        Files you attached ({copied} of {attachments} copied here; attachments/index.json lists all of them with their links).\n\
+threads.json        Threads and forum posts you started (their messages are in messages/).\n\
+scheduled.json      Messages you scheduled and have not sent yet ({scheduled}), with their held files.\n\
+soundboard/         Soundboard sounds you uploaded ({sounds}); soundboard/index.json lists them.\n\
+camera-backgrounds/ Your custom camera backgrounds ({backgrounds}).\n\n\
 All times are Unix milliseconds (UTC). IDs are strings. Open index.html in a browser for an overview.\n",
         server = app.0.config.public_url,
         conversations = channels.len(),
+        scheduled = extra.scheduled,
+        sounds = extra.sounds,
+        backgrounds = extra.backgrounds,
     );
     a.text("README.txt", &readme)?;
     let mut html = format!(
-        "<!doctype html><meta charset=utf-8><title>StickTalk data export</title><style>body{{font:15px system-ui,sans-serif;max-width:760px;margin:32px auto;padding:0 16px;color:#111}}td,th{{padding:4px 12px 4px 0;text-align:left}}</style><h1>StickTalk data for @{}</h1><p>{} messages in {} conversations, {} servers, {} of {} attachments included.</p><h2>Files</h2><ul><li><a href=\"account.json\">account.json</a><li><a href=\"settings.json\">settings.json</a><li><a href=\"servers.json\">servers.json</a><li><a href=\"relationships.json\">relationships.json</a><li><a href=\"messages/index.json\">messages/index.json</a><li><a href=\"attachments/index.json\">attachments/index.json</a></ul><h2>Conversations</h2><table><tr><th>Conversation<th>Server<th>Messages",
+        "<!doctype html><meta charset=utf-8><title>StickTalk data export</title><style>body{{font:15px system-ui,sans-serif;max-width:760px;margin:32px auto;padding:0 16px;color:#111}}td,th{{padding:4px 12px 4px 0;text-align:left}}</style><h1>StickTalk data for @{}</h1><p>{} messages in {} conversations, {} servers, {} of {} attachments included.</p><h2>Files</h2><ul><li><a href=\"account.json\">account.json</a><li><a href=\"settings.json\">settings.json</a><li><a href=\"servers.json\">servers.json</a><li><a href=\"relationships.json\">relationships.json</a><li><a href=\"messages/index.json\">messages/index.json</a><li><a href=\"attachments/index.json\">attachments/index.json</a><li><a href=\"threads.json\">threads.json</a><li><a href=\"scheduled.json\">scheduled.json</a><li><a href=\"soundboard/index.json\">soundboard/index.json</a><li><a href=\"camera-backgrounds/index.json\">camera-backgrounds/index.json</a></ul><h2>Conversations</h2><table><tr><th>Conversation<th>Server<th>Messages",
         html_escape(&username),
         total,
         channels.len(),
@@ -849,4 +864,126 @@ All times are Unix milliseconds (UTC). IDs are strings. Open index.html in a bro
         .map_err(|_| Error::new(ErrorCode::Unavailable))?;
     file.sync_all()?;
     Ok(file.metadata()?.len())
+}
+
+/// What the later features keep for an account (threads, scheduled messages,
+/// soundboard uploads, camera backgrounds). Poll votes, thread memberships,
+/// soundboard favorites and entrance sounds are in `settings.json`; thread
+/// and forum post messages are in `messages/` like any message.
+struct FeatureCounts {
+    scheduled: usize,
+    sounds: usize,
+    backgrounds: usize,
+}
+fn features(a: &mut Archive, u: i64) -> Result<FeatureCounts> {
+    let threads: Vec<Value> = a
+        .rows(sqlx::query("SELECT t.channel_id,ch.name,t.parent_id,p.name AS parent_name,t.guild_id,t.forum_post,t.private,t.archived,t.locked,t.created_at,t.message_count,(SELECT json_group_array(ft.name) FROM thread_tags tt JOIN forum_tags ft ON ft.id=tt.tag_id AND ft.forum_id=t.parent_id WHERE tt.thread_id=t.channel_id) AS tags FROM threads t JOIN channels ch ON ch.id=t.channel_id LEFT JOIN channels p ON p.id=t.parent_id WHERE t.owner_id=? ORDER BY t.created_at LIMIT 100000").bind(u))?
+        .iter()
+        .map(|r| {
+            json!({
+                "id": big(r.get("channel_id")),
+                "name": r.get::<String,_>("name"),
+                "kind": if r.get::<i64,_>("forum_post") != 0 { "forum_post" } else { "thread" },
+                "parent": big(r.get("parent_id")),
+                "parent_name": r.get::<Option<String>,_>("parent_name"),
+                "server": big(r.get("guild_id")),
+                "private": r.get::<i64,_>("private") != 0,
+                "archived": r.get::<i64,_>("archived") != 0,
+                "locked": r.get::<i64,_>("locked") != 0,
+                "created_at": r.get::<i64,_>("created_at"),
+                "messages": r.get::<i64,_>("message_count"),
+                "tags": serde_json::from_str::<Value>(&r.get::<Option<String>,_>("tags").unwrap_or_default()).unwrap_or(Value::Array(vec![])),
+            })
+        })
+        .collect();
+    a.json("threads.json", &Value::Array(threads))?;
+
+    let scheduled: Vec<Value> = a
+        .rows(sqlx::query("SELECT s.id,s.channel_id,s.content,s.mention_ids,s.send_at,s.created_at,s.failure,(SELECT json_group_array(json_object('id',CAST(up.id AS TEXT),'filename',up.filename,'content_type',up.content_type,'byte_size',up.byte_size)) FROM scheduled_attachments sa JOIN uploads up ON up.id=sa.attachment_id WHERE sa.scheduled_id=s.id) AS attachments FROM scheduled_messages s WHERE s.author_id=? ORDER BY s.send_at").bind(u))?
+        .iter()
+        .map(|r| {
+            json!({
+                "id": big(r.get("id")),
+                "channel": big(r.get("channel_id")),
+                "content": r.get::<String,_>("content"),
+                "mention_ids": serde_json::from_str::<Value>(&r.get::<String,_>("mention_ids")).unwrap_or(Value::Array(vec![])),
+                "send_at": r.get::<i64,_>("send_at"),
+                "created_at": r.get::<i64,_>("created_at"),
+                "failure": r.get::<Option<String>,_>("failure"),
+                "attachments": serde_json::from_str::<Value>(&r.get::<String,_>("attachments")).unwrap_or(Value::Array(vec![])),
+            })
+        })
+        .collect();
+    let scheduled_count = scheduled.len();
+    a.json("scheduled.json", &Value::Array(scheduled))?;
+
+    // Soundboard sounds this account uploaded (each at most 512 KB).
+    let mut sounds = vec![];
+    let mut after = 0i64;
+    loop {
+        let page = a.rows(sqlx::query("SELECT s.id,s.guild_id,g.name AS guild_name,s.name,s.emoji,s.volume,s.duration_ms,s.format,s.data,s.created_at FROM soundboard_sounds s LEFT JOIN guilds g ON g.id=s.guild_id WHERE s.created_by=? AND s.id>? ORDER BY s.id LIMIT 50").bind(u).bind(after))?;
+        let Some(last) = page.last() else { break };
+        after = last.get("id");
+        for r in &page {
+            let sid: i64 = r.get("id");
+            let name: String = r.get("name");
+            let format: String = r.get("format");
+            let file = format!("soundboard/{sid}-{}.{format}", safe_name(&name));
+            a.zip
+                .start_file(&file, Archive::options(false))
+                .map_err(zip_error)?;
+            a.zip.write_all(&r.get::<Vec<u8>, _>("data"))?;
+            sounds.push(json!({
+                "id": big(sid),
+                "server": big(r.get("guild_id")),
+                "server_name": r.get::<Option<String>,_>("guild_name"),
+                "name": name,
+                "emoji": r.get::<Option<String>,_>("emoji"),
+                "volume": r.get::<i64,_>("volume"),
+                "duration_ms": r.get::<i64,_>("duration_ms"),
+                "created_at": r.get::<i64,_>("created_at"),
+                "file": file,
+            }));
+        }
+        if page.len() < 50 {
+            break;
+        }
+    }
+    let sound_count = sounds.len();
+    a.json("soundboard/index.json", &Value::Array(sounds))?;
+
+    // Custom camera backgrounds (at most ten, each at most 10 MB).
+    let mut backgrounds = vec![];
+    for r in a.rows(sqlx::query("SELECT id,kind,mime,data,created_at FROM camera_backgrounds WHERE user_id=? ORDER BY created_at LIMIT 10").bind(u))? {
+        let bid: i64 = r.get("id");
+        let mime: String = r.get("mime");
+        let ext = match mime.as_str() {
+            "image/png" => "png",
+            "image/jpeg" => "jpg",
+            "image/webp" => "webp",
+            "image/gif" => "gif",
+            "video/mp4" => "mp4",
+            "video/webm" => "webm",
+            _ => "bin",
+        };
+        let file = format!("camera-backgrounds/{bid}.{ext}");
+        a.zip
+            .start_file(&file, Archive::options(false))
+            .map_err(zip_error)?;
+        a.zip.write_all(&r.get::<Vec<u8>, _>("data"))?;
+        backgrounds.push(json!({
+            "id": big(bid),
+            "kind": r.get::<String,_>("kind"),
+            "content_type": mime,
+            "created_at": r.get::<i64,_>("created_at"),
+            "file": file,
+        }));
+    }
+    let background_count = backgrounds.len();
+    a.json("camera-backgrounds/index.json", &Value::Array(backgrounds))?;
+    Ok(FeatureCounts {
+        scheduled: scheduled_count,
+        sounds: sound_count,
+        backgrounds: background_count,
+    })
 }

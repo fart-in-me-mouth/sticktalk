@@ -198,6 +198,9 @@ pub struct ScheduledMessage {
     /// there). A failed message stays listed until it is rescheduled or cancelled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure: Option<String>,
+    /// Files uploaded when it was scheduled, held until it is sent or cancelled.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<Attachment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -245,12 +248,20 @@ pub enum ContentCommand {
         content: String,
         mention_ids: Vec<UserId>,
         send_at: UnixMillis,
+        /// Your uploads to this channel (at most `MAX_MESSAGE_ATTACHMENTS`),
+        /// held until the message is sent. Older clients send none.
+        #[serde(default)]
+        attachment_ids: Vec<AttachmentId>,
     },
     UpdateScheduled {
         id: Id,
         content: String,
         mention_ids: Vec<UserId>,
         send_at: UnixMillis,
+        /// The complete list of files to keep or add; `None` keeps them.
+        /// Files left out are released.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        attachment_ids: Option<Vec<AttachmentId>>,
     },
     CancelScheduled {
         id: Id,

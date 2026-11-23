@@ -1406,6 +1406,7 @@ async fn automod_also_covers_polls_forwards_and_scheduled_messages() {
         content: "heck".into(),
         mention_ids: vec![],
         send_at: now() + 3_600_000,
+        attachment_ids: vec![],
     };
     blocked(run(&app, 3, 3, Command::Content(later)).await);
     // The owner is exempt and posts the word; a member may not forward it back in.
@@ -1433,3 +1434,6 @@ async fn automod_also_covers_polls_forwards_and_scheduled_messages() {
         0
     );
 }
+
+/// DM-style calls and the shared server's rules.
+mod integration;
