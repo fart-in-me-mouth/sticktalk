@@ -198,13 +198,16 @@ struct Bucket {
     at: u64,
 }
 
+/// URL -> (when fetched, preview or None when it had nothing to show).
+type Cache = HashMap<String, (u64, Option<Arc<Page>>)>;
+
 pub(crate) struct Previews {
     enabled: bool,
     net: RwLock<(Net, Option<reqwest::Client>)>,
     fetches: Arc<tokio::sync::Semaphore>,
     waiting: AtomicUsize,
     in_flight: Mutex<HashSet<Id>>,
-    cache: Mutex<HashMap<String, (u64, Option<Arc<Page>>)>>,
+    cache: Mutex<Cache>,
     limits: Mutex<HashMap<Id, Bucket>>,
 }
 impl Previews {
@@ -271,6 +274,7 @@ impl Previews {
         net.1 = Some(client.clone());
         Ok(client)
     }
+    #[cfg(test)]
     pub(crate) fn enabled(&self) -> bool {
         self.enabled
     }
@@ -303,7 +307,7 @@ impl Previews {
     fn remember(&self, url: String, page: Option<Arc<Page>>) {
         let mut cache = self.cache.lock().unwrap();
         cache.insert(url, (now(), page));
-        let size = |c: &HashMap<String, (u64, Option<Arc<Page>>)>| -> usize {
+        let size = |c: &Cache| -> usize {
             c.values()
                 .map(|(_, p)| {
                     p.as_ref()

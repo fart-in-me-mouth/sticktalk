@@ -40,7 +40,7 @@ try {
   // ---- DropdownMenu (ui-menu): server menu -> Create Category ---------------
   await page.locator('.server-heading').click();
   await page.waitForSelector('ui-menu-content[data-open]');
-  check('server menu opens in the top layer', await page.locator('ui-menu-content').evaluate(e => e.matches(':popover-open') && e.getAttribute('role') === 'menu'));
+  check('server menu opens in the top layer', await page.locator('ui-menu-content[data-open]').evaluate(e => e.matches(':popover-open') && e.getAttribute('role') === 'menu'));
   await shot('02-server-menu');
   await page.locator('ui-menu-item', { hasText: 'Create Category' }).click();
   await page.waitForSelector('[data-live-form="channel"]');

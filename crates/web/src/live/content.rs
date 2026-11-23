@@ -238,7 +238,7 @@ fn set_poll(a: &mut App, ch: Id, m: Id, mut poll: Poll, mine: bool) {
                 poll.my_votes = old.my_votes.clone();
             }
         }
-        message.extra.poll = Some(poll);
+        message.extra.poll = Some(Box::new(poll));
     }
 }
 

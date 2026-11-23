@@ -277,7 +277,7 @@ pub(crate) fn attachment_meta(r: &sqlx::sqlite::SqliteRow) -> AttachmentMeta {
 /// Fills in `Message::extra` for one viewer (their own votes; the forward's
 /// source only if they may read it).
 pub(crate) async fn decorate(c: &mut SqliteConnection, viewer: Id, m: &mut Message) -> Result<()> {
-    m.extra.poll = polls::load(c, m.id, viewer).await?;
+    m.extra.poll = polls::load(c, m.id, viewer).await?.map(Box::new);
     m.extra.forwarded = forward::load(c, viewer, m.id).await?.map(Box::new);
     m.extra.embeds = previews::load(c, m.channel_id, m.id).await?;
     m.extra.gif = sqlx::query_scalar("SELECT gif_id FROM message_gifs WHERE message_id=?")

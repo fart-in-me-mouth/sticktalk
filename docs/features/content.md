@@ -89,6 +89,20 @@ REST (cookie or bearer auth):
   the device). Spoilers stay covered until clicked; alt text is the image's
   `alt` and shows under it with the ALT button.
 
+## Changes to existing behavior
+
+- Upload burst: `upload:` rate limit is still 20 a minute, now bursting to 20
+  (two sets of ten attachments) instead of 4.
+- Thumbnail downloads (`/files/{id}/thumbnail`, at most 64 KiB) no longer
+  count toward the three-concurrent-transfers cap, so a grid of ten loads.
+- Uploads that are Ogg Opus are stored as `audio/ogg` (were
+  `application/octet-stream`).
+- Message deletion also removes the message's poll, forwarded snapshot
+  references and preview cards.
+- Markdown renders `<https://...>` as a plain link without the brackets.
+- `tests/ui-kit.mjs` selects the open menu (`ui-menu-content[data-open]`): the
+  composer now has a second menu.
+
 ## Not included
 
 - Scheduled messages carry text and mentions, not attachments.

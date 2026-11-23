@@ -70,7 +70,7 @@ pub(super) async fn create(
             .execute(&mut *c)
             .await?;
     }
-    message.extra.poll = load(c, message.id, u).await?;
+    message.extra.poll = load(c, message.id, u).await?.map(Box::new);
     for (_, e) in out.iter_mut() {
         if let Event::MessageCreated { message: m, .. } = e {
             if m.id == message.id {

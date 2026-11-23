@@ -343,17 +343,17 @@ mod tests {
             .iter()
             .any(|x| matches!(x.target, Some(Target::Masked(_)))));
         assert!(v.iter().any(|x| matches!(x.target, Some(Target::Auto(_)))));
+        assert!(v.last().unwrap().text.contains("*literal*"));
         let quiet = parse("see <https://example.com/a> now").blocks;
-        let Block::Paragraph(v) = &quiet[0] else {
+        let Block::Paragraph(q) = &quiet[0] else {
             panic!()
         };
-        assert!(v.iter().any(
+        assert!(q.iter().any(
             |x| x.text == "https://example.com/a" && matches!(x.target, Some(Target::Auto(_)))
         ));
-        assert!(!v
+        assert!(!q
             .iter()
             .any(|x| x.text.contains('<') || x.text.contains('>')));
-        assert!(v.last().unwrap().text.contains("*literal*"));
     }
     #[test]
     fn cache_reuses_and_invalidates_edits() {

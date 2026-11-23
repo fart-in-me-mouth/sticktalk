@@ -29,7 +29,7 @@ pub const MAX_LINK_EMBEDS: usize = 5;
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct MessageExtra {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub poll: Option<Poll>,
+    pub poll: Option<Box<Poll>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forwarded: Option<Box<ForwardedMessage>>,
     /// Link preview cards, filled in by the server shortly after sending.
