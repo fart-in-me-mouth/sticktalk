@@ -288,6 +288,8 @@ pub enum Command {
     Content(ContentCommand),
     /// Threads, forums and announcements (`threads.rs`).
     Threads(ThreadCommand),
+    /// Stickers, Super Reactions and typing indicators (`expression.rs`).
+    Expression(ExpressionCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -302,6 +304,8 @@ pub struct CommandResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "status", content = "data", rename_all = "snake_case")]
+// One short-lived value per command; boxing the result would touch every match on it.
+#[allow(clippy::large_enum_variant)]
 pub enum CommandOutcome {
     Ok(CommandResult),
     Err(ApiError),
@@ -327,6 +331,7 @@ pub enum CommandResult {
     Content(ContentResult),
     Moderation(ModerationResult),
     Threads(ThreadResult),
+    Expression(ExpressionResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -442,6 +447,8 @@ pub enum Event {
     DataExportUpdated(DataExport),
     /// Sent only to connections that sent `ThreadCommand::Subscribe`.
     Threads(ThreadEvent),
+    /// Only sent to streams that sent `ExpressionCommand::Subscribe`.
+    Expression(ExpressionEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

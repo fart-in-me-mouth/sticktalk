@@ -483,6 +483,7 @@ pub(super) fn action(app: Shared, raw: &str) {
         "saved-clear" => app.borrow_mut().saved = None,
         "submit" if super::content::FORMS.contains(&arg) => super::content::submit(app, arg),
         "submit" if super::threads::FORMS.contains(&arg) => super::threads::submit(app, arg),
+        "submit" if super::expression::FORMS.contains(&arg) => super::expression::submit(app, arg),
         "submit" => {
             app.borrow_mut().saved = None;
             let submission = Submission::capture(&app.borrow());
@@ -619,6 +620,7 @@ pub(super) fn action(app: Shared, raw: &str) {
         "emoji" => {
             media_action(&format!("insert:{arg}"));
             let mut a = app.borrow_mut();
+            super::expression::used(&mut a, arg);
             a.dialog.clear();
             a.touch();
         }
@@ -734,6 +736,9 @@ pub(super) fn action(app: Shared, raw: &str) {
         k if k.starts_with("nav-") => super::nav::action(app, k, arg),
         kind if super::content::ACTIONS.contains(&kind) => super::content::action(app, kind, arg),
         kind if super::threads::ACTIONS.contains(&kind) => super::threads::action(app, kind, arg),
+        kind if super::expression::ACTIONS.contains(&kind) => {
+            super::expression::action(app, kind, arg)
+        }
         _ => {}
     }
 }
@@ -802,6 +807,8 @@ fn expand_shortcodes(content: String) -> String {
     sticktalk_emoji::replace_shortcodes(&content).into_owned()
 }
 fn send_message(app: Shared, content: String) {
+    // `:name:` of a custom emoji becomes its token first (expression.rs).
+    let content = super::expression::prepare_send(&app.borrow(), &content);
     let candidate = content.split(':').any(|part| {
         !part.is_empty()
             && part.len() <= 64
@@ -1223,6 +1230,7 @@ fn open_dialog(app: Shared, name: &str) {
         a.touch();
     }
     super::content::opened(app.clone(), name);
+    super::expression::opened(app.clone(), name);
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
     super::moderation::opened(app.clone(), name);
@@ -1941,6 +1949,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                 super::moderation::answered(app, op, result);
                 return;
             }
+            if let Some(op) = operation.clone().filter(super::expression::owns) {
+                drop(a);
+                super::expression::answered(app, op, result);
+                return;
+            }
             a.error.clear();
             a.notice.clear();
             // Saving a name or status makes the profile form clean; a new avatar,
@@ -2129,7 +2142,8 @@ pub(super) fn ready(app: Shared) {
     }
     drop(a);
     super::content::ready(app.clone());
-    super::threads::ready(app);
+    super::threads::ready(app.clone());
+    super::expression::ready(app);
 }
 /// While the server cannot be reached and nobody is signed in, look again.
 pub(super) fn retry_recover(app: Shared) {
@@ -2532,7 +2546,8 @@ fn completion_rows(app: Shared) -> (String, Vec<(String, String, String)>) {
             rows.push((label.clone(), format!("#{label}"), "Channel".into()));
         }
     } else if kind == ":" {
-        for e in sticktalk_emoji::search(&query, 8) {
+        rows = super::expression::completions(&a, &query, 4);
+        for e in sticktalk_emoji::search(&query, 8 - rows.len()) {
             rows.push((e.name().into(), e.emoji().into(), "Emoji".into()));
         }
     }

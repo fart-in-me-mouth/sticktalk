@@ -47,7 +47,7 @@ pub(super) fn poll(a: &App, m: &Message, p: &Poll) -> AnyView {
                 {if show{view!{<span class=format!("poll-bar absolute inset-y-0 left-0 {}",if won{"bg-primary/30"}else if mine{"bg-primary/20"}else{"bg-accent"}) style=format!("width:{share}%") aria-hidden="true"></span>}.into_any()}else{().into_any()}}
                 <button class=format!("relative flex min-h-11 flex-1 items-center gap-2 px-3 py-2 text-left text-sm {}",if mine{"font-semibold text-foreground"}else{"text-foreground"}) data-live=format!("poll-vote:{},{i}",m.id.0) disabled=p.closed aria-pressed=mine.to_string() aria-label=label>
                     <span class=format!("grid size-5 flex-none place-items-center border-2 {} {}",if p.multiple{"rounded-sm"}else{"rounded-full"},if mine{"border-primary bg-primary text-primary-foreground"}else{"border-muted-foreground"}) aria-hidden="true">{if mine{icon_with("check","icon size-3.5")}else{().into_any()}}</span>
-                    {answer.emoji.clone().map(|e|view!{<span aria-hidden="true">{e}</span>})}
+                    {answer.emoji.clone().map(|e|view!{<span aria-hidden="true">{super::expression::emoji_text(a,&e)}</span>})}
                     <span class="min-w-0 flex-1 wrap-anywhere">{answer.text.clone()}</span>
                     {if won{view!{<span class="poll-winner rounded-sm bg-primary px-1.5 text-xs font-semibold text-primary-foreground">"Winner"</span>}.into_any()}else{().into_any()}}
                 </button>
@@ -343,7 +343,7 @@ fn poll_form(a: &App) -> AnyView {
         <div class="field"><label for="poll-question">"Question"</label><input id="poll-question" type="text" maxlength=MAX_POLL_QUESTION_CHARS.to_string() placeholder="What question do you want to ask?" required/></div>
         <fieldset class="my-4 flex flex-col gap-2"><legend class="mb-2 text-[13px] font-medium text-subtle">"Answers"</legend>
             {(0..MAX_POLL_ANSWERS).map(|i|{let hide=i>=n;view!{<div class="poll-answer-row flex items-center gap-2" hidden=hide>
-                <label class="sr-only" for=format!("poll-emoji-{i}")>{format!("Emoji for answer {}",i+1)}</label><input class="w-12 flex-none text-center" id=format!("poll-emoji-{i}") type="text" maxlength="8" placeholder="🙂" autocomplete="off"/>
+                <label class="sr-only" for=format!("poll-emoji-{i}")>{format!("Emoji for answer {}",i+1)}</label><input class="w-12 flex-none text-center" id=format!("poll-emoji-{i}") type="text" maxlength="40" placeholder="🙂" autocomplete="off"/>
                 <label class="sr-only" for=format!("poll-answer-{i}")>{format!("Answer {}",i+1)}</label><input class="min-w-0 flex-1" id=format!("poll-answer-{i}") type="text" maxlength=MAX_POLL_ANSWER_CHARS.to_string() placeholder="Type your answer"/>
                 {if n>MIN_POLL_ANSWERS{view!{<button type="button" class="icon-button flex-none" data-live=format!("poll-answer-remove:{i}") aria-label=format!("Remove answer {}",i+1)>{icon("x")}</button>}.into_any()}else{().into_any()}}
             </div>}}).collect_view()}

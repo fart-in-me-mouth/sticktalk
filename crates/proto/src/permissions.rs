@@ -49,6 +49,10 @@ bitflags::bitflags! {
         /// Publish your own messages in an announcement channel (Manage
         /// Messages publishes anyone's).
         const PUBLISH_MESSAGES = 1 << 36;
+        /// Use custom emoji from other servers here (granted to @everyone by default).
+        const USE_EXTERNAL_EMOJI = 1 << 44;
+        /// Send stickers from other servers here (granted to @everyone by default).
+        const USE_EXTERNAL_STICKERS = 1 << 45;
     }
 }
 
