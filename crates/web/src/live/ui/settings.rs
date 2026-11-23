@@ -36,6 +36,7 @@ pub(super) fn is_server_page(page: &str) -> bool {
             | "guild-delete"
     ) || super::moderation::is_server_page(page)
         || super::expression::is_server_page(page)
+        || super::community::is_server_page(page)
         || [
             "role:",
             "channel-edit:",
@@ -133,9 +134,11 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
         ),
     ];
     let kind = a.dialog.split(':').next().unwrap_or_default();
+    let community = super::community::nav(a);
     let title = pages
         .iter()
         .chain(moderation.iter())
+        .chain(community.iter())
         .find(|(_, _, page, _)| *page == a.dialog)
         .map_or(
             match kind {
@@ -184,6 +187,7 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             {pages.into_iter().filter(|page|page.3).map(|(glyph,label,page,_)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}
             {if moderation.iter().any(|page|page.3){view!{<h3 class="category mx-2 mt-6 mb-2">"Moderation"</h3>}.into_any()}else{().into_any()}}
             {moderation.into_iter().filter(|page|page.3).map(|(glyph,label,page,_)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}
+            {super::community::nav_group(a)}
         }.into_any(),
         body,
     )

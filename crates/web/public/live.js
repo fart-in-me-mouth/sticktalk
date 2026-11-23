@@ -854,6 +854,10 @@ export function installPlatform() {
       e.target.dataset.dirty='true';
       if(e.target.form)e.target.form.dataset.dirty='true';
     }
+    // Choices (boxes, menus) only: a text field's change comes on blur, while
+    // the next field is being typed into, and a render then would race it.
+    const onChange=e.target.closest('[data-live-change]');
+    if(onChange&&e.target.matches('select,input[type=checkbox],input[type=radio]'))emit(onChange.dataset.liveChange);
     if(e.target.matches('[data-preference]'))setPreference(e.target);
     if(e.target.matches('[data-notification-target]'))emit(`dialog:target-notifications:${e.target.value}`);
     if (e.target.id === "live-file") {queueUploads([...e.target.files]);e.target.value='';}

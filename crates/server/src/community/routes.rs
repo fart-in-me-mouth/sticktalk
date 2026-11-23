@@ -32,7 +32,9 @@ async fn rest<'a>(app: &'a App, h: &HeaderMap) -> Result<Rest<'a>> {
     let mut core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
     let (_, u) = auth(&mut c, http::bearer(h)?).await?;
-    core.rate(format!("rest:{}", u.0), 120., 30.)?;
+    // Its own budget: opening a server must not use up the allowance its
+    // history and member list are fetched with.
+    core.rate(format!("community:{}", u.0), 120., 30.)?;
     Ok((core, c, u))
 }
 type Params = Query<HashMap<String, String>>;
