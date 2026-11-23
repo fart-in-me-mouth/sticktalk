@@ -2329,8 +2329,10 @@ fn respond(
                     // goes back to the list; a created role leaves the dialog
                     // as it is (the person may already have opened it: the
                     // RolesUpdated event can arrive before this answer).
-                    if matches!(operation, Some(Command::Launch(LaunchCommand::UpdateRole { .. })))
-                        && a.dialog == format!("role:{}", r.id.0)
+                    if matches!(
+                        operation,
+                        Some(Command::Launch(LaunchCommand::UpdateRole { .. }))
+                    ) && a.dialog == format!("role:{}", r.id.0)
                     {
                         a.dialog = "roles".into();
                     }

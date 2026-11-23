@@ -151,6 +151,10 @@ if(process.env.STICKTALK_WEB_MOCK!=='1')await versionRuntime(dist);
 // lines and what they reach). Dialog, menu and tooltip load on first use and
 // are cached then, like the other lazy modules (docs/features/perf.md).
 const eagerSdk = new Set();
+// The Trunk fixture build (`--features mock`) has no packager step: copy the
+// UI SDK modules here as the packager does (scripts/styles.mjs).
+if (process.env.STICKTALK_WEB_MOCK === "1" && !(await stat(join(dist, "public/ui-sdk")).catch(() => null)))
+  await (await import("./styles.mjs")).copyUiSdk(join(dist, "public"));
 {
   const ui = await readFile(join(dist, "public/ui.js"), "utf8").catch(() => "");
   const target = ui.match(/from '\.\/runtime\/([a-f0-9]{20})\/ui\.js'/);

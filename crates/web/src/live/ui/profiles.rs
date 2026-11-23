@@ -293,21 +293,21 @@ fn on_card(
 ) -> Option<NameStyle> {
     let style = style?;
     if primary.is_none() && accent.is_none() {
-        return Some(style.clone());
+        return Some(*style);
     }
     let (p, a) = (
         primary.or(accent).unwrap_or(0),
         accent.or(primary).unwrap_or(0),
     );
     if sticktalk_proto::name_reads_on_card(style, p, a) {
-        return Some(style.clone());
+        return Some(*style);
     }
     let text = sticktalk_proto::card_theme(p, a).text;
     Some(NameStyle {
         color: text,
         color2: None,
         effect: NameEffect::Solid,
-        ..style.clone()
+        ..*style
     })
 }
 fn card_view(a: &App, c: Card, below: AnyView) -> AnyView {

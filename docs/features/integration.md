@@ -583,6 +583,18 @@ stickers, request to speak, TTS), at save and again at grant. A new bit fails
 - **Checkboxes with an action** (`data-live` on a native checkbox or radio):
   `live.js` no longer cancels the click, which made the browser flip the box
   back after the app had drawn the new state (`community.mjs`, the rules box).
+- **Typed text and focus are restored only into replaced elements**: `nav.js`
+  and `live.js` snapshot fields before a render and put them back after the
+  next DOM change. With elements now kept, a render that changed nothing left
+  a stale snapshot that a later change restored over newer typing (the search
+  ran with the previous query, `nav.mjs`), and could move focus back. They
+  restore only into an element the render replaced, and focus only when it
+  was lost.
+- **The chat beside a call stays in its pane**: the call view shrinks and its
+  controls wrap; before, at 1440 px with the member list open, the chat ran
+  under the member list (`integration.mjs` checks it).
+- **A created role's answer no longer closes its editor**: only a saved
+  role's editor returns to the roles list (`moderation.mjs`, one run in four).
 
 ## Tests updated because a control moved on purpose
 

@@ -654,7 +654,7 @@ async fn sharing_posts_a_card_and_event_invites_mark_new_members_interested() {
         i.code
     };
     let plain = preview_of(plain).await;
-    assert_eq!(plain["name"].is_string(), true);
+    assert!(plain["name"].is_string());
     assert!(plain.get("event").is_none(), "{plain}");
     {
         let mut core = app.0.core.lock().await;
