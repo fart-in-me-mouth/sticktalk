@@ -100,6 +100,20 @@ pub enum AuditAction {
     MemberProfileReset,
     /// A moderator handled a member's report (`privacy.rs`).
     ReportResolve,
+    // Added with the integration of threads, announcements, soundboard and
+    // polls (`docs/features/integration.md`). Appended: wire-compatible.
+    ThreadUpdate,
+    ThreadDelete,
+    ThreadMemberRemove,
+    ForumUpdate,
+    MessagePublish,
+    ChannelFollow,
+    ChannelUnfollow,
+    SoundCreate,
+    SoundUpdate,
+    SoundDelete,
+    PollEnd,
+    EmbedsRemove,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -144,6 +158,18 @@ impl AuditAction {
         Self::StickerDelete,
         Self::MemberProfileReset,
         Self::ReportResolve,
+        Self::ThreadUpdate,
+        Self::ThreadDelete,
+        Self::ThreadMemberRemove,
+        Self::ForumUpdate,
+        Self::MessagePublish,
+        Self::ChannelFollow,
+        Self::ChannelUnfollow,
+        Self::SoundCreate,
+        Self::SoundUpdate,
+        Self::SoundDelete,
+        Self::PollEnd,
+        Self::EmbedsRemove,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -189,6 +215,18 @@ impl AuditAction {
             Self::StickerDelete => "sticker_delete",
             Self::MemberProfileReset => "member_profile_reset",
             Self::ReportResolve => "report_resolve",
+            Self::ThreadUpdate => "thread_update",
+            Self::ThreadDelete => "thread_delete",
+            Self::ThreadMemberRemove => "thread_member_remove",
+            Self::ForumUpdate => "forum_update",
+            Self::MessagePublish => "message_publish",
+            Self::ChannelFollow => "channel_follow",
+            Self::ChannelUnfollow => "channel_unfollow",
+            Self::SoundCreate => "sound_create",
+            Self::SoundUpdate => "sound_update",
+            Self::SoundDelete => "sound_delete",
+            Self::PollEnd => "poll_end",
+            Self::EmbedsRemove => "embeds_remove",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -238,6 +276,18 @@ impl AuditAction {
             Self::StickerDelete => "Deleted a sticker",
             Self::MemberProfileReset => "Reset a server profile",
             Self::ReportResolve => "Handled a report",
+            Self::ThreadUpdate => "Updated a thread",
+            Self::ThreadDelete => "Deleted a thread",
+            Self::ThreadMemberRemove => "Removed someone from a thread",
+            Self::ForumUpdate => "Changed forum settings",
+            Self::MessagePublish => "Published an announcement",
+            Self::ChannelFollow => "Followed an announcement channel",
+            Self::ChannelUnfollow => "Removed an announcement following",
+            Self::SoundCreate => "Added a sound",
+            Self::SoundUpdate => "Changed a sound",
+            Self::SoundDelete => "Deleted a sound",
+            Self::PollEnd => "Ended a poll",
+            Self::EmbedsRemove => "Removed link previews",
         }
     }
 }
@@ -254,6 +304,8 @@ pub enum AuditTarget {
     Emoji,
     AutomodRule,
     Sticker,
+    /// A soundboard sound (appended).
+    Sound,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -322,6 +374,17 @@ pub struct ModerationState {
     /// Of those, the ones this viewer has confirmed they are an adult for.
     pub age_confirmed: Vec<ChannelId>,
     pub server_time: UnixMillis,
+    /// Channels in this server the viewer can see that have slowmode, with its
+    /// interval in seconds (appended; kept current by `SlowmodeUpdated`). A
+    /// client only asks a channel's slowmode status when it is listed here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub slowmode: Vec<ChannelSlowmode>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChannelSlowmode {
+    pub channel_id: ChannelId,
+    pub seconds: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

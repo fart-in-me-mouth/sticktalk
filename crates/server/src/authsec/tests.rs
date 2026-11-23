@@ -1712,3 +1712,6 @@ async fn data_exports_expire_on_their_timer_and_vanish_with_the_account() {
         assert_eq!(n, 0, "{table}");
     }
 }
+
+/// The export covers the later features too.
+mod integration;

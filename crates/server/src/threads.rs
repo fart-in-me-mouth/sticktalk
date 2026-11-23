@@ -68,51 +68,109 @@ pub(crate) async fn scope(
     c: &mut SqliteConnection,
     u: Id,
     ch: Id,
-    mut p: Permissions,
+    p: Permissions,
 ) -> Result<Permissions> {
     if !p.contains(Permissions::VIEW_CHANNEL) {
         return Ok(p - THREAD_RIGHTS);
     }
-    let Some(r) = sqlx::query("SELECT private,locked,forum_post,owner_id,message_count,EXISTS(SELECT 1 FROM thread_members m WHERE m.thread_id=?1 AND m.user_id=?2) AS member FROM threads WHERE channel_id=?1")
-        .bind(id(ch)?)
-        .bind(id(u)?)
-        .fetch_optional(&mut *c)
-        .await?
-    else {
+    let Some(t) = ThreadScope::load(c, ch).await? else {
         return Ok(p);
     };
-    let manage = p.contains(Permissions::MANAGE_THREADS);
-    let member = r.get::<i64, _>("member") != 0;
-    if r.get::<i64, _>("private") != 0 && !member && !manage {
-        return Ok(p - CHANNEL_RIGHTS);
+    let member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM thread_members WHERE thread_id=? AND user_id=?)",
+    )
+    .bind(id(ch)?)
+    .bind(id(u)?)
+    .fetch_one(&mut *c)
+    .await?;
+    Ok(t.apply(u, member, p))
+}
+/// What the thread rules read about one thread. The batched evaluator
+/// (`capacity::members_with`) loads it once per thread and applies the same
+/// rules in memory, so a channel's audience honors private membership and locks.
+pub(crate) struct ThreadScope {
+    private: bool,
+    locked: bool,
+    forum_post: bool,
+    owner: Id,
+    message_count: i64,
+}
+impl ThreadScope {
+    pub(crate) async fn load(c: &mut SqliteConnection, ch: Id) -> Result<Option<Self>> {
+        let r = sqlx::query(
+            "SELECT private,locked,forum_post,owner_id,message_count FROM threads WHERE channel_id=?",
+        )
+        .bind(id(ch)?)
+        .fetch_optional(&mut *c)
+        .await?;
+        Ok(r.map(|r| Self {
+            private: r.get::<i64, _>("private") != 0,
+            locked: r.get::<i64, _>("locked") != 0,
+            forum_post: r.get::<i64, _>("forum_post") != 0,
+            owner: Id(r.get::<i64, _>("owner_id") as u64),
+            message_count: r.get("message_count"),
+        }))
     }
-    // A forum post's first message is "creating the post" (Send Messages in
-    // the forum); everything after it is a reply (Send Messages in Threads).
-    let first = r.get::<i64, _>("forum_post") != 0
-        && r.get::<i64, _>("message_count") == 0
-        && r.get::<i64, _>("owner_id") == id(u)?;
-    let locked = r.get::<i64, _>("locked") != 0;
-    let send = if first {
-        p.contains(Permissions::SEND_MESSAGES)
-    } else {
-        p.contains(Permissions::SEND_MESSAGES_IN_THREADS)
-    } && (!locked || manage);
-    p.set(Permissions::SEND_MESSAGES, send);
-    if !send {
+    /// The members of a thread (for the batched evaluator).
+    pub(crate) async fn members(
+        c: &mut SqliteConnection,
+        ch: Id,
+    ) -> Result<std::collections::HashSet<Id>> {
+        Ok(
+            sqlx::query_scalar::<_, i64>("SELECT user_id FROM thread_members WHERE thread_id=?")
+                .bind(id(ch)?)
+                .fetch_all(&mut *c)
+                .await?
+                .into_iter()
+                .map(|v| Id(v as u64))
+                .collect(),
+        )
+    }
+    /// The thread rules on rights computed for its parent chain.
+    pub(crate) fn apply(&self, u: Id, member: bool, mut p: Permissions) -> Permissions {
+        if !p.contains(Permissions::VIEW_CHANNEL) {
+            return p - THREAD_RIGHTS;
+        }
+        let manage = p.contains(Permissions::MANAGE_THREADS);
+        if self.private && !member && !manage {
+            return p - CHANNEL_RIGHTS;
+        }
+        // A forum post's first message is "creating the post" (Send Messages in
+        // the forum); everything after it is a reply (Send Messages in Threads).
+        let first = self.forum_post && self.message_count == 0 && self.owner == u;
+        let send = if first {
+            p.contains(Permissions::SEND_MESSAGES)
+        } else {
+            p.contains(Permissions::SEND_MESSAGES_IN_THREADS)
+        } && (!self.locked || manage);
+        p.set(Permissions::SEND_MESSAGES, send);
+        if !send {
+            p.remove(
+                Permissions::ATTACH_FILES
+                    | Permissions::EMBED_LINKS
+                    | Permissions::MENTION_EVERYONE,
+            );
+        }
+        if self.locked && !manage {
+            p.remove(Permissions::ADD_REACTIONS);
+        }
+        // No threads inside threads.
         p.remove(
-            Permissions::ATTACH_FILES | Permissions::EMBED_LINKS | Permissions::MENTION_EVERYONE,
+            Permissions::CREATE_PUBLIC_THREADS
+                | Permissions::CREATE_PRIVATE_THREADS
+                | Permissions::PUBLISH_MESSAGES,
         );
+        p
     }
-    if locked && !manage {
-        p.remove(Permissions::ADD_REACTIONS);
+}
+/// Outside a thread the rules only drop the thread rights of a channel the
+/// person cannot see (as `scope` does).
+pub(crate) fn unscoped(p: Permissions) -> Permissions {
+    if p.contains(Permissions::VIEW_CHANNEL) {
+        p
+    } else {
+        p - THREAD_RIGHTS
     }
-    // No threads inside threads.
-    p.remove(
-        Permissions::CREATE_PUBLIC_THREADS
-            | Permissions::CREATE_PRIVATE_THREADS
-            | Permissions::PUBLISH_MESSAGES,
-    );
-    Ok(p)
 }
 
 const SELECT: &str = "SELECT t.*,ch.name FROM threads t JOIN channels ch ON ch.id=t.channel_id";
@@ -848,34 +906,13 @@ pub(crate) async fn after_send(
     Ok(())
 }
 
-/// Who receives a thread's events, given everyone who can see its parent
-/// (`users`, from the batched evaluator, which does not know thread rules):
-/// a private thread reaches only its members and people with Manage Threads.
-/// The same rule as `scope`.
-pub(crate) async fn private_audience(
-    c: &mut SqliteConnection,
-    g: Id,
-    ch: Id,
-    users: Vec<Id>,
-) -> Result<Vec<Id>> {
-    let private: Option<i64> = sqlx::query_scalar("SELECT private FROM threads WHERE channel_id=?")
-        .bind(id(ch)?)
-        .fetch_optional(&mut *c)
-        .await?;
-    if private.unwrap_or(0) == 0 {
-        return Ok(users);
-    }
-    let members: Vec<i64> =
-        sqlx::query_scalar("SELECT user_id FROM thread_members WHERE thread_id=?")
-            .bind(id(ch)?)
-            .fetch_all(&mut *c)
-            .await?;
-    let managers =
-        crate::capacity::members_with(c, g, Some(ch), Permissions::MANAGE_THREADS).await?;
-    Ok(users
-        .into_iter()
-        .filter(|u| members.contains(&(u.0 as i64)) || managers.contains(u))
-        .collect())
+/// A forum's settings, for the audit log (`moderation::feature_audit`).
+pub(crate) async fn forum_settings(c: &mut SqliteConnection, forum: Id) -> Result<ForumSettings> {
+    forum::settings(c, forum).await
+}
+/// A following, for the audit log.
+pub(crate) async fn follow_info(c: &mut SqliteConnection, f: Id) -> Result<ChannelFollow> {
+    announce::follow_row(c, f).await
 }
 
 /// `ReadStateUpdated` in a thread goes only to its members.

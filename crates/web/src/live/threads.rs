@@ -661,6 +661,42 @@ pub(super) fn open(app: Shared, t: Id, message: Option<Id>) {
     });
 }
 
+/// Learns the threads that a page of results (search, mentions, saved)
+/// points into, so each is labeled "#parent › thread" and opens directly.
+/// One request per thread the client does not know, at most 25, only when
+/// results arrive. Unknown IDs that are not threads (closed DMs) just fail.
+pub(super) fn learn(app: &Shared, channels: impl IntoIterator<Item = Id>) {
+    let (epoch, mut unknown) = {
+        let a = app.borrow();
+        let unknown: Vec<Id> = channels
+            .into_iter()
+            .filter(|c| !a.model.channels.contains_key(c))
+            .collect();
+        (a.epoch, unknown)
+    };
+    unknown.sort();
+    unknown.dedup();
+    unknown.truncate(25);
+    for t in unknown {
+        let app = app.clone();
+        let http = app.borrow().http();
+        spawn_local(async move {
+            let Ok(d) = http
+                .json::<ThreadDetail>(&format!("/threads/{}", t.0))
+                .await
+            else {
+                return;
+            };
+            let mut a = app.borrow_mut();
+            if a.epoch != epoch || a.model.channels.contains_key(&t) {
+                return;
+            }
+            remember(&mut a, d.thread);
+            a.touch();
+        });
+    }
+}
+
 /// A search result or link to a message in a thread the client has not seen.
 pub(super) fn jump(app: Shared, ch: Id, m: Id) -> bool {
     if app.borrow().model.channels.contains_key(&ch) {

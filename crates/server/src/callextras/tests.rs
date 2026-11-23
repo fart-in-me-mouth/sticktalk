@@ -900,3 +900,6 @@ async fn camera_backgrounds_are_private_bounded_and_typed_by_content() {
         MAX_CAMERA_BACKGROUNDS - 1
     );
 }
+
+/// Audit log, AutoMod and timeouts on the soundboard and voice quality.
+mod integration;

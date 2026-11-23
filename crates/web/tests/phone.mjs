@@ -60,7 +60,10 @@ try {
       } else await swipe(page,{x:280,y:400},{x:100,y:400});
       await page.waitForFunction(()=>!document.querySelector('.panel-left,.panel-right'));
       await page.waitForFunction(()=>!history.state?.sticktalkOverlay?.panel);
-      await page.getByRole('button',{name:'Member List',exact:true}).tap();
+      // Phones keep Member List in the header's options menu (wider screens: a button).
+      const members=page.getByRole('button',{name:'Member List',exact:true});
+      if(await members.isVisible())await members.tap();
+      else{await page.getByRole('button',{name:'Channel Options',exact:true}).tap();await page.locator('ui-menu-content[data-open] ui-menu-item[value="panel:right"]').tap();}
       await page.waitForSelector('.panel-right');
       screenshots.push(await shot(page,'members-drawer'));
       await page.goBack();
@@ -142,7 +145,8 @@ try {
       await act(page,`dialog:channel-edit:${renameId}`);
       await page.locator('#f-name').fill('release-notes');
       await page.locator('#f-value').fill('Release checklist and QA findings');
-      await page.locator('[type=submit]').click();
+      // The editor also has the Slowmode & Safety form with its own button.
+      await page.getByRole('button',{name:'Save Changes',exact:true}).click();
       await page.waitForSelector('.channel-header:has-text("release-notes")');
       await act(page,`dialog:channel-delete:${renameId}`);
       await page.locator('#f-name').fill('DELETE');

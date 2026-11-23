@@ -3,6 +3,7 @@ mod authsec;
 mod calls;
 mod content;
 mod expression;
+mod history_cache;
 mod moderation;
 mod nav;
 mod operations;
@@ -95,6 +96,8 @@ struct App {
     history_busy: bool,
     history_abort: Option<futures_util::future::AbortHandle>,
     extent: Option<HistoryExtent>,
+    /// Recently visited conversations that reopen without a request.
+    history_cache: history_cache::HistoryCache,
     window_rank: u64,
     window_ids: Vec<Id>,
     roles: BTreeMap<Id, Role>,
@@ -184,6 +187,7 @@ impl App {
         self.pending.clear();
         self.window_ids.clear();
         self.extent = None;
+        self.history_cache.clear();
         self.history_busy = false;
         self.history_generation = self.history_generation.wrapping_add(1);
         self.typing_expiry_active = false;
@@ -343,6 +347,7 @@ pub fn mount() {
             history_busy: false,
             history_abort: None,
             extent: None,
+            history_cache: Default::default(),
             window_rank: 0,
             window_ids: vec![],
             roles: BTreeMap::new(),
@@ -741,6 +746,9 @@ async fn socket(app: Shared, epoch: u64) {
                                                 }
                                             }
                                         }
+                                        Event::MessageCreated { message, .. } => {
+                                            a.history_cache.counted(message.channel_id, 1)
+                                        }
                                         Event::MessageDeleted {
                                             channel_id,
                                             message_id,
@@ -756,6 +764,9 @@ async fn socket(app: Shared, epoch: u64) {
                                                 extent.message_count =
                                                     extent.message_count.saturating_sub(1);
                                             }
+                                        }
+                                        Event::MessageDeleted { channel_id, .. } => {
+                                            a.history_cache.counted(*channel_id, -1)
                                         }
                                         Event::RolesUpdated { guild_id, roles } => {
                                             a.roles.retain(|_, r| r.guild_id != *guild_id);
@@ -950,7 +961,14 @@ async fn socket(app: Shared, epoch: u64) {
                                 // Voice-state broadcasts also reach people who are not in
                                 // the call: they show who is in each voice channel. Only
                                 // someone in a call has the events passed on to the media host.
-                                if payload.version == VOICE_VERSION && payload.kind == "event" {
+                                // The empty call list sent after every Ready changes nothing
+                                // while no call is known: do not load the voice module for it.
+                                let idle = payload.payload == crate::wire::EMPTY_CALL_SNAPSHOT
+                                    && app.borrow().calls.live.is_empty();
+                                if payload.version == VOICE_VERSION
+                                    && payload.kind == "event"
+                                    && !idle
+                                {
                                     forward_voice(app.clone(), epoch, payload).await;
                                 }
                             }
@@ -986,6 +1004,8 @@ async fn socket(app: Shared, epoch: u64) {
                     a.window_ids.clear();
                     a.extent = None;
                 }
+                // Events may be missed until the stream resumes or resyncs.
+                a.history_cache.clear();
                 a.ready = false;
                 a.pending
                     .retain(|_, (_, at)| Browser.monotonic_ms().saturating_sub(*at) < 590_000);

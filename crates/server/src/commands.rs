@@ -477,7 +477,7 @@ pub(crate) async fn execute(
             if matches!(req.command,Command::SendMessage(_)) {core.rate(format!("send:{}",u.0),60.,10.)?;}
             let n:i64=sqlx::query_scalar("SELECT COUNT(*) FROM command_receipts WHERE session_hash=? AND expires_at>?").bind(key).bind(now() as i64).fetch_one(&mut *c).await?;require(n<256,ErrorCode::LimitExceeded)?;
         }
-        let mut moderation_hook = crate::moderation::precheck(app, core, &mut c, u, &req.command).await?;
+        let mut moderation_hook = Box::pin(crate::moderation::precheck(app, core, &mut c, u, &req.command)).await?;
         let visibility_users = visibility_users(&mut c, u, &req.command).await?;
         let mut previous_base = Vec::new();
         for viewer in visibility_users { previous_base.push((viewer, base_presence(&mut c, viewer).await?)); }
@@ -497,7 +497,7 @@ pub(crate) async fn execute(
         let deleted_channel=if let Command::DeleteChannel {channel_id}=req.command {Some(channel_id)} else {None};
         let call_acl_changed=crate::calls::acl_changed(&req.command);
         let mut revoked_visibility=vec![];
-        let mut result=mutate(&mut tx,core,key,u,req.command,&mut out).await?;
+        let mut result=Box::pin(mutate(&mut tx,core,key,u,req.command,&mut out)).await?;
         crate::moderation::record(&mut tx, u, &mut moderation_hook, &result).await?;
         if let CommandResult::Channel(ch)=&mut result {*ch=access(&mut tx,u,ch.summary.id,Permissions::VIEW_CHANNEL).await?;}
         if let Some(g)=acl_guild {
@@ -576,7 +576,7 @@ pub(crate) async fn execute(
         }
         // Presence is synthesized against the committed projection, not supplied by clients.
         if presence_changed && changed { broadcast_presence(&mut c,core,u).await?; }
-        crate::moderation::after(app, core, &mut c, u, moderation_hook).await?;
+        Box::pin(crate::moderation::after(app, core, &mut c, u, moderation_hook)).await?;
         Ok(result)
     }.await;
     let outcome = match outcome {
@@ -747,11 +747,13 @@ pub(crate) async fn mutate(
     use Command::*;
     let adding_reaction = matches!(cmd, Command::AddReaction { .. });
     match cmd {
-        Launch(cmd) => crate::launch::mutate(c, core, key, u, cmd, out).await,
-        Content(cmd) => crate::content::mutate(c, core, key, u, cmd, out).await,
-        Threads(cmd) => crate::threads::mutate(c, core, key, u, cmd, out).await,
-        Expression(cmd) => crate::expression::mutate(c, core, key, u, cmd, out).await,
-        Privacy(cmd) => crate::privacy::mutate(c, core, key, u, cmd, out).await,
+        // Boxed: each feature's future is large, and holding them all inline in
+        // this one overflowed a 2 MB stack in debug builds.
+        Launch(cmd) => Box::pin(crate::launch::mutate(c, core, key, u, cmd, out)).await,
+        Content(cmd) => Box::pin(crate::content::mutate(c, core, key, u, cmd, out)).await,
+        Threads(cmd) => Box::pin(crate::threads::mutate(c, core, key, u, cmd, out)).await,
+        Expression(cmd) => Box::pin(crate::expression::mutate(c, core, key, u, cmd, out)).await,
+        Privacy(cmd) => Box::pin(crate::privacy::mutate(c, core, key, u, cmd, out)).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();

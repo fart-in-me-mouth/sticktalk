@@ -10,6 +10,8 @@
 //! expired by one task sleeping until the next deadline, never by polling.
 pub(crate) mod audit;
 pub(crate) mod automod;
+pub(crate) mod coverage;
+pub(crate) mod feature_audit;
 use crate::{
     db::{self, *},
     error::{require, Error, Result},
@@ -367,6 +369,7 @@ pub(crate) async fn precheck(
                 message_check(app, core, c, u, ch, content, mentions, true).await?
             }
         }
+        Command::Threads(cmd) => coverage::thread_check(app, core, c, u, cmd).await?,
         _ => {}
     }
     Ok(hook)
@@ -405,6 +408,8 @@ async fn content_check(
         ContentCommand::SendGif { channel_id, .. } => {
             message_check(app, core, c, u, *channel_id, "", &[], true).await
         }
+        // Voting only needs Read History, which a timeout keeps.
+        ContentCommand::VotePoll { channel_id, .. } => coverage::timed_out(c, u, *channel_id).await,
         ContentCommand::Forward {
             channel_id,
             message_id,
@@ -548,6 +553,34 @@ async fn message_check(
     mentions: &[Id],
     send: bool,
 ) -> Result<()> {
+    screen(
+        app,
+        core,
+        c,
+        u,
+        ch,
+        content,
+        mentions,
+        send,
+        Permissions::SEND_MESSAGES,
+    )
+    .await
+}
+/// `message_check` for text that needs another right than Send Messages
+/// (a thread name needs Create Threads): AutoMod is skipped when the author
+/// lacks `needed`, because the command refuses.
+#[allow(clippy::too_many_arguments)]
+async fn screen(
+    app: &App,
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    u: Id,
+    ch: Id,
+    content: &str,
+    mentions: &[Id],
+    send: bool,
+    needed: Permissions,
+) -> Result<()> {
     // Say nothing about channels the author cannot use; the command refuses them.
     let Ok(channel) = access(c, u, ch, Permissions::VIEW_CHANNEL).await else {
         return Ok(());
@@ -573,7 +606,9 @@ async fn message_check(
         }
     }
     let rights = acl::evaluate(c, u, g, Some(ch)).await?;
-    if !rights.contains(Permissions::SEND_MESSAGES) || rights.contains(Permissions::MANAGE_GUILD) {
+    if !rights.intersects(needed) && !needed.is_empty()
+        || rights.contains(Permissions::MANAGE_GUILD)
+    {
         return Ok(());
     }
     let rules = automod::rules(&mut core.moderation, c, g).await?;
@@ -1544,11 +1579,25 @@ pub(crate) async fn state(c: &mut SqliteConnection, u: Id, g: Id) -> Result<Mode
         .into_iter()
         .map(|v| Id(v as u64))
         .collect();
+    let slowed: HashMap<Id, u32> = sqlx::query("SELECT s.channel_id,s.seconds FROM channel_slowmode s JOIN channels ch ON ch.id=s.channel_id WHERE ch.guild_id=? AND s.seconds>0")
+        .bind(id(g)?)
+        .fetch_all(&mut *c)
+        .await?
+        .into_iter()
+        .map(|r| (Id(r.get::<i64, _>(0) as u64), r.get::<i64, _>(1) as u32))
+        .collect();
     let mut age_restricted = vec![];
-    if !restricted.is_empty() {
+    let mut slowmode = vec![];
+    if !restricted.is_empty() || !slowed.is_empty() {
         for (ch, visible) in crate::capacity::guild_channels(c, u, g).await? {
             if visible && restricted.contains(&ch.id) {
                 age_restricted.push(ch.id);
+            }
+            if let Some(seconds) = slowed.get(&ch.id).filter(|_| visible) {
+                slowmode.push(ChannelSlowmode {
+                    channel_id: ch.id,
+                    seconds: *seconds,
+                });
             }
         }
     }
@@ -1572,6 +1621,7 @@ pub(crate) async fn state(c: &mut SqliteConnection, u: Id, g: Id) -> Result<Mode
         age_restricted,
         age_confirmed,
         server_time: now(),
+        slowmode,
     })
 }
 async fn state_endpoint(

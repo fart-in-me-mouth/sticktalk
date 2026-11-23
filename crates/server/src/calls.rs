@@ -83,7 +83,8 @@ pub(crate) async fn admit(c: &mut SqliteConnection, user: Id, ch: &Channel) -> R
                 .iter()
                 .find(|v| **v != user)
                 .ok_or_else(|| Error::new(ErrorCode::Internal))?;
-            require(!db::blocked(c, user, peer).await?, ErrorCode::Blocked)
+            require(!db::blocked(c, user, peer).await?, ErrorCode::Blocked)?;
+            crate::moderation::coverage::call_check(c, user, ch).await
         }
         ChannelKind::GroupDm => Ok(()),
         _ => Err(Error::new(ErrorCode::InvalidRequest)),

@@ -497,7 +497,14 @@ pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiR
         crate::commands::broadcast_presence(&mut c, &mut core, u).await?;
         return Ok(ApiResponse::empty());
     }
-    core.rate(format!("rest:{}", u.0), 120., 30.)?;
+    // Reading a conversation's history is the hot path of switching
+    // conversations; it has its own budget (`history::rate`) so that browsing
+    // does not starve every other read, and vice versa.
+    if method == "GET" && crate::history::is_history_page(&path) {
+        crate::history::rate(&mut core, u)?;
+    } else {
+        core.rate(format!("rest:{}", u.0), 120., 30.)?;
+    }
     let cursor = core.cursor(&key, u);
     if method == "DELETE"
         && path

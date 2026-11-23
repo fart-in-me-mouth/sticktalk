@@ -320,10 +320,8 @@ pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Re
 pub async fn audience(c: &mut SqliteConnection, ch: Id) -> Result<Vec<Id>> {
     let ch = channel(c, ch).await?;
     if let Some(g) = ch.summary.guild_id {
-        let users =
-            crate::capacity::members_with(c, g, Some(ch.summary.id), Permissions::VIEW_CHANNEL)
-                .await?;
-        crate::threads::private_audience(c, g, ch.summary.id, users).await
+        // The batched evaluator applies the thread rules (private membership).
+        crate::capacity::members_with(c, g, Some(ch.summary.id), Permissions::VIEW_CHANNEL).await
     } else {
         Ok(ch.summary.recipient_ids)
     }
@@ -695,7 +693,7 @@ pub async fn ban(c: &mut SqliteConnection, g: Id, u: Id) -> Result<Ban> {
     })
 }
 pub async fn gc_uploads(c: &mut SqliteConnection) -> Result<Vec<String>> {
-    let rows=sqlx::query("SELECT id,storage_key,thumbnail_key FROM uploads u WHERE expires_at IS NULL AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM forwarded_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=u.id) AND NOT EXISTS(SELECT 1 FROM guilds WHERE icon_id=u.id) AND NOT EXISTS(SELECT 1 FROM profile_uploads WHERE upload_id=u.id) LIMIT 100").fetch_all(&mut *c).await?;
+    let rows=sqlx::query("SELECT id,storage_key,thumbnail_key FROM uploads u WHERE expires_at IS NULL AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM forwarded_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM scheduled_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=u.id) AND NOT EXISTS(SELECT 1 FROM guilds WHERE icon_id=u.id) AND NOT EXISTS(SELECT 1 FROM profile_uploads WHERE upload_id=u.id) LIMIT 100").fetch_all(&mut *c).await?;
     let mut keys = vec![];
     for r in rows {
         keys.push(r.get("storage_key"));

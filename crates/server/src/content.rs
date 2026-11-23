@@ -134,12 +134,14 @@ pub(crate) async fn mutate(
             content,
             mention_ids,
             send_at,
+            attachment_ids,
         } => {
             let draft = scheduled::Draft {
                 channel_id,
                 content,
                 mention_ids,
                 send_at,
+                attachment_ids: Some(attachment_ids),
             };
             scheduled::create(c, core, u, draft, out).await?
         }
@@ -148,12 +150,14 @@ pub(crate) async fn mutate(
             content,
             mention_ids,
             send_at,
+            attachment_ids,
         } => {
             let draft = scheduled::Draft {
                 channel_id: Id(0),
                 content,
                 mention_ids,
                 send_at,
+                attachment_ids,
             };
             scheduled::update(c, u, id, draft, out).await?
         }

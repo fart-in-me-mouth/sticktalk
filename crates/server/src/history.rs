@@ -7,6 +7,24 @@ use axum::{
 use sqlx::Row;
 use sticktalk_proto::*;
 
+/// The per-user budget for history reads (a page of messages and the history
+/// extent; a first visit to a conversation needs one of each). 240 a minute
+/// with a burst of 60 lets someone open about 30 conversations in a row
+/// without waiting, then one every half second. Abuse stays bounded: each
+/// read is index-only and at most 100 messages or 67 seeks, the budget is per
+/// account on top of the shared 120-a-minute budget for other reads, and
+/// sockets, commands and uploads keep their own limits.
+pub(crate) fn rate(core: &mut crate::state::Core, u: Id) -> Result<()> {
+    core.rate(format!("history:{}", u.0), 240., 60.)
+}
+/// `channels/{id}/messages`, the REST path of a history page.
+pub(crate) fn is_history_page(path: &str) -> bool {
+    matches!(
+        path.split('/').collect::<Vec<_>>().as_slice(),
+        ["channels", _, "messages"]
+    )
+}
+
 pub(crate) async fn extent(
     State(app): State<App>,
     Path(ch): Path<u64>,
@@ -15,7 +33,7 @@ pub(crate) async fn extent(
     let mut core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
     let (key, u) = db::auth(&mut c, http::bearer(&headers)?).await?;
-    core.rate(format!("rest:{}", u.0), 120., 30.)?;
+    rate(&mut core, u)?;
     let ch = Id(ch);
     db::text(
         &mut c,

@@ -19,7 +19,13 @@ try {
   page.on('pageerror', e => errors.push(String(e)));
   // Wait out the 150 ms backdrop and tooltip fades before capturing.
   const shot = async name => { await wait(250); await page.screenshot({ path: join(shots, `${name}.png`), caret: 'initial' }); };
-  const middle = selector => page.locator(selector).first().evaluate(e => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; });
+  // Several elements measured in one DOM snapshot: a re-render between separate
+  // round trips can detach an element the locator already resolved (it then
+  // measures 0), which made these checks fail on a busy machine.
+  const middles = selectors => page.waitForFunction(list => {
+    const out = list.map(s => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return r.height ? r.top + r.height / 2 : null; });
+    return out.every(v => v !== null) && out;
+  }, selectors, { timeout: 5000 }).then(h => h.jsonValue(), () => selectors.map(() => 0));
 
   await page.goto(h.origin);
   await page.waitForSelector('#auth-username');
@@ -142,11 +148,11 @@ try {
   await page.locator('#live-input').press('Enter');
   await page.waitForFunction(() => [...document.querySelectorAll('.markdown')].some(e => e.textContent.includes('Hello from the kit test')));
   const near = (a, b) => Math.abs(a - b) <= 1.5;
-  const composer = [await middle('.composer'), await middle('#live-input'), await middle('.composer [data-live="pick-file"]'), await middle('.composer [data-live="send-input"]')];
+  const composer = await middles(['.composer', '#live-input', '.composer [data-live="pick-file"]', '.composer [data-live="send-input"]']);
   check('composer text is vertically centered with its buttons', composer.every(v => near(v, composer[0])), composer.join(','));
-  const row = [await middle('.channel-row.selected'), await middle('.channel-row.selected .icon'), await middle('.channel-row.selected .channel-main > span')];
+  const row = await middles(['.channel-row.selected', '.channel-row.selected .icon', '.channel-row.selected .channel-main > span']);
   check('channel name is vertically centered in its row', row.every(v => near(v, row[0])), row.join(','));
-  const panel = [await middle('.user-panel'), await middle('.user-panel ui-avatar'), await middle('.user-panel .self-label'), await middle('.user-panel [data-live="dialog:settings"]')];
+  const panel = await middles(['.user-panel', '.user-panel ui-avatar', '.user-panel .self-label', '.user-panel [data-live="dialog:settings"]']);
   check('user panel avatar, name and buttons share one center line', panel.every(v => near(v, panel[0])), panel.join(','));
   await shot('06-chat');
 
