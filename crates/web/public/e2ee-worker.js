@@ -8,7 +8,7 @@ import * as e from './e2ee-core.js';
 let keys = null;
 let call = null; // { channel, session }
 let encrypted = true;
-const senders = new Map(); // id -> { kind, track, sig }
+const senders = new Map(); // id -> { kind, sig } (the frame counter is the key's: keys.sendTrack)
 const receivers = new Map(); // id -> { kind, member, windows, checker, needKey, forged }
 const counters = {
   sent: 0, received: 0, passedPlain: 0, droppedPlain: 0, droppedNoKey: 0, droppedReplay: 0,
@@ -62,8 +62,8 @@ async function handle(m) {
           send: (to, data) => post({ type: 'relay', to, data }), changed: stateSoon,
         });
         const announce = await keys.init();
-        // A new call lifetime: every track starts over with the new keys.
-        for (const s of senders.values()) { s.track = null; s.sig = null; }
+        // A new call lifetime: new keys (with their own counters), new signature batches.
+        for (const s of senders.values()) s.sig = null;
         for (const r of receivers.values()) { r.windows.clear(); r.checker = null; r.forged = false; }
         post({ type: 'announce', announce, fp: e.hex(keys.fp) });
         stateSoon();
@@ -145,7 +145,7 @@ self.onrtctransform = (event) => {
 
 function pipe(o, readable, writable, transformer) {
   if (o.side === 'send') {
-    const s = senders.get(o.id) ?? { kind: o.kind, track: null, sig: null };
+    const s = senders.get(o.id) ?? { kind: o.kind, sig: null };
     s.kind = o.kind;
     senders.set(o.id, s);
     readable.pipeThrough(new TransformStream({ transform: (frame, c) => send(s, frame, c) })).pipeTo(writable).catch(() => {});
@@ -164,16 +164,16 @@ async function send(s, frame, c) {
   if (!keys?.cur) return; // an encrypted call never sends plaintext, even while starting
   if (!encrypted) { counters.passedPlain++; return c.enqueue(frame); }
   const video = VIDEO.has(s.kind);
-  const ks = await keys.sendKey(s.kind);
-  if (!keys) return;
-  if (!s.track || s.track.ks !== ks) s.track = { ks, ctr: 0 };
+  // The key and its counter, shared by every sender of this kind: a rebuilt
+  // sender or peer connection carries on from it (no nonce is used twice).
+  const track = await keys.sendTrack(s.kind);
+  if (!keys || !track) return;
   s.sig ??= new e.SigSender({ channel: call.channel, user: call.session.user_id, connection: call.session.connection_id, kind: s.kind },
     keys.sig.privateKey, video ? 0 : e.AUDIO_CHUNK);
-  const before = s.track.ctr;
-  const sealed = await e.sealFrame(s.track, new Uint8Array(frame.data), video, s.sig.take());
+  const sealed = await e.sealFrame(track, new Uint8Array(frame.data), video, s.sig.take());
   if (!sealed) return;
-  counters.retries += sealed.ctr - before;
-  s.sig.record(ks.kid, sealed.ctr, sealed.tag);
+  counters.retries += sealed.retries;
+  s.sig.record(track.ks.kid, sealed.ctr, sealed.tag);
   frame.data = sealed.data.buffer;
   counters.sent++;
   c.enqueue(frame);

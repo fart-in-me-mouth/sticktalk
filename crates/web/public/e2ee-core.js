@@ -219,7 +219,9 @@ export function emulates(b, ranges, total) {
 // ---- frames --------------------------------------------------------------------
 /**
  * Encrypts one encoded frame. `track` holds { ks: {kid,key,salt}, ctr } and is
- * advanced. Returns { data, ctr, tag } (tag: the 16-byte AEAD tag) or null.
+ * advanced; in a call it is the key's own counter (`CallKeys.sendTrack`),
+ * shared by every sender of that kind. Returns { data, ctr, tag, retries }
+ * (tag: the 16-byte AEAD tag; retries: counters skipped for emulation) or null.
  */
 export async function sealFrame(track, frame, video, ext = new Uint8Array(0)) {
   for (let attempt = 0; attempt < 16; attempt++) {
@@ -249,7 +251,7 @@ export async function sealFrame(track, frame, video, ext = new Uint8Array(0)) {
       out.set(tail, frame.length);
       if (emulates(out, ranges, out.length)) continue;
     } else out = concat(sealed.subarray(0, sealed.length - 16), tail);
-    return { data: out, ctr, tag: tag.slice() };
+    return { data: out, ctr, tag: tag.slice(), retries: attempt };
   }
   return null;
 }
@@ -497,7 +499,9 @@ export class CallKeys {
     this.started = false;
     this.cur = null;
     this.pending = null;
-    this.sendKeys = new Map(); // `${kind}:${kid}` -> Promise<ks>
+    // The newest KID sent with, and the key object it belongs to (`sendTrack`).
+    this.sentKid = -1;
+    this.sentCur = null;
     this.queue = Promise.resolve();
     this.events = [];
   }
@@ -512,7 +516,10 @@ export class CallKeys {
     this.announceRaw = announceBytes(this.channel, this.session, this.deviceId, this.identity.publicRaw, this.dhRaw, this.sigRaw);
     this.signature = new Uint8Array(await subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, this.identity.privateKey, this.announceRaw));
     this.fp = await fingerprint(this.session.user_id, this.identity.publicRaw);
+    // A fresh random secret: a new key, so the KID may start over.
     this.cur = { epoch: 0, step: 0, secret: random(32) };
+    this.sentKid = -1;
+    this.sentCur = null;
     return { identity: b64u(this.identity.publicRaw), dh: b64u(this.dhRaw), sig: b64u(this.sigRaw), signature: b64u(this.signature) };
   }
   serial(task) {
@@ -658,19 +665,33 @@ export class CallKeys {
     }
     return false;
   }
-  /** The current frame key for one of our tracks. */
-  async sendKey(kind) {
+  /**
+   * The current frame key for one of our kinds of track, with its frame
+   * counter: { ks, ctr } (docs/E2EE.md 5.4). The counter belongs to the key,
+   * not to an RTP sender, so a rebuilt sender or peer connection carries on
+   * from it and a (key, nonce) pair cannot repeat. The pair is made once per
+   * epoch key and kind and lives on that key's own object (`cur.send`): an
+   * epoch key is never current twice, and KIDs only move forward, so a
+   * request for an older KID, or for the same KID under another key object,
+   * is refused (null) rather than given a counter that starts over.
+   */
+  sendTrack(kind) {
     const cur = this.cur;
+    if (!cur) return Promise.resolve(null);
     const kid = kidOf(cur);
-    const id = `${kind}:${kid}`;
-    let ks = this.sendKeys.get(id);
-    if (!ks) {
-      ks = trackKey(cur.secret, kind, kid);
-      for (const old of [...this.sendKeys.keys()]) if (old.startsWith(`${kind}:`)) this.sendKeys.delete(old);
-      this.sendKeys.set(id, ks);
+    if (kid < this.sentKid || (kid === this.sentKid && cur !== this.sentCur)) return Promise.resolve(null);
+    this.sentKid = kid;
+    this.sentCur = cur;
+    cur.send ??= new Map();
+    let track = cur.send.get(kind);
+    if (!track) {
+      track = trackKey(cur.secret, kind, kid).then((ks) => ({ ks, ctr: 0 }));
+      cur.send.set(kind, track);
     }
-    return ks;
+    return track;
   }
+  /** The current frame key for one of our tracks (its counter: `sendTrack`). */
+  async sendKey(kind) { return (await this.sendTrack(kind))?.ks ?? null; }
   /** A member's frame key for a KID, ratcheting forward when allowed. Null when we cannot have it. */
   async recvKey(memberKey, kind, kid) {
     const m = this.members.get(memberKey);
@@ -724,7 +745,6 @@ export class CallKeys {
     if (this.pending) this.timers.clearTimeout(this.pending.timer);
     this.pending = null;
     this.members.clear();
-    this.sendKeys.clear();
     this.cur = null;
   }
 }

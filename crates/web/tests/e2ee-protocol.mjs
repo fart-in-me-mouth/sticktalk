@@ -436,4 +436,78 @@ await test('verification codes: shared call code, symmetric safety number, QR pa
   assert.equal(e.parseVerifyPayload('sticktalk-verify:1:1:zz:2:00'), null);
 });
 
+// ---- the call worker: a (key, nonce) pair never repeats ---------------------------
+// The real worker (public/e2ee-worker.js) with fake encoded-transform streams. A
+// rebuilt RTP sender, or a whole rebuilt peer connection, gets the same keys
+// (no new key exchange): the frame counter must carry on, never restart.
+await test('call worker: rebuilt senders and peer connections never reuse a (key, nonce) pair', async () => {
+  const posted = [];
+  globalThis.self = { postMessage: (m) => posted.push(m), close() {} };
+  await import('../public/e2ee-worker.js');
+  const worker = globalThis.self;
+  const until = async (ok) => { for (let i = 0; i < 2000 && !ok(); i++) await new Promise((r) => setTimeout(r, 1)); assert.ok(ok()); };
+  const identity = await e.newIdentity();
+  worker.onmessage({ data: { type: 'init', channel: CHANNEL, session: { user_id: '7', connection_id: '77' }, deviceId: e.hex(e.random(16)), identity } });
+  await until(() => posted.some((m) => m.type === 'announce'));
+  const seen = new Map(); // `${kind}:${kid}:${ctr}` -> sender id
+  let sealedFrames = 0;
+  // One RTP sender: its encoded frames go through the worker's transform.
+  async function sender(id, kind, frames) {
+    let push;
+    const readable = new ReadableStream({ start(c) { push = c; } });
+    const out = [];
+    const writable = new WritableStream({ write(f) { out.push(f); } });
+    worker.onrtctransform({ transformer: { options: { side: 'send', id, kind }, readable, writable } });
+    const video = kind === 'camera' || kind === 'screen';
+    for (let i = 0; i < frames; i++) push.enqueue({ data: (video ? (i ? deltaFrame(i) : keyFrame(i)) : e.random(80)).slice().buffer });
+    await until(() => out.length === frames);
+    push.close();
+    for (const f of out) {
+      const p = e.parseFrame(new Uint8Array(f.data));
+      assert.ok(p, 'every frame leaves encrypted');
+      const key = `${kind}:${p.kid}:${p.ctr}`;
+      assert.ok(!seen.has(key), `${id} reused ${key}, first used by ${seen.get(key)}`);
+      seen.set(key, id);
+      sealedFrames++;
+    }
+  }
+  await sender('audio-1', 'audio', 40);
+  await sender('camera-1', 'camera', 12);
+  // The audio sender is rebuilt (a renegotiation replaced it), with the same keys.
+  worker.onmessage({ data: { type: 'forget', id: 'audio-1' } });
+  await sender('audio-2', 'audio', 40);
+  // The whole peer connection is rebuilt without a new key exchange.
+  worker.onmessage({ data: { type: 'forget', id: 'audio-2' } });
+  worker.onmessage({ data: { type: 'forget', id: 'camera-1' } });
+  await sender('audio-3', 'audio', 40);
+  await sender('camera-3', 'camera', 12);
+  // Two senders of one kind at once (an old one still draining) share the counter.
+  await Promise.all([sender('audio-4', 'audio', 30), sender('audio-5', 'audio', 30)]);
+  assert.equal(sealedFrames, 40 * 3 + 12 * 2 + 60);
+  worker.onmessage({ data: { type: 'stop' } });
+});
+
+await test('send keys: the counter belongs to the key, and an older key is never used again', async () => {
+  await reset();
+  const [a, b] = [await device(31), await device(32)];
+  await net.join(a); await net.join(b);
+  const t1 = await a.keys.sendTrack('audio');
+  assert.equal(await a.keys.sendTrack('audio'), t1, 'one counter per key and kind, whoever sends');
+  t1.ctr = 9;
+  const c = await device(33);
+  await net.join(c); // a ratchets: a new key and a new counter
+  const t2 = await a.keys.sendTrack('audio');
+  assert.notEqual(t2, t1);
+  assert.equal(t2.ks.kid, t1.ks.kid + 1);
+  assert.equal(t2.ctr, 0);
+  // Were the key state ever wound back to an earlier key, nothing would be sent with it.
+  const later = a.keys.cur;
+  a.keys.cur = { epoch: 0, step: 0, secret: e.random(32) };
+  assert.equal(await a.keys.sendTrack('audio'), null, 'an older KID is refused');
+  a.keys.cur = { ...later };
+  assert.equal(await a.keys.sendTrack('audio'), null, 'the same KID under another key object is refused');
+  a.keys.cur = later;
+  assert.equal(await a.keys.sendTrack('audio'), t2);
+});
+
 console.log(JSON.stringify({ suite: 'e2ee-protocol', passed: results.length, results }, null, 1));

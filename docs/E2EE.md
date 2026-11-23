@@ -219,8 +219,28 @@ with a leave (`crates/web/tests/e2ee-protocol.mjs`); real browsers run 3
 base_key(kind) = HKDF(S, "", LABEL || "track " || kind)[0..16]    kind = audio|camera|screen|system_audio
 KID            = epoch * 64 + step
 sframe_key, sframe_salt = RFC 9605 derive_key_salt(KID, base_key)   (suite 0x0004)
-nonce          = sframe_salt XOR CTR      (CTR counts frames per track and KID, from 0)
+nonce          = sframe_salt XOR CTR      (CTR counts frames per kind and KID, from 0)
 ```
+
+**A (key, nonce) pair never repeats, by construction.** The frame counter
+belongs to the key, not to an RTP sender: the call worker asks
+`CallKeys.sendTrack(kind)` for `{ ks, ctr }`, made once per epoch key and kind
+and kept on that key's own object. Every sender of that kind takes its next
+counter from it, so a rebuilt sender, a renegotiated track, a whole rebuilt
+peer connection without a new key exchange, or an old sender still draining
+beside its replacement, all carry on from the same counter instead of starting
+at 0. An epoch key is never current twice (a ratchet step derives a new secret,
+a rekey draws a random one) and KIDs only move forward: a request for an older
+KID, or for the current KID under a different key object, is refused and the
+frame is dropped rather than sealed with a counter that starts over. Before
+this (until task `headroom`), the counter was kept per RTP sender and the key
+per kind; every traced path rotated the key before a sender was rebuilt, but
+nothing enforced it. Tests (`e2ee-protocol.mjs`): `call worker: rebuilt
+senders and peer connections never reuse a (key, nonce) pair` drives the real
+worker with fake encoded-transform streams through a rebuilt sender, a rebuilt
+peer connection and two concurrent senders of one kind, and asserts that no
+(kind, KID, CTR) repeats; `send keys: the counter belongs to the key, ...`
+checks the refusal of an older KID.
 
 The SFrame header (config byte, KID, CTR; RFC 9605 section 4.3) is carried at
 the **end** of the frame so the codec bytes that must stay readable can stay at
