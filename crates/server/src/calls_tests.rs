@@ -84,6 +84,20 @@ fn error(events: &[VoiceEvent]) -> Option<ErrorCode> {
 
 async fn signal(app: &App, core: &mut Core, user: u64, device: u8, nonce: u64, s: VoiceSignal) {
     core.limits.clear();
+    if matches!(s, VoiceSignal::Join { .. }) {
+        // The web client says it can encrypt before it joins (`e2ee.rs`).
+        let hello = VoiceSignal::E2ee(E2eeSignal::Hello { version: 1 });
+        crate::voice::signal(
+            app,
+            core,
+            &key(user, device),
+            Id(user),
+            &format!("ws{user}-{device}"),
+            sticktalk_sfu::encode_signal(nonce, &hello).unwrap(),
+        )
+        .await
+        .unwrap();
+    }
     crate::voice::signal(
         app,
         core,

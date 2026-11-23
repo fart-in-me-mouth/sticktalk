@@ -4,6 +4,8 @@ mod control;
 mod engine;
 pub mod pacing;
 pub mod quality;
+#[cfg(feature = "media-tap")]
+mod tap;
 mod transport;
 mod validation;
 

@@ -619,6 +619,8 @@ pub enum VoiceSignal {
     },
     /// Stage roles and lifecycle (`stage.rs`). Host-handled.
     Stage(crate::StageSignal),
+    /// End-to-end encrypted calls (`e2ee.rs`). Host-handled.
+    E2ee(crate::E2eeSignal),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -762,6 +764,8 @@ pub enum VoiceEvent {
     },
     /// Stage state (`stage.rs`).
     Stage(crate::StageEvent),
+    /// End-to-end encrypted calls (`e2ee.rs`): to sessions in the call only.
+    E2ee(crate::E2eeEvent),
 }
 
 /// ONLY sent as binary named MessagePack on CONTROL_CHANNEL_LABEL, never WS.

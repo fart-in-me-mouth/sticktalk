@@ -183,6 +183,17 @@ async fn s6_password_change_rotates_and_revokes_sockets_and_voice() {
             &other_key,
             Id(1),
             "other",
+            sticktalk_sfu::encode_signal(1, &VoiceSignal::E2ee(E2eeSignal::Hello { version: 1 }))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        crate::voice::signal(
+            &app,
+            &mut core,
+            &other_key,
+            Id(1),
+            "other",
             sticktalk_sfu::encode_signal(
                 1,
                 &VoiceSignal::Join {

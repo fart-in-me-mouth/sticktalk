@@ -221,6 +221,20 @@ async fn read(ws: &mut WebSocketStream<MaybeTlsStream<TcpStream>>) -> ServerMsg 
 
 impl Peer {
     async fn signal(&mut self, signal: VoiceSignal) -> u64 {
+        if matches!(signal, VoiceSignal::Join { .. }) {
+            // Like the web client: it can encrypt (no answer is sent for this).
+            self.nonce += 1;
+            let hello = VoiceSignal::E2ee(E2eeSignal::Hello { version: 1 });
+            let envelope = sticktalk_sfu::encode_signal(self.nonce, &hello).unwrap();
+            self.ws
+                .send(Frame::Binary(
+                    rmp_serde::to_vec_named(&ClientMsg::Voice(envelope))
+                        .unwrap()
+                        .into(),
+                ))
+                .await
+                .unwrap();
+        }
         self.nonce += 1;
         let envelope = sticktalk_sfu::encode_signal(self.nonce, &signal).unwrap();
         self.ws

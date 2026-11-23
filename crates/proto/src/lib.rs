@@ -12,6 +12,8 @@ mod callextras;
 pub use callextras::*;
 mod community;
 pub use community::*;
+mod e2ee;
+pub use e2ee::*;
 mod expression;
 pub use expression::*;
 mod features3;

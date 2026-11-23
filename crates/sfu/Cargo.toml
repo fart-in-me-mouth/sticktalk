@@ -16,6 +16,10 @@ tracing = "0.1"
 rand = "0.9"
 socket2 = "0.6"
 
+[features]
+# Test-only: capture forwarded payloads and inject packet loss (src/tap.rs).
+media-tap = []
+
 [dev-dependencies]
 serde_json.workspace = true
 proptest = "1"

@@ -23,6 +23,7 @@ pub fn router(app: App) -> axum::Router {
         .merge(crate::browser::routes())
         .merge(crate::custom_emoji::routes())
         .merge(crate::callextras::routes())
+        .merge(crate::e2ee::routes())
         .merge(crate::mcp::routes())
         .merge(crate::nav::routes())
         .merge(crate::content::routes())

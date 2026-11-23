@@ -61,6 +61,8 @@ struct Lease {
     audio_bps: u32,
     /// A Stage audience member: an SFU listener (receive only).
     listener: bool,
+    /// Runs end-to-end encryption: its Opus frames carry that overhead (`e2ee.rs`).
+    e2ee: bool,
 }
 #[derive(Default)]
 struct Policy {
@@ -114,10 +116,11 @@ impl sticktalk_sfu::Authorizer for ProjectedAcl {
         self.0.read().unwrap_or_else(|e| e.into_inner()).generation
     }
     fn audio_bitrate(&self, session: VoiceSession) -> Option<u64> {
-        self.0
-            .read()
-            .ok()
-            .and_then(|p| p.leases.get(&session).map(|l| u64::from(l.audio_bps)))
+        self.0.read().ok().and_then(|p| {
+            p.leases
+                .get(&session)
+                .map(|l| u64::from(l.audio_bps) + if l.e2ee { E2EE_AUDIO_OVERHEAD_BPS } else { 0 })
+        })
     }
     fn listener(&self, session: VoiceSession) -> bool {
         self.0
@@ -169,6 +172,10 @@ impl Entry {
     pub fn key(&self) -> &[u8] {
         &self.key
     }
+    /// The WS connection that owns this voice session.
+    pub fn connection_id(&self) -> &str {
+        &self.connection
+    }
     /// Muted or deafened by a moderator.
     pub fn server_silenced(&self) -> bool {
         self.server_muted || self.server_deafened
@@ -184,6 +191,12 @@ pub(crate) fn acl_for_test(app: &App) -> impl sticktalk_sfu::Authorizer {
 }
 #[cfg(test)]
 pub(crate) fn acl_bitrate_for_test(app: &App, session: VoiceSession) -> Option<u64> {
+    let p = app.0.voice.acl.read().unwrap_or_else(|e| e.into_inner());
+    p.leases.get(&session).map(|l| u64::from(l.audio_bps))
+}
+/// What the SFU's audio policer allows: the bitrate, plus encryption overhead.
+#[cfg(test)]
+pub(crate) fn acl_policed_bitrate_for_test(app: &App, session: VoiceSession) -> Option<u64> {
     use sticktalk_sfu::Authorizer;
     ProjectedAcl(app.0.voice.acl.clone()).audio_bitrate(session)
 }
@@ -481,6 +494,7 @@ pub(crate) async fn remove(
     }
     crate::community::voice_left(core, c, session).await;
     if let Some(entry) = core.voice.remove(&session) {
+        crate::e2ee::left(core, c, session).await;
         // Reserved cleanup lane, sized above the SFU's maximum live sessions.
         // ACL denial above is synchronous even if the actor has stopped.
         let _ = app.0.voice.cleanup.try_send(session);
@@ -746,6 +760,10 @@ async fn moderate(
             p.generation += 1;
         }
         core.voice.get_mut(&session).unwrap().state.channel_id = channel_id;
+        crate::e2ee::moved(app, core, c, session, channel).await?;
+        if !core.voice.contains_key(&session) {
+            return Ok(());
+        }
         if app
             .0
             .voice
@@ -913,6 +931,14 @@ async fn signal_inner(
             Box::pin(crate::stage::signal(app, core, &mut c, user, stage.clone())).await?;
             return send(core, key, nonce, &VoiceEvent::Ack);
         }
+        VoiceSignal::E2ee(e2ee) => {
+            crate::e2ee::signal(core, &mut c, key, connection, user, e2ee).await?;
+            // Hello and the many pairwise relays need no answer; errors still get one.
+            if matches!(e2ee, E2eeSignal::Announce(_)) {
+                return send(core, key, nonce, &VoiceEvent::Ack);
+            }
+            return Ok(());
+        }
         _ => {}
     }
     let existing = core
@@ -928,6 +954,8 @@ async fn signal_inner(
             && db::channel(&mut c, channel_id).await?.summary.kind == ChannelKind::Stage;
         let listener =
             stage && Box::pin(crate::stage::admit(core, &mut c, user, channel_id)).await?;
+        let e2ee =
+            crate::e2ee::admit(core, &mut c, key, connection, guild_id, channel_id, stage).await?;
         // The audience has its own caps: a Stage holds a whole server.
         let (all, room) = core.voice.values().filter(|v| v.listener == listener).fold(
             (0, 0),
@@ -983,6 +1011,7 @@ async fn signal_inner(
                     expires: expiry.unwrap() as u64,
                     audio_bps,
                     listener,
+                    e2ee,
                     alive: core.streams[key]
                         .connection
                         .as_ref()
@@ -1024,6 +1053,7 @@ async fn signal_inner(
             remove(app, core, &mut c, session).await?;
             return Err(e);
         }
+        crate::e2ee::joined(core, &mut c, session, stage, e2ee).await?;
         if guild_id.0 == 0 {
             crate::calls::joining(app, core, &mut c, user, channel_id).await?;
         } else if stage {
@@ -1424,6 +1454,11 @@ mod role_tests {
         );
     }
     async fn call(app: &App, core: &mut Core) -> VoiceSession {
+        let hello = VoiceSignal::E2ee(E2eeSignal::Hello { version: 1 });
+        let hello = sticktalk_sfu::encode_signal(1, &hello).unwrap();
+        signal_inner(app, core, &[2; 32], Id(2), "ws2", hello)
+            .await
+            .unwrap();
         signal_inner(
             app,
             core,

@@ -127,6 +127,8 @@ pub(crate) struct Core {
     pub stage: crate::stage::Stages,
     /// The scheduled-event timer (`schedule.rs`).
     pub schedule: crate::schedule::Schedule,
+    /// End-to-end encrypted calls (`e2ee.rs`).
+    pub e2ee: crate::e2ee::Runtime,
     last_id: u64,
     worker: u16,
 }
@@ -526,6 +528,7 @@ impl App {
                 community: Default::default(),
                 stage: Default::default(),
                 schedule: Default::default(),
+                e2ee: Default::default(),
                 last_id,
                 worker,
             }),
@@ -756,6 +759,7 @@ mod tests {
             community: Default::default(),
             stage: Default::default(),
             schedule: Default::default(),
+            e2ee: Default::default(),
             last_id: 0,
             worker: 0,
         }

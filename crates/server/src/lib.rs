@@ -15,6 +15,7 @@ mod community;
 mod content;
 mod custom_emoji;
 mod db;
+mod e2ee;
 mod error;
 mod expression;
 mod files;

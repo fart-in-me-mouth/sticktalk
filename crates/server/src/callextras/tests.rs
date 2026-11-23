@@ -147,6 +147,20 @@ async fn signal(app: &App, core: &mut Core, user: u64, s: VoiceSignal, clear: bo
     if clear {
         core.limits.clear();
     }
+    if matches!(s, VoiceSignal::Join { .. }) {
+        // The web client says it can encrypt before it joins (`e2ee.rs`).
+        let hello = VoiceSignal::E2ee(E2eeSignal::Hello { version: 1 });
+        crate::voice::signal(
+            app,
+            core,
+            &key(user),
+            Id(user),
+            &format!("ws{user}"),
+            sticktalk_sfu::encode_signal(1, &hello).unwrap(),
+        )
+        .await
+        .unwrap();
+    }
     crate::voice::signal(
         app,
         core,
@@ -691,6 +705,17 @@ async fn join_keep_limits(app: &App, core: &mut Core, user: u64, channel: Id) ->
         .collect();
     core.limits.clear();
     core.limits.extend(kept);
+    crate::voice::signal(
+        app,
+        core,
+        &key(user),
+        Id(user),
+        &format!("ws{user}"),
+        sticktalk_sfu::encode_signal(1, &VoiceSignal::E2ee(E2eeSignal::Hello { version: 1 }))
+            .unwrap(),
+    )
+    .await
+    .unwrap();
     crate::voice::signal(
         app,
         core,

@@ -36,6 +36,7 @@ const SETTINGS_TABLES: &[&str] = &[
     "saved_messages",
     "read_states",
     "reactions",
+    "e2ee_device_keys",
     "session_devices",
     // Added by the later features (`docs/features/integration.md`).
     "poll_votes",
