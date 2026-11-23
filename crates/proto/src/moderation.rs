@@ -96,6 +96,8 @@ pub enum AuditAction {
     StickerCreate,
     StickerUpdate,
     StickerDelete,
+    /// A moderator removed a member's server avatar or banner (`profiles.rs`).
+    MemberProfileReset,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -138,6 +140,7 @@ impl AuditAction {
         Self::StickerCreate,
         Self::StickerUpdate,
         Self::StickerDelete,
+        Self::MemberProfileReset,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -181,6 +184,7 @@ impl AuditAction {
             Self::StickerCreate => "sticker_create",
             Self::StickerUpdate => "sticker_update",
             Self::StickerDelete => "sticker_delete",
+            Self::MemberProfileReset => "member_profile_reset",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -228,6 +232,7 @@ impl AuditAction {
             Self::StickerCreate => "Added a sticker",
             Self::StickerUpdate => "Updated a sticker",
             Self::StickerDelete => "Deleted a sticker",
+            Self::MemberProfileReset => "Reset a server profile",
         }
     }
 }

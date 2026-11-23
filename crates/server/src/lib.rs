@@ -29,6 +29,7 @@ mod mcp;
 mod mentions;
 mod moderation;
 mod nav;
+pub mod profiles;
 mod reauth;
 mod search;
 mod slowmode;

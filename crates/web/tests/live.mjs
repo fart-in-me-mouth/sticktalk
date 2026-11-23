@@ -551,6 +551,8 @@ try {
   await alice.waitForSelector("#live-avatar", {state:'attached'});
   await capture(alice,"profile-settings");
   await alice.locator("#live-avatar").setInputFiles({name:"avatar.png",mimeType:"image/png",buffer:await readFile("public/icons/icon-192.png")});
+  // A new avatar is cropped first (profiles.js).
+  await alice.locator("#profiles-crop-apply").click();
   await alice.waitForFunction(()=>document.querySelector(".settings-identity .avatar img")?.naturalWidth>0);
   await act(alice,"close");
   checks.push("desktop settings layout, mobile settings-list/subpage navigation, real avatar upload");

@@ -341,6 +341,8 @@ pub(super) fn action(app: Shared, raw: &str) {
             }
         }
         "mod" => super::moderation::action(app, arg),
+        "profiles" => super::profiles::action(app, arg),
+        "submit" if super::profiles::FORMS.contains(&arg) => super::profiles::submit(app, arg),
         "submit" if arg.starts_with("mod-") => super::moderation::submit(app, arg),
         "pins-refresh" => {
             let (epoch, generation) = {
@@ -625,6 +627,7 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.touch();
         }
         "profile" => {
+            super::profiles::card_requested(app.clone(), arg);
             let epoch = app.borrow().epoch;
             let arg = arg.to_owned();
             spawn_local(async move {
@@ -1234,6 +1237,7 @@ fn open_dialog(app: Shared, name: &str) {
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
     super::moderation::opened(app.clone(), name);
+    super::profiles::opened(app.clone(), name);
     let name = name.to_owned();
     spawn_local(async move {
         dialog_data(app, name, epoch, generation).await;
@@ -1895,6 +1899,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             }
             let operation = pending.as_ref().map(|(c, _)| c);
             super::moderation::failed(operation);
+            super::profiles::failed(operation);
             // A refused save is no longer waiting for its answer.
             if let Some(form) = operation.and_then(saved_form) {
                 media_action(&format!("form-failed:{form}"));
@@ -1952,6 +1957,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             if let Some(op) = operation.clone().filter(super::expression::owns) {
                 drop(a);
                 super::expression::answered(app, op, result);
+                return;
+            }
+            if let Some(op) = operation.clone().filter(super::profiles::owns) {
+                drop(a);
+                super::profiles::answered(app, op);
                 return;
             }
             a.error.clear();
@@ -2112,6 +2122,8 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                                         | LaunchCommand::UpdateDevice { .. }
                                         | LaunchCommand::PinMessage { .. }
                                         | LaunchCommand::SetNotifications(_)
+                                        // Saved from the profile editor, which stays open.
+                                        | LaunchCommand::SetNickname { .. }
                                 )
                         )
                     ) {
@@ -2421,7 +2433,8 @@ pub(super) fn upload(
         a.uploading = false;
         match result {
             Ok(file) => {
-                if purpose == UploadPurpose::Avatar {
+                if super::profiles::uploaded(&mut a, purpose, &file) {
+                } else if purpose == UploadPurpose::Avatar {
                     a.command(Command::UpdateProfile(ProfilePatch {
                         avatar_id: Patch::Set(file.id),
                         ..Default::default()

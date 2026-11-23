@@ -162,6 +162,8 @@ const paths = sizes
       !p.includes("message-menu.js") &&
       !p.includes("gifs.js") &&
       !p.includes("content.js") &&
+      // Profiles: the editor script, cosmetic art and name fonts load when shown.
+      !/\/(profiles\.js$|cosmetics\/|badges\/|fonts\/names\/)/.test(p) &&
       // Call extras and the segmentation model load only when used.
       !/\/(callextras|soundboard|backgrounds|backgrounds-worker|clips)\.js$/.test(p) &&
       !p.includes("/public/vendor/") &&

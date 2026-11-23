@@ -355,6 +355,7 @@ try {
     alice.keyboard.press("Enter"),
   ]);
   await chooser.setFiles({ name: "avatar.png", mimeType: "image/png", buffer: await readFile("public/icons/icon-192.png") });
+  await alice.locator("#profiles-crop-apply").click();
   await alice.waitForSelector('.live-modal [data-live="avatar-remove"]', { timeout: 15000 });
   assert.equal(await alice.locator('.live-modal [data-profile-editor] #f-name').inputValue(), "Alice Draft");
   assert.equal(await alice.locator(".profile-save-bar").isVisible(), true, "the unsaved name is still unsaved");

@@ -363,7 +363,7 @@ pub async fn upload(
     let path = staging.clone();
     let media = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        prepare(&path, &claimed, purpose != UploadPurpose::Message)
+        crate::profiles::media::prepare(&path, &claimed, purpose)
     })
     .await
     .map_err(|_| Error::new(ErrorCode::Internal))??;
@@ -459,7 +459,9 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
             expires > now() as i64 && row.get::<i64, _>("owner_id") == id(u)?,
             ErrorCode::NotFound,
         )?;
-    } else if !crate::content::forwarded_file_access(&mut c, u, a).await? {
+    } else if !crate::content::forwarded_file_access(&mut c, u, a).await?
+        && !crate::profiles::file_access(&mut c, u, a).await?
+    {
         let ch:Option<i64>=sqlx::query_scalar("SELECT m.channel_id FROM message_attachments ma JOIN messages m ON ma.message_id=m.id WHERE ma.attachment_id=? AND m.deleted_at IS NULL").bind(id(a)?).fetch_optional(&mut *c).await?;
         if let Some(ch) = ch {
             text(&mut c, u, Id(ch as u64), Permissions::READ_HISTORY).await?;

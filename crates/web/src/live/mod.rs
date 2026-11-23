@@ -6,6 +6,7 @@ mod expression;
 mod moderation;
 mod nav;
 mod operations;
+mod profiles;
 mod threads;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
@@ -155,6 +156,8 @@ struct App {
     threads: threads::State,
     /// Custom emoji everywhere, stickers, Super Reactions, typing indicators.
     expression: expression::State,
+    /// Profile cards, the profile editor and profile image uploads.
+    profiles: profiles::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -184,6 +187,7 @@ impl App {
         self.roles.clear();
         self.devices.clear();
         self.profile = None;
+        self.profiles = Default::default();
         self.pins.clear();
         self.notifications.clear();
         self.admin_after = None;
@@ -382,6 +386,7 @@ pub fn mount() {
             moderation: Default::default(),
             threads: Default::default(),
             expression: Default::default(),
+            profiles: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();

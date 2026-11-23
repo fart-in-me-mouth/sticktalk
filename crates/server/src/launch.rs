@@ -51,6 +51,7 @@ pub(crate) async fn mutate(
             seconds,
         } => crate::slowmode::set(c, u, channel_id, seconds, out).await,
         Moderation(cmd) => crate::moderation::mutate(c, core, key, u, cmd, out).await,
+        Profiles(cmd) => crate::profiles::mutate(c, core, u, cmd, out).await,
         RenameEmoji {
             guild_id,
             emoji_id,
