@@ -480,6 +480,10 @@ fn jump(app: Shared, c: Id, m: Id) {
         let mut a = app.borrow_mut();
         if !a.model.channels.contains_key(&c) {
             drop(a);
+            // A message in a thread the client has not loaded yet.
+            if super::threads::jump(app.clone(), c, m) {
+                return;
+            }
             fail(&app, "That conversation is no longer available.");
             return;
         }

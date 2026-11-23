@@ -11,6 +11,7 @@ mod content;
 mod moderation;
 mod navui;
 mod settings;
+mod threads;
 use sticktalk_client_core::markdown::{Block, Inline, Target};
 
 fn icon(name: &str) -> AnyView {
@@ -181,7 +182,13 @@ fn channel_tree(a: &App) -> Vec<(&ChannelSummary, usize)> {
         return root.into_iter().map(|c| (c, 0)).collect();
     }
     let mut inside: BTreeMap<Option<Id>, Vec<&ChannelSummary>> = BTreeMap::new();
-    for c in a.model.channels.values().filter(|c| c.guild_id == a.guild) {
+    // Threads are listed under their channel by `threads::rows`, not as channels.
+    for c in a
+        .model
+        .channels
+        .values()
+        .filter(|c| c.guild_id == a.guild && c.kind != ChannelKind::Thread)
+    {
         // A channel whose parent has not arrived (or just left) is listed at the top.
         let parent = c.parent_id.filter(|p| a.model.channels.contains_key(p));
         inside.entry(parent).or_default().push(c);
@@ -222,7 +229,8 @@ fn inside_options(a: &App, selected: Option<Id>, moving: Option<Id>) -> AnyView 
             continue;
         }
         skip = (Some(c.id) == moving).then_some(depth);
-        if skip.is_none() {
+        // A forum holds posts, not channels.
+        if skip.is_none() && c.kind != ChannelKind::Forum {
             options.push(view!{<option value=c.id.0.to_string() selected=selected==Some(c.id)>{format!("{}{}","\u{2003}".repeat(depth),a.model.channel_name(c))}</option>});
         }
     }
@@ -350,15 +358,15 @@ fn shell(a: &App) -> AnyView {
                 // A direct message is always for you; in a server only mentions are counted.
                 let count=read.map_or(0,|r|if c.guild_id.is_none(){r.unread_count}else{r.mention_count});
                 let voice=c.kind==ChannelKind::Voice;
-                view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()><button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=format!("{}:{}",if voice{"voice"}else{"channel"},c.id.0)>{icon_with(if voice{"volume-2"}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{call_views::row_chat(a,c)}{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}{navui::row_options(c)}</div>{if voice{voice_occupants(a,c.id,depth)}else{().into_any()}}}.into_any()
+                view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()><button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=format!("{}:{}",if voice{"voice"}else{"channel"},c.id.0)>{icon_with(if voice{"volume-2"}else if let Some(glyph)=threads::kind_icon(c.kind){glyph}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{call_views::row_chat(a,c)}{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}{navui::row_options(c)}</div>{if voice{voice_occupants(a,c.id,depth)}else{().into_any()}}{threads::rows(a,c,depth)}}.into_any()
             }).collect_view()}
             </nav>
             <section id="live-connected" class="voice-connected border-t p-3 text-sm" hidden><div class="voice-connection-line flex min-w-0 flex-col"><strong class="text-primary">"Voice Connected"</strong><small class="truncate" title=call_name.clone()>{call_name.clone()}</small></div><div class="voice-tiles mt-2 flex gap-2 [&_.icon-button]:flex-1 [&_.icon-button]:bg-accent">{ib("video","Camera","media:camera")}{ib("monitor","Share Screen","media:share")}{ib("phone-off","Disconnect","media:leave")}</div></section>
             <section class="user-panel m-2 flex min-h-[52px] items-center gap-1 rounded-lg bg-panel p-2 touch:min-h-[60px] phone:h-auto phone:pb-[max(8px,var(--safe-bottom))]">{avatar(me,"small")}<button class="self-label ml-1 min-w-0 flex-1 touch:min-h-11" title=name(me) data-live=format!("profile:{}",me.id.0)><strong class="block truncate text-sm leading-tight font-semibold">{name(me)}</strong><small class="block truncate text-xs">{format!("@{}",me.username)}</small></button>{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("settings","User Settings","dialog:settings")}</section>
         </aside></div><div class=if a.panel.is_empty(){"panel-scrim hidden"}else{"panel-scrim hidden touch-pan-y phone:absolute phone:inset-0 phone:z-[25] phone:block phone:bg-black/60"} data-live="panel:" aria-hidden="true"></div>
-        <main class=format!("main-pane flex min-w-0 flex-1 touch-pan-y flex-col {}",if channel.is_none(){"phone:pb-[calc(56px+var(--safe-bottom))]"}else{""})><header class="channel-header flex h-12 min-h-12 flex-none items-center gap-2 border-b px-4 py-2 phone:h-(--header-height) phone:min-h-(--header-height) phone:px-2"><div class="mobile-menu hidden phone:block">{ib("menu","Open Channels","panel:left")}</div>{icon_with(if in_call{"volume-2"}else if direct{"at-sign"}else if channel.is_some(){"hash"}else{"users"},"icon text-muted-foreground")}<div class="flex min-w-0 flex-1 items-baseline gap-3"><h1 class="min-w-0 truncate text-base font-semibold" title=title.clone()>{title.clone()}</h1>{if topic.is_empty()||in_call{().into_any()}else{view!{<p class="channel-topic m-0 min-w-0 flex-1 truncate text-[13px] text-subtle phone:hidden" title=topic.clone()>{topic.clone()}</p>}.into_any()}}</div><div class="header-actions flex gap-2 phone:gap-0">{if in_call{ib("message-circle","Open Chat",&open_chat)}else if channel.is_some(){view!{{a.channel.map_or_else(||().into_any(),|c|call_views::header(a,c))}{ib("bell","Notification Settings","dialog:channel-notifications")}{ib("pin","Pinned Messages","dialog:pins")}{ib("users","Member List","panel:right")}}.into_any()}else{().into_any()}}{if in_call{().into_any()}else{navui::header(a)}}</div></header>
+        <main class=format!("main-pane flex min-w-0 flex-1 touch-pan-y flex-col {}",if channel.is_none(){"phone:pb-[calc(56px+var(--safe-bottom))]"}else{""})><header class="channel-header flex h-12 min-h-12 flex-none items-center gap-2 border-b px-4 py-2 phone:h-(--header-height) phone:min-h-(--header-height) phone:px-2"><div class="mobile-menu hidden phone:block">{ib("menu","Open Channels","panel:left")}</div>{icon_with(if in_call{"volume-2"}else if direct{"at-sign"}else if let Some(glyph)=channel.and_then(|c|threads::kind_icon(c.kind)){glyph}else if channel.is_some(){"hash"}else{"users"},"icon text-muted-foreground")}<div class="flex min-w-0 flex-1 items-baseline gap-3">{if in_call{None}else{threads::title(a)}.unwrap_or_else(||view!{<h1 class="min-w-0 truncate text-base font-semibold" title=title.clone()>{title.clone()}</h1>}.into_any())}{if topic.is_empty()||in_call{().into_any()}else{view!{<p class="channel-topic m-0 min-w-0 flex-1 truncate text-[13px] text-subtle phone:hidden" title=topic.clone()>{topic.clone()}</p>}.into_any()}}</div><div class="header-actions flex gap-2 phone:gap-0">{if in_call{ib("message-circle","Open Chat",&open_chat)}else if channel.is_some(){view!{{a.channel.map_or_else(||().into_any(),|c|call_views::header(a,c))}{a.channel.map_or_else(||().into_any(),|c|threads::header(a,c))}{if a.channel.is_some_and(|c|a.threads.threads.contains_key(&c)){().into_any()}else{ib("bell","Notification Settings","dialog:channel-notifications")}}{ib("pin","Pinned Messages","dialog:pins")}{ib("users","Member List","panel:right")}}.into_any()}else{().into_any()}}{if in_call{().into_any()}else{navui::header(a)}}</div></header>
             {if !a.status.is_empty(){view!{<div class="connection-banner bg-warning px-4 py-2 text-sm text-rail" role="status">{a.status.clone()}</div>}.into_any()}else{().into_any()}}
-            {if in_call{call_views::beside(a,a.voice_render.map_or_else(loading_call, |render|render(a)))}else if channel.is_some(){chat(a,&title)}else{home(a)}}
+            {if in_call{call_views::beside(a,a.voice_render.map_or_else(loading_call, |render|render(a)))}else if channel.is_some_and(|c|c.kind==ChannelKind::Forum){threads::forum(a,&title)}else if channel.is_some(){chat(a,&title)}else{home(a)}}
         </main>
         {navui::search_panel(a)}
         {if channel.is_some()&&!a.nav.search_open{view!{<aside class=format!("member-list w-60 flex-none touch-pan-y overflow-auto overscroll-contain bg-sidebar {} {}",if a.panel=="right"{"is-open narrow:absolute narrow:top-12 narrow:right-0 narrow:bottom-0 narrow:z-20 narrow:shadow-[-8px_0_24px_#0006] phone:top-[calc(var(--header-height)+var(--safe-top))] phone:z-30 phone:w-[min(300px,90vw)] phone:pb-(--safe-bottom)"}else{"narrow:hidden"},if a.members_hidden{"min-[1101px]:hidden"}else{""}) aria-label="Members">{member_groups(a)}{if a.guild.is_some()&&a.members_more{button("Load More","members-more","link-button")}else{().into_any()}}</aside>}.into_any()}else{().into_any()}}
@@ -496,6 +504,11 @@ fn chat(a: &App, title: &str) -> AnyView {
     let (intro_icon, intro_title, placeholder) = match kind {
         ChannelKind::Direct => ("at-sign", title.to_owned(), format!("Message @{title}")),
         ChannelKind::GroupDm => ("users", title.to_owned(), format!("Message {title}")),
+        ChannelKind::Thread => (
+            "message-square-text",
+            title.to_owned(),
+            format!("Message {title}"),
+        ),
         _ => (
             "hash",
             format!("Welcome to #{title}!"),
@@ -516,6 +529,7 @@ fn chat(a: &App, title: &str) -> AnyView {
         </div><div class="composer-wrap relative px-4 pb-(--safe-bottom) phone:px-2">
         {if let Some(reply)=a.reply{let target=messages.and_then(|m|m.get(&reply));view!{<div class="reply-preview flex items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11"><span class="min-w-0 flex-1 truncate">{format!("Replying to {}",target.map_or("message".into(),|m|a.model.name(m.author_id)))}{target.map(|m|view!{<span class="text-muted-foreground">{format!(" · {}",preview(a,m))}</span>})}</span>{ib_plain("x","Cancel Reply","cancel-reply")}</div>}.into_any()}else{().into_any()}}
         {content::scheduled_bar(a,c)}
+        {threads::composer_note(a,c)}
         {a.attachments.iter().enumerate().map(|(i,f)|content::attachment_chip(a,i,f)).collect_view()}
         {if a.uploading{view!{<div class="live-upload mb-2 flex items-center justify-between gap-4 rounded-lg bg-muted p-2 text-xs" role="status">{a.upload_progress.clone()}{button("Pause","upload-cancel","secondary")}</div>}.into_any()}else{().into_any()}}
         {if a.completions.is_empty(){().into_any()}else{view!{<div id="live-completions" class="autocomplete absolute inset-x-4 bottom-full z-40 max-h-[min(320px,50vh)] overflow-y-auto rounded-lg border bg-popover p-2 shadow-lg" role="listbox" aria-label="Suggestions">{a.completions.iter().enumerate().map(|(i,(label,insert,kind))|view!{<button class="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-sm aria-selected:bg-secondary touch:min-h-11" id=format!("completion-{i}") role="option" aria-selected=if i==0{"true"}else{"false"} data-completion=insert.clone()><span class="completion-avatar grid size-6 flex-none place-items-center overflow-hidden rounded-full bg-sidebar text-xs [&_.icon]:size-4">{match kind.as_str() {"Role"=>icon("shield"),"Channel"=>icon("hash"),"Emoji"=>view!{<span>{insert.clone()}</span>}.into_any(),_=>view!{<span>{label.chars().take(1).collect::<String>()}</span>}.into_any()}}</span><span>{label.clone()}</span><small class="ml-auto">{if kind=="User"{insert.clone()}else{kind.clone()}}</small></button>}).collect_view()}</div>}.into_any()}}
@@ -606,7 +620,11 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
     if let Some(record) = call_views::record(a, m) {
         return record;
     }
-    let author = a.model.users.get(&m.author_id).cloned().unwrap_or_default();
+    let mut author = a.model.users.get(&m.author_id).cloned().unwrap_or_default();
+    // A crossposted announcement is shown as from its source server.
+    if let Some(x) = m.extra.crosspost() {
+        author.display_name = Some(x.source_guild_name.clone());
+    }
     let own = a
         .model
         .me
@@ -625,6 +643,8 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
         || m.attachments.iter().any(|f| f.meta.voice());
     let body = if let Some(p) = &m.extra.poll {
         content::poll(a, m, p)
+    } else if let Some(x) = m.extra.crosspost() {
+        threads::crosspost(a, m, x)
     } else if let Some(f) = &m.extra.forwarded {
         view! {{if m.content.trim().is_empty(){().into_any()}else{markdown(a,m,&m.content)}}{content::forwarded(a,m,f)}}.into_any()
     } else {
@@ -635,9 +655,9 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
         <div class="message-content min-w-0 flex-1 wrap-anywhere">{if continuation{().into_any()}else{view!{<div class="message-meta flex min-h-[21px] items-baseline gap-2 phone:flex-wrap phone:gap-x-2 phone:gap-y-1"><button class="author max-w-[min(60%,360px)] truncate p-0 font-semibold" style=format!("color:{}",color(a,m.author_id)) title=name(&author) data-live=format!("profile:{}",m.author_id.0)>{name(&author)}</button><time class="text-xs">{timestamp(m.created_at)}</time></div>}.into_any()}}
         {if let Some(reply)=m.reply_to{view!{<button class="reply-preview flex max-w-full items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11" data-live=format!("seek-message:{}",reply.0)>{icon_with("reply","icon size-4")}<span class="min-w-0 truncate">{a.model.messages.get(&m.channel_id).and_then(|ms|ms.get(&reply)).map_or("Original message".into(),|m|format!("{}: {}",a.model.name(m.author_id),preview(a,m)))}</span></button>}.into_any()}else{().into_any()}}
         {body}
-        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}
+        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}{threads::extras(a,m)}
         <div class="reactions mt-1 flex flex-wrap gap-1 empty:hidden">{m.reactions.iter().map(|r|view!{<button class=if r.me{"reaction mine rounded-lg border border-primary bg-primary/15 px-2 py-1 text-sm text-foreground touch:min-h-11 touch:min-w-11"}else{"reaction rounded-lg border border-transparent bg-muted px-2 py-1 text-sm text-foreground touch:min-h-11 touch:min-w-11"} data-live=format!("react:{},{}",m.id.0,r.emoji) aria-label=format!("React with {}",r.emoji) aria-pressed=r.me.to_string()>{r.emoji.clone()}" "{r.count}</button>}).collect_view()}</div></div>
-        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
+        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{threads::message_actions(a,m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
     </article>}.into_any()
 }
 /// A message as its author typed it: mentions are "@username" again.
@@ -785,13 +805,16 @@ fn channel_form(a: &App, kind: &str, parent: Option<Id>) -> AnyView {
     } else {
         "Create Channel"
     };
-    form(title,"channel",view!{{field("f-name","Name","","text")}<label class="field">"Type"<select id="f-extra"><option value="text" selected=kind=="text">"Text"</option><option value="voice" selected=kind=="voice">"Voice"</option><option value="category" selected=kind=="category">"Category"</option></select></label><label class="field">"Inside"<select id="f-value" aria-describedby="channel-inside-help">{inside_options(a,parent,None)}</select><small id="channel-inside-help">"Channels and categories can go inside any other channel or category, as deep as you like."</small></label>}.into_any())
+    form(title,"channel",view!{{field("f-name","Name","","text")}<label class="field">"Type"<select id="f-extra"><option value="text" selected=kind=="text">"Text"</option><option value="voice" selected=kind=="voice">"Voice"</option><option value="category" selected=kind=="category">"Category"</option><option value="announcement" selected=kind=="announcement">"Announcement"</option><option value="forum" selected=kind=="forum">"Forum"</option></select></label><label class="field">"Inside"<select id="f-value" aria-describedby="channel-inside-help">{inside_options(a,parent,None)}</select><small id="channel-inside-help">"Channels and categories can go inside any other channel or category, as deep as you like."</small></label>}.into_any())
 }
 const DEVICE_ROW: &str =
     "device-row my-4 flex items-center justify-between gap-4 phone:items-start";
 const SETTINGS_EMPTY: &str = "settings-empty flex flex-col items-start gap-4 pt-6 pb-2 [&>.icon]:size-8 [&>.icon]:text-subtle";
 fn dialog(a: &App) -> AnyView {
     if let Some((body, label, class)) = content::dialog(a) {
+        return modal(a, class, label, body);
+    }
+    if let Some((body, label, class)) = threads::dialog(a) {
         return modal(a, class, label, body);
     }
     let body=match a.dialog.as_str(){
@@ -912,6 +935,22 @@ fn role_permissions(role: &Role) -> AnyView {
                 ("Attach Files", Permissions::ATTACH_FILES),
                 ("Add Reactions", Permissions::ADD_REACTIONS),
                 ("Manage Messages", Permissions::MANAGE_MESSAGES),
+                ("Publish Messages", Permissions::PUBLISH_MESSAGES),
+            ],
+        ),
+        (
+            "Threads",
+            vec![
+                ("Create Public Threads", Permissions::CREATE_PUBLIC_THREADS),
+                (
+                    "Create Private Threads",
+                    Permissions::CREATE_PRIVATE_THREADS,
+                ),
+                (
+                    "Send Messages in Threads",
+                    Permissions::SEND_MESSAGES_IN_THREADS,
+                ),
+                ("Manage Threads", Permissions::MANAGE_THREADS),
             ],
         ),
         (

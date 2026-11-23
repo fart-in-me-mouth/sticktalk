@@ -41,6 +41,14 @@ bitflags::bitflags! {
         const USE_SOUNDBOARD = 1 << 40;
         /// Upload, rename and delete a server's soundboard sounds.
         const MANAGE_SOUNDBOARD = 1 << 41;
+        // Threads, forums and announcements (`threads.rs`).
+        const CREATE_PUBLIC_THREADS = 1 << 32;
+        const CREATE_PRIVATE_THREADS = 1 << 33;
+        const SEND_MESSAGES_IN_THREADS = 1 << 34;
+        const MANAGE_THREADS = 1 << 35;
+        /// Publish your own messages in an announcement channel (Manage
+        /// Messages publishes anyone's).
+        const PUBLISH_MESSAGES = 1 << 36;
     }
 }
 

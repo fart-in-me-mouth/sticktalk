@@ -6,7 +6,7 @@ use super::*;
 
 /// Message text with `<@id>` mentions written out as "@name", so a snapshot
 /// reads the same in a conversation where those people are unknown.
-async fn plain_mentions(c: &mut SqliteConnection, content: &str) -> Result<String> {
+pub(super) async fn plain_mentions(c: &mut SqliteConnection, content: &str) -> Result<String> {
     let mut out = String::with_capacity(content.len());
     let mut rest = content;
     while let Some(at) = rest.find("<@") {

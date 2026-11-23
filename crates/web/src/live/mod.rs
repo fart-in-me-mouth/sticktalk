@@ -5,6 +5,7 @@ mod content;
 mod moderation;
 mod nav;
 mod operations;
+mod threads;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
 use futures_channel::mpsc;
@@ -149,6 +150,8 @@ struct App {
     /// Polls, forwarding, scheduled messages, voice messages, GIF favorites.
     content: content::State,
     moderation: moderation::State,
+    /// Threads, forums and announcement following.
+    threads: threads::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -207,6 +210,7 @@ impl App {
         self.uploading = false;
         self.upload_progress.clear();
         self.content = Default::default();
+        self.threads = Default::default();
         self.dialog.clear();
         self.panel.clear();
         self.screen = "home".into();
@@ -372,6 +376,7 @@ pub fn mount() {
             nav: Default::default(),
             content: Default::default(),
             moderation: Default::default(),
+            threads: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -753,6 +758,7 @@ async fn socket(app: Shared, epoch: u64) {
                                         | Event::ReminderDue(_) => nav::event(&mut a, &event.event),
                                         Event::Content(e) => content::event(&mut a, e.clone()),
                                         Event::DataExportUpdated(_) => authsec::event(&event.event),
+                                        Event::Threads(e) => threads::event(&mut a, e.clone()),
                                         _ => {}
                                     }
                                 }

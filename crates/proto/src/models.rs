@@ -138,6 +138,12 @@ pub enum ChannelKind {
     GroupDm,
     /// Phase 2 guild voice channel; older servers may reject creation.
     Voice,
+    /// Announcements that other servers can follow (`threads.rs`).
+    Announcement,
+    /// A list of titled posts, each a thread (`threads.rs`).
+    Forum,
+    /// A thread or forum post. Never listed with ordinary channels.
+    Thread,
 }
 
 /// Topic is deliberately excluded from the initial sidebar snapshot.

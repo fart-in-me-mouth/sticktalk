@@ -34,6 +34,7 @@ mod slowmode;
 pub mod storage_node;
 #[cfg(test)]
 mod storage_tests;
+mod threads;
 mod tier;
 pub use mentions::Notification;
 #[cfg(test)]
@@ -56,6 +57,7 @@ pub fn router(app: App) -> axum::Router {
     content::spawn(&app);
     moderation::spawn(&app);
     authsec::spawn(&app);
+    threads::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]

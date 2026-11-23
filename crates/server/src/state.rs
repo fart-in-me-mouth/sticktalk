@@ -113,6 +113,7 @@ pub(crate) struct Inner {
     pub shutdown: tokio_util::sync::CancellationToken,
     pub nav: crate::nav::Nav,
     pub authsec: crate::authsec::AuthSec,
+    pub(crate) threads: crate::threads::Threads,
 }
 pub(crate) struct Core {
     pub streams: HashMap<Vec<u8>, Stream>,
@@ -155,6 +156,8 @@ pub(crate) struct Stream {
     pub text_features: bool,
     /// Sent `ContentCommand::Subscribe`: receives `Event::Content`.
     pub content_features: bool,
+    /// Sent a `ThreadCommand`: receives `Event::Threads`.
+    pub thread_features: bool,
 }
 impl Drop for Connection {
     fn drop(&mut self) {
@@ -179,6 +182,7 @@ impl Stream {
             launch_features: false,
             text_features: false,
             content_features: false,
+            thread_features: false,
         }
     }
     pub fn cursor(&self) -> ResumeCursor {
@@ -327,6 +331,9 @@ impl Core {
                 continue;
             }
             if !s.content_features && matches!(&event, Event::Content(_)) {
+                continue;
+            }
+            if !s.thread_features && matches!(&event, Event::Threads(_)) {
                 continue;
             }
             if !s.launch_features
@@ -504,6 +511,7 @@ impl App {
             shutdown: tokio_util::sync::CancellationToken::new(),
             nav: Default::default(),
             authsec,
+            threads: Default::default(),
         }));
         app.housekeeping().await?;
         sqlx::query("DELETE FROM upload_reservations")

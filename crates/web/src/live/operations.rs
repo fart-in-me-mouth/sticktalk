@@ -482,6 +482,7 @@ pub(super) fn action(app: Shared, raw: &str) {
         // with the typing that caused it.
         "saved-clear" => app.borrow_mut().saved = None,
         "submit" if super::content::FORMS.contains(&arg) => super::content::submit(app, arg),
+        "submit" if super::threads::FORMS.contains(&arg) => super::threads::submit(app, arg),
         "submit" => {
             app.borrow_mut().saved = None;
             let submission = Submission::capture(&app.borrow());
@@ -732,6 +733,7 @@ pub(super) fn action(app: Shared, raw: &str) {
         "read" => mark_read(&app),
         k if k.starts_with("nav-") => super::nav::action(app, k, arg),
         kind if super::content::ACTIONS.contains(&kind) => super::content::action(app, kind, arg),
+        kind if super::threads::ACTIONS.contains(&kind) => super::threads::action(app, kind, arg),
         _ => {}
     }
 }
@@ -923,6 +925,9 @@ pub(super) fn load_history(
         && app.borrow().history_busy
         && app.borrow().channel == Some(c)
     {
+        return;
+    }
+    if super::threads::open_special(&app, c) {
         return;
     }
     if app
@@ -1600,6 +1605,10 @@ fn submit(app: Shared, form: String, submission: Submission) {
                 ChannelKind::Voice
             } else if extra == "category" {
                 ChannelKind::Category
+            } else if extra == "announcement" {
+                ChannelKind::Announcement
+            } else if extra == "forum" {
+                ChannelKind::Forum
             } else {
                 ChannelKind::Text
             },
@@ -1914,6 +1923,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     || sticktalk_client_core::http::error_text(&error),
                     str::to_owned,
                 ),
+                (Some(Command::Threads(c)), code) => super::threads::refused(c, code).map_or_else(
+                    || sticktalk_client_core::http::error_text(&error),
+                    str::to_owned,
+                ),
                 _ => sticktalk_client_core::http::error_text(&error),
             };
             a.touch();
@@ -1993,6 +2006,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             if let CommandResult::Content(result) = result {
                 super::content::answered(&mut a, operation.as_ref(), result);
                 a.touch();
+                return;
+            }
+            if let CommandResult::Threads(result) = result {
+                drop(a);
+                super::threads::answered(app, operation.as_ref(), result);
                 return;
             }
             match result {
@@ -2110,7 +2128,8 @@ pub(super) fn ready(app: Shared) {
         }));
     }
     drop(a);
-    super::content::ready(app);
+    super::content::ready(app.clone());
+    super::threads::ready(app);
 }
 /// While the server cannot be reached and nobody is signed in, look again.
 pub(super) fn retry_recover(app: Shared) {

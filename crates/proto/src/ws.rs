@@ -286,6 +286,8 @@ pub enum Command {
     },
     /// Polls, forwarding, scheduled messages and rich attachments (`content.rs`).
     Content(ContentCommand),
+    /// Threads, forums and announcements (`threads.rs`).
+    Threads(ThreadCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -324,6 +326,7 @@ pub enum CommandResult {
     Subscription { presences: Vec<Presence> },
     Content(ContentResult),
     Moderation(ModerationResult),
+    Threads(ThreadResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -437,6 +440,8 @@ pub enum Event {
     Moderation(ModerationEvent),
     /// Sent only to streams that fetched GET /api/v1/users/@me/data-export (docs/features/authsec.md).
     DataExportUpdated(DataExport),
+    /// Sent only to connections that sent `ThreadCommand::Subscribe`.
+    Threads(ThreadEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

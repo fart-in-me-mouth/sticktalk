@@ -23,6 +23,8 @@ mod moderation;
 pub use moderation::*;
 mod permissions;
 mod rest;
+mod threads;
+pub use threads::*;
 mod ws;
 
 pub use browser::*;

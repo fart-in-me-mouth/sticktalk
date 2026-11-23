@@ -316,7 +316,7 @@ pub async fn upload(
         .to_owned();
     if let Some(ch) = ch {
         let mut c = app.0.pool.acquire().await?;
-        text(&mut c, u, ch, Permissions::ATTACH_FILES).await?;
+        crate::threads::upload_target(&mut c, u, ch, Permissions::ATTACH_FILES).await?;
     }
     sqlx::query("UPDATE upload_reservations SET channel_id=? WHERE key=?")
         .bind(opt(ch)?)
@@ -384,7 +384,7 @@ pub async fn upload(
         ErrorCode::Unauthenticated,
     )?;
     if let Some(ch) = ch {
-        text(&mut tx, u, ch, Permissions::ATTACH_FILES).await?;
+        crate::threads::upload_target(&mut tx, u, ch, Permissions::ATTACH_FILES).await?;
     }
     let a = core.id().await?;
     let expires = now() + 3_600_000;

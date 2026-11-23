@@ -68,7 +68,7 @@ fn opt_in(app: &App, core: &Core, key: &[u8]) {
 fn readable(kind: ChannelKind) -> bool {
     matches!(
         kind,
-        ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm
+        ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm | ChannelKind::Announcement
     )
 }
 /// The conversation, if `u` can see it now. Never an error for a hidden one.
@@ -630,6 +630,7 @@ async fn readable_channels(c: &mut SqliteConnection, u: Id) -> Result<Vec<Id>> {
             out.push(ch.id);
         }
     }
+    out.extend(crate::threads::readable(c, u).await?);
     Ok(out)
 }
 #[derive(serde::Deserialize)]

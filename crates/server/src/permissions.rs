@@ -40,8 +40,9 @@ pub async fn evaluate(
     for scope in scopes {
         p = apply(p, guild, user, &roles, &overwrites(c, scope).await?);
     }
-    if channel.is_some() {
+    if let Some(ch) = channel {
         p = implicit(p);
+        p = crate::threads::scope(c, user, ch, p).await?;
     }
     crate::moderation::restrict(c, guild, user, p).await
 }

@@ -299,7 +299,12 @@ pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Re
     require(
         matches!(
             channel.summary.kind,
-            ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm | ChannelKind::Voice
+            ChannelKind::Text
+                | ChannelKind::Direct
+                | ChannelKind::GroupDm
+                | ChannelKind::Voice
+                | ChannelKind::Announcement
+                | ChannelKind::Thread
         ),
         ErrorCode::InvalidRequest,
     )?;
@@ -308,7 +313,10 @@ pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Re
 pub async fn audience(c: &mut SqliteConnection, ch: Id) -> Result<Vec<Id>> {
     let ch = channel(c, ch).await?;
     if let Some(g) = ch.summary.guild_id {
-        crate::capacity::members_with(c, g, Some(ch.summary.id), Permissions::VIEW_CHANNEL).await
+        let users =
+            crate::capacity::members_with(c, g, Some(ch.summary.id), Permissions::VIEW_CHANNEL)
+                .await?;
+        crate::threads::private_audience(c, g, ch.summary.id, users).await
     } else {
         Ok(ch.summary.recipient_ids)
     }
@@ -518,6 +526,7 @@ pub async fn message(
         extra: Default::default(),
     };
     crate::content::decorate(c, u, &mut message).await?;
+    crate::threads::decorate(c, u, &mut message).await?;
     Ok(message)
 }
 pub async fn read(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<ReadState> {
@@ -547,7 +556,10 @@ pub async fn read_states(c: &mut SqliteConnection, u: Id) -> Result<Vec<ReadStat
     for ch in channels(c, u, None).await? {
         if matches!(
             ch.kind,
-            ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm
+            ChannelKind::Text
+                | ChannelKind::Direct
+                | ChannelKind::GroupDm
+                | ChannelKind::Announcement
         ) {
             out.push(read(c, u, ch.id).await?);
         } else if ch.kind == ChannelKind::Voice {
@@ -555,6 +567,7 @@ pub async fn read_states(c: &mut SqliteConnection, u: Id) -> Result<Vec<ReadStat
             out.push(read(c, u, ch.id).await?);
         }
     }
+    out.extend(crate::threads::member_reads(c, u).await?);
     out.sort_by_key(|r| r.channel_id);
     Ok(out)
 }

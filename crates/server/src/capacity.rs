@@ -164,7 +164,7 @@ pub(crate) async fn guild_channels(
         .await?
         .remove(&u)
         .unwrap_or_else(|| vec![g]);
-    let rows = sqlx::query("SELECT id,kind,parent_id,name,position,owner_id FROM channels WHERE guild_id=? ORDER BY position,id")
+    let rows = sqlx::query("SELECT id,kind,parent_id,name,position,owner_id FROM channels WHERE guild_id=? AND kind<>'thread' ORDER BY position,id")
         .bind(id(g)?)
         .fetch_all(&mut *c)
         .await?;
