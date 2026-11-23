@@ -914,3 +914,45 @@ fn form(app: Shared, kind: &str) {
         _ => {}
     }
 }
+
+/// The navigation feature's one entry point (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    nav,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    if let features::Call::Action(kind, arg) = call {
+        action(app, &kind, &arg);
+    }
+    Ok(true)
+}
+
+/// The nav feature's state: its events, the answers to its commands and the fresh snapshot (Ready).
+/// A separate, small split entry: keeping a feature's state current does not
+/// load its pages and forms (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    nav_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    match call {
+        Call::Ready => ready(app),
+        Call::Event(raw) => {
+            let e = match raw.tag {
+                "nav_updated" => inbound::de(&raw.data).map(Event::NavUpdated),
+                "saved_updated" => inbound::de(&raw.data).map(Event::SavedUpdated),
+                "reminder_due" => inbound::de(&raw.data).map(Event::ReminderDue),
+                _ => Err(()),
+            };
+            let Ok(e) = e else { return Ok(false) };
+            event(&mut app.borrow_mut(), &e);
+        }
+
+        _ => {}
+    }
+    Ok(true)
+}

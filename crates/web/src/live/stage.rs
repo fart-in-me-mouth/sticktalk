@@ -116,7 +116,7 @@ pub(super) fn can_create_events(a: &App, g: Id) -> bool {
 // ---- Stage events --------------------------------------------------------------
 
 /// A Stage event from the voice envelope.
-pub(super) fn voice_event(app: &Shared, e: StageEvent) {
+fn voice_event(app: &Shared, e: StageEvent) {
     let mut a = app.borrow_mut();
     let mut roster_changed = false;
     match e {
@@ -270,8 +270,20 @@ pub(super) fn ready(app: Shared) {
     };
     // An event link (Copy Link, the start notification): open that event.
     if let Some(e) = link {
-        open(app, e, None);
+        show_event(app, e, None);
     }
+}
+/// Open an event's page, in this feature's `run` module.
+fn show_event(app: Shared, e: Id, occurrence: Option<u64>) {
+    let arg = match occurrence {
+        Some(o) => format!("{},{o}", e.0),
+        None => e.0.to_string(),
+    };
+    features::defer(
+        app,
+        features::Feature::Stage,
+        features::Call::Other("event", arg),
+    );
 }
 fn event_link() -> Option<Id> {
     window()
@@ -293,7 +305,7 @@ fn summary(a: &mut App, s: GuildEvents) {
 }
 
 /// An `Event::Schedule`.
-pub(super) fn schedule_event(a: &mut App, e: ScheduleUpdate) {
+fn schedule_event(a: &mut App, e: ScheduleUpdate) {
     match e {
         ScheduleUpdate::Summary(s) => summary(a, s),
         ScheduleUpdate::Upsert(e) => {
@@ -362,7 +374,7 @@ pub(super) fn schedule_event(a: &mut App, e: ScheduleUpdate) {
 }
 
 /// The answer to a `ScheduleCommand`.
-pub(super) fn answered(app: Shared, cmd: Option<&Command>, result: ScheduleResult) {
+fn answered(app: Shared, cmd: Option<&Command>, result: ScheduleResult) {
     let mut a = app.borrow_mut();
     a.stage.busy = false;
     match result {
@@ -383,7 +395,7 @@ pub(super) fn answered(app: Shared, cmd: Option<&Command>, result: ScheduleResul
             if from_form && a.dialog == "event-form" {
                 a.stage.editing = None;
                 drop(a);
-                open(app, e.id, Some(e.occurrence));
+                show_event(app, e.id, Some(e.occurrence));
                 return;
             }
         }
@@ -502,7 +514,7 @@ fn join(app: Shared, ch: Id) {
 }
 
 /// `stage:<verb>,<args>`.
-pub(super) fn action(app: Shared, arg: &str) {
+fn action(app: Shared, arg: &str) {
     let mut parts = arg.split(',');
     let verb = parts.next().unwrap_or_default();
     let first = parts.next().and_then(id);
@@ -852,7 +864,7 @@ pub(super) fn when(ms: u64) -> String {
 }
 
 /// Submits one of `FORMS`.
-pub(super) fn submit(app: Shared, form: &str) {
+fn submit(app: Shared, form: &str) {
     let mut a = app.borrow_mut();
     match form {
         "stage-start" => {
@@ -990,7 +1002,7 @@ pub(super) fn submit(app: Shared, form: &str) {
 }
 
 /// The Join dialog's invite leads to an event: fetch its card too.
-pub(super) fn invite_preview(app: Shared, code: String) {
+fn invite_preview(app: Shared, code: String) {
     let http = app.borrow().http();
     spawn_local(async move {
         let found = http
@@ -1016,4 +1028,73 @@ pub(super) fn refused(cmd: &ScheduleCommand, code: ErrorCode) -> Option<&'static
         }
         _ => return None,
     })
+}
+
+/// Stage and event actions, forms and pages (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    stage,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    match call {
+        Call::Action(_, arg) => action(app, &arg),
+        Call::Submit(form) => submit(app, &form),
+        Call::Other("invite", code) => invite_preview(app, code),
+        Call::Other("event", arg) => {
+            let (e, occurrence) = arg.split_once(',').unwrap_or((&arg, ""));
+            if let Some(e) = id(e) {
+                open(app, e, occurrence.parse().ok());
+            }
+        }
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// Stage and event state: live Stages and the roster (from the voice
+/// envelope), event summaries and updates, the answers to event commands.
+#[leptos::wasm_split::wasm_split(
+    stage_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    use features::{Call, Reply};
+    match call {
+        // `VOICE_TAG`: a `VoiceEvent::Stage`, from the voice envelope.
+        Call::Event(raw) if raw.tag == VOICE_TAG => {
+            let Ok(e) = crate::inbound::feature::stage_event(&raw.data) else {
+                return Ok(false);
+            };
+            voice_event(&app, e);
+        }
+        Call::Event(raw) => {
+            let Ok(e) = crate::inbound::feature::schedule_update(&raw.data) else {
+                return Ok(false);
+            };
+            let mut a = app.borrow_mut();
+            schedule_event(&mut a, e);
+            a.touch();
+        }
+        Call::Answer(op, Reply::Raw(raw)) => {
+            let Ok(result) = crate::inbound::feature::schedule_result(&raw.data) else {
+                return Ok(false);
+            };
+            answered(app, op.as_ref(), result);
+        }
+        _ => {}
+    }
+    Ok(true)
+}
+/// The tag a Stage event from the voice envelope is handed over with.
+pub(super) const VOICE_TAG: &str = "voice_stage";
+/// Dialogs whose views are in this feature's view module (`ui::stage`).
+pub(super) fn owns_dialog(name: &str) -> bool {
+    matches!(
+        name,
+        "stage-start" | "stage-topic" | "events" | "event-form"
+    ) || name.starts_with("event:")
 }

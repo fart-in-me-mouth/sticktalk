@@ -255,7 +255,7 @@ pub(super) async fn follows(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<C
 }
 
 /// Writes queued copies until the queue is empty.
-pub(super) async fn deliver_queue(app: &App) -> Result<()> {
+pub(crate) async fn deliver_queue(app: &App) -> Result<()> {
     loop {
         let mut core = app.0.core.lock().await;
         let mut c = app.0.pool.acquire().await?;

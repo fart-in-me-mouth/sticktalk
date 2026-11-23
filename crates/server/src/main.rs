@@ -1,15 +1,24 @@
 use clap::Parser;
 use sticktalk_server::{App, Config};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tokio::runtime::Builder::new_multi_thread()
+    let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
-        // A command runs through several nested feature futures; a debug build
-        // needs about 2 MB of stack for the deepest one. The reserve is address
-        // space only: pages are committed as they are touched.
-        .thread_stack_size(8 * 1024 * 1024)
+        // Worker and blocking threads. The deepest command needs well under
+        // 1 MiB optimized and 2 MiB in a debug build (`stack_tests`); this is
+        // twice that. The reserve is address space: pages are committed as used.
+        .thread_stack_size(4 * 1024 * 1024)
         .enable_all()
-        .build()?
-        .block_on(run())
+        .build()?;
+    // Startup and the accept loop are polled on a thread whose stack is
+    // chosen here, like the workers', not on the main thread (whose stack is
+    // the platform's: 1 MiB on Windows).
+    std::thread::Builder::new()
+        .name("sticktalk-main".into())
+        .stack_size(4 * 1024 * 1024)
+        .spawn(move || runtime.block_on(Box::pin(run())).map_err(|e| e.to_string()))?
+        .join()
+        .map_err(|_| "server thread panicked")??;
+    Ok(())
 }
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()

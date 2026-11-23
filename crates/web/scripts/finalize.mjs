@@ -143,7 +143,31 @@ if (process.env.STICKTALK_WEB_MOCK !== "1") {
       await unlink(file);
   }
 }
+// TypeScript declarations of the WASM glue are for editors, not browsers.
+for (const file of await files(dist))
+  if (file.endsWith(".d.ts")) await unlink(file);
 if(process.env.STICKTALK_WEB_MOCK!=='1')await versionRuntime(dist);
+// The UI SDK modules the first screen imports statically (ui.js's `import '...'`
+// lines and what they reach). Dialog, menu and tooltip load on first use and
+// are cached then, like the other lazy modules (docs/features/perf.md).
+const eagerSdk = new Set();
+{
+  const ui = await readFile(join(dist, "public/ui.js"), "utf8").catch(() => "");
+  const target = ui.match(/from '\.\/runtime\/([a-f0-9]{20})\/ui\.js'/);
+  const source = target
+    ? await readFile(join(dist, "public/runtime", target[1], "ui.js"), "utf8")
+    : ui;
+  const queue = [...source.matchAll(/^import '\/(public\/ui-sdk\/[^']+\.js)';/gm)].map((m) => m[1]);
+  while (queue.length) {
+    const file = queue.pop();
+    if (eagerSdk.has(file)) continue;
+    eagerSdk.add(file);
+    const text = await readFile(join(dist, file), "utf8");
+    // Static imports only: `import"./x.js"`, `from"./x.js"`; not `import("./x.js")`.
+    for (const [, spec] of text.matchAll(/(?:\bfrom|\bimport)\s*["'](\.\.?\/[^"']+\.js)["']/g))
+      queue.push(join(file, "..", spec).replaceAll("\\", "/"));
+  }
+}
 const assets = (await files(dist)).filter(
   (p) =>
     !p.endsWith(".br") && !p.endsWith("sw.js") && !p.endsWith("sizes.json"),
@@ -199,6 +223,14 @@ const paths = sizes
       // Themes: alternative app icons and chat fonts load only when chosen.
       !/\/(app-icons|fonts\/chat)\//.test(p) &&
       !p.includes("/stickers/") &&
+      // Lazily imported: sign-in extras on the login page, account security,
+      // call sounds and notification alerts, speech synthesis, the Stage audience list.
+      !/\/(authsec|authsec-login|calls|alerts|speech|stage)\.js$/.test(p) &&
+      // Install-time only (the 192 px icon is also the page's logo).
+      !/\/icons\/(icon-512|maskable-512|apple-touch-icon)\.png$/.test(p) &&
+      // Only for code; the browser fetches it when a code block is shown.
+      !p.includes("/fonts/JetBrainsMono") &&
+      (!p.startsWith("/public/ui-sdk/") || eagerSdk.has(p.slice(1))) &&
       !(p.endsWith(".wasm") && !p.endsWith("_bg.wasm")) &&
       !p.includes("__wasm_split_manifest"),
   );

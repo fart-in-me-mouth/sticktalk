@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 
-const modules=['alerts.js','authsec-login.js','authsec.js','backgrounds-worker.js','backgrounds.js','callextras.js','calls.js','clips.js','content.js','e2ee-core.js','e2ee-qr.js','e2ee-worker.js','e2ee.js','expression.js','gifs.js','live.js','media.js','message-menu.js','nav.js','navigation.js','preferences.js','profiles.js','ptt.js','push.js','soundboard.js','speech.js','stage.js','ui.js','viewer.js'];
+export const modules=['alerts.js','authsec-login.js','authsec.js','backgrounds-worker.js','backgrounds.js','callextras.js','calls.js','clips.js','content.js','e2ee-core.js','e2ee-qr.js','e2ee-worker.js','e2ee.js','expression.js','gifs.js','live.js','media.js','message-menu.js','nav.js','navigation.js','preferences.js','profiles.js','ptt.js','push.js','soundboard.js','speech.js','stage.js','ui.js','viewer.js'];
 async function readRuntime(directory) {
   const hash=createHash('sha256'), sources=new Map();
   for(const name of modules) {

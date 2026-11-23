@@ -377,9 +377,9 @@ fn shell(a: &App) -> AnyView {
         </aside></div><div class=if a.panel.is_empty(){"panel-scrim hidden"}else{"panel-scrim hidden touch-pan-y phone:absolute phone:inset-0 phone:z-[25] phone:block phone:bg-black/60"} data-live="panel:" aria-hidden="true"></div>
         <main class=format!("main-pane flex min-w-0 flex-1 touch-pan-y flex-col {}",if channel.is_none(){"phone:pb-[calc(56px+var(--safe-bottom))]"}else{""})><header class="channel-header flex h-12 min-h-12 flex-none items-center gap-2 border-b px-4 py-2 phone:h-(--header-height) phone:min-h-(--header-height) phone:px-2"><div class="mobile-menu hidden phone:block">{ib("menu","Open Channels","panel:left")}</div>{icon_with(if in_call{"volume-2"}else if direct{"at-sign"}else if let Some(glyph)=channel.and_then(|c|threads::kind_icon(c.kind)){glyph}else if channel.is_some(){"hash"}else{"users"},"icon text-muted-foreground")}<div class="flex min-w-0 flex-1 items-baseline gap-3">{if in_call{None}else{threads::title(a)}.unwrap_or_else(||view!{<h1 class="min-w-0 truncate text-base font-semibold" title=title.clone()>{title.clone()}</h1>}.into_any())}{if topic.is_empty()||in_call{().into_any()}else{view!{<p class="channel-topic m-0 min-w-0 flex-1 truncate text-[13px] text-subtle phone:hidden" title=topic.clone()>{topic.clone()}</p>}.into_any()}}</div><div class="header-actions flex gap-2 phone:gap-0">{if in_call{ib("message-circle","Open Chat",&open_chat)}else if channel.is_some(){view!{{a.channel.map_or_else(||().into_any(),|c|call_views::header(a,c))}{a.channel.map_or_else(||().into_any(),|c|threads::header(a,c))}<div class="contents phone:hidden">{if a.channel.is_some_and(|c|a.threads.threads.contains_key(&c)){().into_any()}else{ib("bell","Notification Settings","dialog:channel-notifications")}}{ib("pin","Pinned Messages","dialog:pins")}{ib("users","Member List","panel:right")}</div>}.into_any()}else{().into_any()}}{if in_call{().into_any()}else{navui::header(a)}}</div></header>
             {if !a.status.is_empty(){view!{<div class="connection-banner bg-warning px-4 py-2 text-sm text-rail" role="status">{a.status.clone()}</div>}.into_any()}else{().into_any()}}
-            {if in_call{call_views::beside(a,a.voice_render.map_or_else(loading_call, |render|render(a)))}else if channel.is_some_and(|c|c.kind==ChannelKind::Forum){threads::forum(a,&title)}else if channel.is_some(){chat(a,&title)}else{home(a)}}
+            {if in_call{call_views::beside(a,a.voice_render.map_or_else(loading_call, |render|render(a)))}else if channel.is_some_and(|c|c.kind==ChannelKind::Forum){lazy_view(a,|a|&a.views.forum,||Box::pin(load_forum())).map_or_else(loading_call,|forum|forum(a,&title))}else if channel.is_some(){chat(a,&title)}else{home(a)}}
         </main>
-        {navui::search_panel(a)}
+        {if a.nav.search_open{lazy_view(a,|a|&a.views.search,||Box::pin(load_search())).map_or_else(||().into_any(),|search|search(a))}else{().into_any()}}
         {if channel.is_some()&&!a.nav.search_open{view!{<aside class=format!("member-list w-60 flex-none touch-pan-y overflow-auto overscroll-contain bg-sidebar {} {}",if a.panel=="right"{"is-open narrow:absolute narrow:top-12 narrow:right-0 narrow:bottom-0 narrow:z-20 narrow:shadow-[-8px_0_24px_#0006] phone:top-[calc(var(--header-height)+var(--safe-top))] phone:z-30 phone:w-[min(300px,90vw)] phone:pb-(--safe-bottom)"}else{"narrow:hidden"},if a.members_hidden{"min-[1101px]:hidden"}else{""}) aria-label="Members">{member_groups(a)}{if a.guild.is_some()&&a.members_more{button("Load More","members-more","link-button")}else{().into_any()}}</aside>}.into_any()}else{().into_any()}}
         {if channel.is_none(){view!{<nav class="bottom-tabs hidden phone:absolute phone:inset-x-0 phone:bottom-0 phone:flex phone:h-[calc(56px+var(--safe-bottom))] phone:justify-around phone:border-t phone:bg-sidebar phone:pb-(--safe-bottom)" aria-label="Main navigation">{button("Home","home","active text-primary")}{button("Notifications","nav-inbox","text-subtle")}{button("You","dialog:settings","text-subtle")}</nav>}.into_any()}else{().into_any()}}
         {navui::overlay(a)}
@@ -845,13 +845,10 @@ fn dialog(a: &App) -> AnyView {
     if let Some((body, label, class)) = threads::dialog(a) {
         return modal(a, class, label, body);
     }
-    if let Some((body, label, class)) = stage::dialog(a) {
-        return modal(a, class, label, body);
-    }
-    if let Some(view) = expression::dialog(a) {
+    if let Some(view) = feature_dialog(a) {
         return view;
     }
-    if let Some(view) = community::dialog(a) {
+    if let Some(view) = expression::dialog(a) {
         return view;
     }
     let body=match a.dialog.as_str(){
@@ -863,8 +860,8 @@ fn dialog(a: &App) -> AnyView {
         "ban" if !a.model.members.values().any(|m|Some(m.guild_id)==a.guild&&m.role!=MemberRole::Owner&&a.model.me.as_ref().is_some_and(|me|me.user.id!=m.user.id))=>view!{<h2>"Ban a Member"</h2><div class=SETTINGS_EMPTY>{icon("users")}<p>"There is no one else in this server to ban."</p>{button("Back to Bans","dialog:server-bans","secondary")}</div>}.into_any(),
         "ban"=>form_with("Ban a Member","ban",view!{<p>"This removes the member and prevents them from rejoining until you revoke the ban."</p><label class="field"><span>"Member"</span><select id="f-name">{a.model.members.values().filter(|m|m.guild_id==a.guild.unwrap_or_default()&&m.role!=MemberRole::Owner&&a.model.me.as_ref().is_some_and(|me|me.user.id!=m.user.id)).map(|m|view!{<option value=m.user.id.0.to_string()>{name(&m.user)}</option>}).collect_view()}</select></label>{field("f-value","Reason (optional)","","text")}}.into_any(),"dialog:server-bans",true),
         "server-emoji"=>view!{<h2>"Emoji"</h2><p class="muted-copy">"Custom server emoji are not available yet. Everyone can use the emoji picker in chat."</p>}.into_any(),
-        "appearance"=>themes::appearance(a),
-        value if themes::title(value).is_some()=>themes::page(a,value).unwrap_or_else(||().into_any()),
+        "appearance"=>themes_page(a),
+        value if themes::title(value).is_some()=>themes_page(a),
         "privacy"=>settings::privacy(a),
         "group-members"=>group_members(a),
         "group" if a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend).count()<2=>view!{<h2>"New Group Message"</h2><div class=SETTINGS_EMPTY>{icon("users")}<p>"Add at least two friends to start a group message."</p>{button("Add Friends","dialog:friend","primary")}</div>}.into_any(),
@@ -1036,6 +1033,106 @@ fn role_permissions(role: &Role) -> AnyView {
 #[lazy]
 pub(super) fn load_dialog() -> fn(&App) -> AnyView {
     dialog
+}
+
+/// A view in its own WASM module. The first use downloads it; until then
+/// the caller shows a placeholder.
+pub(super) struct LazyView<F: Copy> {
+    view: std::cell::Cell<Option<F>>,
+    loading: std::cell::Cell<bool>,
+}
+impl<F: Copy> Default for LazyView<F> {
+    fn default() -> Self {
+        Self {
+            view: std::cell::Cell::new(None),
+            loading: std::cell::Cell::new(false),
+        }
+    }
+}
+type Loading<F> = std::pin::Pin<Box<dyn std::future::Future<Output = F>>>;
+/// Views that are not on the first screen (docs/features/perf.md).
+#[derive(Default)]
+pub(super) struct LazyViews {
+    pub forum: LazyView<fn(&App, &str) -> AnyView>,
+    pub search: LazyView<fn(&App) -> AnyView>,
+    /// Feature pages and dialogs, each in its feature's view module: opening
+    /// User Settings does not download them.
+    pub community: LazyView<fn(&App) -> Option<AnyView>>,
+    pub stage: LazyView<StageDialog>,
+    pub themes: LazyView<fn(&App, &str) -> Option<AnyView>>,
+}
+type StageDialog = fn(&App) -> Option<(AnyView, &'static str, &'static str)>;
+#[lazy]
+pub(super) fn load_community_dialog() -> fn(&App) -> Option<AnyView> {
+    community::dialog
+}
+#[lazy]
+pub(super) fn load_stage_dialog() -> StageDialog {
+    stage::dialog
+}
+#[lazy]
+pub(super) fn load_themes_page() -> fn(&App, &str) -> Option<AnyView> {
+    themes::page
+}
+/// The dialogs whose views are in a feature's view module (`LazyViews`),
+/// with a placeholder while that module downloads.
+fn feature_dialog(a: &App) -> Option<AnyView> {
+    let d = a.dialog.as_str();
+    if super::stage::owns_dialog(d) {
+        let view = lazy_view(a, |a| &a.views.stage, || Box::pin(load_stage_dialog()));
+        return Some(match view.and_then(|v| v(a)) {
+            Some((body, label, class)) => modal(a, class, label, body),
+            None => loading_dialog(a),
+        });
+    }
+    if community::owns(d) {
+        let view = lazy_view(
+            a,
+            |a| &a.views.community,
+            || Box::pin(load_community_dialog()),
+        );
+        return Some(view.and_then(|v| v(a)).unwrap_or_else(|| loading_dialog(a)));
+    }
+    None
+}
+/// A themes page's body (it goes in the settings frame like any page).
+fn themes_page(a: &App) -> AnyView {
+    let view = lazy_view(a, |a| &a.views.themes, || Box::pin(load_themes_page()));
+    view.and_then(|v| v(a, &a.dialog)).unwrap_or_else(|| {
+        let title = themes::title(&a.dialog).unwrap_or("Appearance");
+        view! {<h2>{title}</h2><p class="muted-copy" role="status">"Loading…"</p>}.into_any()
+    })
+}
+/// The view in `slot`, or None while its module is still downloading.
+fn lazy_view<F: Copy + 'static>(
+    a: &App,
+    slot: fn(&App) -> &LazyView<F>,
+    load: fn() -> Loading<F>,
+) -> Option<F> {
+    let s = slot(a);
+    if let Some(view) = s.view.get() {
+        return Some(view);
+    }
+    if !s.loading.replace(true) {
+        let owner = a.owner.clone();
+        spawn_local(async move {
+            let view = load().await;
+            if let Some(app) = owner.upgrade() {
+                let a = app.borrow();
+                slot(&a).view.set(Some(view));
+                a.touch();
+            }
+        });
+    }
+    None
+}
+#[lazy]
+fn load_forum() -> fn(&App, &str) -> AnyView {
+    threads::forum
+}
+#[lazy]
+fn load_search() -> fn(&App) -> AnyView {
+    navui::search_panel
 }
 #[lazy]
 pub(super) fn load_call() -> fn(&App) -> AnyView {

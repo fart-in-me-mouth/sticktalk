@@ -3,9 +3,72 @@
 // avatar image fallbacks. The elements are unstyled; styles/app.css styles them.
 // The packager copies the SDK's browser modules next to this file.
 import '/public/ui-sdk/web/avatar.js';
-import '/public/ui-sdk/web/dialog.js';
-import '/public/ui-sdk/web/menu.js';
-import '/public/ui-sdk/web/tooltip.js';
+
+// Dialogs, menus and tooltips are defined when first needed (docs/features/perf.md):
+// most of the SDK's code is theirs, and the first screen does not use them until
+// a person points at, focuses or presses one. Until then their content stays
+// hidden (it is rendered with `hidden`), and the triggers are ordinary buttons
+// with their own labels.
+const modules = {
+  'ui-dialog': () => import('/public/ui-sdk/web/dialog.js'),
+  'ui-menu': () => import('/public/ui-sdk/web/menu.js'),
+  'ui-tooltip': () => import('/public/ui-sdk/web/tooltip.js'),
+};
+const loading = new Map();
+export function define(tag) {
+  let done = loading.get(tag);
+  if (!done) {
+    done = modules[tag]().then(() => customElements.whenDefined(tag));
+    loading.set(tag, done);
+    done.catch(() => loading.delete(tag));
+  }
+  return done;
+}
+// A dialog is opened by the app: define it as soon as one is in the page.
+// Menus (the server menu, channel and message options) are used constantly
+// and their behavior is small: once one is in the page, it is defined when
+// the browser is next idle, so a press with no hover first does not wait for
+// a download. Not with Data Saver on (it is fetched on intent then).
+const dialogs = document.getElementsByTagName('ui-dialog');
+const menus = document.getElementsByTagName('ui-menu');
+const whenIdle = globalThis.requestIdleCallback ?? ((f) => setTimeout(f, 200));
+const saveData = () => navigator.connection?.saveData === true;
+let menuQueued = false;
+const watch = new MutationObserver(() => {
+  if (dialogs.length && !loading.has('ui-dialog')) void define('ui-dialog');
+  if (menus.length && !menuQueued && !saveData()) {
+    menuQueued = true;
+    whenIdle(() => void define('ui-menu'), { timeout: 2000 });
+  }
+  if (loading.has('ui-dialog') && (menuQueued || saveData())) watch.disconnect();
+});
+watch.observe(document.documentElement, { childList: true, subtree: true });
+// Intent. Tooltips: the first pointer movement or focus anywhere (a person is
+// using the page, not just looking); by the time the pointer rests on a
+// button they are defined. Menus and dialogs: pointing at or focusing one, or
+// anything that opens a dialog, downloads its behavior before it is pressed.
+const intent = (event) => {
+  if (!customElements.get('ui-tooltip')) void define('ui-tooltip');
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (!customElements.get('ui-menu') && target.closest('ui-menu')) void define('ui-menu');
+  if (!customElements.get('ui-dialog') && target.closest('[data-live^="dialog:"],ui-menu')) void define('ui-dialog');
+};
+document.addEventListener('pointerover', intent, { capture: true, passive: true });
+document.addEventListener('focusin', intent, { capture: true });
+// Pressed before its behavior arrived (a fast tap): hold the press, then open it.
+const press = (event) => {
+  const target = event.target;
+  if (!(target instanceof Element) || customElements.get('ui-menu')) return;
+  const trigger = target.closest('ui-menu ui-menu-trigger');
+  if (!trigger) return;
+  if (event.type === 'keydown' && !['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(event.key)) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (event.type === 'pointerdown') return;
+  void define('ui-menu').then(() => (trigger.querySelector('button') ?? trigger).click());
+};
+for (const type of ['pointerdown', 'click', 'keydown']) document.addEventListener(type, press, { capture: true });
 
 // Sent as a request: live.js asks for confirmation where an action needs one.
 const emit = (action) =>

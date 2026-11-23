@@ -1,4 +1,7 @@
 [target.wasm32-unknown-unknown]
 # Relocations and the indirect table are required by Leptos/wasm-split. Only
 # browser builds use these flags; native/server artifacts are unchanged.
-rustflags = ["-Clink-arg=--emit-relocs", "-Clink-arg=--export-table"]
+# -O1: wasm-ld still deduplicates identical strings but does not tail-merge
+# them. Tail merging glues strings of different split modules into one range,
+# which wasm-split then has to keep in the core (docs/features/perf.md).
+rustflags = ["-Clink-arg=--emit-relocs", "-Clink-arg=--export-table", "-Clink-arg=-O1"]

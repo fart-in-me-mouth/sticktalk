@@ -8,7 +8,15 @@ import { once } from "node:events";
 import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 import assert from "node:assert/strict";
+import { checkBudgets } from "../scripts/budgets.mjs";
 const output = process.env.STICKTALK_QA_DIR ?? "screenshots/live";
+// Size budgets of the packaged app first (docs/features/perf.md).
+{
+  const dist = process.env.STICKTALK_WEB_DIST ?? join(resolve(process.env.CARGO_TARGET_DIR ?? fileURLToPath(new URL("../../../target/", import.meta.url))), "web-dist");
+  const { failures, report } = await checkBudgets(dist);
+  console.log(report.join("\n"));
+  assert.deepEqual(failures, [], "size budgets exceeded (scripts/budgets.json)");
+}
 const target = resolve(
   process.env.CARGO_TARGET_DIR ??
     fileURLToPath(new URL("../../../target/", import.meta.url)),

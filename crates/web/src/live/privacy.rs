@@ -116,6 +116,17 @@ async fn call<T: DeserializeOwned>(
             .await?,
     )
 }
+/// Refresh one of this feature's open pages, in its page module (an event
+/// keeps the state current; the page's own requests are the page's).
+fn page(a: &App, what: &'static str, arg: String) {
+    if let Some(app) = a.owner.upgrade() {
+        features::defer(
+            app,
+            features::Feature::Privacy,
+            features::Call::Other(what, arg),
+        );
+    }
+}
 fn later(a: &App, f: impl FnOnce(Shared) + 'static) {
     let owner = a.owner.clone();
     spawn_local(async move {
@@ -158,14 +169,14 @@ pub(super) fn event(a: &mut App, e: &PrivacyEvent) {
                 s.requests = *c;
             }
             if a.dialog == "privacy-requests" {
-                later(a, fetch_requests);
+                page(a, "requests", String::new());
             }
         }
         PrivacyEvent::GuildReports { guild_id, open } => {
             a.privacy.open_reports.insert(*guild_id, *open);
             if a.dialog == "server-reports" && a.guild == Some(*guild_id) {
                 let g = *guild_id;
-                later(a, move |app| fetch_queue(app, g));
+                page(a, "queue", g.0.to_string());
             }
         }
         PrivacyEvent::ReportUpdated(r) => {
@@ -1017,4 +1028,73 @@ fn fetch_queue(app: Shared, g: Id) {
             a.touch();
         }
     });
+}
+
+/// The privacy feature's one entry point (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    privacy,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    match call {
+        Call::Action(_, arg) => action(app, &arg),
+        Call::Submit(form) => submit(app, &form),
+        Call::Opened(name) => opened(app, &name),
+        Call::Other("requests", _) => fetch_requests(app),
+        Call::Other("queue", g) => {
+            if let Some(g) = id(&g) {
+                fetch_queue(app, g);
+            }
+        }
+        Call::Other("profile", user) => {
+            if let Some(u) = id(&user) {
+                profile_opened(app, u);
+            }
+        }
+
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// The privacy feature's state: its events, the answers to its commands.
+/// A separate, small split entry: keeping a feature's state current does not
+/// load its pages and forms (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    privacy_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    use features::{Call, Reply};
+    match call {
+        Call::Event(raw) => {
+            let Ok(e) = crate::inbound::feature::privacy_event(&raw.data) else {
+                return Ok(false);
+            };
+            event(&mut app.borrow_mut(), &e);
+        }
+        Call::Answer(Some(Command::Privacy(op)), reply) => {
+            let result = match reply {
+                Reply::Core(result) => result,
+                Reply::Raw(raw) => match crate::inbound::feature::privacy_result(&raw.data) {
+                    Ok(r) => CommandResult::Privacy(r),
+                    Err(()) => return Ok(false),
+                },
+            };
+            let mut a = app.borrow_mut();
+            answered(&mut a, &op, &result);
+            a.touch();
+        }
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// Dialogs whose opening this feature handles (`opened`).
+pub(super) fn owns_dialog(name: &str) -> bool {
+    matches!(name, "privacy-requests" | "privacy" | "server-reports")
 }

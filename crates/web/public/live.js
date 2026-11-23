@@ -6,6 +6,23 @@ import {installNav, navBeforeRender, navRestore} from './nav.js';
 const emit = (action) =>
   window.dispatchEvent(new CustomEvent("sticktalk-live", { detail: action }));
 const $ = (s) => document.querySelector(s);
+// Intent: pointing at or focusing a control downloads the module its action
+// needs (the app decides which, from the action), so the first press does not
+// wait for it. Once per kind of action; never on a metered or slow connection.
+const prefetched = new Set();
+let pointed = null;
+const prefetch = (event) => {
+  const control = event.target instanceof Element ? event.target.closest('[data-live]') : null;
+  if (!control || control === pointed) return;
+  pointed = control;
+  const action = control.dataset.live;
+  const kind = action.split(':')[0] === 'dialog' ? action.split(',')[0] : action.split(/[:,]/)[0];
+  if (prefetched.has(kind)) return;
+  prefetched.add(kind);
+  emit(`prefetch-for:${action}`);
+};
+document.addEventListener('pointerover', prefetch, { capture: true, passive: true });
+document.addEventListener('focusin', prefetch, { capture: true });
 // Things that cannot be taken back ask first, in the app's own dialog.
 const confirmations = [
   [/^delete:/, 'Delete this message?', 'This can’t be undone.', 'Delete'],
@@ -160,22 +177,72 @@ let probe;
 function canDraw(emoji) {
   if (drawable.has(emoji)) return drawable.get(emoji);
   probe ??= Object.assign(document.createElement('canvas'), {width: 24, height: 24}).getContext('2d', {willReadFrequently: true});
+  // The pixels as 32-bit words, compared word by word (a drawn glyph differs
+  // within the first few): no string of every pixel per emoji.
   const paint = (text) => {
     probe.clearRect(0, 0, 24, 24);
     probe.font = '16px sans-serif';
     probe.textBaseline = 'top';
     probe.fillText(text, 0, 2);
-    return probe.getImageData(0, 0, 24, 24).data.join();
+    return new Uint32Array(probe.getImageData(0, 0, 24, 24).data.buffer);
   };
+  const same = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; };
   if (!drawable.has('')) {
     const missing = paint('\u{10FFFF}');
     // Where even a plain smile is missing there is no emoji font to judge by.
-    drawable.set('', paint('\u{1F600}') === missing ? null : missing);
+    drawable.set('', same(paint('\u{1F600}'), missing) ? null : missing);
   }
   const missing = drawable.get('');
-  const ok = missing === null || paint(emoji) !== missing;
+  const ok = missing === null || !same(paint(emoji), missing);
   drawable.set(emoji, ok);
   return ok;
+}
+// Checking a glyph costs a software rasterization (about 1.5 ms per color
+// emoji), so it is not done while the picker is drawn: emoji already checked
+// are hidden at once, the rest in small batches when the browser is idle.
+const whenIdle = globalThis.requestIdleCallback ?? ((f) => setTimeout(f, 50));
+let glyphsQueued = false;
+function checkGlyphs() {
+  let unknown = false;
+  for (const button of document.querySelectorAll('.emoji-grid button')) {
+    const known = drawable.get(button.textContent);
+    if (known === false) button.hidden = true;
+    else if (known === undefined) unknown = true;
+  }
+  if (!unknown || glyphsQueued) return;
+  glyphsQueued = true;
+  whenIdle(() => {
+    glyphsQueued = false;
+    // The first check also paints the reference (a character no font has),
+    // which makes the browser look through every installed font: a task of
+    // its own, then batches of a few emoji, so none is a long task.
+    let checked = drawable.has('') ? 0 : (canDraw('\u{1F600}'), 8);
+    for (const button of document.querySelectorAll('.emoji-grid button')) {
+      if (checked >= 8) break;
+      if (drawable.has(button.textContent)) continue;
+      if (!canDraw(button.textContent)) button.hidden = true;
+      checked++;
+    }
+    if (checked) checkGlyphs();
+  }, { timeout: 1000 });
+}
+// The emoji picker draws its first rows; when the end of what is drawn nears
+// (within a few rows of the visible part) it asks for more. No scroll handler.
+let moreSeen = null, moreObserver = null;
+function watchMore() {
+  const more = $('[data-emoji-more]');
+  if (more === moreSeen) return;
+  moreObserver?.disconnect();
+  moreSeen = more;
+  if (!more) return;
+  let root = more.parentElement;
+  while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) root = root.parentElement;
+  moreObserver = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting) || !more.isConnected) return;
+    moreObserver.disconnect();
+    emit(more.dataset.emojiMore);
+  }, { root, rootMargin: '0px 0px 92px 0px' });
+  moreObserver.observe(more);
 }
 let saved,
   installed = false,
@@ -598,7 +665,8 @@ function restore() {
     }
   }
   placeQuestion();
-  for (const button of document.querySelectorAll('.emoji-grid button')) if (!canDraw(button.textContent)) button.hidden = true;
+  checkGlyphs();
+  watchMore();
   network();
   countMessage(input);
   // A toast is read and then gets out of the way.

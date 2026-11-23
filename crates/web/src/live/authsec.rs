@@ -20,3 +20,20 @@ pub(super) fn event(event: &Event) {
         let _ = window.dispatch_event(&e);
     }
 }
+
+/// The data export page's one entry point (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    authsec,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(_app: super::Shared, call: super::features::Call) -> super::features::Outcome {
+    if let super::features::Call::Event(raw) = call {
+        let Ok(export) = super::inbound::de(&raw.data) else {
+            return Ok(false);
+        };
+        event(&Event::DataExportUpdated(export));
+    }
+    Ok(true)
+}

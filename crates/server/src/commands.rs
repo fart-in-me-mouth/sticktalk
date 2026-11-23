@@ -756,10 +756,11 @@ pub(crate) async fn mutate(
     out: &mut Deliveries,
 ) -> Result<CommandResult> {
     use Command::*;
-    let adding_reaction = matches!(cmd, Command::AddReaction { .. });
+    // Boxed: each feature's future is large. Features call back into this
+    // function (a forum post sends its first message), so it stays small: the
+    // core commands' large frame is entered once per command, not once per
+    // nesting level (docs/features/perf.md, stack depth; `stack_tests`).
     match cmd {
-        // Boxed: each feature's future is large, and holding them all inline in
-        // this one overflowed a 2 MB stack in debug builds.
         Launch(cmd) => Box::pin(crate::launch::mutate(c, core, key, u, cmd, out)).await,
         Content(cmd) => Box::pin(crate::content::mutate(c, core, key, u, cmd, out)).await,
         Threads(cmd) => Box::pin(crate::threads::mutate(c, core, key, u, cmd, out)).await,
@@ -767,9 +768,25 @@ pub(crate) async fn mutate(
         Privacy(cmd) => Box::pin(crate::privacy::mutate(c, core, key, u, cmd, out)).await,
         Community(cmd) => Box::pin(crate::community::mutate(c, core, key, u, cmd, out)).await,
         Schedule(cmd) => Box::pin(crate::schedule::mutate(c, core, key, u, cmd, out)).await,
-        // Built and boxed in its own frame: this function's frame (on the deep
-        // send path) stays the size it was.
+        // Built and boxed in a frame of its own (`themes::boxed`).
         Appearance(cmd) => crate::themes::boxed(c, core, key, u, cmd, out).await,
+        cmd => Box::pin(core_mutate(c, core, key, u, cmd, out)).await,
+    }
+}
+/// The commands of the core protocol (`mutate` dispatches the features').
+async fn core_mutate(
+    c: &mut SqliteConnection,
+    core: &mut Core,
+    key: &[u8],
+    u: Id,
+    cmd: Command,
+    out: &mut Deliveries,
+) -> Result<CommandResult> {
+    use Command::*;
+    let adding_reaction = matches!(cmd, Command::AddReaction { .. });
+    match cmd {
+        Launch(_) | Content(_) | Threads(_) | Expression(_) | Privacy(_) | Community(_)
+        | Schedule(_) | Appearance(_) => Err(Error::new(ErrorCode::Internal)),
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();

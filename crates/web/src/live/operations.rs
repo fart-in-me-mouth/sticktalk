@@ -1,5 +1,11 @@
+use super::features::{Call, Feature, Reply};
 use super::*;
 use sha2::{Digest, Sha256};
+
+/// Hand a call to a lazily loaded feature (`features.rs`).
+fn feature(app: Shared, f: Feature, call: Call) {
+    super::features::spawn(app, f, call)
+}
 use sticktalk_client_core::{http::decode_json, upload::UploadSource, web::BlobSource};
 
 // Read the submitted surface synchronously, before loading the lazy command
@@ -281,8 +287,16 @@ pub(super) fn action(app: Shared, raw: &str) {
             {
                 return;
             }
-            super::community::invite_gate(app.clone(), code.clone());
-            super::stage::invite_preview(app.clone(), code.clone());
+            feature(
+                app.clone(),
+                Feature::Community,
+                Call::Other("gate", code.clone()),
+            );
+            feature(
+                app.clone(),
+                Feature::Stage,
+                Call::Other("invite", code.clone()),
+            );
             spawn_local(async move {
                 let found = http
                     .json::<Snapshot<InvitePreview>>(&format!("/invites/{code}/preview"))
@@ -342,17 +356,49 @@ pub(super) fn action(app: Shared, raw: &str) {
                 None => action(app, "home"),
             }
         }
-        "mod" => super::moderation::action(app, arg),
-        "profiles" => super::profiles::action(app, arg),
-        "stage" => super::stage::action(app, arg),
-        "submit" if super::stage::FORMS.contains(&arg) => super::stage::submit(app, arg),
-        "submit" if super::profiles::FORMS.contains(&arg) => super::profiles::submit(app, arg),
-        "privacy" => super::privacy::action(app, arg),
-        "appearance" => super::themes::action(app, arg),
-        "submit" if arg.starts_with("privacy-") => super::privacy::submit(app, arg),
-        "cm" => super::community::action(app, arg),
-        "submit" if arg.starts_with("cm-") => super::community::submit(app, arg),
-        "submit" if arg.starts_with("mod-") => super::moderation::submit(app, arg),
+        "mod" => feature(
+            app,
+            Feature::Moderation,
+            Call::Action(kind.into(), arg.into()),
+        ),
+        "profiles" => feature(
+            app,
+            Feature::Profiles,
+            Call::Action(kind.into(), arg.into()),
+        ),
+        "submit" if super::profiles::FORMS.contains(&arg) => {
+            feature(app, Feature::Profiles, Call::Submit(arg.into()))
+        }
+        "privacy" => feature(app, Feature::Privacy, Call::Action(kind.into(), arg.into())),
+        "submit" if arg.starts_with("privacy-") => {
+            feature(app, Feature::Privacy, Call::Submit(arg.into()))
+        }
+        "submit" if arg.starts_with("mod-") => {
+            feature(app, Feature::Moderation, Call::Submit(arg.into()))
+        }
+        // Hover or focus on a feature's entry point: download its module.
+        "prefetch" => {
+            if let Some(f) = super::features::from_name(arg) {
+                super::features::prefetch(f);
+            }
+        }
+        // Hover or focus on any control (public/live.js): download what its
+        // action will need, decided by the same rules as the action itself.
+        "prefetch-for" => prefetch_for(arg),
+        "stage" => feature(app, Feature::Stage, Call::Action(kind.into(), arg.into())),
+        "submit" if super::stage::FORMS.contains(&arg) => {
+            feature(app, Feature::Stage, Call::Submit(arg.into()))
+        }
+        "appearance" if super::themes::local(&app, arg) => {}
+        "appearance" => feature(app, Feature::Themes, Call::Action(kind.into(), arg.into())),
+        "cm" => feature(
+            app,
+            Feature::Community,
+            Call::Action(kind.into(), arg.into()),
+        ),
+        "submit" if arg.starts_with("cm-") => {
+            feature(app, Feature::Community, Call::Submit(arg.into()))
+        }
         "pins-refresh" => {
             let (epoch, generation) = {
                 let a = app.borrow();
@@ -493,9 +539,15 @@ pub(super) fn action(app: Shared, raw: &str) {
         // The page has already hidden the note. No render here: one would race
         // with the typing that caused it.
         "saved-clear" => app.borrow_mut().saved = None,
-        "submit" if super::content::FORMS.contains(&arg) => super::content::submit(app, arg),
-        "submit" if super::threads::FORMS.contains(&arg) => super::threads::submit(app, arg),
-        "submit" if super::expression::FORMS.contains(&arg) => super::expression::submit(app, arg),
+        "submit" if super::content::FORMS.contains(&arg) => {
+            feature(app, Feature::Content, Call::Submit(arg.into()))
+        }
+        "submit" if super::threads::FORMS.contains(&arg) => {
+            feature(app, Feature::Threads, Call::Submit(arg.into()))
+        }
+        "submit" if super::expression::FORMS.contains(&arg) => {
+            feature(app, Feature::Expression, Call::Submit(arg.into()))
+        }
         "submit" => {
             app.borrow_mut().saved = None;
             let submission = Submission::capture(&app.borrow());
@@ -637,7 +689,11 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.touch();
         }
         "profile" => {
-            super::profiles::card_requested(app.clone(), arg);
+            feature(
+                app.clone(),
+                Feature::Profiles,
+                Call::Other("card", arg.into()),
+            );
             let epoch = app.borrow().epoch;
             let arg = arg.to_owned();
             spawn_local(async move {
@@ -691,7 +747,10 @@ pub(super) fn action(app: Shared, raw: &str) {
                 voice_action(app, kind, arg, epoch).await;
             });
         }
-        "call" => super::calls::action(app, arg),
+        "call" => {
+            let arg = arg.to_owned();
+            spawn_local(async move { super::calls::action(app, arg).await });
+        }
         "media" => media_action(arg),
         "media-error" => fail(&app, arg.into()),
         "upload" | "avatar-upload" | "guild-icon-upload" => {
@@ -746,12 +805,20 @@ pub(super) fn action(app: Shared, raw: &str) {
             }
         }
         "read" => mark_read(&app),
-        k if k.starts_with("nav-") => super::nav::action(app, k, arg),
-        kind if super::content::ACTIONS.contains(&kind) => super::content::action(app, kind, arg),
-        kind if super::threads::ACTIONS.contains(&kind) => super::threads::action(app, kind, arg),
-        kind if super::expression::ACTIONS.contains(&kind) => {
-            super::expression::action(app, kind, arg)
+        k if k.starts_with("nav-") => {
+            feature(app, Feature::Nav, Call::Action(k.into(), arg.into()))
         }
+        kind if super::content::ACTIONS.contains(&kind) => {
+            feature(app, Feature::Content, Call::Action(kind.into(), arg.into()))
+        }
+        kind if super::threads::ACTIONS.contains(&kind) => {
+            feature(app, Feature::Threads, Call::Action(kind.into(), arg.into()))
+        }
+        kind if super::expression::ACTIONS.contains(&kind) => feature(
+            app,
+            Feature::Expression,
+            Call::Action(kind.into(), arg.into()),
+        ),
         _ => {}
     }
 }
@@ -1258,14 +1325,23 @@ fn open_dialog(app: Shared, name: &str) {
         a.error.clear();
         a.touch();
     }
-    super::content::opened(app.clone(), name);
-    super::expression::opened(app.clone(), name);
-    super::community::opened(app.clone(), name);
+    // Only the feature a dialog belongs to is loaded for it.
+    let owners = [
+        (super::content::owns_dialog(name), Feature::Content),
+        (super::expression::owns_dialog(name), Feature::Expression),
+        (super::moderation::owns_dialog(name), Feature::Moderation),
+        (name == "profile-edit", Feature::Profiles),
+        (super::privacy::owns_dialog(name), Feature::Privacy),
+        (super::community::owns_dialog(name), Feature::Community),
+        (super::themes::owns_dialog(name), Feature::Themes),
+    ];
+    for (owned, f) in owners {
+        if owned {
+            feature(app.clone(), f, Call::Opened(name.into()));
+        }
+    }
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
-    super::moderation::opened(app.clone(), name);
-    super::profiles::opened(app.clone(), name);
-    super::privacy::opened(app.clone(), name);
     let name = name.to_owned();
     spawn_local(async move {
         dialog_data(app, name, epoch, generation).await;
@@ -1291,6 +1367,9 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
     let channel = app.borrow().channel;
     let after = app.borrow().admin_after;
     spawn_local(async move {
+        // Whether anything was fetched: a dialog with nothing to fetch (the
+        // emoji picker) is not drawn a second time for nothing.
+        let mut fetched = true;
         let result: Result<(), String> = async {
             match name.as_str() {
                 "server" | "server-overview" => {
@@ -1468,7 +1547,7 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
                         data: sticktalk_client_core::settings::SnapshotData::Notifications(p.data),
                     });
                 }
-                _ => {}
+                _ => fetched = false,
             }
             Ok(())
         }
@@ -1476,10 +1555,10 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
         if app.borrow().epoch != epoch || app.borrow().dialog_generation != generation {
             return;
         }
-        app.borrow_mut().admin_busy = false;
+        let busy = std::mem::replace(&mut app.borrow_mut().admin_busy, false);
         if let Err(e) = result {
             fail(&app, e)
-        } else {
+        } else if fetched || busy {
             app.borrow().touch();
         }
     });
@@ -1924,12 +2003,24 @@ fn saved_form(command: &Command) -> Option<&'static str> {
     }
 }
 // Loaded with the first command a person sends, not with the login screen.
+// The socket waits for it, so a feature's answer keeps the server's order.
 #[lazy]
-pub(super) fn response(app: Shared, response: CommandResponse) {
+pub(super) async fn response(app: Shared, response: crate::inbound::Response) {
+    // Answers a feature handles are handed over after the app is released.
+    if let Some((f, operation, reply)) = respond(&app, response) {
+        answer(app, f, operation, reply).await;
+    }
+}
+/// Everything about an answer the core does itself. Returns the feature that
+/// takes it from here, if any.
+fn respond(
+    app: &Shared,
+    response: crate::inbound::Response,
+) -> Option<(Feature, Option<Command>, Reply)> {
     let mut a = app.borrow_mut();
     let pending = a.pending.remove(&response.nonce);
     match response.outcome {
-        CommandOutcome::Err(error) => {
+        Err(error) => {
             if let Some(draft) = super::content::draft_of(pending.as_ref().map(|(c, _)| c)) {
                 media_action(&format!(
                     "restore-draft:{}:{}",
@@ -1959,7 +2050,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                         | Command::Privacy(PrivacyCommand::Subscribe)
                 )
             ) {
-                return;
+                return None;
             }
             a.error = match (operation, error.code) {
                 (Some(Command::SendFriendRequest { .. }), ErrorCode::NotFound) => {
@@ -2001,30 +2092,56 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             };
             a.touch();
         }
-        CommandOutcome::Ok(result) => {
+        Ok(result) => {
             let operation = pending.map(|(c, _)| c);
-            if let Some(op) = operation
-                .clone()
-                .filter(|op| super::moderation::owns(op, &a.dialog))
+            // Nothing to do for this one (moderation's `answered` ignores it):
+            // do not load moderation at sign-in for it.
+            if matches!(
+                operation,
+                Some(Command::Launch(LaunchCommand::Moderation(
+                    ModerationCommand::Subscribe
+                )))
+            ) {
+                return None;
+            }
+            let (reply, owner) = match result {
+                crate::inbound::Routed::Core(r) => (Reply::Core(r), None),
+                crate::inbound::Routed::Feature(f, raw) => (Reply::Raw(raw), Some(f)),
+            };
+            // Nothing to do for these either (an Ack), and the library after
+            // Ready is kept undecoded when there is nothing to paint.
+            let no_events = matches!(
+                (&operation, &reply),
+                (Some(Command::Schedule(ScheduleCommand::Subscribe)), Reply::Raw(raw))
+                    if raw.data == crate::wire::EMPTY_EVENT_SUMMARY
+            );
+            if no_events {
+                a.stage.summaries.clear();
+            }
+            if no_events
+                || matches!(
+                    operation,
+                    Some(Command::Community(CommunityCommand::Subscribe))
+                )
+                || matches!(
+                    (&operation, &reply),
+                    (Some(Command::Appearance(AppearanceCommand::Subscribe)), Reply::Raw(raw))
+                        if super::themes::subscribed(&mut a, raw)
+                )
             {
-                drop(a);
-                super::moderation::answered(app, op, result);
-                return;
+                return None;
             }
-            if let Some(op) = operation.clone().filter(super::community::owns) {
+            // The feature that handles this answer, if any (it decodes its own result).
+            let handler = match &operation {
+                Some(op) if super::moderation::owns(op, &a.dialog) => Some(Feature::Moderation),
+                Some(op) if super::community::owns(op) => Some(Feature::Community),
+                Some(op) if super::expression::owns(op) => Some(Feature::Expression),
+                Some(op) if super::profiles::owns(op) => Some(Feature::Profiles),
+                _ => None,
+            };
+            if let Some(f) = handler {
                 drop(a);
-                super::community::answered(app, op, result);
-                return;
-            }
-            if let Some(op) = operation.clone().filter(super::expression::owns) {
-                drop(a);
-                super::expression::answered(app, op, result);
-                return;
-            }
-            if let Some(op) = operation.clone().filter(super::profiles::owns) {
-                drop(a);
-                super::profiles::answered(app, op);
-                return;
+                return Some((f, operation, reply));
             }
             a.error.clear();
             a.notice.clear();
@@ -2066,8 +2183,8 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             {
                 a.touch();
                 drop(a);
-                action(app, "dialog:devices");
-                return;
+                action(app.clone(), "dialog:devices");
+                return None;
             }
             // An admin page's save returns to the list it came from, not out of settings.
             let back = match &operation {
@@ -2085,37 +2202,36 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             };
             if let Some(page) = back.filter(|_| !a.dialog.is_empty()) {
                 drop(a);
-                open_dialog(app, page);
-                return;
+                open_dialog(app.clone(), page);
+                return None;
             }
-            if let Some(Command::Privacy(op)) = &operation {
-                super::privacy::answered(&mut a, op, &result);
+            let handler = match (&operation, owner) {
+                (Some(Command::Privacy(_)), _) => Some(Feature::Privacy),
+                (_, Some(f @ (Feature::Content | Feature::Threads))) => Some(f),
+                _ => None,
+            };
+            if let Some(f) = handler {
                 a.touch();
-                return;
-            }
-            if let Some(Command::Appearance(op)) = operation
-                .as_ref()
-                .filter(|op| !matches!(op, Command::Appearance(AppearanceCommand::SendTts(_))))
-            {
-                super::themes::answered(&mut a, op, &result);
-                a.touch();
-                return;
-            }
-            if let CommandResult::Content(result) = result {
-                super::content::answered(&mut a, operation.as_ref(), result);
-                a.touch();
-                return;
-            }
-            if let CommandResult::Threads(result) = result {
                 drop(a);
-                super::threads::answered(app, operation.as_ref(), result);
-                return;
+                return Some((f, operation, reply));
             }
-            if let CommandResult::Schedule(result) = result {
+            // A `/tts` message is answered with the message, as any message is.
+            let handler = match (&operation, owner) {
+                (Some(Command::Appearance(AppearanceCommand::SendTts(_))), _) => None,
+                (Some(Command::Appearance(_)), _) => Some(Feature::Themes),
+                (_, Some(Feature::Stage)) => Some(Feature::Stage),
+                _ => None,
+            };
+            if let Some(f) = handler {
+                a.touch();
                 drop(a);
-                super::stage::answered(app, operation.as_ref(), result);
-                return;
+                return Some((f, operation, reply));
             }
+            // Another feature's result that no feature claims: as for an Ack.
+            let result = match reply {
+                Reply::Core(result) => result,
+                Reply::Raw(_) => CommandResult::Ack,
+            };
             match result {
                 CommandResult::Message(message) => {
                     // Responses identify the committed operation; only events may
@@ -2139,34 +2255,34 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     let id = c.summary.id;
                     if !a.model.channels.contains_key(&id) {
                         a.touch();
-                        return;
+                        return None;
                     }
                     a.dialog.clear();
                     a.touch();
                     // A category holds channels; it has no messages to open.
                     if c.summary.kind == ChannelKind::Category {
-                        return;
+                        return None;
                     }
                     drop(a);
-                    load_channel(app, id, None);
-                    return;
+                    load_channel(app.clone(), id, None);
+                    return None;
                 }
                 CommandResult::Guild(g) => {
                     if matches!(operation, Some(Command::UpdateGuild { .. })) {
                         a.touch();
-                        return;
+                        return None;
                     }
                     let id = g.summary.guild.id;
                     if !a.model.guilds.contains_key(&id) {
                         a.touch();
-                        return;
+                        return None;
                     }
                     a.guild = Some(id);
                     a.dialog.clear();
                     a.touch();
                     drop(a);
-                    action(app, &format!("guild:{id}", id = id.0));
-                    return;
+                    action(app.clone(), &format!("guild:{id}", id = id.0));
+                    return None;
                 }
                 CommandResult::Invite(_) => {
                     // The authorized InviteUpsert event owns the current code.
@@ -2214,6 +2330,77 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             a.touch();
         }
     }
+    None
+}
+/// The modules an action will load, fetched ahead of the press.
+fn prefetch_for(action: &str) {
+    if !super::features::fast_connection() {
+        return;
+    }
+    let (kind, arg) = action.split_once(':').unwrap_or((action, ""));
+    let owner = match kind {
+        "dialog" => {
+            spawn_local(super::ui::__preload_load_dialog());
+            spawn_local(__preload_dialog_data());
+            // A feature's pages are in its own view module.
+            if super::community::owns_dialog(arg) && arg != "create" {
+                spawn_local(super::ui::__preload_load_community_dialog());
+            } else if super::stage::owns_dialog(arg) {
+                spawn_local(super::ui::__preload_load_stage_dialog());
+            } else if super::themes::owns_dialog(arg) {
+                spawn_local(super::ui::__preload_load_themes_page());
+            }
+            [
+                (super::content::owns_dialog(arg), Feature::Content),
+                (super::expression::owns_dialog(arg), Feature::Expression),
+                (super::moderation::owns_dialog(arg), Feature::Moderation),
+                (arg == "profile-edit", Feature::Profiles),
+                (super::privacy::owns_dialog(arg), Feature::Privacy),
+                (arg.starts_with("nav-"), Feature::Nav),
+                (super::community::owns_dialog(arg), Feature::Community),
+                (super::stage::owns_dialog(arg), Feature::Stage),
+                (super::themes::owns_dialog(arg), Feature::Themes),
+            ]
+            .into_iter()
+            .find_map(|(owned, f)| owned.then_some(f))
+        }
+        "call" => {
+            spawn_local(super::calls::__preload_action());
+            None
+        }
+        "voice" | "signal" | "signal-request" => {
+            spawn_local(__preload_voice_action());
+            None
+        }
+        "mod" => Some(Feature::Moderation),
+        "profiles" | "profile" => Some(Feature::Profiles),
+        "privacy" => Some(Feature::Privacy),
+        "cm" => Some(Feature::Community),
+        "stage" => Some(Feature::Stage),
+        "appearance" => Some(Feature::Themes),
+        k if k.starts_with("nav-") => Some(Feature::Nav),
+        k if super::content::ACTIONS.contains(&k) => Some(Feature::Content),
+        k if super::threads::ACTIONS.contains(&k) => Some(Feature::Threads),
+        k if super::expression::ACTIONS.contains(&k) => Some(Feature::Expression),
+        _ => None,
+    };
+    if let Some(f) = owner {
+        super::features::prefetch(f);
+    }
+}
+/// Hand an answer to the feature that handles it, and wait for it.
+async fn answer(app: Shared, f: Feature, operation: Option<Command>, reply: Reply) {
+    let owner = Rc::downgrade(&app);
+    if super::features::run(app, f, Call::Answer(operation, reply))
+        .await
+        .is_err()
+    {
+        if let Some(app) = owner.upgrade() {
+            let mut a = app.borrow_mut();
+            a.error = "That didn’t load. Check your connection and try again.".into();
+            a.touch();
+        }
+    }
 }
 /// After every fresh snapshot. The member list and presence subscription were
 /// reset with it, and a new session tells the server what device it is.
@@ -2233,10 +2420,10 @@ pub(super) fn ready(app: Shared) {
         }));
     }
     drop(a);
-    super::content::ready(app.clone());
     super::threads::ready(app.clone());
+    feature(app.clone(), Feature::Content, Call::Ready);
     super::community::ready(app.clone());
-    super::expression::ready(app);
+    feature(app, Feature::Expression, Call::Ready);
 }
 /// While the server cannot be reached and nobody is signed in, look again.
 pub(super) fn retry_recover(app: Shared) {
@@ -2334,7 +2521,7 @@ pub(super) fn gif_search(app: Shared, query: String, epoch: u64) {
                 .await
                 .map_err(|_| "GIF provider unavailable. Try again later.".to_string())
                 .and_then(|v| {
-                    serde_json::from_str::<GifPage>(&v.as_string().unwrap_or_default())
+                    serde_json::from_slice::<GifPage>(v.as_string().unwrap_or_default().as_bytes())
                         .map_err(|_| "Invalid GIF response".into())
                 });
                 if app.borrow().privacy_generation != privacy {
@@ -2747,7 +2934,11 @@ fn profile_request(app: Shared, arg: String, epoch: u64) {
                     a.dialog = "profile".into();
                     a.touch();
                     drop(a);
-                    super::privacy::profile_opened(app.clone(), u);
+                    feature(
+                        app.clone(),
+                        Feature::Privacy,
+                        Call::Other("profile", u.0.to_string()),
+                    );
                 }
                 Err(e) => fail(&app, e),
             }

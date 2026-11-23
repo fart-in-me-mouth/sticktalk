@@ -12,17 +12,15 @@ use std::cell::Cell;
 
 #[wasm_bindgen(raw_module = "/public/preferences.js")]
 extern "C" {
-    #[wasm_bindgen(js_name = preferencesJson)]
-    fn prefs_json() -> String;
+    #[wasm_bindgen(js_name = preferencesLine)]
+    fn prefs_line() -> String;
     #[wasm_bindgen(js_name = applyTheme)]
     fn js_apply_theme(kind: &str, id: &str, css: &str, color: &str, dark: bool, gradient: bool);
     #[wasm_bindgen(js_name = applyServerTheme)]
     fn js_server_theme(css: &str, color: &str, dark: bool, gradient: bool);
     #[wasm_bindgen(js_name = systemLight)]
     fn js_system_light() -> bool;
-}
-#[wasm_bindgen(raw_module = "/public/speech.js")]
-extern "C" {
+    /// Speech synthesis: `speech.js` is imported with the first thing spoken.
     #[wasm_bindgen(js_name = speak)]
     fn js_speak(text: &str, rate: f64);
     #[wasm_bindgen(js_name = deafened)]
@@ -30,8 +28,7 @@ extern "C" {
 }
 
 /// The preferences Rust needs (the rest are applied by `preferences.js`).
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[derive(Debug, Clone)]
 pub(super) struct Prefs {
     pub theme: String,
     pub theme_id: String,
@@ -78,8 +75,36 @@ pub(super) fn prefs() -> Prefs {
     }
     PREFS.with(|p| p.borrow().clone())
 }
+/// Read from `preferences.js` as one tab-separated line in a fixed order (its
+/// values are normalized there and hold no tabs): a JSON decoder for these
+/// thirteen fields was 9 KB of the core.
 fn reload_prefs() {
-    let p = serde_json::from_str::<Prefs>(&prefs_json()).unwrap_or_default();
+    let line = prefs_line();
+    let f: Vec<&str> = line.split('\t').collect();
+    let p = if f.len() == 13 {
+        let on = |i: usize| f[i] == "1";
+        let d = Prefs::default();
+        Prefs {
+            theme: f[0].into(),
+            theme_id: f[1].into(),
+            theme_code: f[2].into(),
+            // Whole numbers only: parsing a float would bring Rust's float parser.
+            saturation: f[3].parse::<u8>().map_or(d.saturation, f64::from),
+            saturation_custom: on(4),
+            contrast_boost: on(5),
+            tts_playback: on(6),
+            tts_notify: f[7].into(),
+            tts_rate: f[8]
+                .parse::<u16>()
+                .map_or(d.tts_rate, |r| f64::from(r) / 100.0),
+            streamer: on(9),
+            streamer_popups: on(10),
+            streamer_sounds: on(11),
+            app_icon: f[12].into(),
+        }
+    } else {
+        Prefs::default()
+    };
     PREFS.with(|x| *x.borrow_mut() = p);
     LOADED.with(|l| l.set(true));
 }
@@ -96,6 +121,11 @@ pub(super) fn logo() -> String {
 #[derive(Default)]
 pub(super) struct State {
     pub library: Option<ThemeLibrary>,
+    /// The library as the server sent it after Ready, not decoded yet: with
+    /// no server themes and no custom theme in use there is nothing to paint,
+    /// so the themes module is not loaded for it (docs/features/perf.md).
+    /// Decoded when the module loads for anything else.
+    unread: Option<crate::inbound::Raw>,
     /// The theme editor's draft: which saved theme it edits (None: a new one).
     pub draft: Option<Draft>,
     /// A theme from a share code or link, being previewed.
@@ -190,7 +220,7 @@ fn apply_personal(a: &App, kind: &str, id: &str) {
     force_server_sync();
 }
 /// Apply the current choice again (preferences changed, library arrived).
-pub(super) fn refresh(a: &App) {
+fn refresh(a: &App) {
     reload_prefs();
     let p = prefs();
     let id = if p.theme == "shared" {
@@ -203,24 +233,39 @@ pub(super) fn refresh(a: &App) {
 fn force_server_sync() {
     SERVER_APPLIED.with(|s| *s.borrow_mut() = None);
 }
+/// The server theme to show now: that of the server in view, unless the
+/// viewer turned server themes off.
+fn server_theme(a: &App) -> Option<ThemeChoice> {
+    let g = a.guild?;
+    let lib = a.themes.library.as_ref()?;
+    lib.settings
+        .shows(g)
+        .then(|| lib.servers.iter().find(|s| s.guild_id == g))
+        .flatten()
+        .map(|s| s.theme.clone())
+}
 /// Called while rendering: shows the server's theme while that server is in
 /// view (and the viewer has not turned server themes off). Cheap when
-/// nothing changed; calls into JS only on a change.
+/// nothing changed; a theme to paint is derived in this feature's state module.
 pub(super) fn sync(a: &App) {
-    let theme = a.guild.and_then(|g| {
-        let lib = a.themes.library.as_ref()?;
-        lib.settings
-            .shows(g)
-            .then(|| lib.servers.iter().find(|s| s.guild_id == g))
-            .flatten()
-            .map(|s| s.theme.clone())
-    });
+    let theme = server_theme(a);
     let key = theme.as_ref().map(|t| format!("{t:?}")).unwrap_or_default();
     if SERVER_APPLIED.with(|s| s.borrow().as_deref() == Some(key.as_str())) {
         return;
     }
     SERVER_APPLIED.with(|s| *s.borrow_mut() = Some(key));
-    match theme.and_then(|t| t.spec()) {
+    match (theme, a.owner.upgrade()) {
+        (Some(_), Some(app)) => features::defer(
+            app,
+            features::Feature::Themes,
+            features::Call::State("server-paint", String::new()),
+        ),
+        _ => js_server_theme("", "", true, false),
+    }
+}
+/// Paint the server theme in view (after `sync` saw it change).
+fn paint_server(a: &App) {
+    match server_theme(a).and_then(|t| t.spec()) {
         Some(spec) => {
             let p = prefs();
             let adj = adjust(&p, true);
@@ -232,19 +277,60 @@ pub(super) fn sync(a: &App) {
 }
 
 /// After every Ready: opt in to theme events; the answer is the library.
+/// In the core: a theme link is parsed by this feature's `run` module.
 pub(super) fn connected(app: Shared) {
-    let mut a = app.borrow_mut();
-    a.command(Command::Appearance(AppearanceCommand::Subscribe));
-    // A theme link opened before signing in (`?theme=<code>`).
-    if a.themes.shared.is_none() {
-        if let Some(code) = shared_from_location() {
-            if let Ok(shared) = parse_share_code(&code) {
-                a.themes.shared = Some(shared);
-                a.dialog = "theme-shared".into();
-                a.dialog_generation = a.dialog_generation.wrapping_add(1);
-                a.touch();
-            }
+    let link = {
+        let mut a = app.borrow_mut();
+        a.command(Command::Appearance(AppearanceCommand::Subscribe));
+        a.themes.unread = None;
+        // A theme link opened before signing in (`?theme=<code>`).
+        if a.themes.shared.is_none() {
+            shared_from_location()
+        } else {
+            None
         }
+    };
+    if let Some(code) = link {
+        features::spawn(
+            app,
+            features::Feature::Themes,
+            features::Call::Other("shared-link", code),
+        );
+    }
+}
+/// The answer to the Subscribe after Ready: true when the core keeps it
+/// undecoded because nothing needs painting (no server themes, and the
+/// chosen theme is not a custom one that may have changed on another device).
+pub(super) fn subscribed(a: &mut App, raw: &crate::inbound::Raw) -> bool {
+    #[derive(serde::Deserialize)]
+    struct Shape {
+        #[serde(default)]
+        servers: Vec<serde::de::IgnoredAny>,
+    }
+    let shape = crate::inbound::tagged(&raw.data)
+        .ok()
+        .filter(|(tag, _)| *tag == "library")
+        .and_then(|(_, data)| crate::inbound::de::<Shape>(data?).ok());
+    let idle = shape.is_some_and(|s| s.servers.is_empty())
+        && prefs().theme != "custom"
+        && a.themes.library.is_none();
+    if idle {
+        a.themes.unread = Some(raw.clone());
+    }
+    idle
+}
+/// Decode the library the core kept (the module is loaded for something else now).
+fn adopt(app: &Shared) {
+    let Some(raw) = app.borrow_mut().themes.unread.take() else {
+        return;
+    };
+    if let Ok(AppearanceResult::Library(lib)) =
+        crate::inbound::feature::appearance_result(&raw.data)
+    {
+        let mut a = app.borrow_mut();
+        a.themes.library = Some(*lib);
+        force_server_sync();
+        a.touch();
     }
 }
 fn shared_from_location() -> Option<String> {
@@ -270,7 +356,7 @@ fn library_changed(a: &mut App, lib: ThemeLibrary) {
         refresh(a);
     }
 }
-pub(super) fn event(a: &mut App, e: &AppearanceEvent) {
+fn event(a: &mut App, e: &AppearanceEvent) {
     match e {
         AppearanceEvent::Library(lib) => library_changed(a, (**lib).clone()),
         AppearanceEvent::Tts {
@@ -292,7 +378,7 @@ pub(super) fn event(a: &mut App, e: &AppearanceEvent) {
     }
 }
 /// A command of ours was answered.
-pub(super) fn answered(a: &mut App, op: &AppearanceCommand, result: &CommandResult) {
+fn answered(a: &mut App, op: &AppearanceCommand, result: &CommandResult) {
     let CommandResult::Appearance(AppearanceResult::Library(lib)) = result else {
         return;
     };
@@ -397,8 +483,23 @@ fn open(a: &mut App, page: &str) {
     a.touch();
 }
 
+/// The Appearance actions that only read the device preferences again (a
+/// setting such as Streamer Mode or text-to-speech changed, or the app icon):
+/// done in the core, so Streamer Mode's shortcut does not load this module.
+pub(super) fn local(app: &Shared, arg: &str) -> bool {
+    match arg {
+        // No render: the control already shows the choice.
+        "prefs" => reload_prefs(),
+        "icon" => {
+            reload_prefs();
+            app.borrow().touch();
+        }
+        _ => return false,
+    }
+    true
+}
 /// `appearance:<what>,<args>` actions from the views and `preferences.js`.
-pub(super) fn action(app: Shared, arg: &str) {
+fn action(app: Shared, arg: &str) {
     let (what, rest) = arg.split_once(',').unwrap_or((arg, ""));
     match what {
         // A theme radio: "dark", "light", "darker", "system", "preset:id", "custom:id".
@@ -408,15 +509,9 @@ pub(super) fn action(app: Shared, arg: &str) {
             apply_personal(&a, kind, id);
             // No render: the radio already shows the choice.
         }
-        // A device preference changed (TTS, Streamer Mode): read them again, no render.
-        "prefs" => reload_prefs(),
         "refresh" => {
             let a = app.borrow();
             refresh(&a);
-        }
-        "icon" => {
-            reload_prefs();
-            app.borrow().touch();
         }
         "edit" => {
             let mut a = app.borrow_mut();
@@ -736,11 +831,31 @@ fn quiet(a: &App) -> bool {
     super::privacy::status(a) == PresenceStatus::Dnd || (a.voice_channel.is_some() && js_deafened())
 }
 /// A message arrived: with TTS notifications, read every message in the
-/// conversation in view.
+/// conversation in view. In the core, so it only checks the setting; the
+/// reading is done in this feature's state module.
 pub(super) fn message_created(a: &App, m: &Message) {
+    if a.channel != Some(m.channel_id) || !matches!(prefs().tts_notify.as_str(), "channel" | "all")
+    {
+        return;
+    }
+    if let Some(app) = a.owner.upgrade() {
+        features::defer(
+            app,
+            features::Feature::Themes,
+            features::Call::State("speak", format!("{},{}", m.channel_id.0, m.id.0)),
+        );
+    }
+}
+fn message_spoken(a: &App, arg: &str) {
     let p = prefs();
+    let Some((c, m)) = arg
+        .split_once(',')
+        .and_then(|(c, m)| Some((id(c)?, id(m)?)))
+    else {
+        return;
+    };
     if matches!(p.tts_notify.as_str(), "channel" | "all") {
-        speak_message(a, m.channel_id, m.id, &p);
+        speak_message(a, c, m, &p);
     }
 }
 /// A `/tts` message (after its `MessageCreated`): read to people viewing it
@@ -781,11 +896,23 @@ fn speak_message(a: &App, channel: Id, message: Id, p: &Prefs) {
 /// An alert for another conversation (privacy.rs): read it with TTS
 /// notifications for all channels.
 pub(super) fn alert_spoken(a: &App, channel: Id, title: &str, body: &str) {
-    let p = prefs();
-    if p.tts_notify != "all" || a.channel == Some(channel) || quiet(a) {
+    if prefs().tts_notify != "all" || a.channel == Some(channel) {
         return;
     }
-    js_speak(&format!("{title}: {}", spoken(body)), p.tts_rate);
+    if let Some(app) = a.owner.upgrade() {
+        features::defer(
+            app,
+            features::Feature::Themes,
+            features::Call::State("speak-alert", format!("{title}\n{body}")),
+        );
+    }
+}
+fn alert_read(a: &App, text: &str) {
+    let p = prefs();
+    let (title, body) = text.split_once('\n').unwrap_or((text, ""));
+    if p.tts_notify == "all" && !quiet(a) {
+        js_speak(&format!("{title}: {}", spoken(body)), p.tts_rate);
+    }
 }
 /// Notification popups and sounds, with Streamer Mode's choices applied.
 pub(super) fn alerts_allowed() -> (bool, bool) {
@@ -806,4 +933,79 @@ pub(super) fn tts_command(cmd: Command) -> Command {
         }
         other => other,
     }
+}
+
+/// The theme editor, presets, share codes, Appearance actions (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    themes,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    adopt(&app);
+    match call {
+        Call::Action(_, arg) => action(app, &arg),
+        Call::Other("shared-link", code) => {
+            if let Ok(shared) = parse_share_code(&code) {
+                let mut a = app.borrow_mut();
+                a.themes.shared = Some(shared);
+                a.dialog = "theme-shared".into();
+                a.dialog_generation = a.dialog_generation.wrapping_add(1);
+                a.touch();
+            }
+        }
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// The theme library and painting (personal and server themes), the
+/// theme events, and text-to-speech.
+#[leptos::wasm_split::wasm_split(
+    themes_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    use features::{Call, Reply};
+    adopt(&app);
+    match call {
+        Call::Event(raw) => {
+            let Ok(e) = crate::inbound::feature::appearance_event(&raw.data) else {
+                return Ok(false);
+            };
+            let mut a = app.borrow_mut();
+            event(&mut a, &e);
+            a.touch();
+        }
+        Call::Answer(Some(Command::Appearance(op)), Reply::Raw(raw)) => {
+            let Ok(r) = crate::inbound::feature::appearance_result(&raw.data) else {
+                return Ok(false);
+            };
+            let mut a = app.borrow_mut();
+            answered(&mut a, &op, &CommandResult::Appearance(r));
+            a.touch();
+        }
+        Call::State("server-paint", _) => paint_server(&app.borrow()),
+        Call::State("speak", arg) => message_spoken(&app.borrow(), &arg),
+        Call::State("speak-alert", text) => alert_read(&app.borrow(), &text),
+        _ => {}
+    }
+    Ok(true)
+}
+/// The Appearance pages: opening one loads this feature (and decodes the
+/// library the core kept, which the pages list).
+pub(super) fn owns_dialog(name: &str) -> bool {
+    matches!(
+        name,
+        "appearance"
+            | "accessibility"
+            | "streamer"
+            | "theme-editor"
+            | "theme-shared"
+            | "server-theme"
+            | "server-theme-editor"
+    )
 }
