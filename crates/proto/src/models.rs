@@ -91,6 +91,10 @@ pub struct Guild {
     pub name: String,
     pub icon_id: Option<AttachmentId>,
     pub member_count: u32,
+    /// Banner, icon animation and tag visibility (`identity.rs`). Boxed:
+    /// most servers have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<Box<crate::GuildLook>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

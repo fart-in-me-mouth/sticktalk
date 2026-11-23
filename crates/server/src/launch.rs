@@ -699,11 +699,8 @@ pub(crate) async fn snapshot(
         // What an invite leads to, for the Join dialog. The code is the secret:
         // holding it is what lets you see the server's name and size.
         ["invites", code, "preview"] => {
-            require(code.len() == 22, ErrorCode::InvalidInvite)?;
-            let found: Option<i64> = sqlx::query_scalar("SELECT id FROM invites WHERE code_hash=?")
-                .bind(crate::state::hash(code.as_bytes()))
-                .fetch_optional(&mut *c)
-                .await?;
+            // Invite codes and vanity codes (identity.rs).
+            let found = crate::identity::find_invite(c, code).await?;
             let found = found.ok_or_else(|| Error::new(ErrorCode::InvalidInvite))?;
             let i = invite(c, Id(found as u64)).await?;
             require(i.expires_at > now(), ErrorCode::InviteExpired)?;

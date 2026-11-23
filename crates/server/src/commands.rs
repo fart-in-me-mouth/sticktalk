@@ -519,6 +519,7 @@ pub(crate) async fn execute(
             }
         }
         if durable {let result_bytes=rmp_serde::to_vec_named(&result).map_err(|_|Error::new(ErrorCode::Internal))?;sqlx::query("INSERT INTO command_receipts(session_hash,nonce,request_hash,result_msgpack,created_at,expires_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_hash,nonce) DO UPDATE SET request_hash=excluded.request_hash,result_msgpack=excluded.result_msgpack,created_at=excluded.created_at,expires_at=excluded.expires_at") .bind(key).bind(req.nonce as i64).bind(request_hash).bind(result_bytes).bind(now() as i64).bind((now()+600_000) as i64).execute(&mut *tx).await?;}
+        crate::identity::settle(&mut tx, core, &mut out).await?;
         let changed=!out.is_empty();
         let orphaned=gc_uploads(&mut tx).await?;
         core.persist_id(&mut tx).await?;
@@ -761,6 +762,7 @@ pub(crate) async fn mutate(
         Expression(cmd) => Box::pin(crate::expression::mutate(c, core, key, u, cmd, out)).await,
         Privacy(cmd) => Box::pin(crate::privacy::mutate(c, core, key, u, cmd, out)).await,
         Community(cmd) => Box::pin(crate::community::mutate(c, core, key, u, cmd, out)).await,
+        Identity(cmd) => Box::pin(crate::identity::mutate(c, core, u, cmd, out)).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
@@ -1298,11 +1300,8 @@ pub(crate) async fn mutate(
             Ok(CommandResult::Ack)
         }
         JoinGuild { invite_code: code } => {
-            require(code.len() == 22, ErrorCode::InvalidInvite)?;
-            let iid: Option<i64> = sqlx::query_scalar("SELECT id FROM invites WHERE code_hash=?")
-                .bind(hash(code.as_bytes()))
-                .fetch_optional(&mut *c)
-                .await?;
+            // Invite codes and vanity codes (identity.rs).
+            let iid = crate::identity::find_invite(c, &code).await?;
             let i = invite(
                 c,
                 Id(iid.ok_or_else(|| Error::new(ErrorCode::InvalidInvite))? as u64),
@@ -1568,6 +1567,7 @@ pub(crate) async fn mutate(
                     .fetch_optional(&mut *c)
                     .await?;
             if let Some(iid) = iid {
+                crate::identity::not_vanity(c, iid).await?;
                 let i = invite(c, Id(iid as u64)).await?;
                 require(
                     i.creator_id == u

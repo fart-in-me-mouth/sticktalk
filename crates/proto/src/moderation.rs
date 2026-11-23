@@ -122,6 +122,10 @@ pub enum AuditAction {
     TemplateCreate,
     TemplateUpdate,
     TemplateDelete,
+    /// Server tags and vanity links (`identity.rs`). Role styles and icons
+    /// are `role_update`; banner, icon and invite background `guild_update`.
+    ServerTagUpdate,
+    VanityUpdate,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -186,6 +190,8 @@ impl AuditAction {
         Self::TemplateCreate,
         Self::TemplateUpdate,
         Self::TemplateDelete,
+        Self::ServerTagUpdate,
+        Self::VanityUpdate,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -251,6 +257,8 @@ impl AuditAction {
             Self::TemplateCreate => "template_create",
             Self::TemplateUpdate => "template_update",
             Self::TemplateDelete => "template_delete",
+            Self::ServerTagUpdate => "server_tag_update",
+            Self::VanityUpdate => "vanity_update",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -320,6 +328,8 @@ impl AuditAction {
             Self::TemplateCreate => "Created a server template",
             Self::TemplateUpdate => "Synced a server template",
             Self::TemplateDelete => "Deleted a server template",
+            Self::ServerTagUpdate => "Changed the server tag",
+            Self::VanityUpdate => "Changed the vanity link",
         }
     }
 }

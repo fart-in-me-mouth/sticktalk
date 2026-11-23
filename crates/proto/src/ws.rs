@@ -294,6 +294,8 @@ pub enum Command {
     Privacy(PrivacyCommand),
     /// Admission, onboarding, discovery, templates (`community.rs`).
     Community(CommunityCommand),
+    /// Server tags, role styles and icons, server images, vanity links (`identity.rs`).
+    Identity(IdentityCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -338,6 +340,7 @@ pub enum CommandResult {
     Expression(ExpressionResult),
     Privacy(PrivacyResult),
     Community(CommunityResult),
+    Identity(IdentityResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

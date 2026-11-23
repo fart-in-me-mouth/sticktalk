@@ -218,7 +218,7 @@ pub(crate) async fn erase(c: &mut SqliteConnection, u: Id) -> Result<()> {
 
 /// A user's look changed: tell them, everyone who can see them, and every
 /// server they are in (their `Member` carries the user summary too).
-async fn user_changed(
+pub(crate) async fn user_changed(
     c: &mut SqliteConnection,
     core: &Core,
     u: Id,
@@ -349,6 +349,8 @@ pub(crate) async fn mutate(
                 name: style(e.name)?,
                 decoration: item(DECORATIONS, e.decoration)?,
                 nameplate: item(NAMEPLATES, e.nameplate)?,
+                // The worn tag lives in its own column (identity.rs).
+                tag: None,
             };
             let (old_look, _) = look(c, u).await?;
             let new_look = ProfileLook {
