@@ -433,6 +433,7 @@ pub(crate) async fn remove(
         p.leases.remove(&session);
         p.generation += 1;
     }
+    crate::community::voice_left(core, c, session).await;
     if let Some(entry) = core.voice.remove(&session) {
         // Reserved cleanup lane, sized above the SFU's maximum live sessions.
         // ACL denial above is synchronous even if the actor has stopped.
@@ -1000,6 +1001,7 @@ async fn output(
     )?;
     if matches!(event, VoiceEvent::Joined { .. }) {
         crate::callextras::joined(core, c, signal.session).await;
+        crate::community::voice_joined(core, signal.session);
     }
     // queue() can detach a slow consumer; revoke its synchronous media ACL now.
     let detached: Vec<_> = core

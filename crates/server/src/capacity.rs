@@ -69,7 +69,7 @@ impl Guild {
                 )
             })
             .collect();
-        let timed_out = sqlx::query_scalar::<_, i64>(
+        let mut timed_out: HashSet<Id> = sqlx::query_scalar::<_, i64>(
             "SELECT user_id FROM member_timeouts WHERE guild_id=? AND until>? AND (? IS NULL OR user_id=?)",
         )
         .bind(id(g)?)
@@ -81,6 +81,8 @@ impl Guild {
         .into_iter()
         .map(|v| Id(v as u64))
         .collect();
+        // Members still accepting the rules are restricted like a timeout.
+        timed_out.extend(crate::community::pending_users(c, g, timeouts_for).await?);
         Ok(Self {
             id: g,
             owner: Id(owner as u64),

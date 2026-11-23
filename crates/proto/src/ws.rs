@@ -290,6 +290,8 @@ pub enum Command {
     Threads(ThreadCommand),
     /// Stickers, Super Reactions and typing indicators (`expression.rs`).
     Expression(ExpressionCommand),
+    /// Admission, onboarding, discovery, templates (`community.rs`).
+    Community(CommunityCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -332,6 +334,7 @@ pub enum CommandResult {
     Moderation(ModerationResult),
     Threads(ThreadResult),
     Expression(ExpressionResult),
+    Community(CommunityResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -449,6 +452,8 @@ pub enum Event {
     Threads(ThreadEvent),
     /// Only sent to streams that sent `ExpressionCommand::Subscribe`.
     Expression(ExpressionEvent),
+    /// Only sent to streams that sent `CommunityCommand::Subscribe`.
+    Community(CommunityEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

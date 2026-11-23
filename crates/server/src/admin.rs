@@ -95,6 +95,23 @@ pub enum AdminCommand {
     EnableUser {
         username: String,
     },
+    /// The server directory: list, feature, hide or delist servers, or turn it off.
+    Directory {
+        #[command(subcommand)]
+        command: DirectoryAdmin,
+    },
+}
+#[derive(Subcommand, Clone, Debug)]
+pub enum DirectoryAdmin {
+    List,
+    Enable,
+    Disable,
+    Feature { guild_id: u64 },
+    Unfeature { guild_id: u64 },
+    Hide { guild_id: u64 },
+    Unhide { guild_id: u64 },
+    Delist { guild_id: u64 },
+    Relist { guild_id: u64 },
 }
 pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     if matches!(command, AdminCommand::Backup) {
@@ -152,6 +169,9 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     )
     .await?;
     crate::db::migrate(&mut c).await?;
+    if let AdminCommand::Directory { command } = command {
+        return crate::community::admin_cli(&mut c, command).await;
+    }
     if matches!(command, AdminCommand::ListUsers) {
         let mut after = 0;
         loop {

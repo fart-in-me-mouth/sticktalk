@@ -156,7 +156,12 @@ pub(crate) async fn reads_event(
     }
     Ok(())
 }
-async fn joined(c: &mut SqliteConnection, out: &mut Deliveries, g: Id, u: Id) -> Result<()> {
+pub(crate) async fn joined(
+    c: &mut SqliteConnection,
+    out: &mut Deliveries,
+    g: Id,
+    u: Id,
+) -> Result<()> {
     let detail = detail(c, u, g).await?;
     let mut reads = vec![];
     for ch in &detail.channels {
@@ -491,7 +496,7 @@ pub(crate) async fn execute(
         let presence_changed=matches!(req.command,Command::SetPresence{..});
         let needs_file_gc=matches!(req.command,Command::DeleteGuild{..}|Command::DeleteChannel{..}|Command::LeaveGroupDm{..});
         let block_pair=if let Command::BlockUser{user_id}=req.command {Some(user_id)}else{None};
-        let voice_acl_changed=acl_guild.is_some() || revoke_sessions || matches!(req.command,Command::SetVoicePermission{..}|Command::SetMemberRole{..}|Command::TransferGuildOwnership{..}|Command::KickMember{..}|Command::BanMember{..}|Command::LeaveGuild{..}|Command::DeleteGuild{..}|Command::DeleteChannel{..});
+        let voice_acl_changed=acl_guild.is_some() || revoke_sessions || crate::community::voice_acl(&req.command) || matches!(req.command,Command::SetVoicePermission{..}|Command::SetMemberRole{..}|Command::TransferGuildOwnership{..}|Command::KickMember{..}|Command::BanMember{..}|Command::LeaveGuild{..}|Command::DeleteGuild{..}|Command::DeleteChannel{..});
         let voice_snapshot=matches!(req.command,Command::JoinGuild{..});
         let role_target=if let Command::SetMemberRole{user_id,..}=req.command {Some(user_id)}else{None};
         let deleted_channel=if let Command::DeleteChannel {channel_id}=req.command {Some(channel_id)} else {None};
@@ -544,6 +549,7 @@ pub(crate) async fn execute(
             if let Event::MessageCreated{message,..}=&e {crate::mentions::notify(app,core,&mut c,message).await?;}
             crate::content::observe(app, &e);
             crate::threads::observe(app, &e);
+            crate::community::observe(core, &mut c, &e).await;
             let deliveries=crate::launch::filter_event(&mut c,users,e).await?;
             for (users,e) in deliveries {
             if let Event::UserUpdated(ref profile) = e {
@@ -747,6 +753,7 @@ pub(crate) async fn mutate(
         Content(cmd) => crate::content::mutate(c, core, key, u, cmd, out).await,
         Threads(cmd) => crate::threads::mutate(c, core, key, u, cmd, out).await,
         Expression(cmd) => crate::expression::mutate(c, core, key, u, cmd, out).await,
+        Community(cmd) => crate::community::mutate(c, core, key, u, cmd, out).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
@@ -1302,6 +1309,7 @@ pub(crate) async fn mutate(
             if role(c, u, g).await.is_ok() {
                 return Ok(CommandResult::Guild(detail(c, u, g).await?));
             }
+            crate::community::gate(c, g).await?;
             guild_quota(c, u).await?;
             require(
                 guild_users(c, g).await?.len() < 1000,
@@ -1316,6 +1324,8 @@ pub(crate) async fn mutate(
             sqlx::query("UPDATE invites SET uses=uses+1 WHERE id=?")
                 .bind(id(i.id)?)
                 .execute(&mut *c)
+                .await?;
+            crate::community::admit(c, g, u, JoinSource::Invite, Some(code.as_str()), false)
                 .await?;
             joined(c, out, g, u).await?;
             let i = invite(c, i.id).await?;

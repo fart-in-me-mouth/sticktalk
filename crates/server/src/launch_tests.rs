@@ -991,8 +991,8 @@ async fn migration_preserves_legacy_member_admin_owner_and_wire_bits() {
         .execute(&mut c)
         .await
         .unwrap();
-    // Evaluation also reads timeouts, a later migration.
-    sqlx::raw_sql("CREATE TABLE member_timeouts(guild_id INTEGER,user_id INTEGER,until INTEGER,reason TEXT,actor_id INTEGER)")
+    // Evaluation also reads timeouts and rules screening, later migrations.
+    sqlx::raw_sql("CREATE TABLE member_timeouts(guild_id INTEGER,user_id INTEGER,until INTEGER,reason TEXT,actor_id INTEGER); CREATE TABLE community_members(guild_id INTEGER,user_id INTEGER,rules_pending INTEGER,questions_pending INTEGER)")
         .execute(&mut c)
         .await
         .unwrap();
