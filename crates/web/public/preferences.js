@@ -71,7 +71,7 @@ export function normalizePreferences(value = {}) {
 }
 let preferences = { ...defaults };
 // The applied theme: the personal one, and a server's while it is in view.
-let theme = { css: '', color: '#111113', dark: true, gradient: false };
+let theme = { css: '', color: '', dark: true, gradient: false };
 let serverTheme = null;
 // Turned on by a screen share ("enable automatically"), to be turned off after.
 let streamerByShare = false;
@@ -96,11 +96,12 @@ export function loadPreferences() {
   try {
     const boot = JSON.parse(localStorage.getItem(BOOT) ?? 'null');
     if (boot && typeof boot.css === 'string' && boot.css.length <= 16384)
-      theme = { css: boot.css, color: String(boot.color ?? '#111113'), dark: boot.dark !== false, gradient: boot.gradient === true };
+      theme = { css: boot.css, color: String(boot.color ?? ''), dark: boot.dark !== false, gradient: boot.gradient === true };
   } catch {}
   // The OS settings are followed live: these fire only when they change.
   reduced.addEventListener('change', () => applyPreferences());
   prefersLight.addEventListener('change', () => {
+    instant(document.documentElement);
     applyPreferences();
     // "Sync with system" with derived tokens (saturation, contrast boost).
     if (preferences.theme === 'system' && theme.css) tell('appearance:refresh');
@@ -199,14 +200,21 @@ const vars = () => {
     '--role-saturation': String(p.saturation / 100),
   };
 };
+// Runs after every render (live.js), so it does work only when something changed.
+let painted = null, paintedColor = '';
 function paintTheme() {
   const t = serverTheme ?? theme;
+  const root = document.documentElement;
+  const key = `${t.css}|${root.dataset.themeBase}|${prefersLight.matches}`;
+  if (key === painted) return paintedColor;
+  painted = key;
   if (sheet) { try { sheet.replaceSync(t.css ? `:root:root:root{${t.css}}` : ''); } catch {} }
   const meta = document.querySelector('meta[name="theme-color"]');
   // "Sync with system" and the static bases: the rail color of what is shown.
-  const color = t.css ? t.color : getComputedStyle(document.documentElement).getPropertyValue('--bg-rail').trim() || t.color;
+  const color = t.css ? t.color : getComputedStyle(root).getPropertyValue('--bg-rail').trim() || t.color;
   if (meta && color) meta.content = color;
-  tellShell(color, t.css ? t.dark : !(document.documentElement.dataset.themeBase === 'light' || (document.documentElement.dataset.themeBase === 'system' && prefersLight.matches)));
+  tellShell(color, t.css ? t.dark : !(root.dataset.themeBase === 'light' || (root.dataset.themeBase === 'system' && prefersLight.matches)));
+  paintedColor = color;
   return color;
 }
 // The Windows app's title bar follows the theme (crates/desktop shell IPC).
@@ -216,14 +224,25 @@ function tellShell(color, dark) {
   const message = JSON.stringify({ shell: 'theme', dark: !!dark, caption: color });
   if (message !== shellSent) { shellSent = message; globalThis.ipc.postMessage(message); }
 }
+// A theme change is instant: no color transition fades from the old theme
+// (that would repaint for a few frames and briefly mix the two).
+let switching = 0;
+function instant(root) {
+  root.dataset.themeSwitching = 'true';
+  cancelAnimationFrame(switching);
+  switching = requestAnimationFrame(() => { switching = requestAnimationFrame(() => { delete root.dataset.themeSwitching; }); });
+}
 export function applyPreferences() {
   const root = document.documentElement;
   const a = attrs();
-  for (const [k, v] of Object.entries(a)) root.dataset[k] = v;
-  if (!preferences.streamer) for (const k of ['streamerAccount', 'streamerInvites', 'streamerNotes', 'streamerRequests', 'streamerPreviews']) delete root.dataset[k];
+  const t = serverTheme ?? theme;
+  if (painted !== null && (root.dataset.themeBase !== a.themeBase || `${t.css}|${a.themeBase}|${prefersLight.matches}` !== painted)) instant(root);
+  for (const [k, v] of Object.entries(a)) if (root.dataset[k] !== v) root.dataset[k] = v;
+  if (!preferences.streamer) for (const k of ['streamerAccount', 'streamerInvites', 'streamerNotes', 'streamerRequests', 'streamerPreviews']) if (k in root.dataset) delete root.dataset[k];
   const v = vars();
-  for (const [k, value] of Object.entries(v)) root.style.setProperty(k, value);
-  root.style.zoom = preferences.zoom === 1 ? '' : String(preferences.zoom);
+  for (const [k, value] of Object.entries(v)) if (root.style.getPropertyValue(k) !== value) root.style.setProperty(k, value);
+  const zoom = preferences.zoom === 1 ? '' : String(preferences.zoom);
+  if (root.style.zoom !== zoom) root.style.zoom = zoom;
   const color = paintTheme();
   document.querySelectorAll('[data-preference]').forEach(field=>{
     const value=preferences[field.dataset.preference];
@@ -237,9 +256,11 @@ export function applyPreferences() {
   document.querySelectorAll('input[data-app-icon]').forEach(r => { r.checked = r.value === preferences.appIcon; });
   icon();
   indicator();
-  // What theme-boot.js replays before the next first paint.
-  try { localStorage.setItem(BOOT, JSON.stringify({ attrs: a, vars: v, zoom: preferences.zoom, css: theme.css, color, dark: theme.dark, gradient: theme.gradient, icon: preferences.appIcon })); } catch {}
+  // What theme-boot.js replays before the next first paint (written only when it changes).
+  const snapshot = JSON.stringify({ attrs: a, vars: v, zoom: preferences.zoom, css: theme.css, color: theme.css ? theme.color : color, dark: theme.dark, gradient: theme.gradient, icon: preferences.appIcon });
+  if (snapshot !== bootSaved) { bootSaved = snapshot; try { localStorage.setItem(BOOT, snapshot); } catch {} }
 }
+let bootSaved = '';
 export function format(key, value) {
   if (key === 'saturation') return `${value}%`;
   if (key === 'messageSpacing' || key === 'groupSpacing') return `${value}px`;
@@ -262,7 +283,8 @@ export function setPreference(field) {
   applyPreferences();
   // The theme's tokens depend on these: Rust derives them again.
   if (['saturation', 'saturationCustom', 'contrastBoost'].includes(key)) tell('appearance:refresh');
-  if (key === 'appIcon') tell('appearance:icon');
+  else if (key === 'appIcon') tell('appearance:icon');
+  else tell('appearance:prefs');
 }
 /// Live preview while a slider moves; `change` stores it.
 export function previewPreference(field) {
@@ -292,6 +314,7 @@ export function setStreamer(on, byShare = false) {
   streamerByShare = on && byShare;
   save();
   applyPreferences();
+  tell('appearance:prefs');
 }
 export function toggleStreamer() { setStreamer(!preferences.streamer); }
 /// A screen share started or stopped in a call (media.js).

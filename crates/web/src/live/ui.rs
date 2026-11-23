@@ -957,6 +957,10 @@ fn role_permissions(role: &Role) -> AnyView {
                 ("Add Reactions", Permissions::ADD_REACTIONS),
                 ("Use External Emoji", Permissions::USE_EXTERNAL_EMOJI),
                 ("Use External Stickers", Permissions::USE_EXTERNAL_STICKERS),
+                (
+                    "Send Text-to-Speech Messages",
+                    Permissions::SEND_TTS_MESSAGES,
+                ),
                 ("Manage Messages", Permissions::MANAGE_MESSAGES),
                 ("Publish Messages", Permissions::PUBLISH_MESSAGES),
             ],

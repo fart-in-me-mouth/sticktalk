@@ -65,8 +65,7 @@ pub fn parse(raw: &str) -> Option<Message> {
 #[cfg(windows)]
 pub fn apply_theme(hwnd: windows::Win32::Foundation::HWND, dark: bool, caption: (u8, u8, u8)) {
     use windows::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR,
-        DWMWA_USE_IMMERSIVE_DARK_MODE,
+        DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_USE_IMMERSIVE_DARK_MODE,
     };
     let set = |attribute, value: u32| unsafe {
         let _ = DwmSetWindowAttribute(
@@ -77,12 +76,17 @@ pub fn apply_theme(hwnd: windows::Win32::Foundation::HWND, dark: bool, caption: 
         );
     };
     // COLORREF is 0x00BBGGRR.
-    let colorref = |(r, g, b): (u8, u8, u8)| u32::from(r) | (u32::from(g) << 8) | (u32::from(b) << 16);
+    let colorref =
+        |(r, g, b): (u8, u8, u8)| u32::from(r) | (u32::from(g) << 8) | (u32::from(b) << 16);
     set(DWMWA_USE_IMMERSIVE_DARK_MODE, u32::from(dark));
     set(DWMWA_CAPTION_COLOR, colorref(caption));
     set(
         DWMWA_TEXT_COLOR,
-        colorref(if dark { (0xE8, 0xEA, 0xED) } else { (0x1F, 0x20, 0x23) }),
+        colorref(if dark {
+            (0xE8, 0xEA, 0xED)
+        } else {
+            (0x1F, 0x20, 0x23)
+        }),
     );
 }
 
@@ -94,11 +98,17 @@ mod tests {
     fn theme_messages() {
         assert_eq!(
             parse(r##"{"shell":"theme","dark":true,"caption":"#111113"}"##),
-            Some(Message::Theme { dark: true, caption: (0x11, 0x11, 0x13) })
+            Some(Message::Theme {
+                dark: true,
+                caption: (0x11, 0x11, 0x13)
+            })
         );
         assert_eq!(
             parse(r##"{"shell":"theme","dark":false,"caption":"#E3E5E8"}"##),
-            Some(Message::Theme { dark: false, caption: (0xE3, 0xE5, 0xE8) })
+            Some(Message::Theme {
+                dark: false,
+                caption: (0xE3, 0xE5, 0xE8)
+            })
         );
         for bad in [
             r##"{"shell":"theme","dark":true}"##,
@@ -116,11 +126,19 @@ mod tests {
     #[test]
     fn icon_messages() {
         let pixels: Vec<String> = (0..32 * 32 * 4).map(|i| (i % 256).to_string()).collect();
-        let ok = format!(r#"{{"shell":"icon","size":32,"rgba":[{}]}}"#, pixels.join(","));
-        let Some(Message::Icon { size, rgba }) = parse(&ok) else { panic!() };
+        let ok = format!(
+            r#"{{"shell":"icon","size":32,"rgba":[{}]}}"#,
+            pixels.join(",")
+        );
+        let Some(Message::Icon { size, rgba }) = parse(&ok) else {
+            panic!()
+        };
         assert_eq!((size, rgba.len()), (32, 4096));
         // Wrong length, too big, a value out of range, and too long a message.
-        let short = format!(r#"{{"shell":"icon","size":32,"rgba":[{}]}}"#, pixels[..100].join(","));
+        let short = format!(
+            r#"{{"shell":"icon","size":32,"rgba":[{}]}}"#,
+            pixels[..100].join(",")
+        );
         assert_eq!(parse(&short), None);
         assert_eq!(parse(r#"{"shell":"icon","size":512,"rgba":[]}"#), None);
         let bad = ok.replacen("[0,", "[256,", 1);

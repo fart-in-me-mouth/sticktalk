@@ -1962,7 +1962,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     str::to_owned,
                 ),
                 (Some(Command::Appearance(c)), code) => super::themes::refused(c, code)
-                    .map_or_else(|| sticktalk_client_core::http::error_text(&error), str::to_owned),
+                    .map_or_else(
+                        || sticktalk_client_core::http::error_text(&error),
+                        str::to_owned,
+                    ),
                 _ => sticktalk_client_core::http::error_text(&error),
             };
             a.touch();

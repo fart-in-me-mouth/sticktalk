@@ -752,7 +752,9 @@ pub(crate) async fn mutate(
         Threads(cmd) => crate::threads::mutate(c, core, key, u, cmd, out).await,
         Expression(cmd) => crate::expression::mutate(c, core, key, u, cmd, out).await,
         Privacy(cmd) => crate::privacy::mutate(c, core, key, u, cmd, out).await,
-        Appearance(cmd) => crate::themes::mutate(c, core, key, u, cmd, out).await,
+        // Built and boxed in its own frame: this function's frame (on the deep
+        // send path) stays the size it was.
+        Appearance(cmd) => crate::themes::boxed(c, core, key, u, cmd, out).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();

@@ -91,10 +91,26 @@ const AUTOPLAY: [(&str, &str); 3] = [
 pub(super) fn appearance(a: &App) -> AnyView {
     let sel = selection();
     let bases = [
-        ("dark", "Dark", vars(&derive_palette(DARK, true, Adjust::default()), "sw")),
-        ("light", "Light", vars(&derive_palette(LIGHT, false, Adjust::default()), "sw")),
-        ("darker", "Darker", vars(&derive_palette(DARKER, true, Adjust::default()), "sw")),
-        ("system", "Sync with system", vars(&derive_palette(DARK, true, Adjust::default()), "sw")),
+        (
+            "dark",
+            "Dark",
+            vars(&derive_palette(DARK, true, Adjust::default()), "sw"),
+        ),
+        (
+            "light",
+            "Light",
+            vars(&derive_palette(LIGHT, false, Adjust::default()), "sw"),
+        ),
+        (
+            "darker",
+            "Darker",
+            vars(&derive_palette(DARKER, true, Adjust::default()), "sw"),
+        ),
+        (
+            "system",
+            "Sync with system",
+            vars(&derive_palette(DARK, true, Adjust::default()), "sw"),
+        ),
     ];
     let swatches = preset_swatches();
     let presets = |base: ThemeBase| {
@@ -123,12 +139,18 @@ pub(super) fn appearance(a: &App) -> AnyView {
                         .iter()
                         .find(|o| o.guild_id == id)
                         .map(|o| o.show);
-                    (id, g.guild.name.clone(), choice.unwrap_or(l.settings.server_themes))
+                    (
+                        id,
+                        g.guild.name.clone(),
+                        choice.unwrap_or(l.settings.server_themes),
+                    )
                 })
                 .collect()
         })
         .unwrap_or_default();
-    let overrides = library.map(|l| l.settings.server_overrides.clone()).unwrap_or_default();
+    let overrides = library
+        .map(|l| l.settings.server_overrides.clone())
+        .unwrap_or_default();
     let shows_default = library.is_none_or(|l| l.settings.server_themes);
     view!{<h2>"Appearance"</h2><p class="muted-copy mb-6">"Saved on this device. Custom themes are saved to your account."</p>
         <h3>"Theme"</h3><div class="theme-grid" role="radiogroup" aria-label="Theme">{bases.into_iter().map(|(v,l,s)|option(v,l,s,sel==v)).collect_view()}</div>
@@ -231,7 +253,13 @@ pub(super) fn editor(a: &App) -> AnyView {
     let chosen = saturate(d.spec.accent, adj.saturation);
     let server = d.server.is_some();
     let code = share_code(&d.spec, &d.name);
-    let title = if server { "Server Theme" } else if d.id.is_some() { "Edit Theme" } else { "Create Theme" };
+    let title = if server {
+        "Server Theme"
+    } else if d.id.is_some() {
+        "Edit Theme"
+    } else {
+        "Create Theme"
+    };
     view!{<h2>{title}</h2><div class="theme-editor-grid"><div class="min-w-0" data-theme-editor="">
         {if server{().into_any()}else{view!{<div class="field"><label for="te-name">"Name"</label><input id="te-name" type="text" maxlength="32" value=d.name.clone() autocomplete="off"/></div>}.into_any()}}
         <fieldset><legend class="text-[13px] font-medium text-subtle">"Base"</legend><div class="choice-row"><label><input type="radio" name="te-base" value="dark" checked=d.spec.base==ThemeBase::Dark/>"Dark"</label><label><input type="radio" name="te-base" value="light" checked=d.spec.base==ThemeBase::Light/>"Light"</label></div></fieldset>
@@ -255,10 +283,14 @@ fn preview(t: &Theme) -> AnyView {
 /// A theme someone shared, before it is applied or saved.
 pub(super) fn shared(a: &App) -> AnyView {
     let Some((spec, name)) = a.themes.shared.as_ref() else {
-        return view!{<h2>"Shared Theme"</h2><p>"That theme is no longer here."</p>}.into_any();
+        return view! {<h2>"Shared Theme"</h2><p>"That theme is no longer here."</p>}.into_any();
     };
     let t = derive(spec, th::adjust(&th::prefs(), true));
-    let label = if name.is_empty() { "Shared Theme".to_owned() } else { name.clone() };
+    let label = if name.is_empty() {
+        "Shared Theme".to_owned()
+    } else {
+        name.clone()
+    };
     view!{<h2>{label}</h2><p class="muted-copy">"Someone shared this theme with you. Look it over, then use it or save it to your themes."</p><div class="my-4">{preview(&t)}</div>
         <div class="flex flex-wrap gap-2">{button("Use Theme","appearance:shared-apply","primary")}{button("Save to My Themes","appearance:shared-save","secondary")}{button("Customize","appearance:edit,shared","secondary")}</div>}.into_any()
 }
@@ -281,7 +313,12 @@ pub(super) fn server_theme(a: &App) -> AnyView {
         None => "none".into(),
     };
     let swatches = preset_swatches();
-    let mine = a.themes.library.as_ref().map(|l| l.themes.clone()).unwrap_or_default();
+    let mine = a
+        .themes
+        .library
+        .as_ref()
+        .map(|l| l.themes.clone())
+        .unwrap_or_default();
     view!{<h2>"Theme"</h2><p class="muted-copy mb-6">"Members see this theme while they’re in this server, unless they turn server themes off in Appearance."</p>
         <fieldset disabled=!allowed><div class="theme-grid" role="radiogroup" aria-label="Server theme">
             <label class="theme-option"><input type="radio" name="server-theme" value="none" data-appearance="server-theme" checked=selected=="none"/><span class="theme-swatch" style=vars(&derive_palette(DARK,true,Adjust::default()),"sw")><i></i><i></i><span><b></b><b></b><b></b></span></span><span class="theme-check">{icon("check")}</span><span>"None (members’ own)"</span></label>

@@ -273,6 +273,10 @@ fn library_changed(a: &mut App, lib: ThemeLibrary) {
 pub(super) fn event(a: &mut App, e: &AppearanceEvent) {
     match e {
         AppearanceEvent::Library(lib) => library_changed(a, (**lib).clone()),
+        AppearanceEvent::Tts {
+            channel_id,
+            message_id,
+        } => tts_message(a, *channel_id, *message_id),
         AppearanceEvent::ServerTheme { guild_id, theme } => {
             if let Some(lib) = a.themes.library.as_mut() {
                 lib.servers.retain(|s| s.guild_id != *guild_id);
@@ -292,17 +296,19 @@ pub(super) fn answered(a: &mut App, op: &AppearanceCommand, result: &CommandResu
     let CommandResult::Appearance(AppearanceResult::Library(lib)) = result else {
         return;
     };
-    let before: Vec<Id> = a
-        .themes
-        .library
-        .as_ref()
-        .map(|l| l.themes.iter().map(|t| t.id).collect())
-        .unwrap_or_default();
     library_changed(a, (**lib).clone());
     match op {
-        AppearanceCommand::SaveTheme { id, .. } => {
-            // A new theme is applied at once; an edited one if it was in use.
-            let saved = id.or_else(|| lib.themes.iter().map(|t| t.id).find(|t| !before.contains(t)));
+        AppearanceCommand::SaveTheme { id, name, .. } => {
+            // The saved theme is applied at once. A new one is the newest with
+            // its name (the library event may have arrived before this answer).
+            let name = validate_name(name).unwrap_or_default();
+            let saved = id.or_else(|| {
+                lib.themes
+                    .iter()
+                    .filter(|t| t.name == name)
+                    .map(|t| t.id)
+                    .max()
+            });
             if let Some(saved) = saved {
                 apply_personal(a, "custom", &saved.0.to_string());
             }
@@ -402,6 +408,8 @@ pub(super) fn action(app: Shared, arg: &str) {
             apply_personal(&a, kind, id);
             // No render: the radio already shows the choice.
         }
+        // A device preference changed (TTS, Streamer Mode): read them again, no render.
+        "prefs" => reload_prefs(),
         "refresh" => {
             let a = app.borrow();
             refresh(&a);
@@ -427,7 +435,11 @@ pub(super) fn action(app: Shared, arg: &str) {
                 }),
                 "shared" => a.themes.shared.clone().map(|(spec, name)| Draft {
                     id: None,
-                    name: if name.is_empty() { "Shared Theme".into() } else { name },
+                    name: if name.is_empty() {
+                        "Shared Theme".into()
+                    } else {
+                        name
+                    },
                     spec,
                     server: None,
                 }),
@@ -460,12 +472,15 @@ pub(super) fn action(app: Shared, arg: &str) {
                     } else {
                         let id = other.strip_prefix("custom:").unwrap_or(other);
                         a.themes.library.as_ref().and_then(|l| {
-                            l.themes.iter().find(|t| t.id.0.to_string() == id).map(|t| Draft {
-                                id: Some(t.id),
-                                name: t.name.clone(),
-                                spec: t.spec.clone(),
-                                server: None,
-                            })
+                            l.themes
+                                .iter()
+                                .find(|t| t.id.0.to_string() == id)
+                                .map(|t| Draft {
+                                    id: Some(t.id),
+                                    name: t.name.clone(),
+                                    spec: t.spec.clone(),
+                                    server: None,
+                                })
                         })
                     }
                 }
@@ -473,7 +488,14 @@ pub(super) fn action(app: Shared, arg: &str) {
             let Some(draft) = draft else { return };
             let server = draft.server.is_some();
             a.themes.draft = Some(draft);
-            open(&mut a, if server { "server-theme-editor" } else { "theme-editor" });
+            open(
+                &mut a,
+                if server {
+                    "server-theme-editor"
+                } else {
+                    "theme-editor"
+                },
+            );
         }
         // An editor field changed: derive again for the preview.
         "editor-input" => {
@@ -516,7 +538,9 @@ pub(super) fn action(app: Shared, arg: &str) {
         }
         "editor-save" => {
             let mut a = app.borrow_mut();
-            let Some(mut d) = a.themes.draft.clone() else { return };
+            let Some(mut d) = a.themes.draft.clone() else {
+                return;
+            };
             read_draft(&mut d);
             if let Some(g) = d.server {
                 a.command(Command::Appearance(AppearanceCommand::SetServerTheme {
@@ -542,7 +566,9 @@ pub(super) fn action(app: Shared, arg: &str) {
         // Try the draft as your theme without saving it.
         "editor-apply" => {
             let mut a = app.borrow_mut();
-            let Some(mut d) = a.themes.draft.clone() else { return };
+            let Some(mut d) = a.themes.draft.clone() else {
+                return;
+            };
             read_draft(&mut d);
             let code = share_code(&d.spec, &d.name);
             apply_personal(&a, "shared", &code);
@@ -554,7 +580,9 @@ pub(super) fn action(app: Shared, arg: &str) {
         "delete" => {
             if let Ok(id) = rest.parse::<u64>() {
                 app.borrow_mut()
-                    .command(Command::Appearance(AppearanceCommand::DeleteTheme { id: Id(id) }));
+                    .command(Command::Appearance(AppearanceCommand::DeleteTheme {
+                        id: Id(id),
+                    }));
             }
         }
         // Paste a code or link.
@@ -650,7 +678,11 @@ pub(super) fn action(app: Shared, arg: &str) {
                 .find_map(|ms| ms.get(&Id(m)))
                 .cloned();
             if let Some(m) = found {
-                let text = format!("{} said {}", a.model.name(m.author_id), spoken(&a.model.content(&m)));
+                let text = format!(
+                    "{} said {}",
+                    a.model.name(m.author_id),
+                    spoken(&a.model.content(&m))
+                );
                 js_speak(&text, prefs().tts_rate);
             }
         }
@@ -691,28 +723,60 @@ pub(super) fn spoken(text: &str) -> String {
         .chars()
         .filter(|c| !matches!(c, '*' | '_' | '`' | '~' | '#' | '>'))
         .collect();
-    plain.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(300).collect()
+    plain
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(300)
+        .collect()
 }
 /// Speaking is never done in Do Not Disturb, or while deafened in a call.
 fn quiet(a: &App) -> bool {
     super::privacy::status(a) == PresenceStatus::Dnd || (a.voice_channel.is_some() && js_deafened())
 }
-/// A message arrived: read `/tts` messages to people viewing the channel, and
-/// (with TTS notifications) every message in the channel in view.
+/// A message arrived: with TTS notifications, read every message in the
+/// conversation in view.
 pub(super) fn message_created(a: &App, m: &Message) {
-    if a.model.me.as_ref().is_some_and(|me| me.user.id == m.author_id) || a.channel != Some(m.channel_id) {
+    let p = prefs();
+    if matches!(p.tts_notify.as_str(), "channel" | "all") {
+        speak_message(a, m.channel_id, m.id, &p);
+    }
+}
+/// A `/tts` message (after its `MessageCreated`): read to people viewing it
+/// who allow it, unless TTS notifications already read it.
+fn tts_message(a: &App, channel: Id, message: Id) {
+    let p = prefs();
+    if p.tts_playback && !matches!(p.tts_notify.as_str(), "channel" | "all") {
+        speak_message(a, channel, message, &p);
+    }
+}
+fn speak_message(a: &App, channel: Id, message: Id, p: &Prefs) {
+    if a.channel != Some(channel) || quiet(a) || document().hidden() {
         return;
     }
-    let p = prefs();
-    let wanted = (m.extra.tts && p.tts_playback) || matches!(p.tts_notify.as_str(), "channel" | "all");
-    if !wanted || quiet(a) || document().hidden() {
+    let Some(m) = a
+        .model
+        .messages
+        .get(&channel)
+        .and_then(|ms| ms.get(&message))
+    else {
+        return;
+    };
+    if a.model
+        .me
+        .as_ref()
+        .is_some_and(|me| me.user.id == m.author_id)
+    {
         return;
     }
     let text = spoken(&a.model.content(m));
-    if text.is_empty() {
-        return;
+    if !text.is_empty() {
+        js_speak(
+            &format!("{} said {}", a.model.name(m.author_id), text),
+            p.tts_rate,
+        );
     }
-    js_speak(&format!("{} said {}", a.model.name(m.author_id), text), p.tts_rate);
 }
 /// An alert for another conversation (privacy.rs): read it with TTS
 /// notifications for all channels.
@@ -734,7 +798,9 @@ pub(super) fn alerts_allowed() -> (bool, bool) {
 /// `/tts message` in the composer sends a message read aloud.
 pub(super) fn tts_command(cmd: Command) -> Command {
     match cmd {
-        Command::SendMessage(mut d) if d.content.starts_with("/tts ") && d.attachment_ids.is_empty() => {
+        Command::SendMessage(mut d)
+            if d.content.starts_with("/tts ") && d.attachment_ids.is_empty() =>
+        {
             d.content = d.content["/tts ".len()..].trim_start().to_owned();
             Command::Appearance(AppearanceCommand::SendTts(d))
         }

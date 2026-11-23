@@ -52,13 +52,15 @@ fn events(core: &Core, key: u8) -> Vec<AppearanceEvent> {
     core.streams[&vec![key; 32]]
         .ring
         .iter()
-        .filter_map(|(_, _, b)| match rmp_serde::from_slice::<ServerMsg>(b).unwrap() {
-            ServerMsg::Event(e) => match e.event {
-                Event::Appearance(a) => Some(a),
+        .filter_map(
+            |(_, _, b)| match rmp_serde::from_slice::<ServerMsg>(b).unwrap() {
+                ServerMsg::Event(e) => match e.event {
+                    Event::Appearance(a) => Some(a),
+                    _ => None,
+                },
                 _ => None,
             },
-            _ => None,
-        })
+        )
         .collect()
 }
 async fn streams(app: &App, keys: &[(u8, u64)]) {
@@ -88,30 +90,68 @@ async fn custom_themes_are_validated_bounded_private_and_synced() {
     assert_eq!(lib.themes[0].name, "Mine");
     let mine = lib.themes[0].id;
     // Untrusted input is refused.
-    let bad = ThemeSpec { colors: vec![0; 6], ..spec() };
-    assert_eq!(code(run(&app, 2, 3, save(None, "x", bad)).await), ErrorCode::InvalidRequest);
-    let bad = ThemeSpec { accent: 0x1_000_000, ..spec() };
-    assert_eq!(code(run(&app, 2, 4, save(None, "x", bad)).await), ErrorCode::InvalidRequest);
-    let bad = ThemeSpec { angle: 400, ..spec() };
-    assert_eq!(code(run(&app, 2, 5, save(None, "x", bad)).await), ErrorCode::InvalidRequest);
-    assert_eq!(code(run(&app, 2, 6, save(None, "", spec())).await), ErrorCode::InvalidRequest);
-    assert_eq!(code(run(&app, 2, 7, save(None, &"n".repeat(40), spec())).await), ErrorCode::InvalidRequest);
+    let bad = ThemeSpec {
+        colors: vec![0; 6],
+        ..spec()
+    };
+    assert_eq!(
+        code(run(&app, 2, 3, save(None, "x", bad)).await),
+        ErrorCode::InvalidRequest
+    );
+    let bad = ThemeSpec {
+        accent: 0x1_000_000,
+        ..spec()
+    };
+    assert_eq!(
+        code(run(&app, 2, 4, save(None, "x", bad)).await),
+        ErrorCode::InvalidRequest
+    );
+    let bad = ThemeSpec {
+        angle: 400,
+        ..spec()
+    };
+    assert_eq!(
+        code(run(&app, 2, 5, save(None, "x", bad)).await),
+        ErrorCode::InvalidRequest
+    );
+    assert_eq!(
+        code(run(&app, 2, 6, save(None, "", spec())).await),
+        ErrorCode::InvalidRequest
+    );
+    assert_eq!(
+        code(run(&app, 2, 7, save(None, &"n".repeat(40), spec())).await),
+        ErrorCode::InvalidRequest
+    );
     // Someone else's theme cannot be changed or deleted.
-    assert_eq!(code(run(&app, 3, 8, save(Some(mine), "taken", spec())).await), ErrorCode::NotFound);
-    assert_eq!(code(run(&app, 3, 9, AppearanceCommand::DeleteTheme { id: mine }).await), ErrorCode::NotFound);
+    assert_eq!(
+        code(run(&app, 3, 8, save(Some(mine), "taken", spec())).await),
+        ErrorCode::NotFound
+    );
+    assert_eq!(
+        code(run(&app, 3, 9, AppearanceCommand::DeleteTheme { id: mine }).await),
+        ErrorCode::NotFound
+    );
     // Renaming keeps the id.
     let lib = library(run(&app, 2, 10, save(Some(mine), "Renamed", spec())).await);
-    assert_eq!((lib.themes[0].id, lib.themes[0].name.as_str()), (mine, "Renamed"));
+    assert_eq!(
+        (lib.themes[0].id, lib.themes[0].name.as_str()),
+        (mine, "Renamed")
+    );
     // At most 20.
     for n in 0..19 {
         library(run(&app, 2, 100 + n, save(None, &format!("t{n}"), spec())).await);
     }
-    assert_eq!(code(run(&app, 2, 200, save(None, "one too many", spec())).await), ErrorCode::LimitExceeded);
+    assert_eq!(
+        code(run(&app, 2, 200, save(None, "one too many", spec())).await),
+        ErrorCode::LimitExceeded
+    );
     let lib = library(run(&app, 2, 201, AppearanceCommand::DeleteTheme { id: mine }).await);
     assert_eq!(lib.themes.len(), 19);
     let core = app.0.core.lock().await;
     // The subscribed stream heard about every change; the old one and others did not.
-    assert!(events(&core, 2).iter().any(|e| matches!(e, AppearanceEvent::Library(l) if l.themes.len() == 19)));
+    assert!(events(&core, 2)
+        .iter()
+        .any(|e| matches!(e, AppearanceEvent::Library(l) if l.themes.len() == 19)));
     assert!(events(&core, 9).is_empty());
     assert!(events(&core, 3).is_empty());
 }
@@ -129,24 +169,57 @@ async fn server_themes_need_manage_server_and_reach_members() {
     };
     let ocean = Some(ThemeChoice::Preset("ocean".into()));
     // A member without Manage Server, and someone outside the server.
-    assert_eq!(code(run(&app, 2, 2, set(10, ocean.clone())).await), ErrorCode::Forbidden);
-    assert!(matches!(run(&app, 4, 2, set(10, ocean.clone())).await, CommandOutcome::Err(_)));
+    assert_eq!(
+        code(run(&app, 2, 2, set(10, ocean.clone())).await),
+        ErrorCode::Forbidden
+    );
+    assert!(matches!(
+        run(&app, 4, 2, set(10, ocean.clone())).await,
+        CommandOutcome::Err(_)
+    ));
     // Unknown presets and broken custom themes.
-    assert_eq!(code(run(&app, 1, 3, set(10, Some(ThemeChoice::Preset("nope".into())))).await), ErrorCode::InvalidRequest);
-    let broken = ThemeSpec { intensity: 200, ..spec() };
-    assert_eq!(code(run(&app, 1, 4, set(10, Some(ThemeChoice::Custom(broken)))).await), ErrorCode::InvalidRequest);
+    assert_eq!(
+        code(
+            run(
+                &app,
+                1,
+                3,
+                set(10, Some(ThemeChoice::Preset("nope".into())))
+            )
+            .await
+        ),
+        ErrorCode::InvalidRequest
+    );
+    let broken = ThemeSpec {
+        intensity: 200,
+        ..spec()
+    };
+    assert_eq!(
+        code(run(&app, 1, 4, set(10, Some(ThemeChoice::Custom(broken)))).await),
+        ErrorCode::InvalidRequest
+    );
     // The owner sets it; members hear it, others do not.
     library(run(&app, 1, 5, set(10, ocean.clone())).await);
     {
         let core = app.0.core.lock().await;
-        let heard = |k| events(&core, k).iter().any(|e| matches!(e, AppearanceEvent::ServerTheme { guild_id, theme } if *guild_id == Id(10) && *theme == ocean));
+        let heard = |k| {
+            events(&core, k).iter().any(|e| matches!(e, AppearanceEvent::ServerTheme { guild_id, theme } if *guild_id == Id(10) && *theme == ocean))
+        };
         assert!(heard(1) && heard(2));
         assert!(!heard(3) && !heard(4));
     }
     // A member's library lists it; someone outside the server's does not.
     let lib = library(run(&app, 2, 6, AppearanceCommand::Subscribe).await);
-    assert_eq!(lib.servers, vec![ServerTheme { guild_id: Id(10), theme: ThemeChoice::Preset("ocean".into()) }]);
-    assert!(library(run(&app, 3, 6, AppearanceCommand::Subscribe).await).servers.is_empty());
+    assert_eq!(
+        lib.servers,
+        vec![ServerTheme {
+            guild_id: Id(10),
+            theme: ThemeChoice::Preset("ocean".into())
+        }]
+    );
+    assert!(library(run(&app, 3, 6, AppearanceCommand::Subscribe).await)
+        .servers
+        .is_empty());
     // Granting Manage Server to @everyone lets a member set it; removing works.
     sqlx::query("UPDATE roles SET permissions=permissions|? WHERE id=10")
         .bind(Permissions::MANAGE_GUILD.bits() as i64)
@@ -163,7 +236,10 @@ async fn server_themes_need_manage_server_and_reach_members() {
 async fn settings_keep_only_servers_you_are_in() {
     let (_dir, app) = world().await;
     streams(&app, &[(2, 2)]).await;
-    let o = |g: u64, show| ServerThemeOverride { guild_id: Id(g), show };
+    let o = |g: u64, show| ServerThemeOverride {
+        guild_id: Id(g),
+        show,
+    };
     let lib = library(
         run(
             &app,
@@ -179,8 +255,14 @@ async fn settings_keep_only_servers_you_are_in() {
     assert!(!lib.settings.server_themes);
     assert_eq!(lib.settings.server_overrides, vec![o(10, true)]);
     // Duplicates are refused.
-    let dup = ThemeSettings { server_themes: true, server_overrides: vec![o(10, true), o(10, false)] };
-    assert_eq!(code(run(&app, 2, 2, AppearanceCommand::SetSettings(dup)).await), ErrorCode::InvalidRequest);
+    let dup = ThemeSettings {
+        server_themes: true,
+        server_overrides: vec![o(10, true), o(10, false)],
+    };
+    assert_eq!(
+        code(run(&app, 2, 2, AppearanceCommand::SetSettings(dup)).await),
+        ErrorCode::InvalidRequest
+    );
 }
 
 #[tokio::test]
@@ -202,27 +284,43 @@ async fn tts_messages_need_the_permission_and_are_marked() {
             mention_ids: vec![],
         })
     };
-    let CommandOutcome::Ok(CommandResult::Message(m)) = run(&app, 2, 1, tts(11, "hello there")).await else {
+    let CommandOutcome::Ok(CommandResult::Message(m)) =
+        run(&app, 2, 1, tts(11, "hello there")).await
+    else {
         panic!()
     };
-    assert!(m.extra.tts && m.content == "hello there");
+    assert_eq!(m.content, "hello there");
     {
+        // Member 1 (subscribed) is told to read it; the sender is not.
+        library(run(&app, 1, 50, AppearanceCommand::Subscribe).await);
+        let m2 = match run(&app, 2, 51, tts(11, "second")).await {
+            CommandOutcome::Ok(CommandResult::Message(m)) => m,
+            other => panic!("{other:?}"),
+        };
         let core = app.0.core.lock().await;
-        let created = core.streams[&vec![1; 32]].ring.iter().any(|(_, _, b)| {
-            matches!(rmp_serde::from_slice::<ServerMsg>(b).unwrap(),
-                ServerMsg::Event(e) if matches!(&e.event, Event::MessageCreated { message, .. } if message.id == m.id && message.extra.tts))
-        });
-        assert!(created, "the other member's MessageCreated carries the flag");
+        assert!(events(&core, 1).iter().any(|e| matches!(e, AppearanceEvent::Tts { channel_id, message_id } if *channel_id == Id(11) && *message_id == m2.id)));
+        assert!(!events(&core, 2)
+            .iter()
+            .any(|e| matches!(e, AppearanceEvent::Tts { .. })));
     }
     // Empty text, someone outside the channel, and a denied permission.
-    assert_eq!(code(run(&app, 2, 2, tts(11, "   ")).await), ErrorCode::InvalidRequest);
-    assert!(matches!(run(&app, 3, 3, tts(11, "hi")).await, CommandOutcome::Err(_)));
+    assert_eq!(
+        code(run(&app, 2, 2, tts(11, "   ")).await),
+        ErrorCode::InvalidRequest
+    );
+    assert!(matches!(
+        run(&app, 3, 3, tts(11, "hi")).await,
+        CommandOutcome::Err(_)
+    ));
     sqlx::query("INSERT INTO permission_overwrites VALUES(11,'role',10,0,?)")
         .bind(Permissions::SEND_TTS_MESSAGES.bits() as i64)
         .execute(&app.0.pool)
         .await
         .unwrap();
-    assert_eq!(code(run(&app, 2, 4, tts(11, "hi")).await), ErrorCode::Forbidden);
+    assert_eq!(
+        code(run(&app, 2, 4, tts(11, "hi")).await),
+        ErrorCode::Forbidden
+    );
     // An ordinary message still goes through.
     let mut core = app.0.core.lock().await;
     core.limits.clear();
@@ -245,8 +343,14 @@ async fn tts_messages_need_the_permission_and_are_marked() {
     .await
     .unwrap()
     .outcome;
-    assert!(matches!(plain, CommandOutcome::Ok(CommandResult::Message(m)) if !m.extra.tts));
+    assert!(matches!(
+        plain,
+        CommandOutcome::Ok(CommandResult::Message(_))
+    ));
     drop(core);
     // Direct messages allow it.
-    assert!(matches!(run(&app, 2, 6, tts(30, "dm")).await, CommandOutcome::Ok(CommandResult::Message(_))));
+    assert!(matches!(
+        run(&app, 2, 6, tts(30, "dm")).await,
+        CommandOutcome::Ok(CommandResult::Message(_))
+    ));
 }

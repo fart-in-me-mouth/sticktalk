@@ -68,7 +68,7 @@ pub struct CustomTheme {
 
 /// What a server admin chose for the server.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum ThemeChoice {
     /// One of `PRESETS`, by id.
     Preset(String),
@@ -129,7 +129,7 @@ pub struct ThemeLibrary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum AppearanceCommand {
     /// Opt this stream in to `Event::Appearance`; answers `Library`.
     Subscribe,
@@ -156,13 +156,13 @@ pub enum AppearanceCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum AppearanceResult {
     Library(Box<ThemeLibrary>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum AppearanceEvent {
     /// Your themes or settings changed on another device.
     Library(Box<ThemeLibrary>),
@@ -171,6 +171,12 @@ pub enum AppearanceEvent {
         guild_id: GuildId,
         #[serde(default)]
         theme: Option<ThemeChoice>,
+    },
+    /// A `/tts` message: read it aloud if you are looking at its conversation.
+    /// Sent with (right after) its `MessageCreated`, to the same people.
+    Tts {
+        channel_id: ChannelId,
+        message_id: MessageId,
     },
 }
 
@@ -337,7 +343,11 @@ pub fn saturate(c: u32, amount: f64) -> u32 {
 /// with every one of them (or the end of the range). Returns the color and
 /// whether it reached `min`.
 fn enforce(fg: u32, bgs: &[u32], min: f64, lighter: bool) -> (u32, bool) {
-    let worst = |c: u32| bgs.iter().map(|b| wcag_contrast(c, *b)).fold(f64::MAX, f64::min);
+    let worst = |c: u32| {
+        bgs.iter()
+            .map(|b| wcag_contrast(c, *b))
+            .fold(f64::MAX, f64::min)
+    };
     if worst(fg) >= min {
         return (fg, true);
     }
@@ -451,7 +461,11 @@ impl Palette {
     }
     /// The mention highlight as it is painted on the chat surface.
     pub fn mention_on_chat(&self) -> u32 {
-        mix(self.warning, self.chat, f64::from(self.mention_alpha) / 100.0)
+        mix(
+            self.warning,
+            self.chat,
+            f64::from(self.mention_alpha) / 100.0,
+        )
     }
     /// A mention chip (accent at 20 %) on the chat surface.
     pub fn chip_on_chat(&self) -> u32 {
@@ -608,28 +622,82 @@ const fn light(
 }
 /// The preset themes, dark-based first. Ids are stable (saved by servers).
 pub const PRESETS: [Preset; 22] = [
-    dark("aurora", "Aurora", 0x6EE7B7, &[0x1B4D3E, 0x2A2F6B, 0x5B2A6B], 135),
-    dark("midnight", "Midnight Blue", 0x60A5FA, &[0x0F1C3D, 0x1E3A6B], 160),
+    dark(
+        "aurora",
+        "Aurora",
+        0x6EE7B7,
+        &[0x1B4D3E, 0x2A2F6B, 0x5B2A6B],
+        135,
+    ),
+    dark(
+        "midnight",
+        "Midnight Blue",
+        0x60A5FA,
+        &[0x0F1C3D, 0x1E3A6B],
+        160,
+    ),
     dark("ember", "Ember", 0xFB923C, &[0x3D1308, 0x6B2A12], 135),
     dark("grape", "Grape", 0xC084FC, &[0x2A1440, 0x4A2370], 145),
-    dark("forest", "Forest", 0x4ADE80, &[0x0F2A1A, 0x1F4D2E, 0x2E5A3A], 180),
-    dark("crimson", "Crimson Dusk", 0xFB7185, &[0x3A0D1A, 0x5E1A2E], 135),
+    dark(
+        "forest",
+        "Forest",
+        0x4ADE80,
+        &[0x0F2A1A, 0x1F4D2E, 0x2E5A3A],
+        180,
+    ),
+    dark(
+        "crimson",
+        "Crimson Dusk",
+        0xFB7185,
+        &[0x3A0D1A, 0x5E1A2E],
+        135,
+    ),
     dark("ocean", "Ocean Deep", 0x22D3EE, &[0x062A3A, 0x0E4A5E], 200),
-    dark("sunset", "Sunset", 0xFDBA74, &[0x3D1A0F, 0x5E1F3A, 0x2A1440], 120),
+    dark(
+        "sunset",
+        "Sunset",
+        0xFDBA74,
+        &[0x3D1A0F, 0x5E1F3A, 0x2A1440],
+        120,
+    ),
     dark("steel", "Steel", 0x93C5FD, &[0x1A2028, 0x2A3340], 180),
     dark("neon", "Neon Night", 0xF0ABFC, &[0x12002A, 0x002A2A], 135),
     dark("coffee", "Coffee", 0xE0B084, &[0x2A1E14, 0x3D2A1C], 160),
-    dark("galaxy", "Galaxy", 0xA5B4FC, &[0x0B0B2A, 0x2A0B3D, 0x0B2A3D], 135),
-    light("mint", "Daylight Mint", 0x08704A, &[0xBFEBD6, 0xE8FAF1], 135),
+    dark(
+        "galaxy",
+        "Galaxy",
+        0xA5B4FC,
+        &[0x0B0B2A, 0x2A0B3D, 0x0B2A3D],
+        135,
+    ),
+    light(
+        "mint",
+        "Daylight Mint",
+        0x08704A,
+        &[0xBFEBD6, 0xE8FAF1],
+        135,
+    ),
     light("sky", "Sky", 0x1D4ED8, &[0xC9DEFF, 0xEAF2FF], 160),
     light("peach", "Peach", 0xC2410C, &[0xFFD3BA, 0xFFEFE4], 135),
     light("lavender", "Lavender", 0x6D28D9, &[0xDDCCFF, 0xF3EDFF], 145),
     light("rose", "Rose Garden", 0xBE123C, &[0xFFCCD9, 0xFFEEF2], 135),
     light("lemonade", "Lemonade", 0x8A5A00, &[0xFFF0A8, 0xD9F0FF], 120),
     light("sage", "Sage", 0x3F6212, &[0xD3E4CF, 0xF0F6EE], 180),
-    light("candy", "Cotton Candy", 0x9D174D, &[0xFFCCE6, 0xCCE4FF], 135),
+    light(
+        "candy",
+        "Cotton Candy",
+        0x9D174D,
+        &[0xFFCCE6, 0xCCE4FF],
+        135,
+    ),
     light("sand", "Sand", 0x92400E, &[0xEBD9BF, 0xFAF3E8], 160),
-    light("glacier", "Glacier", 0x0E7490, &[0xC4ECF2, 0xE6F7FA, 0xDDE3FF], 135),
+    light(
+        "glacier",
+        "Glacier",
+        0x0E7490,
+        &[0xC4ECF2, 0xE6F7FA, 0xDDE3FF],
+        135,
+    ),
 ];
 pub fn preset(id: &str) -> Option<&'static Preset> {
     PRESETS.iter().find(|p| p.id == id)
@@ -753,7 +821,11 @@ pub fn derive(spec: &ThemeSpec, adjust: Adjust) -> Theme {
             *s = tint(*s, avg, strength, dark);
         }
         // Text takes a whisper of the hue so it sits in the theme.
-        for t in [&mut p.text_primary, &mut p.text_secondary, &mut p.text_muted] {
+        for t in [
+            &mut p.text_primary,
+            &mut p.text_secondary,
+            &mut p.text_muted,
+        ] {
             *t = tint(*t, avg, strength * 0.25, dark);
         }
     }
@@ -828,7 +900,9 @@ fn finish(
         !ok
     };
     // Every place text is drawn, including each gradient stop.
-    let mut text_bgs = vec![p.rail, p.sidebar, p.chat, p.elevated, p.hover, p.selected, p.panel];
+    let mut text_bgs = vec![
+        p.rail, p.sidebar, p.chat, p.elevated, p.hover, p.selected, p.panel,
+    ];
     for (r, sb, ch) in &stops {
         text_bgs.extend([*r, *sb, *ch]);
     }
@@ -842,7 +916,11 @@ fn finish(
         p.divider = mix(p.text_primary, p.divider, 0.18);
         p.control = mix(p.text_primary, p.control, 0.15);
     }
-    unmet |= check(&mut p.text_primary, &primary_bgs, if boost { 12.0 } else { AA_TEXT });
+    unmet |= check(
+        &mut p.text_primary,
+        &primary_bgs,
+        if boost { 12.0 } else { AA_TEXT },
+    );
     unmet |= check(&mut p.text_secondary, &text_bgs, body);
     unmet |= check(&mut p.text_muted, &text_bgs, body);
     // Accent: links and mention text on surfaces; the focus ring and pressed
@@ -876,7 +954,12 @@ fn finish(
     let fills = [p.accent, p.accent_hover];
     let dark_ink = if dark { p.accent_text } else { 0x08170F };
     let light_ink = 0xFF_FFFF;
-    let score = |ink: u32| fills.iter().map(|f| wcag_contrast(ink, *f)).fold(f64::MAX, f64::min);
+    let score = |ink: u32| {
+        fills
+            .iter()
+            .map(|f| wcag_contrast(ink, *f))
+            .fold(f64::MAX, f64::min)
+    };
     p.accent_text = if !dark && p.accent_text == LIGHT.accent_text && derive_hover {
         if score(light_ink) >= score(dark_ink) {
             light_ink
@@ -943,9 +1026,19 @@ impl Theme {
     /// Every requirement this theme must meet, with its worst ratio.
     pub fn checks(&self, adjust: Adjust) -> Vec<Check> {
         let p = &self.palette;
-        let body = if adjust.contrast_boost { AAA_TEXT } else { AA_TEXT };
-        let worst = |fg: u32, bgs: &[u32]| bgs.iter().map(|b| wcag_contrast(fg, *b)).fold(f64::MAX, f64::min);
-        let mut text = vec![p.rail, p.sidebar, p.chat, p.elevated, p.hover, p.selected, p.panel];
+        let body = if adjust.contrast_boost {
+            AAA_TEXT
+        } else {
+            AA_TEXT
+        };
+        let worst = |fg: u32, bgs: &[u32]| {
+            bgs.iter()
+                .map(|b| wcag_contrast(fg, *b))
+                .fold(f64::MAX, f64::min)
+        };
+        let mut text = vec![
+            p.rail, p.sidebar, p.chat, p.elevated, p.hover, p.selected, p.panel,
+        ];
         for (r, s, c) in &self.stops {
             text.extend([*r, *s, *c]);
         }
@@ -953,18 +1046,66 @@ impl Theme {
         primary.extend([p.field, p.control, p.control_hover]);
         let links: Vec<u32> = text.iter().copied().filter(|b| *b != p.selected).collect();
         vec![
-            Check { what: "text.primary on every surface", ratio: worst(p.text_primary, &primary), min: body },
-            Check { what: "text.secondary on every surface", ratio: worst(p.text_secondary, &text), min: body },
-            Check { what: "text.muted on every surface", ratio: worst(p.text_muted, &text), min: body },
-            Check { what: "accent (links) on surfaces", ratio: worst(p.accent, &links), min: body },
-            Check { what: "accent.hover (links) on surfaces", ratio: worst(p.accent_hover, &links), min: body },
-            Check { what: "accent (ring, pressed) on selected", ratio: wcag_contrast(p.accent, p.selected), min: AA_UI },
-            Check { what: "mention chip text", ratio: wcag_contrast(p.accent, p.chip_on_chat()), min: AA_TEXT },
-            Check { what: "accent.text on accent", ratio: worst(p.accent_text, &[p.accent, p.accent_hover]), min: AA_TEXT },
-            Check { what: "accent.text on danger and warning", ratio: worst(p.accent_text, &[p.danger, p.warning]), min: AA_TEXT },
-            Check { what: "danger text on surfaces", ratio: worst(p.danger, &[p.chat, p.sidebar, p.elevated, p.hover]), min: body },
-            Check { what: "warning text on surfaces", ratio: worst(p.warning, &[p.chat, p.sidebar, p.elevated]), min: body },
-            Check { what: "text on mention highlight", ratio: wcag_contrast(p.text_primary, p.mention_on_chat()), min: body },
+            Check {
+                what: "text.primary on every surface",
+                ratio: worst(p.text_primary, &primary),
+                min: body,
+            },
+            Check {
+                what: "text.secondary on every surface",
+                ratio: worst(p.text_secondary, &text),
+                min: body,
+            },
+            Check {
+                what: "text.muted on every surface",
+                ratio: worst(p.text_muted, &text),
+                min: body,
+            },
+            Check {
+                what: "accent (links) on surfaces",
+                ratio: worst(p.accent, &links),
+                min: body,
+            },
+            Check {
+                what: "accent.hover (links) on surfaces",
+                ratio: worst(p.accent_hover, &links),
+                min: body,
+            },
+            Check {
+                what: "accent (ring, pressed) on selected",
+                ratio: wcag_contrast(p.accent, p.selected),
+                min: AA_UI,
+            },
+            Check {
+                what: "mention chip text",
+                ratio: wcag_contrast(p.accent, p.chip_on_chat()),
+                min: AA_TEXT,
+            },
+            Check {
+                what: "accent.text on accent",
+                ratio: worst(p.accent_text, &[p.accent, p.accent_hover]),
+                min: AA_TEXT,
+            },
+            Check {
+                what: "accent.text on danger and warning",
+                ratio: worst(p.accent_text, &[p.danger, p.warning]),
+                min: AA_TEXT,
+            },
+            Check {
+                what: "danger text on surfaces",
+                ratio: worst(p.danger, &[p.chat, p.sidebar, p.elevated, p.hover]),
+                min: body,
+            },
+            Check {
+                what: "warning text on surfaces",
+                ratio: worst(p.warning, &[p.chat, p.sidebar, p.elevated]),
+                min: body,
+            },
+            Check {
+                what: "text on mention highlight",
+                ratio: wcag_contrast(p.text_primary, p.mention_on_chat()),
+                min: body,
+            },
             Check {
                 what: "status dots on surfaces",
                 ratio: [p.online, p.idle, p.dnd, p.offline]
@@ -973,7 +1114,11 @@ impl Theme {
                     .fold(f64::MAX, f64::min),
                 min: AA_UI,
             },
-            Check { what: "switch knob on track", ratio: wcag_contrast(p.text_primary, p.control), min: AA_UI },
+            Check {
+                what: "switch knob on track",
+                ratio: wcag_contrast(p.text_primary, p.control),
+                min: AA_UI,
+            },
         ]
     }
 }
@@ -1007,7 +1152,10 @@ impl Theme {
         } else {
             "color-scheme:light;--name-l-min:0;--name-l-max:0.48;"
         });
-        css.push_str(&format!("--saturation:{:.2};", adjust.saturation.clamp(0.0, 1.0)));
+        css.push_str(&format!(
+            "--saturation:{:.2};",
+            adjust.saturation.clamp(0.0, 1.0)
+        ));
         if !self.stops.is_empty() {
             let grad = |pick: fn(&(u32, u32, u32)) -> u32| {
                 let stops: Vec<String> = self.stops.iter().map(|s| hex(pick(s))).collect();
@@ -1108,7 +1256,11 @@ pub fn parse_share_code(input: &str) -> Result<(ThemeSpec, String), &'static str
     }
     let rgb = |i: usize| (u32::from(b[i]) << 16) | (u32::from(b[i + 1]) << 8) | u32::from(b[i + 2]);
     let spec = ThemeSpec {
-        base: if flags & 1 == 1 { ThemeBase::Light } else { ThemeBase::Dark },
+        base: if flags & 1 == 1 {
+            ThemeBase::Light
+        } else {
+            ThemeBase::Dark
+        },
         accent: rgb(2),
         colors: (0..colors).map(|i| rgb(5 + i * 3)).collect(),
         angle: u16::from_be_bytes([b[5 + colors * 3], b[6 + colors * 3]]),
@@ -1160,13 +1312,23 @@ mod tests {
     fn every_theme_meets_aa() {
         let plain = Adjust::default();
         let mut rows = vec![];
-        for (name, p, dark) in [("Dark", DARK, true), ("Light", LIGHT, false), ("Darker", DARKER, true)] {
+        for (name, p, dark) in [
+            ("Dark", DARK, true),
+            ("Light", LIGHT, false),
+            ("Darker", DARKER, true),
+        ] {
             let t = derive_palette(p, dark, plain);
             report(name, &t, plain);
             rows.push((name.to_owned(), t, plain));
             for adjust in [
-                Adjust { saturation: 0.0, contrast_boost: false },
-                Adjust { saturation: 0.5, contrast_boost: true },
+                Adjust {
+                    saturation: 0.0,
+                    contrast_boost: false,
+                },
+                Adjust {
+                    saturation: 0.5,
+                    contrast_boost: true,
+                },
             ] {
                 let t = derive_palette(p, dark, adjust);
                 report(name, &t, adjust);
@@ -1177,7 +1339,10 @@ mod tests {
             assert!(!t.unmet, "{} could not meet every target", preset.name);
             report(preset.name, &t, plain);
             rows.push((preset.name.to_owned(), t, plain));
-            let boost = Adjust { saturation: 0.3, contrast_boost: true };
+            let boost = Adjust {
+                saturation: 0.3,
+                contrast_boost: true,
+            };
             report(preset.name, &derive(&preset.spec(), boost), boost);
         }
         println!("| Theme | text.primary | text.secondary | text.muted | accent (links) | accent.text | danger | status dots | lowest margin |");
@@ -1205,20 +1370,37 @@ mod tests {
     fn hostile_custom_themes_are_fixed() {
         let plain = Adjust::default();
         for (base, accent, colors) in [
-            (ThemeBase::Dark, 0x000000, vec![0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF]),
+            (
+                ThemeBase::Dark,
+                0x000000,
+                vec![0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF],
+            ),
             (ThemeBase::Light, 0xFFFFFF, vec![0xFFFFFF, 0x000000]),
             (ThemeBase::Light, 0xFFFF00, vec![0xFFFF00]),
             (ThemeBase::Dark, 0x101010, vec![0x101010]),
             (ThemeBase::Dark, 0x7F7F7F, vec![]),
         ] {
             for intensity in [0, 50, 100] {
-                let spec = ThemeSpec { base, accent, colors: colors.clone(), angle: 90, intensity };
+                let spec = ThemeSpec {
+                    base,
+                    accent,
+                    colors: colors.clone(),
+                    angle: 90,
+                    intensity,
+                };
                 let t = derive(&spec, plain);
                 assert!(!t.unmet, "{spec:?}");
                 report("custom", &t, plain);
             }
         }
-        let t = derive(&ThemeSpec { base: ThemeBase::Dark, accent: 0x000000, ..Default::default() }, plain);
+        let t = derive(
+            &ThemeSpec {
+                base: ThemeBase::Dark,
+                accent: 0x000000,
+                ..Default::default()
+            },
+            plain,
+        );
         assert!(t.accent_adjusted);
     }
 
@@ -1277,11 +1459,20 @@ mod tests {
         for preset in PRESETS {
             let code = share_code(&preset.spec(), preset.name);
             assert!(code.len() < 64, "{code}");
-            assert_eq!(parse_share_code(&code), Ok((preset.spec(), preset.name.to_owned())));
+            assert_eq!(
+                parse_share_code(&code),
+                Ok((preset.spec(), preset.name.to_owned()))
+            );
             let link = format!("https://chat.example/?theme={code}");
             assert_eq!(parse_share_code(&link).unwrap().0, preset.spec());
         }
-        let spec = ThemeSpec { base: ThemeBase::Light, accent: 0x123456, colors: vec![1, 2, 3, 4, 5], angle: 359, intensity: 100 };
+        let spec = ThemeSpec {
+            base: ThemeBase::Light,
+            accent: 0x123456,
+            colors: vec![1, 2, 3, 4, 5],
+            angle: 359,
+            intensity: 100,
+        };
         let code = share_code(&spec, "Ünïcödé 🎨 theme with a long name that is cut");
         let (back, name) = parse_share_code(&code).unwrap();
         assert_eq!(back, spec);
@@ -1297,7 +1488,9 @@ mod tests {
             let bytes: Vec<u8> = (0..len).map(|i| (seed >> (i % 56)) as u8).collect();
             if let Ok((s, n)) = parse_share_code(&b64(&bytes)) {
                 assert!(s.validate().is_ok());
-                assert!(n.chars().count() <= MAX_THEME_NAME_CHARS && !n.chars().any(char::is_control));
+                assert!(
+                    n.chars().count() <= MAX_THEME_NAME_CHARS && !n.chars().any(char::is_control)
+                );
             }
         }
         // A control character in the name is removed.
@@ -1308,10 +1501,30 @@ mod tests {
 
     #[test]
     fn validation() {
-        assert!(ThemeSpec { colors: vec![0; 6], ..Default::default() }.validate().is_err());
-        assert!(ThemeSpec { accent: 0x1000000, ..Default::default() }.validate().is_err());
-        assert!(ThemeSpec { angle: 360, ..Default::default() }.validate().is_err());
-        assert!(ThemeSpec { intensity: 101, ..Default::default() }.validate().is_err());
+        assert!(ThemeSpec {
+            colors: vec![0; 6],
+            ..Default::default()
+        }
+        .validate()
+        .is_err());
+        assert!(ThemeSpec {
+            accent: 0x1000000,
+            ..Default::default()
+        }
+        .validate()
+        .is_err());
+        assert!(ThemeSpec {
+            angle: 360,
+            ..Default::default()
+        }
+        .validate()
+        .is_err());
+        assert!(ThemeSpec {
+            intensity: 101,
+            ..Default::default()
+        }
+        .validate()
+        .is_err());
         assert!(ThemeChoice::Preset("nope".into()).validate().is_err());
         assert!(ThemeChoice::Preset("aurora".into()).validate().is_ok());
         assert!(validate_name(" ").is_err());
@@ -1320,23 +1533,62 @@ mod tests {
         assert_eq!(validate_name("  Mine ").unwrap(), "Mine");
         let ids: std::collections::BTreeSet<_> = PRESETS.iter().map(|p| p.id).collect();
         assert_eq!(ids.len(), PRESETS.len());
-        assert!(PRESETS.iter().filter(|p| p.base == ThemeBase::Light).count() >= 10);
+        assert!(
+            PRESETS
+                .iter()
+                .filter(|p| p.base == ThemeBase::Light)
+                .count()
+                >= 10
+        );
         assert!(PRESETS.iter().filter(|p| p.base == ThemeBase::Dark).count() >= 10);
     }
 
     #[test]
     fn wire_shapes() {
         let lib = ThemeLibrary {
-            themes: vec![CustomTheme { id: Id(1), name: "A".into(), spec: PRESETS[0].spec() }],
-            settings: ThemeSettings { server_themes: false, server_overrides: vec![ServerThemeOverride { guild_id: Id(2), show: true }] },
-            servers: vec![ServerTheme { guild_id: Id(2), theme: ThemeChoice::Preset("ocean".into()) }],
+            themes: vec![CustomTheme {
+                id: Id(1),
+                name: "A".into(),
+                spec: PRESETS[0].spec(),
+            }],
+            settings: ThemeSettings {
+                server_themes: false,
+                server_overrides: vec![ServerThemeOverride {
+                    guild_id: Id(2),
+                    show: true,
+                }],
+            },
+            servers: vec![ServerTheme {
+                guild_id: Id(2),
+                theme: ThemeChoice::Preset("ocean".into()),
+            }],
         };
         let bytes = rmp_serde::to_vec_named(&lib).unwrap();
         assert_eq!(rmp_serde::from_slice::<ThemeLibrary>(&bytes).unwrap(), lib);
         assert!(lib.settings.shows(Id(2)));
         assert!(!lib.settings.shows(Id(3)));
-        let json = serde_json::to_string(&AppearanceCommand::SetServerTheme { guild_id: Id(2), theme: Some(ThemeChoice::Custom(ThemeSpec::default())) }).unwrap();
+        let json = serde_json::to_string(&AppearanceCommand::SetServerTheme {
+            guild_id: Id(2),
+            theme: Some(ThemeChoice::Custom(ThemeSpec::default())),
+        })
+        .unwrap();
         assert!(json.contains("set_server_theme"));
+        // The protocol's tagged shape survives MessagePack, as the server reads it.
+        for command in [
+            AppearanceCommand::Subscribe,
+            AppearanceCommand::DeleteTheme { id: Id(5) },
+            AppearanceCommand::SetServerTheme {
+                guild_id: Id(2),
+                theme: Some(ThemeChoice::Preset("ocean".into())),
+            },
+        ] {
+            let msg = ClientMsg::Command(CommandRequest {
+                nonce: 7,
+                command: Command::Appearance(command),
+            });
+            let bytes = rmp_serde::to_vec_named(&msg).unwrap();
+            assert_eq!(rmp_serde::from_slice::<ClientMsg>(&bytes).unwrap(), msg);
+        }
         let empty: ThemeSettings = serde_json::from_str("{}").unwrap();
         assert!(empty.server_themes);
     }

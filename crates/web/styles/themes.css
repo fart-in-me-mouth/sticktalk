@@ -79,6 +79,11 @@
 /* "Speak Message" lives in the message menu, not the hover bar. */
 .message-actions .menu-only { display: none; }
 
+/* While a theme changes (one frame), nothing transitions from the old colors. */
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after { transition: none !important; }
+
 /* ---- Reduced motion ------------------------------------------------------
    data-motion is "reduce" when the setting is on, or follows the device.
    Every animation and transition in the app honors it, including ones added

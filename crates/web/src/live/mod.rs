@@ -772,9 +772,6 @@ async fn socket(app: Shared, epoch: u64) {
                                         Event::Moderation(e) => moderation::event(&mut a, e),
                                         Event::Privacy(e) => privacy::event(&mut a, e),
                                         Event::Appearance(e) => themes::event(&mut a, e),
-                                        Event::MessageCreated { message, .. } => {
-                                            themes::message_created(&a, message)
-                                        }
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id
@@ -792,6 +789,10 @@ async fn socket(app: Shared, epoch: u64) {
                                             expression::event(&mut a, e.clone())
                                         }
                                         _ => {}
+                                    }
+                                    // Read aloud (`/tts`, TTS notifications): themes.rs.
+                                    if let Event::MessageCreated { message, .. } = &event.event {
+                                        themes::message_created(&a, message);
                                     }
                                 }
                                 let typing = matches!(event.event, Event::Typing { .. });
