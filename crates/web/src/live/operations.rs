@@ -2700,6 +2700,9 @@ fn voice_action(app: Shared, kind: String, arg: String, epoch: u64) {
                     }
                     media_action("joining");
                     a.voice_channel = Some(c);
+                    if let Some(hello) = super::e2ee::hello() {
+                        a.voice(hello);
+                    }
                     a.voice(VoiceSignal::Join {
                         channel_id: c,
                         capabilities: VoiceCapabilities {

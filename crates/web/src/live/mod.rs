@@ -3,6 +3,7 @@ mod authsec;
 mod calls;
 mod community;
 mod content;
+mod e2ee;
 mod expression;
 mod history_cache;
 mod moderation;

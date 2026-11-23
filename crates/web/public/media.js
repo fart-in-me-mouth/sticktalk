@@ -23,6 +23,9 @@ let pc,
   levelsTimer,
   deviceListener = false;
 let idleReceivers = [];
+// End-to-end encryption (e2ee.js): loaded when the server welcomes this device
+// into a call that can be encrypted; its events run in order.
+let e2ee = null, e2eeLoading = null, e2eeQueue = Promise.resolve(), e2eeReady = null;
 // The chosen microphone, camera and speaker, remembered on this device.
 const DEVICES = 'sticktalk-call-devices';
 try {
@@ -378,6 +381,7 @@ async function publish(track, kind, stream) {
   }
   if (track.kind === "video") preferH264(transceiver);
   else preferOpus(transceiver);
+  e2ee?.sender(transceiver.sender, kind);
   publications.set(kind, { kind, track, stream, transceiver });
   return transceiver;
 }
@@ -450,7 +454,7 @@ async function quiet() {
   mount();
 }
 async function start(data) {
-  stop(false);
+  stop(false, true);
   if (!globalThis.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) {
     signal('leave');
     wantCall = false;
@@ -458,11 +462,14 @@ async function start(data) {
   }
   joined = true;
   const generation = ++epoch;
+  if (e2eeReady) await e2eeReady.catch(report);
+  if (generation !== epoch) return;
   participants = new Map(data.participants.map((p) => [key(p.session), p]));
   pc = new RTCPeerConnection({
     iceServers: [],
     bundlePolicy: "max-bundle",
     rtcpMuxPolicy: "require",
+    ...(e2ee?.pcConfig() ?? {}),
   });
   const current = pc;
   current.oniceconnectionstatechange = () =>
@@ -756,6 +763,7 @@ async function updateParticipant(participant) {
     transceiver.direction = "recvonly";
     if (track.codec) preferH264(transceiver);
     else preferOpus(transceiver);
+    e2ee?.receiver(transceiver, participant.session, track.kind);
     const subscription = {
       key: id,
       participant,
@@ -851,6 +859,16 @@ export function event(event) {
       report(data.message ?? "The server rejected a media operation.");
       pendingAnswer?.reject(new Error(data.message ?? 'Media operation failed.'));
       pendingAnswer = null;
+      // Refused from (or removed from) a call this app cannot encrypt.
+      if (data.code === "unsupported_feature" && /end-to-end/.test(data.message ?? "") && !listenOnly) stop(true);
+      break;
+    case "e2ee":
+      if (data?.type === "welcome" && wantCall && !listenOnly)
+        e2eeLoading ??= import("./e2ee.js").then((m) => { m.bind(e2eeHost); return (e2ee = m); });
+      if (e2eeLoading) {
+        const run = (e2eeQueue = e2eeQueue.then(() => e2eeLoading).then((m) => m.event(event)).catch(report));
+        if (data?.type === "welcome") e2eeReady = run;
+      }
       break;
     case "control_requested":
       controlRequested(data);
@@ -1380,8 +1398,13 @@ function receiveControl(data) {
   else if (message.type === "input" && String(message.data.sharer?.user_id) === self())
     tellHost({ control: "input", input: message.data.input });
 }
-function stop(notify) {
+function stop(notify, keepEncryption = false) {
   if(notify){wantCall=false;wantCamera=false;listenOnly=false;pendingListen=false;stageList.stop();}
+  if (!keepEncryption) {
+    e2ee?.stop();
+    e2ee = e2eeLoading = e2eeReady = null;
+    e2eeQueue = Promise.resolve();
+  }
   ptt.detach();
   ++epoch;
   for(const request of [...requests.values()])request.reject(new Error('Call ended.'));
@@ -1554,6 +1577,7 @@ export function mount() {
   for (const e of document.querySelectorAll('[data-live="media:share"]'))
     e.setAttribute("aria-pressed", String(publications.has("screen")));
   extras.mount();
+  e2ee?.mount();
   stageList.mount();
   const settings = $("#live-device-settings");
   if (settings && !settings.dataset.initialized) {
@@ -1897,6 +1921,7 @@ export async function diagnostics() {
     listenOnly,
     stage: stageList.diagnostics(),
     extras: extras.diagnostics(),
+    e2ee: e2ee ? await e2ee.diagnostics() : null,
     tracks: [...elements.values()].map((e) => ({
       kind: e.tile.dataset.kind,
       own: !!e.tile.dataset.self,
@@ -1913,6 +1938,16 @@ export async function diagnostics() {
     stats: rows,
   };
 }
+// What e2ee.js may see and do in the call.
+const e2eeHost = {
+  signal,
+  report,
+  mount,
+  self,
+  person,
+  leave: () => stop(true),
+  keyframe: (mid) => signal("request_keyframe", { receiver_mid: mid, fir: false }),
+};
 // What callextras.js may see and do in the call.
 extras.bind({
   get pc() { return pc; },

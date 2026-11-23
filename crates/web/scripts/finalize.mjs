@@ -191,6 +191,8 @@ const paths = sizes
       !/\/(profiles\.js$|cosmetics\/|badges\/|fonts\/names\/)/.test(p) &&
       // Call extras and the segmentation model load only when used.
       !/\/(callextras|soundboard|backgrounds|backgrounds-worker|clips)\.js$/.test(p) &&
+      // Call encryption loads when a call starts.
+      !/\/e2ee(-core|-qr|-worker)?\.js$/.test(p) &&
       !p.includes("/public/vendor/") &&
       !p.includes("/vendor/") &&
       !p.includes("expression.js") &&

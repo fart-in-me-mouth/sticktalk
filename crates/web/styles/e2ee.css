@@ -1,0 +1,122 @@
+/* End-to-end encrypted calls (docs/E2EE.md): the lock in the call, its
+   banners, the encryption panel and verification. Imported by app.css; colors
+   come only from theme tokens (docs/features/themes.md). */
+@layer components {
+  .e2ee-status {
+    @apply mb-2 flex flex-none flex-col items-center gap-1.5;
+  }
+  .e2ee-pill {
+    @apply inline-flex min-h-8 items-center gap-1.5 rounded-full border bg-card px-3 text-[13px] text-subtle hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring touch:min-h-11;
+  }
+  .e2ee-pill.is-on {
+    @apply text-foreground;
+  }
+  .e2ee-pill.is-on .icon {
+    @apply text-online;
+  }
+  .e2ee-pill.is-off {
+    @apply border-destructive/60 text-foreground;
+  }
+  .e2ee-pill.is-off .icon,
+  .e2ee-pill.is-warn .icon {
+    @apply text-warning;
+  }
+  .e2ee-pill.is-warn {
+    @apply border-warning/60 text-foreground;
+  }
+  .e2ee-banner {
+    @apply m-0 w-full max-w-[640px] rounded-md border bg-card px-3 py-2 text-center text-[13px] text-foreground;
+  }
+  .e2ee-banner.is-off {
+    @apply border-destructive/60 bg-destructive/10;
+  }
+  .e2ee-banner.is-warn {
+    @apply border-warning/60 bg-warning/10;
+  }
+  .e2ee-toast {
+    @apply m-0 rounded-lg border bg-popover px-3 py-1.5 text-[13px] text-popover-foreground shadow-md;
+  }
+  .tile-e2ee {
+    @apply pointer-events-none absolute right-2 bottom-9 z-[1] grid size-6 place-items-center rounded-full bg-black/60 text-online;
+  }
+  .tile-e2ee.is-warn {
+    @apply text-warning;
+  }
+  .e2ee-dialog {
+    @apply max-h-[min(760px,calc(var(--viewport-height)-32px))] w-[min(520px,calc(100vw-32px))] overflow-y-auto;
+  }
+  .e2ee-panel-state {
+    @apply mt-3! flex items-start gap-2 text-foreground!;
+  }
+  .e2ee-panel-state .icon {
+    @apply mt-0.5 flex-none text-online;
+  }
+  .e2ee-panel-state.is-off .icon,
+  .e2ee-panel-state.is-warn .icon {
+    @apply text-warning;
+  }
+  .e2ee-heading {
+    @apply mt-5 mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase;
+  }
+  .e2ee-code {
+    @apply mt-0! flex flex-wrap gap-x-3 gap-y-1 font-mono text-lg tracking-wider text-foreground! tabular-nums phone:gap-x-2 phone:text-base phone:tracking-normal;
+  }
+  .e2ee-devices {
+    @apply m-0 flex list-none flex-col gap-1 p-0;
+  }
+  .e2ee-device {
+    @apply flex min-h-12 items-center gap-3 rounded-md border bg-card px-3 py-2;
+  }
+  .e2ee-device-name {
+    @apply flex min-w-0 flex-1 flex-col;
+  }
+  .e2ee-device-name strong {
+    @apply truncate text-sm text-foreground;
+  }
+  .e2ee-device-name small {
+    @apply truncate font-mono text-[11px] text-muted-foreground;
+  }
+  .e2ee-badge {
+    @apply flex-none rounded-full bg-muted px-2 py-0.5 text-[11px] text-subtle;
+  }
+  .e2ee-badge.is-on {
+    @apply bg-online/15 text-foreground;
+  }
+  .e2ee-badge.is-warn,
+  .e2ee-badge.is-off {
+    @apply bg-warning/15 text-foreground;
+  }
+  .e2ee-verify {
+    @apply h-8 flex-none px-3 text-[13px] touch:min-h-11;
+  }
+  .e2ee-option {
+    @apply mt-4 items-start;
+  }
+  .e2ee-scope {
+    @apply mt-4!;
+  }
+  .e2ee-qr-box {
+    @apply mt-4 flex flex-col items-center gap-2 text-center text-[12px] text-muted-foreground;
+  }
+  .e2ee-qr {
+    @apply size-[min(240px,70vw)] rounded-md;
+  }
+  /* theme-lint: artwork */
+  /* A QR code is read by cameras: always dark modules on a light ground. */
+  .e2ee-qr-light {
+    fill: #fff;
+  }
+  .e2ee-qr-dark {
+    fill: #000;
+  }
+  /* theme-lint: end */
+  .e2ee-dialog .confirm-actions {
+    @apply flex-wrap;
+  }
+  /* theme-lint: artwork */
+  /* The camera's picture is content: letterboxed on black like other video. */
+  .e2ee-scanner {
+    @apply aspect-square w-[min(280px,75vw)] rounded-lg bg-black object-cover;
+  }
+  /* theme-lint: end */
+}

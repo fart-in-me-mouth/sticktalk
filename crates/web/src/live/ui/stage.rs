@@ -138,6 +138,7 @@ pub(super) fn view(a: &App) -> AnyView {
                 <h2 class="stage-topic m-0 mt-1 text-lg font-semibold wrap-anywhere">{i.topic.clone()}</h2>
                 {i.privacy_note.clone().map_or_else(||().into_any(),|n|view!{<p class="stage-note m-0 mt-1 flex items-center gap-1 text-[13px] text-subtle">{icon_with("shield","icon size-3.5 flex-none")}<span class="wrap-anywhere">{n}</span></p>}.into_any())}
                 <p class="m-0 mt-2 flex gap-4 text-[13px] text-subtle"><span class="flex items-center gap-1">{icon_with("mic","icon size-3.5")}{format!("{} speaking",i.speakers)}</span><span class="flex items-center gap-1">{icon_with("headphones","icon size-3.5")}{format!("{} listening",i.listeners)}</span></p>
+                <p class="stage-e2ee m-0 mt-1 flex items-center gap-1 text-[13px] text-subtle" title="One-to-many audiences are not end-to-end encrypted; voice channels and calls are.">{icon_with("lock-open","icon size-3.5 flex-none")}"Stage channels aren’t end-to-end encrypted."</p>
             </div>
             {if moderating{view!{<div class="flex flex-none gap-2">{button("Edit Topic","stage:topic","secondary")}{button("End Stage","stage:end","danger")}</div>}.into_any()}else{().into_any()}}
         </header>}.into_any(),
