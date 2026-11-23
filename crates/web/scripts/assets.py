@@ -19,7 +19,7 @@ for name in ['Inter-Regular', 'Inter-Medium', 'Inter-SemiBold', 'JetBrainsMono-R
     font.save(PUBLIC / 'fonts' / (name + '.woff2'))
     (PUBLIC / 'fonts' / (name + '.ttf')).unlink(missing_ok=True)
 
-extra = ['volume-2','volume-x','mic','mic-off','headphones','headphone-off','phone','phone-incoming','phone-missed','phone-off','video','video-off','monitor','signal','pin','crown','lock','maximize','arrow-up-right','smartphone','key-round','eye','shield-check','check-check','bell','user-round','message-square','wifi-off']
+extra = ['volume-2','volume-x','mic','mic-off','headphones','headphone-off','phone','phone-incoming','phone-missed','phone-off','video','video-off','monitor','signal','pin','crown','lock','maximize','arrow-up-right','smartphone','key-round','eye','shield-check','check-check','bell','user-round','message-square','wifi-off','audio-lines','clapperboard','star','play','upload']
 vendored = ET.parse(ROOT / 'assets' / 'lucide-extra.svg').getroot()
 extra_symbols = {node.attrib['id'][2:]: node for node in vendored.iter() if 'id' in node.attrib}
 icons = {p.stem: ET.fromstring(p.read_text()) for p in (CLIENT / 'icons').glob('*.svg')}

@@ -1,0 +1,168 @@
+/* Call extras: soundboard, video effects, quality readouts, clips, the call's
+   More menu. Imported by app.css; same tokens and component classes. */
+@layer components {
+  .call-extras-dialog {
+    @apply max-h-[min(720px,calc(100vh-32px))] overflow-y-auto;
+  }
+  .call-extras-dialog h3.category {
+    @apply mt-4 mb-1;
+  }
+  /* The More menu: a short list of big targets. */
+  .call-more-items {
+    @apply my-3 flex flex-col gap-1;
+  }
+  .call-more-item {
+    @apply flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-left text-[15px] hover:bg-accent focus-visible:bg-accent;
+  }
+  /* Who played a sound, who saved a clip: brief, polite, out of the way. */
+  .call-toasts {
+    @apply pointer-events-none absolute top-24 left-1/2 z-20 flex w-[min(420px,calc(100%-32px))] -translate-x-1/2 flex-col items-center gap-2;
+  }
+  .call-toast {
+    @apply flex max-w-full items-center gap-2 rounded-lg border bg-popover/95 px-4 py-2 text-sm text-popover-foreground shadow-md;
+  }
+  .call-toast-icon {
+    @apply text-base;
+  }
+  .call-clipping-notice {
+    @apply m-0 mb-2 flex-none rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-center text-[13px] text-foreground;
+  }
+  .participant-tile.is-clipping::before {
+    @apply absolute top-12 right-2 z-[1] rounded-full bg-black/60 px-2 py-0.5 text-[11px] text-foreground content-['🎬_Clips_on'];
+  }
+  .participant-tile[data-sound]::before {
+    @apply absolute top-2 left-2 z-[1] grid size-8 place-items-center rounded-full bg-black/60 text-lg content-[attr(data-sound)];
+  }
+  .tile-quality {
+    @apply pointer-events-none absolute top-2 left-2 z-[1] rounded-md bg-black/60 px-2 py-0.5 text-[11px] text-foreground tabular-nums;
+  }
+  .participant-tile[data-kind="screen"] .tile-quality {
+    @apply left-14;
+  }
+  .participant-tile[data-kind="camera"]:not(.is-focused) .tile-quality {
+    @apply hidden;
+  }
+  .call-hidden-media {
+    @apply pointer-events-none fixed top-0 left-0 size-px opacity-0;
+  }
+  /* Soundboard */
+  .soundboard-panel {
+    @apply w-[min(520px,calc(100vw-32px))];
+  }
+  .soundboard-search {
+    @apply mt-2 w-full;
+  }
+  .soundboard-list {
+    @apply flex flex-col gap-4;
+  }
+  .soundboard-group-header {
+    @apply flex items-center justify-between gap-2;
+  }
+  .soundboard-grid {
+    @apply mt-2 grid grid-cols-3 gap-2;
+  }
+  .soundboard-item {
+    @apply relative flex min-w-0;
+  }
+  .soundboard-sound {
+    @apply flex min-h-16 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-lg border bg-secondary px-7 py-2 text-sm hover:bg-secondary-hover focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .soundboard-sound.is-played {
+    @apply bg-primary/25;
+  }
+  .soundboard-emoji {
+    @apply text-xl leading-none;
+  }
+  .soundboard-name {
+    @apply max-w-full truncate;
+  }
+  .soundboard-star,
+  .soundboard-edit {
+    @apply absolute top-0.5 size-7 rounded-md text-muted-foreground opacity-70 hover:opacity-100 focus-visible:opacity-100;
+  }
+  .soundboard-star {
+    @apply right-0.5;
+  }
+  .soundboard-star.is-favorite {
+    @apply text-warning opacity-100;
+  }
+  .soundboard-star.is-favorite svg {
+    fill: currentColor;
+  }
+  .soundboard-edit {
+    @apply left-0.5;
+  }
+  .soundboard-settings {
+    @apply mt-4 text-sm;
+  }
+  .soundboard-settings summary {
+    @apply cursor-pointer py-2 text-subtle;
+  }
+  .soundboard-form-actions,
+  .clip-actions {
+    @apply mt-4 flex flex-wrap gap-2;
+  }
+  /* Video effects */
+  .backgrounds-dialog {
+    @apply w-[min(560px,calc(100vw-32px))];
+  }
+  .backgrounds-preview {
+    @apply aspect-video w-full rounded-lg bg-black object-cover;
+    transform: scaleX(-1);
+  }
+  .backgrounds-grid {
+    @apply mt-3 grid grid-cols-4 gap-2;
+  }
+  .backgrounds-option {
+    @apply relative grid aspect-video w-full place-items-center overflow-hidden rounded-md border-2 border-transparent bg-secondary text-xs hover:bg-secondary-hover focus-visible:ring-[3px] focus-visible:ring-ring/40;
+  }
+  .backgrounds-option[aria-checked="true"] {
+    @apply border-primary;
+  }
+  .backgrounds-option :is(canvas, img) {
+    @apply absolute inset-0 size-full object-cover;
+  }
+  .backgrounds-custom {
+    @apply relative;
+  }
+  .backgrounds-remove {
+    @apply absolute top-0.5 right-0.5 size-6 rounded-full bg-black/70 text-sm leading-none;
+  }
+  /* Clips */
+  .clip-editor,
+  .clip-library {
+    @apply w-[min(640px,calc(100vw-32px))];
+  }
+  .clip-preview {
+    @apply aspect-video w-full rounded-lg bg-black;
+  }
+  .clip-list {
+    @apply my-3 flex flex-col gap-3;
+  }
+  .clip-row {
+    @apply flex flex-wrap items-center gap-3 border-b pb-3;
+  }
+  .clip-thumb {
+    @apply aspect-video w-40 flex-none rounded-md bg-black;
+  }
+  .clip-meta {
+    @apply flex min-w-0 flex-1 flex-col gap-1;
+  }
+  .voice-bitrate-settings output {
+    @apply ml-auto;
+  }
+  @media (max-width: 767px) {
+    dialog.call-extras-dialog {
+      @apply mt-auto mb-0 w-full max-w-none rounded-b-none pb-[max(24px,var(--safe-bottom))];
+    }
+    .soundboard-grid {
+      @apply grid-cols-2;
+    }
+    .backgrounds-grid {
+      @apply grid-cols-3;
+    }
+    .clip-thumb {
+      @apply w-full;
+    }
+  }
+}

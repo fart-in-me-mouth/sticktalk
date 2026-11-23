@@ -1213,6 +1213,10 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
     if name == "media-settings" {
         media_action("devices");
     }
+    // A voice channel's bitrate section in Edit Channel is filled in by script.
+    if name.starts_with("channel-edit:") {
+        media_action("voice-bitrate");
+    }
     let http = app.borrow().http();
     let privacy = app.borrow().privacy_generation;
     let name = name.to_owned();

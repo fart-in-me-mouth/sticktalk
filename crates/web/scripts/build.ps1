@@ -8,7 +8,7 @@ Push-Location (Join-Path $PSScriptRoot '..')
 try {
   # Tailwind CSS and UI SDK are build inputs (package.json dependencies). Test tools
   # (Playwright, Lighthouse) are devDependencies and are not needed to build.
-  if (!(Test-Path -LiteralPath 'node_modules/@tailwindcss/cli') -or !(Test-Path -LiteralPath 'node_modules/@ui-sdk/web')) {
+  if (!(Test-Path -LiteralPath 'node_modules/@tailwindcss/cli') -or !(Test-Path -LiteralPath 'node_modules/@ui-sdk/web') -or !(Test-Path -LiteralPath 'node_modules/@mediapipe/tasks-vision')) {
     npm.cmd ci --omit=dev --ignore-scripts --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw 'Installing the web build dependencies (npm ci) failed.' }
   }

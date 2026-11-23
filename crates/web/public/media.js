@@ -2,6 +2,7 @@
 // peer connection; no mesh, external ICE service, or media work while disconnected.
 import * as ptt from './ptt.js';
 import { ringtoneEnabled, setRingtoneEnabled } from './calls.js';
+import * as extras from './callextras.js';
 const emit = (action) =>
   window.dispatchEvent(new CustomEvent("sticktalk-live", { detail: action }));
 const signal = (type, data) =>
@@ -311,7 +312,7 @@ async function negotiate(beforeRemote) {
   // The SFU allocates a fresh forwarding SSRC *after* answering Subscribe.
   // Do not pin Chromium's video receiver to the answer's discarded default SSRC.
   // Its generated send-stream MSIDs also need the wildcard semantic declaration.
-  const browserSdp = normalizeAnswer(sdp);
+  const browserSdp = extras.answer(normalizeAnswer(sdp));
   await current.setRemoteDescription({ type: "answer", sdp: browserSdp });
   bindRemote();
 }
@@ -775,7 +776,7 @@ export function event(event) {
         if (!p) return;
         const params = p.transceiver.sender.getParameters();
         if (!params.encodings?.length) return;
-        for (const e of params.encodings) e.maxBitrate = Number(data.bps);
+        for (const e of params.encodings) e.maxBitrate = extras.videoCap(p, Number(data.bps));
         await p.transceiver.sender.setParameters(params);
       });
       break;
@@ -817,13 +818,16 @@ export function event(event) {
       if (data.session.user_id === self() && joined) stop(false);
       break;
     default:
+      extras.event(event);
       break;
   }
+  if (event.type === "left" || event.type === "participant") extras.event(event);
 }
 function applyState() {
   // Your microphone only: a shared screen keeps its sound while you are muted.
   const voice = publications.get("audio");
   if (voice) voice.track.enabled = !muted && !deafened;
+  extras.deafen(deafened);
   for (const e of elements.values()) applyAudio(e);
   signal("state", { muted, deafened });
   mount();
@@ -833,6 +837,7 @@ async function toggleCamera() {
   const old = publications.get("camera");
   if (old) {
     old.track.stop();
+    extras.cameraStopped();
     old.transceiver.direction = "inactive";
     publications.delete("camera");
     elements.get("self-camera")?.tile.remove();
@@ -842,17 +847,22 @@ async function toggleCamera() {
     return;
   }
   const generation = epoch;
-  const stream = await navigator.mediaDevices.getUserMedia({
+  const raw = await navigator.mediaDevices.getUserMedia({
     audio: false,
     video: {
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      frameRate: { ideal: 30 },
+      ...extras.cameraConstraints(),
       ...(cameraDevice ? { deviceId: { ideal: cameraDevice } } : {}),
     },
   });
   if (generation !== epoch) {
+    raw.getTracks().forEach((t) => t.stop());
+    return;
+  }
+  // With a background effect on, the published picture is the processed one.
+  const stream = await extras.camera(raw);
+  if (generation !== epoch) {
     stream.getTracks().forEach((t) => t.stop());
+    extras.cameraStopped();
     return;
   }
   await publish(stream.getVideoTracks()[0], "camera", stream);
@@ -866,7 +876,23 @@ async function toggleCamera() {
   tile.media.play().catch(() => {});
   elements.set("self-camera", tile);
   await negotiate();
+  extras.tune("camera");
   mount();
+}
+// A new picture for the published camera (a background turned on or off).
+async function replaceCamera(stream) {
+  const p = publications.get("camera");
+  if (!p) return false;
+  const track = stream.getVideoTracks()[0];
+  await p.transceiver.sender.replaceTrack(track);
+  p.track = track;
+  p.stream = stream;
+  const tile = elements.get("self-camera");
+  if (tile) {
+    tile.media.srcObject = stream;
+    tile.media.play().catch(() => {});
+  }
+  return true;
 }
 async function share() {
   if (!pc) throw Error("Join a voice channel first.");
@@ -894,6 +920,7 @@ async function unshare() {
   elements.get("self-screen")?.tile.remove();
   elements.delete("self-screen");
   await negotiate();
+  extras.streamsChanged();
   mount();
 }
 function showShareOptions() {
@@ -913,19 +940,8 @@ function showShareOptions() {
     label.append(control);
     return label;
   };
-  const fps = document.createElement("select");
-  for (const n of [15, 30, 60]) {
-    const o = new Option(`${n} fps`, String(n));
-    fps.add(o);
-  }
-  fps.value = "30";
-  const size = document.createElement("select");
-  for (const [h, label] of [
-    [720, "720p"],
-    [1080, "1080p"],
-    [1440, "1440p"],
-  ])
-    size.add(new Option(label, String(h)));
+  // Resolution, frame rate and smoother-motion or sharper-text, remembered.
+  const quality = extras.shareFields();
   const note = document.createElement("p");
   note.className = "muted-copy";
   note.textContent =
@@ -936,11 +952,7 @@ function showShareOptions() {
   start.onclick = async () => {
     // getDisplayMedia is invoked inside this user gesture, not after negotiation.
     const capture = navigator.mediaDevices.getDisplayMedia({
-      video: {
-        frameRate: { ideal: Number(fps.value), max: Number(fps.value) },
-        height: { ideal: Number(size.value) },
-        width: { ideal: Math.round((Number(size.value) * 16) / 9) },
-      },
+      video: extras.displayConstraints(),
       audio: displayAudio(navigator.mediaDevices.getSupportedConstraints?.()),
     });
     dialog.close();
@@ -969,6 +981,8 @@ function showShareOptions() {
       // In the Windows app the shared screen can be controlled, with your consent.
       if (host()) controlChannelReady();
       enqueue(negotiate);
+      extras.tune("screen");
+      extras.streamsChanged();
     } catch (e) {
       if (e.name !== "NotAllowedError") report(e);
     }
@@ -977,7 +991,7 @@ function showShareOptions() {
   cancel.className = "button secondary";
   cancel.textContent = "Cancel";
   cancel.onclick = () => dialog.close();
-  dialog.append(title, labelled("Resolution", size), labelled("Frame Rate", fps), note, start, cancel);
+  dialog.append(title, ...quality, note, start, cancel);
   document.body.append(dialog);
   dialog.showModal();
 }
@@ -1312,6 +1326,7 @@ function stop(notify) {
   local = null;
   endControlling();
   endControlled();
+  extras.stop();
   controlChannel = null;
   pc?.close();
   pc = null;
@@ -1348,6 +1363,7 @@ async function levels() {
               !muted && !deafened && Number(row.audioLevel) > 0.02,
             );
       }
+    extras.stats(stats);
   } catch {
   } finally {
     if (pc === current && joined) levelsTimer = setTimeout(levels, 200);
@@ -1466,6 +1482,7 @@ export function mount() {
     e.setAttribute("aria-pressed", String(publications.has("camera")));
   for (const e of document.querySelectorAll('[data-live="media:share"]'))
     e.setAttribute("aria-pressed", String(publications.has("screen")));
+  extras.mount();
   const settings = $("#live-device-settings");
   if (settings && !settings.dataset.initialized) {
     settings.dataset.initialized = "true";
@@ -1559,7 +1576,7 @@ async function devices() {
   note.textContent =
     "Echo cancellation, noise suppression, and automatic gain control are enabled for voice.";
   root.append(note, micTest(root), cameraTest(),
-    ptt.settingsView({ enabled: ringtoneEnabled, set: setRingtoneEnabled }));
+    ptt.settingsView({ enabled: ringtoneEnabled, set: setRingtoneEnabled }), extras.settings());
   if (!deviceListener) {
     deviceListener = true;
     navigator.mediaDevices.addEventListener("devicechange", () => {
@@ -1571,6 +1588,7 @@ async function setOutput(id) {
   output = id;
   rememberDevices();
   audioContext?.setSinkId?.(id).catch(() => {});
+  extras.output(id);
   // What may be boosted depends on the speaker.
   for (const e of elements.values()) applyAudio(e);
   for (const e of elements.values())
@@ -1764,6 +1782,7 @@ export function action(action) {
       showDevices();
       break;
     default:
+      extras.action(action);
       break;
   }
 }
@@ -1783,6 +1802,7 @@ export async function diagnostics() {
     subscriptions: subscriptions.size,
     transmitting: ptt.transmitting(),
     microphoneSending: !!publications.get("audio")?.transceiver.sender.track,
+    extras: extras.diagnostics(),
     tracks: [...elements.values()].map((e) => ({
       kind: e.tile.dataset.kind,
       own: !!e.tile.dataset.self,
@@ -1799,3 +1819,25 @@ export async function diagnostics() {
     stats: rows,
   };
 }
+// What callextras.js may see and do in the call.
+extras.bind({
+  get pc() { return pc; },
+  get joined() { return joined; },
+  get deafened() { return deafened; },
+  get output() { return output; },
+  get channel() { return callChannel; },
+  get cameraDevice() { return cameraDevice; },
+  self,
+  person,
+  report,
+  signal,
+  enqueue,
+  mount,
+  action,
+  negotiate: () => negotiate(),
+  publication: (kind) => publications.get(kind),
+  elements: () => elements,
+  participants: () => participants,
+  replaceCamera,
+  restartCamera: () => enqueue(async () => { await toggleCamera(); await toggleCamera(); }),
+});
