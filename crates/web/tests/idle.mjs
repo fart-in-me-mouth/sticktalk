@@ -78,8 +78,9 @@ try {
     );
     const value = JSON.parse(stdout);
     const rows = Array.isArray(value) ? value : [value];
+    const byId = new Map(rows.map((r) => [Number(r.Id), r]));
     return {
-      processes: processInfo.map((p) => ({ id: p.id, type: p.type })),
+      processes: processInfo.map((p) => ({ id: p.id, type: p.type, privateBytes: byId.get(Number(p.id))?.PrivateMemorySize64 ?? 0 })),
       workingSetBytes: rows.reduce((n, p) => n + p.WorkingSet64, 0),
       privateBytes: rows.reduce((n, p) => n + p.PrivateMemorySize64, 0),
     };
@@ -109,6 +110,15 @@ try {
     0,
   );
   const chat = await memory();
+  // What the idle page holds (docs/features/perf.md): the JS heap, and the
+  // WASM modules and scripts it has loaded.
+  const pageCdp = await page.context().newCDPSession(page);
+  await pageCdp.send("Performance.enable");
+  const metrics = Object.fromEntries((await pageCdp.send("Performance.getMetrics")).metrics.map((m) => [m.name, m.value]));
+  const loaded = await page.evaluate(() => performance.getEntriesByType("resource")
+    .filter((e) => /\.(wasm|js)$/.test(new URL(e.name).pathname))
+    .map((e) => ({ path: new URL(e.name).pathname, transferBytes: e.transferSize, bytes: e.decodedBodySize })));
+  const sum = (list) => list.reduce((n, e) => n + e.bytes, 0);
   const report = {
     bundleRevision: JSON.parse(
       await readFile(join(process.env.STICKTALK_WEB_DIST ?? join(target, "web-dist"), "sizes.json"), "utf8"),
@@ -122,6 +132,12 @@ try {
     authenticated: chat,
     deltaPrivateBytes: chat.privateBytes - blank.privateBytes,
     deltaWorkingSetBytes: chat.workingSetBytes - blank.workingSetBytes,
+    jsHeapUsedBytes: metrics.JSHeapUsedSize,
+    jsHeapTotalBytes: metrics.JSHeapTotalSize,
+    domNodes: metrics.Nodes,
+    wasmLoadedBytes: sum(loaded.filter((e) => e.path.endsWith(".wasm"))),
+    scriptLoadedBytes: sum(loaded.filter((e) => e.path.endsWith(".js"))),
+    loaded,
     note: "Whole separate headless Chromium process-tree totals; working-set sum double-counts shared pages. Not native-client or physical-phone memory.",
   };
   await writeFile(
