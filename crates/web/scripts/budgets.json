@@ -16,7 +16,7 @@
     "expand_shortcodes": 1900,
     "expression": 10000,
     "expression_state": 22800,
-    "forward_voice": 48000,
+    "forward_voice": 56700,
     "gif_search": 2600,
     "load_call": 20700,
     "load_community_dialog": 100800,
@@ -44,6 +44,6 @@
     "threads": 15300,
     "threads_state": 10800,
     "upload": 10800,
-    "voice_action": 27800
+    "voice_action": 31100
   }
 }
