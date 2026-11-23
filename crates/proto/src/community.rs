@@ -653,18 +653,40 @@ pub enum CommunityEvent {
     Queue { guild_id: GuildId, pending: u32 },
 }
 
-/// The dangerous rights onboarding may never grant.
-pub const ONBOARDING_FORBIDDEN: Permissions = Permissions::from_bits_retain(
-    Permissions::ADMINISTRATOR.bits()
-        | Permissions::MANAGE_GUILD.bits()
-        | Permissions::MANAGE_ROLES.bits()
-        | Permissions::BAN_MEMBERS.bits()
-        | Permissions::KICK_MEMBERS.bits()
-        | Permissions::MODERATE_MEMBERS.bits()
-        | Permissions::MANAGE_CHANNELS.bits()
-        | Permissions::MANAGE_MESSAGES.bits()
-        | Permissions::OWNER.bits(),
+/// The rights onboarding may give: what an ordinary member has. Everything
+/// else is forbidden, in the role and in any channel overwrite for it,
+/// including a bit added later until it is classified here (security review
+/// G4; test `every_bit_is_classified_for_onboarding`).
+pub const ONBOARDING_ALLOWED: Permissions = Permissions::from_bits_retain(
+    Permissions::VIEW_CHANNEL.bits()
+        | Permissions::SEND_MESSAGES.bits()
+        | Permissions::READ_HISTORY.bits()
+        | Permissions::ATTACH_FILES.bits()
+        | Permissions::ADD_REACTIONS.bits()
+        | Permissions::CREATE_INVITES.bits()
+        | Permissions::CHANGE_NICKNAME.bits()
+        | Permissions::EMBED_LINKS.bits()
+        | Permissions::CONNECT.bits()
+        | Permissions::SPEAK.bits()
+        | Permissions::STREAM.bits()
+        | Permissions::VIDEO.bits()
+        | Permissions::USE_VOICE_ACTIVITY.bits()
+        | Permissions::USE_SOUNDBOARD.bits()
+        | Permissions::CREATE_PUBLIC_THREADS.bits()
+        | Permissions::CREATE_PRIVATE_THREADS.bits()
+        | Permissions::SEND_MESSAGES_IN_THREADS.bits()
+        | Permissions::USE_EXTERNAL_EMOJI.bits()
+        | Permissions::USE_EXTERNAL_STICKERS.bits()
+        | Permissions::REQUEST_TO_SPEAK.bits()
+        | Permissions::SEND_TTS_MESSAGES.bits(),
 );
+/// The rights onboarding may never grant: every other one.
+pub const ONBOARDING_FORBIDDEN: Permissions = Permissions::all().difference(ONBOARDING_ALLOWED);
+/// Whether a role with these rights (its own and its channel overwrites'
+/// allows) may be given by onboarding. Unknown bits are refused too.
+pub fn onboarding_grantable(rights: Permissions) -> bool {
+    rights.difference(ONBOARDING_ALLOWED).is_empty()
+}
 
 /// UTC day number for a Unix millisecond time.
 pub fn day_of(ms: UnixMillis) -> u32 {
@@ -696,5 +718,39 @@ mod tests {
         assert!(ONBOARDING_FORBIDDEN.contains(Permissions::ADMINISTRATOR));
         assert!(!ONBOARDING_FORBIDDEN.contains(Permissions::SEND_MESSAGES));
         assert_eq!(day_of(86_400_000 * 3 + 5), 3);
+    }
+    /// A new permission bit fails this until it is put on one side: an
+    /// ordinary member right onboarding may give, or one it may not.
+    #[test]
+    fn every_bit_is_classified_for_onboarding() {
+        let not_for_onboarding = Permissions::MANAGE_MESSAGES
+            | Permissions::MANAGE_CHANNELS
+            | Permissions::MANAGE_GUILD
+            | Permissions::KICK_MEMBERS
+            | Permissions::BAN_MEMBERS
+            | Permissions::MANAGE_MEMBERS
+            | Permissions::ADMINISTRATOR
+            | Permissions::OWNER
+            | Permissions::MANAGE_ROLES
+            | Permissions::MANAGE_NICKNAMES
+            | Permissions::MENTION_EVERYONE
+            | Permissions::MUTE_MEMBERS
+            | Permissions::DEAFEN_MEMBERS
+            | Permissions::MOVE_MEMBERS
+            | Permissions::PRIORITY_SPEAKER
+            | Permissions::MANAGE_EMOJI
+            | Permissions::VIEW_AUDIT_LOG
+            | Permissions::MODERATE_MEMBERS
+            | Permissions::MANAGE_SOUNDBOARD
+            | Permissions::MANAGE_THREADS
+            | Permissions::PUBLISH_MESSAGES
+            | Permissions::MANAGE_EVENTS
+            | Permissions::CREATE_EVENTS;
+        assert!((not_for_onboarding & ONBOARDING_ALLOWED).is_empty());
+        let unclassified = Permissions::all() - not_for_onboarding - ONBOARDING_ALLOWED;
+        assert!(unclassified.is_empty(), "classify for onboarding: {unclassified:?}");
+        assert_eq!(ONBOARDING_FORBIDDEN, not_for_onboarding);
+        assert!(!onboarding_grantable(Permissions::from_bits_retain(1 << 63)));
+        assert!(onboarding_grantable(Permissions::SEND_MESSAGES | Permissions::CONNECT));
     }
 }

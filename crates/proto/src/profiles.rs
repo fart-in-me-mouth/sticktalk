@@ -571,8 +571,10 @@ mod tests {
     #[test]
     fn names_are_checked_against_the_card_they_are_on() {
         let pale = NameStyle {
+            font: NameFont::default(),
             color: 0xFFF3B0,
-            ..Default::default()
+            color2: None,
+            effect: NameEffect::Solid,
         };
         assert!(legible_name_color(pale.color), "fine on the dark chat");
         // A light card (dark text): a pale name is not readable there.
@@ -584,7 +586,7 @@ mod tests {
             color: 0xFFF3B0,
             color2: Some(0x7A3B00),
             effect: NameEffect::Gradient,
-            ..Default::default()
+            font: NameFont::default(),
         };
         assert!(!name_reads_on_card(&gradient, 0x1B1B3A, 0x2A1E4F));
     }

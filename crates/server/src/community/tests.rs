@@ -1285,3 +1285,45 @@ async fn insights_are_rolled_up_and_only_for_managers() {
     let raw = serde_json::to_string(&i).unwrap();
     assert!(!raw.contains("\"user_id\""));
 }
+
+/// Security review G4: onboarding gives ordinary member rights only. Mention
+/// Everyone, voice moderation and the like are refused, and so is a role that
+/// gains a forbidden right through a channel overwrite, at save and at grant.
+#[tokio::test]
+async fn onboarding_refuses_broadcast_and_moderation_rights_and_overwrites() {
+    let (_d, app) = fixture().await;
+    sql(&app, &format!("INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(12,'text',10,'help',1,0);
+        INSERT INTO roles(guild_id,id,name,position,permissions) VALUES(10,40,'Helpers',2,{}),(10,43,'Plain',2,{}),(10,44,'Sneaky',2,{});
+        INSERT INTO permission_overwrites VALUES(12,'role',44,{},0);",
+        (Permissions::MENTION_EVERYONE | Permissions::MOVE_MEMBERS).bits(),
+        (Permissions::SEND_MESSAGES | Permissions::CONNECT).bits(),
+        Permissions::SEND_MESSAGES.bits(),
+        Permissions::MANAGE_MESSAGES.bits())).await;
+    give(
+        &app,
+        2,
+        50,
+        Permissions::MANAGE_GUILD | Permissions::MANAGE_ROLES,
+        5,
+    )
+    .await;
+    let flow = |role: u64| onboarding(vec![question(1, true, true, vec![answer(1, &[role], &[]), answer(2, &[], &[])])], &[]);
+    for refused in [40, 44] {
+        assert_eq!(
+            err(cm(&app, 2, flow(refused)).await).field.as_deref(),
+            Some("roles"),
+            "role {refused}"
+        );
+    }
+    ok(cm(&app, 2, flow(43)).await);
+    // Granted while it is plain; not once an overwrite gives it more.
+    let code = invite(&app).await;
+    ok(join(&app, 3, &code).await);
+    ok(cm(&app, 3, respond(&[(1, 1)])).await);
+    assert!(roles_of(&app, 3).await.contains(&Id(43)));
+    ok(cm(&app, 3, respond(&[(1, 2)])).await);
+    assert!(!roles_of(&app, 3).await.contains(&Id(43)));
+    sql(&app, &format!("INSERT INTO permission_overwrites VALUES(12,'role',43,{},0)", Permissions::MENTION_EVERYONE.bits())).await;
+    ok(cm(&app, 3, respond(&[(1, 1)])).await);
+    assert!(!roles_of(&app, 3).await.contains(&Id(43)));
+}

@@ -156,8 +156,11 @@ try {
   // Joined to the voice channel, with its chat beside the call: room to type.
   await act(alice, `voice:${voice}`);
   await alice.waitForSelector('.voice-view, .call-stage, [data-call-view]', { timeout: 15000 }).catch(() => {});
-  await act(alice, `call:chat,${voice}`);
-  await alice.waitForSelector('.call-chat #live-input', { timeout: 15000 }).catch(() => {});
+  // `call:chat` toggles the panel: open it if it is not open yet.
+  for (let i = 0; i < 2 && !(await alice.locator('.call-chat').count()); i++) {
+    await act(alice, `call:chat,${voice}`);
+    await alice.waitForSelector('.call-chat #live-input', { timeout: 5000 }).catch(() => {});
+  }
   report.callChat = {};
   for (const [width, height] of SIZES) {
     await alice.setViewportSize({ width, height });

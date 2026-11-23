@@ -523,6 +523,67 @@ in `permission_tests::late_bits_follow_owner_admin_timeout_and_screening_rules`.
 - `preferences.js` asks `matchMedia` on first use, not at import (Node tests
   import it).
 
+## Announcement follows end with their creator's access
+
+A follow kept copying published messages (and their files) into the
+follower's server after the person who made it was banned or lost access to
+the announcement channel (security review G1). A follow is now kept only while
+its creator can read the announcement channel and manage the channel it posts
+in: every delivery checks (`threads/announce.rs`, `still_allowed`); a ban,
+kick or leave in either server, or a role or overwrite change there, re-checks
+that server's follows at once (`revalidate_follows`, after the command). A
+follow that fails is removed and logged in both servers' audit logs
+(`channel_unfollow`, with the reason). Removals of copies always propagate.
+Test: `threads::tests::integration::follows_stop_when_their_creator_loses_access`.
+
+## Links say where they go
+
+A link could show one site and open another (security review G2). The shared
+renderer (`client-core/src/markdown.rs`, used by messages, bios, statuses and
+everything else drawn as Markdown) now:
+
+- does not make a masked link (`[text](url)`) whose text names another site (a
+  URL or a domain-shaped word whose host differs, `www.` aside): the Markdown
+  is shown as typed, and any URL in it links to exactly where it reads;
+- refuses URLs with a login part (`https://paypal.com@evil.example`) and URLs
+  containing bidirectional controls (U+202A to U+202E, U+2066 to U+2069, the
+  marks); a control ends an autolink and is removed from link text;
+- shows an autolink whose host is in another script in the ASCII (punycode)
+  form the browser will use.
+
+In the web app every web link carries its real host (tooltip and
+`data-link-host`). Opening a masked link, or a link to a host this browser has
+not been told to trust, asks first in the app's own dialog, naming the host
+and the full address, with Cancel, "Always open <host>" (remembered per
+browser, at most 200) and Open Link. Link preview cards show the real host,
+with the page's own site name only beside it. Test:
+`markdown::tests::links_show_where_they_go`.
+
+## Onboarding gives ordinary member rights only
+
+`ONBOARDING_FORBIDDEN` listed eight rights; Mention Everyone, voice
+moderation, Manage Nicknames, Manage Threads, View Audit Log, Manage
+Expressions, Events and Soundboard and anything added later passed, and a
+channel overwrite was not looked at (security review G4). Now onboarding may
+give a role only if its rights, including every channel overwrite's allows for
+it, are within `ONBOARDING_ALLOWED` (view, send, read history, attach,
+react, invite, change nickname, embed links, connect, speak, video, stream,
+voice activity, soundboard, create and send in threads, external emoji and
+stickers, request to speak, TTS), at save and again at grant. A new bit fails
+`every_bit_is_classified_for_onboarding` until it is classified. Test:
+`community::tests::onboarding_refuses_broadcast_and_moderation_rights_and_overwrites`.
+
+## Two more fixes found by the suites
+
+- **SFU keyframes**: a viewer waits for a keyframe before getting a video
+  route's packets; the one request sent when the route was made could be lost
+  while the publisher's encoder started, and that viewer then never got
+  video (`live.mjs`, about one run in three). While a route waits, each packet
+  from the source asks again (at most once a second per source).
+- **Checkboxes with an action** (`data-live` on a native checkbox or radio):
+  `live.js` no longer cancels the click, which made the browser flip the box
+  back after the app had drawn the new state (`community.mjs`, the rules box).
+
 ## Tests updated because a control moved on purpose
 
 - `expression.mjs`: the Super Reactions animation switch is in Accessibility

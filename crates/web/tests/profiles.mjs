@@ -180,7 +180,7 @@ try {
   await legible(bob, 'light card, light theme');
   await both(bob, 'profile-card-light-theme');
   await act(bob, 'close');
-  await act(alice, 'dialog:profile-edit');
+  await act(alice, 'dialog:profile-edit'); await act(alice, 'profiles:tab,user');
   await alice.waitForSelector('[data-live-form="profiles-user"]');
   await alice.locator('#pf-primary').fill('#1b1b3a');
   await alice.locator('#pf-accent').fill('#2a1e4f');

@@ -618,7 +618,7 @@ fn inline(a: &App, v: &Inline, m: &Message) -> AnyView {
             ""
         }
     );
-    let body=match &v.target{Some(Target::Mention(u))if m.mention_ids.contains(u)=>view!{<button class="mention" data-live=format!("profile:{}",u.0)>{format!("@{}",a.model.name(*u))}</button>}.into_any(),Some(Target::Auto(url)|Target::Masked(url))if url.starts_with("https://")||url.starts_with("http://")=>view!{<a href=url.clone() target="_blank" rel="noopener noreferrer">{v.text.clone()}</a>}.into_any(),_ if v.style.code=>view!{<span>{v.text.clone()}</span>}.into_any(),_=>expression::text(a,&v.text)};
+    let body=match &v.target{Some(Target::Mention(u))if m.mention_ids.contains(u)=>view!{<button class="mention" data-live=format!("profile:{}",u.0)>{format!("@{}",a.model.name(*u))}</button>}.into_any(),Some(target@(Target::Auto(url)|Target::Masked(url)))if url.starts_with("https://")||url.starts_with("http://")=>{let host=sticktalk_client_core::urls::parse(url).map(|u|u.host).unwrap_or_default();view!{<a href=url.clone() target="_blank" rel="noopener noreferrer" title=host.clone() data-link-host=host data-masked=matches!(target,Target::Masked(_)).then_some("")>{v.text.clone()}</a>}.into_any()}.into_any(),_ if v.style.code=>view!{<span>{v.text.clone()}</span>}.into_any(),_=>expression::text(a,&v.text)};
     if v.spoiler.is_some() {
         view!{<button class="live-spoiler" data-spoiler aria-label="Reveal spoiler">{body}</button>}.into_any()
     } else {
