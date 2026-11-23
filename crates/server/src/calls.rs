@@ -129,12 +129,21 @@ fn state(core: &Core, ch: Id) -> Option<DmCall> {
     })
 }
 
+/// The conversation's members; none once it has been deleted.
+async fn members(c: &mut SqliteConnection, ch: Id) -> Result<Vec<Id>> {
+    match db::channel(c, ch).await {
+        Ok(channel) => Ok(channel.summary.recipient_ids),
+        Err(e) if e.0.code == ErrorCode::NotFound => Ok(vec![]),
+        Err(e) => Err(e),
+    }
+}
+
 /// Sends the call's current state to every member of its conversation.
 pub(crate) async fn publish(core: &mut Core, c: &mut SqliteConnection, ch: Id) -> Result<()> {
     if !core.calls.live.contains_key(&ch) {
         return Ok(());
     }
-    let members = db::channel(c, ch).await?.summary.recipient_ids;
+    let members = members(c, ch).await?;
     if let Some(call) = core.calls.live.get_mut(&ch) {
         // Someone who left the group is not rung any more.
         call.ringing.retain(|u, _| members.contains(u));
@@ -206,17 +215,28 @@ pub(crate) async fn left(
     key: &[u8],
     ch: Id,
 ) -> Result<()> {
-    let _ = crate::voice::send(core, key, 0, &VoiceEvent::CallEnded { channel_id: ch });
+    let ended = VoiceEvent::CallEnded { channel_id: ch };
     if core.voice.values().any(|v| v.state.channel_id == ch) {
+        let _ = crate::voice::send(core, key, 0, &ended);
         return publish(core, c, ch).await;
     }
     let Some(call) = core.calls.live.remove(&ch) else {
+        let _ = crate::voice::send(core, key, 0, &ended);
         return Ok(());
     };
-    let members = db::channel(c, ch).await?.summary.recipient_ids;
-    deliver(core, &members, &VoiceEvent::CallEnded { channel_id: ch });
-    // A call whose media never connected (a failed join) leaves no record.
-    if !call.joined.is_empty() {
+    let members = members(c, ch).await?;
+    deliver(core, &members, &ended);
+    // Exactly one "over for you" per connection: members got it just now.
+    if core
+        .streams
+        .get(key)
+        .is_some_and(|s| !members.contains(&s.user))
+    {
+        let _ = crate::voice::send(core, key, 0, &ended);
+    }
+    // A call whose media never connected (a failed join) leaves no record, and
+    // neither does one whose conversation is gone.
+    if !call.joined.is_empty() && !members.is_empty() {
         record(app, core, c, ch, &call).await?;
     }
     Ok(())
