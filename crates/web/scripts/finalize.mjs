@@ -165,6 +165,7 @@ const paths = sizes
       // Call extras and the segmentation model load only when used.
       !/\/(callextras|soundboard|backgrounds|backgrounds-worker|clips)\.js$/.test(p) &&
       !p.includes("/public/vendor/") &&
+      !p.includes("/vendor/") &&
       !(p.endsWith(".wasm") && !p.endsWith("_bg.wasm")) &&
       !p.includes("__wasm_split_manifest"),
   );

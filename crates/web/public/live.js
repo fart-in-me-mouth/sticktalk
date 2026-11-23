@@ -222,6 +222,9 @@ let lastSwipe;
 let invite = new URLSearchParams(location.search).get('invite');
 let inviteOpened = false;
 let reauth = new URLSearchParams(location.search).get('reauth');
+// Account security pages and the account switcher (authsec.js), loaded on first use.
+let authsec;
+const authsecModule = () => (authsec ??= import('/public/authsec.js'));
 function updateJump(list) {
   if(!list)return;
   let button=$('#jump-to-present');
@@ -594,7 +597,7 @@ function restore() {
   updateJump(list);
   syncOverlayHistory();
   if(reauth && $('.live-home') && !modal) {
-    const page={password:'password',delete_account:'delete-account',link:'account',unlink:'account',linked:'account'}[reauth];
+    const page={password:'password',delete_account:'delete-account',link:'account',unlink:'account',linked:'account',passkeys:'password',email:'password',data_export:'data-export'}[reauth];
     reauth=null;if(page)emit(`dialog:${page}`);
   }
   if(invite && $('.live-home') && !modal && !inviteOpened) {
@@ -606,6 +609,7 @@ function restore() {
     const url=new URL(location.href);url.searchParams.delete('invite');history.replaceState(history.state,'',url);
   }
   media?.mount();
+  if (authsec || $('[data-authsec-root]') || globalThis.__sticktalkLink) void authsecModule().then(m => m.mount(emit)).catch(() => {});
   syncProfile();
   syncRolePositions();
 }
@@ -658,13 +662,13 @@ export function installPlatform() {
         (r) =>
           (r.type === 'attributes' && (r.target.matches('.live-shell,[data-role-id]') || r.target.id==='sticktalk')) ||
           r.type === "childList" &&
-          !r.target.closest?.('#live-media-stage,#live-device-settings,#live-viewer') &&
+          !r.target.closest?.('#live-media-stage,#live-device-settings,#live-viewer,[data-authsec-root],#authsec-dialog') &&
           [...r.addedNodes,...r.removedNodes].some(
             (n) =>
               n.nodeType === 1 &&
               (!n.closest ||
                 !n.closest(
-                  "#live-media-stage,#live-device-settings,#live-viewer",
+                  "#live-media-stage,#live-device-settings,#live-viewer,[data-authsec-root] *,#authsec-dialog",
                 )),
           ),
       )
@@ -695,6 +699,8 @@ export function installPlatform() {
     if (pick) { e.preventDefault(); document.getElementById(pick.dataset.pick)?.click(); return; }
     const rich = e.target.closest('[data-content]');
     if (rich) { e.preventDefault(); void contentModule().then((m) => m.click(rich, e)).catch((err) => emit(`voice-error:${err.message}`)); return; }
+    const sec = e.target.closest('[data-authsec]');
+    if (sec) { e.preventDefault(); void authsecModule().then(m => m.action(sec.dataset.authsec, emit)).catch(e => emit(`media-error:${e.message}`)); return; }
     const target = e.target.closest("[data-live]");
     if (target) {
         // Chromium may fat-finger-adjust a touch on message text to its nearby

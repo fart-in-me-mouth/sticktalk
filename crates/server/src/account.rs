@@ -46,6 +46,7 @@ pub async fn remove_files(app: &App, paths: &[String]) {
     }
     // Replica GC is durable: blob_replicas survives until remote deletion succeeds.
     app.0.tier.wake.notify_one();
+    crate::authsec::wake(app);
 }
 pub async fn erase(c: &mut SqliteConnection, user: Id) -> Result<Vec<String>> {
     let u = id(user)?;
@@ -61,6 +62,7 @@ pub async fn erase(c: &mut SqliteConnection, user: Id) -> Result<Vec<String>> {
     if deleted {
         return Ok(vec![]);
     }
+    crate::authsec::erase(&mut *c, user).await?;
     let now = state::now() as i64;
     let release = now + 30 * 86_400_000;
     sqlx::query("INSERT INTO reserved_usernames VALUES(?,?)")

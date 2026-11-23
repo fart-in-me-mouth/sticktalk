@@ -608,7 +608,7 @@ async fn methods(c: &mut SqliteConnection, user: Id) -> Result<AuthMethodsRespon
         google_linked: r.get("google_linked"),
     })
 }
-async fn session(c: &mut SqliteConnection, user: Id) -> Result<AuthResponse> {
+pub(crate) async fn session(c: &mut SqliteConnection, user: Id) -> Result<AuthResponse> {
     crate::db::enabled(c, user).await?;
     let count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE user_id=? AND expires_at>? AND token_hash NOT IN (SELECT session_hash FROM mcp_grants)")

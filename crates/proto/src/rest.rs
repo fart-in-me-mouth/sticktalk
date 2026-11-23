@@ -252,6 +252,12 @@ pub enum AccountOperation {
     Unlink,
     Password,
     DeleteAccount,
+    /// Register or remove a passkey (docs/features/authsec.md).
+    Passkeys,
+    /// Add, change or remove the account's email address.
+    Email,
+    /// Request a personal data export.
+    DataExport,
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GoogleChallengeRequest {

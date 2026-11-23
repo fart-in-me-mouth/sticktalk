@@ -50,6 +50,8 @@ pub struct BrowserOptions {
     /// Loopback-only mock push service; never enable on a public bind.
     #[arg(long, env = "STICKTALK_MOCK_PUSH_ORIGIN")]
     pub mock_push_origin: Option<String>,
+    #[command(flatten)]
+    pub authsec: crate::authsec::AuthSecOptions,
 }
 impl std::fmt::Debug for BrowserOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -476,7 +478,15 @@ async fn start(
     require(
         matches!(
             query.operation.as_str(),
-            "sign_in" | "link" | "unlink" | "password" | "delete_account" | "link_identity"
+            "sign_in"
+                | "link"
+                | "unlink"
+                | "password"
+                | "delete_account"
+                | "link_identity"
+                | "passkeys"
+                | "email"
+                | "data_export"
         ),
         ErrorCode::InvalidRequest,
     )?;

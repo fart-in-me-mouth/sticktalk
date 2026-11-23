@@ -112,6 +112,7 @@ pub(crate) struct Inner {
     pub(crate) content: crate::content::Content,
     pub shutdown: tokio_util::sync::CancellationToken,
     pub nav: crate::nav::Nav,
+    pub authsec: crate::authsec::AuthSec,
 }
 pub(crate) struct Core {
     pub streams: HashMap<Vec<u8>, Stream>,
@@ -469,6 +470,7 @@ impl App {
         let push = crate::push::Push::new(&config).await?;
         let tier = crate::tier::Tier::new(&config)?;
         let content = crate::content::Content::configured(&config.operations.content, config.bind)?;
+        let authsec = crate::authsec::AuthSec::new(&config)?;
         let app = Self(Arc::new(Inner {
             tier,
             browser,
@@ -501,6 +503,7 @@ impl App {
             content,
             shutdown: tokio_util::sync::CancellationToken::new(),
             nav: Default::default(),
+            authsec,
         }));
         app.housekeeping().await?;
         sqlx::query("DELETE FROM upload_reservations")

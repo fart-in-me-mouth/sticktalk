@@ -435,6 +435,8 @@ pub enum Event {
     Content(ContentEvent),
     /// Only sent to streams that sent `ModerationCommand::Subscribe`.
     Moderation(ModerationEvent),
+    /// Sent only to streams that fetched GET /api/v1/users/@me/data-export (docs/features/authsec.md).
+    DataExportUpdated(DataExport),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

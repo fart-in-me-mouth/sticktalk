@@ -3,6 +3,7 @@ mod account;
 pub mod admin;
 #[cfg(test)]
 mod audit_tests;
+mod authsec;
 pub mod backup;
 pub mod blob;
 pub mod browser;
@@ -54,6 +55,7 @@ pub fn router(app: App) -> axum::Router {
     nav::spawn(&app);
     content::spawn(&app);
     moderation::spawn(&app);
+    authsec::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]

@@ -27,6 +27,7 @@ pub fn router(app: App) -> axum::Router {
         .merge(crate::nav::routes())
         .merge(crate::content::routes())
         .merge(crate::moderation::routes())
+        .merge(crate::authsec::routes())
         .route(
             "/api/v1/users/@me/server-folders",
             get(crate::folders::endpoint),
@@ -91,6 +92,7 @@ async fn bounded_requests(
             || path.contains("/files/")
             || path.contains("/update/artifact")
             || path.contains("/update/publish")
+            || (path.contains("/data-export/") && path.ends_with("/download"))
             || !path.starts_with("/api/"));
     let pool = if transfer {
         &app.0.transfers
