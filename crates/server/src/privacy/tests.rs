@@ -1568,3 +1568,237 @@ async fn unconfirmed_members_get_no_content_from_age_restricted_channels() {
     .await;
     assert_ne!(s, StatusCode::OK, "{v}");
 }
+
+/// Threads and forum posts inside an age-restricted channel are restricted
+/// with it on every path (task `qa2`): before, each check looked at the
+/// conversation's own row only, so a thread of an age-restricted channel was
+/// readable, searchable and alerting without confirming. Confirming from inside
+/// the thread confirms the channel above it.
+#[tokio::test]
+async fn threads_inside_an_age_restricted_channel_are_restricted_with_it() {
+    let (_dir, app) = fixture().await;
+    sql(&app, "INSERT INTO guild_members VALUES(10,3,'member',0); INSERT INTO read_states(user_id,channel_id) VALUES(3,11); INSERT INTO channel_age_restricted VALUES(11); INSERT INTO age_confirmations VALUES(3,11,0);
+         INSERT INTO channels(id,kind,guild_id,parent_id,name,position,created_at) VALUES(40,'thread',10,11,'after dark',0,0);
+         INSERT INTO threads(channel_id,parent_id,guild_id,owner_id,auto_archive_minutes,created_at,last_activity_at,archive_at) VALUES(40,11,10,2,1440,0,0,9999999999999);
+         INSERT INTO read_states(user_id,channel_id) VALUES(1,40),(2,40),(3,40);
+         INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(12,'text',10,'lobby',1,0);
+         INSERT INTO read_states(user_id,channel_id) VALUES(1,12),(2,12),(3,12);").await;
+    for u in [1, 3] {
+        ok(&run(
+            &app,
+            u,
+            set_notifications(
+                note_settings(Some(10), None, NotificationLevel::All),
+                false,
+                true,
+            ),
+        )
+        .await);
+        subscribe(&app, u).await;
+    }
+    clear_events(&app).await;
+    let m = message_id(&ok(&run(
+        &app,
+        2,
+        send(40, "in the thread <@1> <@3>", vec![1, 3]),
+    )
+    .await));
+    let created = |e: &Event| matches!(e, Event::MessageCreated { .. });
+    assert!(!events(&app, 1).await.iter().any(created), "live message");
+    assert!(events(&app, 3).await.iter().any(created));
+    let mut c = app.0.pool.acquire().await.unwrap();
+    let thread = crate::db::channel(&mut c, Id(40)).await.unwrap();
+    let message = crate::db::message(&mut c, Id(3), Id(40), m, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        notify::decide(&mut c, Id(1), &thread, &message)
+            .await
+            .unwrap(),
+        None,
+        "push and alerts"
+    );
+    assert!(notify::decide(&mut c, Id(3), &thread, &message)
+        .await
+        .unwrap()
+        .is_some());
+    drop(c);
+    sqlx::query("INSERT INTO pins VALUES(40,?,2,0)")
+        .bind(m.0 as i64)
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    for (u, visible) in [(1, false), (3, true)] {
+        let (s, _) = call(&app, u, "GET", "/api/v1/channels/40/messages", None).await;
+        assert_eq!(s == StatusCode::OK, visible, "history {u}");
+        let (s, _) = call(&app, u, "GET", "/api/v1/channels/40/pins", None).await;
+        assert_eq!(s == StatusCode::OK, visible, "pins {u}");
+        let (_, v) = call(&app, u, "GET", "/api/v1/users/@me/mentions", None).await;
+        assert_eq!(
+            !v["data"]["items"].as_array().unwrap().is_empty(),
+            visible,
+            "mentions {u}"
+        );
+        let (_, v) = call(
+            &app,
+            u,
+            "GET",
+            "/api/v1/guilds/10/messages/search?q=thread",
+            None,
+        )
+        .await;
+        assert_eq!(
+            !v["data"]["items"].as_array().unwrap().is_empty(),
+            visible,
+            "search {u}"
+        );
+    }
+    let (s, v) = call(
+        &app,
+        1,
+        "PUT",
+        &format!("/api/v1/users/@me/saved/{}", m.0),
+        Some(serde_json::json!({"channel_id": Id(40)})),
+    )
+    .await;
+    assert_ne!(s, StatusCode::OK, "saved {v}");
+    // Forwarding out of it: only into another age-restricted channel (its
+    // snapshot is shown to everyone who can read the destination).
+    let forward = |to: u64| {
+        Command::Content(ContentCommand::Forward {
+            channel_id: Id(40),
+            message_id: m,
+            destinations: vec![Id(to)],
+            comment: String::new(),
+        })
+    };
+    assert_eq!(
+        err(&run(&app, 3, forward(12)).await).code,
+        ErrorCode::Forbidden
+    );
+    ok(&run(&app, 3, forward(11)).await);
+    // Confirming from inside the thread confirms the channel it is in.
+    ok(&run(
+        &app,
+        1,
+        Command::Launch(LaunchCommand::Moderation(ModerationCommand::ConfirmAge {
+            channel_id: Id(40),
+        })),
+    )
+    .await);
+    let (s, _) = call(&app, 1, "GET", "/api/v1/channels/11/messages", None).await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, _) = call(&app, 1, "GET", "/api/v1/channels/40/messages", None).await;
+    assert_eq!(s, StatusCode::OK);
+}
+
+/// Notifications that are not messages (an event starting, a reminder, a
+/// call ringing) go through the same decision as messages (`notify::notice`):
+/// ignore and block, age restriction, Do Not Disturb, mutes and level, and
+/// the per-server mobile push switch (task `qa2`). AutoMod alerts are
+/// messages and use `decide`; Stage invitations, application decisions and
+/// report status are never an alert or a push.
+#[tokio::test]
+async fn events_reminders_and_rings_go_through_the_one_notification_decision() {
+    use notify::Notice;
+    let (_dir, app) = fixture().await;
+    sql(&app, "INSERT INTO channels(id,kind,position,created_at) VALUES(20,'direct',0,0); INSERT INTO dm_members VALUES(20,1,0,1),(20,2,0,1); INSERT INTO read_states(user_id,channel_id) VALUES(1,20),(2,20)").await;
+    let event = Notice::EventStarting {
+        guild: Id(10),
+        channel: None,
+    };
+    let in_channel = Notice::EventStarting {
+        guild: Id(10),
+        channel: Some(Id(11)),
+    };
+    let reminder = Notice::Reminder { channel: Id(11) };
+    let ring = Notice::Ring {
+        channel: Id(20),
+        caller: Id(1),
+    };
+    let decide = |n: Notice| {
+        let app = app.clone();
+        async move {
+            let mut c = app.0.pool.acquire().await.unwrap();
+            notify::notice(&mut c, Id(2), n).await.unwrap()
+        }
+    };
+    let pushes = |d: Option<notify::Decision>| d.map(|d| d.push);
+    for n in [event, in_channel, reminder, ring] {
+        assert_eq!(pushes(decide(n).await), Some(true), "{n:?}");
+    }
+    // The server's mobile push switch: still told in the app, never pushed.
+    ok(&run(
+        &app,
+        2,
+        set_notifications(
+            note_settings(Some(10), None, NotificationLevel::Mentions),
+            false,
+            false,
+        ),
+    )
+    .await);
+    for n in [event, in_channel, reminder] {
+        assert_eq!(pushes(decide(n).await), Some(false), "{n:?}");
+    }
+    // A muted server: no event notice; a reminder still comes (you asked).
+    let mut muted = note_settings(Some(10), None, NotificationLevel::Mentions);
+    muted.muted = true;
+    ok(&run(&app, 2, set_notifications(muted, false, true)).await);
+    assert_eq!(decide(event).await, None);
+    assert_eq!(decide(in_channel).await, None);
+    assert!(decide(reminder).await.is_some());
+    // Nothing at the channel level silences an event held there.
+    ok(&run(
+        &app,
+        2,
+        set_notifications(
+            note_settings(Some(10), None, NotificationLevel::Mentions),
+            false,
+            true,
+        ),
+    )
+    .await);
+    ok(&run(
+        &app,
+        2,
+        set_notifications(
+            note_settings(Some(10), Some(11), NotificationLevel::Nothing),
+            false,
+            true,
+        ),
+    )
+    .await);
+    assert_eq!(decide(in_channel).await, None);
+    assert!(decide(event).await.is_some());
+    // An age-restricted channel not confirmed: no reminder from it.
+    sql(&app, "INSERT INTO channel_age_restricted VALUES(11)").await;
+    assert_eq!(decide(reminder).await, None);
+    sql(&app, "INSERT INTO age_confirmations VALUES(2,11,0)").await;
+    assert!(decide(reminder).await.is_some());
+    // A muted DM does not ring; an ignored or blocked caller never does.
+    let mut dm = note_settings(None, Some(20), NotificationLevel::All);
+    dm.muted = true;
+    ok(&run(&app, 2, set_notifications(dm, false, true)).await);
+    assert_eq!(decide(ring).await, None);
+    ok(&run(
+        &app,
+        2,
+        set_notifications(
+            note_settings(None, Some(20), NotificationLevel::All),
+            false,
+            true,
+        ),
+    )
+    .await);
+    assert!(decide(ring).await.is_some());
+    ok(&run(&app, 2, p(PrivacyCommand::Ignore { user_id: Id(1) })).await);
+    assert_eq!(decide(ring).await, None);
+    ok(&run(&app, 2, p(PrivacyCommand::Unignore { user_id: Id(1) })).await);
+    assert!(decide(ring).await.is_some());
+    // Do Not Disturb: none of them.
+    sql(&app, "UPDATE users SET desired_presence='dnd' WHERE id=2").await;
+    for n in [event, reminder, ring] {
+        assert_eq!(decide(n).await, None, "{n:?}");
+    }
+}

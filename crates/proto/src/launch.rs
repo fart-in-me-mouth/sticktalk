@@ -52,6 +52,11 @@ pub struct InvitePreview {
     pub member_count: u32,
     /// The person asking is already in that server.
     pub joined: bool,
+    /// The invite leads to a scheduled event: its card is at
+    /// `GET /invites/{code}/event`. Omitted when false (older servers never
+    /// send it), so a client asks for the card only when there is one.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub event: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserProfile {

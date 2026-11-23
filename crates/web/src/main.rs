@@ -10,6 +10,8 @@ mod live;
 mod model;
 #[cfg(any(target_arch = "wasm32", test))]
 mod nav_logic;
+#[cfg(any(target_arch = "wasm32", test))]
+mod permission_lists;
 #[cfg(any(feature = "mock", not(target_arch = "wasm32")))]
 mod views;
 #[cfg(any(target_arch = "wasm32", test))]

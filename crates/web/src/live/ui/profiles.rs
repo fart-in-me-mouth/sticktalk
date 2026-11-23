@@ -353,7 +353,11 @@ pub(super) fn card(a: &App) -> AnyView {
         Card {
             pronouns: pick(server.and_then(|s| s.pronouns.as_ref()), &base.pronouns),
             about: pick(server.and_then(|s| s.about_me.as_ref()), &base.about_me),
-            status: user.status_text.clone(),
+            // Someone you ignore: no status or activity (privacy.md).
+            status: user
+                .status_text
+                .clone()
+                .filter(|_| !crate::live::privacy::ignored(user.id)),
             banner_color: base.banner_color,
             banner: server
                 .and_then(|s| s.banner.as_ref())

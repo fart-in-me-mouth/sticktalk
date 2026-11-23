@@ -509,7 +509,9 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
     );
     let mut builder = Response::builder()
         .header("etag", &etag)
-        .header("cache-control", "private, max-age=86400, immutable")
+        // Permission-checked: kept by the browser, asked for again before
+        // each use (`caching.rs`).
+        .header("cache-control", crate::caching::Policy::Checked.header())
         .header("x-content-type-options", "nosniff");
     if headers
         .get("if-none-match")

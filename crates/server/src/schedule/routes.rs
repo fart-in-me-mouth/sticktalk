@@ -313,26 +313,26 @@ async fn cover(State(app): State<App>, Path(e): Path<u64>, h: HeaderMap) -> Resu
     let (mut c, u) = who(&app, &h).await?;
     let s = load(&mut c, Id(e)).await?;
     visible(&mut c, u, &s).await?;
+    // A new cover bumps the event's cover version.
+    let tag = crate::caching::etag("cover", s.id.0, s.cover);
+    if crate::caching::fresh(&h, &tag) {
+        return Ok(crate::caching::not_modified(
+            crate::caching::Policy::Checked,
+            &tag,
+        ));
+    }
     let (mime, bytes): (String, Vec<u8>) =
         sqlx::query_as("SELECT content_type,bytes FROM event_covers WHERE event_id=?")
             .bind(id(s.id)?)
             .fetch_optional(&mut *c)
             .await?
             .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
-    Ok((
-        StatusCode::OK,
-        [
-            ("content-type", mime),
-            ("cache-control", "private, max-age=86400".to_owned()),
-            ("x-content-type-options", "nosniff".to_owned()),
-            (
-                "content-security-policy",
-                "default-src 'none'; sandbox".to_owned(),
-            ),
-        ],
+    Ok(crate::caching::image(
+        crate::caching::Policy::Checked,
+        &tag,
+        &mime,
         bytes,
-    )
-        .into_response())
+    ))
 }
 
 async fn set_cover(

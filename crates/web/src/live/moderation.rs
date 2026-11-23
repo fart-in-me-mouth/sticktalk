@@ -184,14 +184,45 @@ async fn slowmode(app: Shared, c: Id) {
         }
     }
 }
-/// The channel is age-restricted and this viewer has not confirmed yet.
+/// The conversation and the channels it is nested in, innermost first (a
+/// thread or forum post, then its channel and that channel's parents).
+fn lineage(a: &App, c: Id) -> (Option<Id>, Vec<Id>) {
+    let mut chain = vec![c];
+    let mut guild = None;
+    let mut next = match super::threads::thread(a, c) {
+        Some(t) => {
+            guild = Some(t.guild_id);
+            Some(t.parent_id)
+        }
+        None => Some(c),
+    };
+    if next == Some(c) {
+        next = a.model.channels.get(&c).and_then(|ch| {
+            guild = ch.guild_id;
+            ch.parent_id
+        });
+    }
+    while let Some(p) = next.filter(|_| chain.len() < 64) {
+        chain.push(p);
+        next = a.model.channels.get(&p).and_then(|ch| {
+            guild = guild.or(ch.guild_id);
+            ch.parent_id
+        });
+    }
+    (guild, chain)
+}
+/// The conversation is age-restricted (itself, or a channel it is nested in,
+/// as the server decides: `moderation/age.rs`) and this viewer has not
+/// confirmed yet.
 pub(super) fn gated(a: &App, c: Id) -> bool {
-    a.model
-        .channels
-        .get(&c)
-        .and_then(|ch| ch.guild_id)
+    let (guild, chain) = lineage(a, c);
+    guild
         .and_then(|g| a.moderation.states.get(&g))
-        .is_some_and(|s| s.age_restricted.contains(&c) && !s.age_confirmed.contains(&c))
+        .is_some_and(|s| {
+            chain
+                .iter()
+                .any(|c| s.age_restricted.contains(c) && !s.age_confirmed.contains(c))
+        })
 }
 pub(super) fn event(a: &mut App, e: &ModerationEvent) {
     match e {
@@ -660,95 +691,7 @@ pub(super) fn action(app: Shared, arg: &str) {
 }
 
 /// The permissions the channel editor offers, grouped as in role settings.
-pub(super) const CHANNEL_PERMISSIONS: &[(&str, &[(&str, Permissions)])] = &[
-    (
-        "General",
-        &[
-            ("View Channel", Permissions::VIEW_CHANNEL),
-            ("Manage Channel", Permissions::MANAGE_CHANNELS),
-            ("Manage Permissions", Permissions::MANAGE_ROLES),
-            ("Create Invites", Permissions::CREATE_INVITES),
-        ],
-    ),
-    (
-        "Text",
-        &[
-            ("Send Messages", Permissions::SEND_MESSAGES),
-            ("Read Message History", Permissions::READ_HISTORY),
-            ("Attach Files", Permissions::ATTACH_FILES),
-            ("Embed Links", Permissions::EMBED_LINKS),
-            ("Add Reactions", Permissions::ADD_REACTIONS),
-            ("Use External Emoji", Permissions::USE_EXTERNAL_EMOJI),
-            ("Use External Stickers", Permissions::USE_EXTERNAL_STICKERS),
-            (
-                "Send Text-to-Speech Messages",
-                Permissions::SEND_TTS_MESSAGES,
-            ),
-            ("Mention @everyone and Roles", Permissions::MENTION_EVERYONE),
-            ("Manage Messages", Permissions::MANAGE_MESSAGES),
-            ("Publish Messages", Permissions::PUBLISH_MESSAGES),
-        ],
-    ),
-    (
-        "Threads",
-        &[
-            ("Create Public Threads", Permissions::CREATE_PUBLIC_THREADS),
-            (
-                "Create Private Threads",
-                Permissions::CREATE_PRIVATE_THREADS,
-            ),
-            (
-                "Send Messages in Threads",
-                Permissions::SEND_MESSAGES_IN_THREADS,
-            ),
-            ("Manage Threads", Permissions::MANAGE_THREADS),
-        ],
-    ),
-    (
-        "Voice",
-        &[
-            ("Connect", Permissions::CONNECT),
-            ("Speak", Permissions::SPEAK),
-            ("Video", Permissions::VIDEO),
-            ("Share Screen", Permissions::STREAM),
-            ("Voice Activity", Permissions::USE_VOICE_ACTIVITY),
-            ("Use Soundboard", Permissions::USE_SOUNDBOARD),
-            ("Priority Speaker", Permissions::PRIORITY_SPEAKER),
-            ("Mute Members", Permissions::MUTE_MEMBERS),
-            ("Deafen Members", Permissions::DEAFEN_MEMBERS),
-            ("Move Members", Permissions::MOVE_MEMBERS),
-        ],
-    ),
-];
-/// Whether a channel permission means anything for a channel of this kind.
-/// Server-wide rights (Manage Soundboard, View Audit Log, Time Out Members,
-/// Manage Server...) are only in role settings, like Discord.
-pub(super) fn applies(bit: Permissions, kind: ChannelKind) -> bool {
-    use ChannelKind::*;
-    let voice = Permissions::CONNECT
-        | Permissions::SPEAK
-        | Permissions::VIDEO
-        | Permissions::STREAM
-        | Permissions::USE_VOICE_ACTIVITY
-        | Permissions::USE_SOUNDBOARD
-        | Permissions::PRIORITY_SPEAKER
-        | Permissions::MUTE_MEMBERS
-        | Permissions::DEAFEN_MEMBERS
-        | Permissions::MOVE_MEMBERS;
-    // Threads are offered in text and announcement channels, posts in forums;
-    // not in voice-channel chat.
-    let threads = Permissions::CREATE_PUBLIC_THREADS
-        | Permissions::CREATE_PRIVATE_THREADS
-        | Permissions::SEND_MESSAGES_IN_THREADS
-        | Permissions::MANAGE_THREADS;
-    match kind {
-        Category => true,
-        _ if bit == Permissions::PUBLISH_MESSAGES => kind == Announcement,
-        _ if threads.contains(bit) => matches!(kind, Text | Announcement | Forum),
-        _ if voice.contains(bit) => kind == Voice,
-        _ => true,
-    }
-}
+pub(super) use crate::permission_lists::{applies, CHANNEL_PERMISSIONS};
 pub(super) fn radio_name(o: &PermissionOverwrite, bit: Permissions) -> String {
     format!(
         "ow-{}-{}-{}",
@@ -1032,9 +975,14 @@ pub(super) fn answered(app: Shared, op: Command, result: CommandResult) {
         (ModerationCommand::Subscribe, _) => return,
         (ModerationCommand::ConfirmAge { channel_id }, _) => {
             let c = *channel_id;
-            let guild = a.model.channels.get(&c).and_then(|ch| ch.guild_id);
+            // The server confirmed it and every restricted channel above it.
+            let (guild, chain) = lineage(&a, c);
             if let Some(s) = guild.and_then(|g| a.moderation.states.get_mut(&g)) {
-                s.age_confirmed.push(c);
+                for c in chain {
+                    if !s.age_confirmed.contains(&c) {
+                        s.age_confirmed.push(c);
+                    }
+                }
             }
             drop(a);
             operations::load_channel(app, c, None);

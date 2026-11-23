@@ -63,22 +63,8 @@ pub(crate) async fn filter(c: &mut SqliteConnection, users: &mut Vec<Id>, e: &Ev
             }
         }
         Some(_) if carries_content(e) => {
-            let restricted: bool = sqlx::query_scalar(
-                "SELECT EXISTS(SELECT 1 FROM channel_age_restricted WHERE channel_id=?)",
-            )
-            .bind(id(ch)?)
-            .fetch_one(&mut *c)
-            .await?;
-            if restricted {
-                let confirmed: HashSet<i64> =
-                    sqlx::query_scalar("SELECT user_id FROM age_confirmations WHERE channel_id=?")
-                        .bind(id(ch)?)
-                        .fetch_all(&mut *c)
-                        .await?
-                        .into_iter()
-                        .collect();
-                users.retain(|u| confirmed.contains(&(u.0 as i64)));
-            }
+            // Restricted itself or by a channel it is nested in (a thread).
+            crate::moderation::age::retain_confirmed(c, ch, users).await?;
         }
         Some(_) => {}
     }
@@ -95,13 +81,10 @@ pub(crate) async fn filter(c: &mut SqliteConnection, users: &mut Vec<Id>, e: &Ev
     Ok(())
 }
 
-/// True when `ch` is age-restricted and `u` has not confirmed their age there.
+/// True when `ch` (or a channel it is nested in) is age-restricted and `u`
+/// has not confirmed their age there.
 pub(crate) async fn age_blocked(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<bool> {
-    Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM channel_age_restricted WHERE channel_id=?1) AND NOT EXISTS(SELECT 1 FROM age_confirmations WHERE channel_id=?1 AND user_id=?2)")
-        .bind(id(ch)?)
-        .bind(id(u)?)
-        .fetch_one(&mut *c)
-        .await?)
+    crate::moderation::age::blocked(c, u, ch).await
 }
 /// Refuse reading `ch` (with the moderation task's `age_restricted` refusal).
 pub(crate) async fn age(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<()> {

@@ -630,7 +630,16 @@ async fn readable_channels(c: &mut SqliteConnection, u: Id) -> Result<Vec<Id>> {
             out.push(ch.id);
         }
     }
-    out.extend(crate::threads::readable(c, u).await?);
+    // Threads of an age-restricted channel follow it (`moderation/age.rs`).
+    let any_restricted: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM channel_age_restricted)")
+            .fetch_one(&mut *c)
+            .await?;
+    for t in crate::threads::readable(c, u).await? {
+        if !any_restricted || !crate::moderation::age::blocked(c, u, t).await? {
+            out.push(t);
+        }
+    }
     Ok(out)
 }
 #[derive(serde::Deserialize)]

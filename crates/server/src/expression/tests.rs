@@ -759,3 +759,61 @@ async fn typing_styles_are_validated_synced_and_sent_before_typing() {
         .expect("typing event");
     assert!(style_at < typing_at);
 }
+
+/// Emoji and sticker images are kept by the browser and revalidated: the
+/// server checks who is asking on every use and answers 304 without the body,
+/// so someone who may no longer see one (or another account in the same
+/// browser) gets 404, never the cached image. JSON stays `no-store`.
+#[tokio::test]
+async fn emoji_images_are_cached_and_revalidated_against_permissions() {
+    let (_dir, app) = world().await;
+    let (t2, t4) = (token(&app, 2).await, token(&app, 4).await);
+    let conditional = |t: String, tag: String| {
+        let app = app.clone();
+        async move {
+            app.0.core.lock().await.limits.clear();
+            http::router(app)
+                .oneshot(
+                    Request::builder()
+                        .uri("/api/v1/emoji/500")
+                        .header("authorization", format!("Bearer {t}"))
+                        .header("if-none-match", tag)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+        }
+    };
+    let r = request(&app, &t4, "/api/v1/emoji/500", None).await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert_eq!(r.headers()["cache-control"], "private, no-cache");
+    let tag = r.headers()["etag"].to_str().unwrap().to_owned();
+    assert_eq!(tag, "\"emoji-500-image\"");
+    let still = request(&app, &t4, "/api/v1/emoji/500/preview", None).await;
+    assert_ne!(still.headers()["etag"], tag.as_str());
+    // Unchanged: no body.
+    let r = conditional(t4.clone(), tag.clone()).await;
+    assert_eq!(r.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(r.headers()["etag"], tag.as_str());
+    assert_eq!(r.headers()["cache-control"], "private, no-cache");
+    assert!(to_bytes(r.into_body(), 1 << 20).await.unwrap().is_empty());
+    // Another account holding the same cached copy is not told it is current.
+    assert_eq!(
+        conditional(t2.clone(), tag.clone()).await.status(),
+        StatusCode::NOT_FOUND
+    );
+    // JSON under /api is never stored.
+    let r = request(&app, &t4, "/api/v1/emoji/resolve?ids=500", None).await;
+    assert_eq!(r.headers()["cache-control"], "no-store");
+    // Leaving the emoji's server: the next revalidation is refused.
+    sql(
+        &app,
+        "DELETE FROM guild_members WHERE guild_id=20 AND user_id=4",
+    )
+    .await;
+    assert_eq!(
+        conditional(t4.clone(), tag.clone()).await.status(),
+        StatusCode::NOT_FOUND
+    );
+}

@@ -291,6 +291,11 @@ pub(super) fn composer_tools(a: &App) -> AnyView {
     view!{
         <ui-menu class="contents"><ui-menu-trigger><button type="button" class="icon-button composer-more" aria-label="More Options" title="More Options">{icon("more-horizontal")}</button></ui-menu-trigger>
             <ui-menu-content class="menu" side="top" align="end" side-offset="8" hidden=true>
+                // A narrow composer (phones, the chat beside a call) keeps room to
+                // type: these buttons move here from the composer (ui.rs).
+                <ui-menu-item class="menu-item @min-[32rem]/composer:hidden" value="dialog:gif">{icon("image")}"GIFs"</ui-menu-item>
+                <ui-menu-item class="menu-item @min-[32rem]/composer:hidden" value="dialog:stickers">{icon("sticker")}"Stickers"</ui-menu-item>
+                <ui-menu-item class="menu-item @min-[32rem]/composer:hidden" value="dialog:kaomoji">{icon("smile")}"Kaomoji"</ui-menu-item>
                 <ui-menu-item class="menu-item" value="dialog:poll">{icon("chart-column")}"Create Poll"</ui-menu-item>
                 <ui-menu-item class="menu-item" value="dialog:schedule">{icon("clock")}"Send Later…"</ui-menu-item>
                 <ui-menu-item class="menu-item" value="dialog:scheduled">{icon("message-square")}"Scheduled Messages"</ui-menu-item>

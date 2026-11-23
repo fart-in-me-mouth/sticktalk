@@ -7,6 +7,8 @@ mod authsec;
 pub mod backup;
 pub mod blob;
 pub mod browser;
+mod budgets;
+mod caching;
 mod callextras;
 mod calls;
 mod capacity;
@@ -72,6 +74,8 @@ pub fn router(app: App) -> axum::Router {
 }
 #[cfg(test)]
 mod launch_tests;
+#[cfg(test)]
+mod permission_tests;
 #[cfg(test)]
 mod security_tests;
 #[cfg(test)]

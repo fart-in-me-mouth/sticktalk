@@ -483,8 +483,7 @@ pub(crate) async fn execute(
                 }
                 return Ok(result);
             }
-            core.rate(format!("cmd:{}",u.0),120.,20.)?;
-            if matches!(req.command,Command::SendMessage(_)) {core.rate(format!("send:{}",u.0),60.,10.)?;}
+            crate::budgets::charge(core,u,&req.command)?;
             let n:i64=sqlx::query_scalar("SELECT COUNT(*) FROM command_receipts WHERE session_hash=? AND expires_at>?").bind(key).bind(now() as i64).fetch_one(&mut *c).await?;require(n<256,ErrorCode::LimitExceeded)?;
         }
         let mut moderation_hook = Box::pin(crate::moderation::precheck(app, core, &mut c, u, &req.command)).await?;

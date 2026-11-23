@@ -963,6 +963,7 @@ async fn socket(app: Shared, epoch: u64) {
                                     {
                                         detail.profile = updated;
                                     }
+                                    profiles::own_profile_changed(&mut a);
                                 }
                                 if let Some((guild, role, permissions)) =
                                     admin_access.filter(|_| applied)

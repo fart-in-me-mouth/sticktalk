@@ -130,9 +130,14 @@ console.log('Remote control: MessagePack round trip, key map without the Windows
 console.log('Call volumes: bounded, validated device-only values; stream capture leaves out own audio where supported: passed');
 
 const {normalizePreferences}=await import('../public/preferences.js');
-assert.deepEqual(normalizePreferences(null),{density:'cozy',fontScale:1,underlineLinks:false,linkPreviews:true});
-assert.deepEqual(normalizePreferences({density:'compact',fontScale:'1.25',underlineLinks:true}),{density:'compact',fontScale:1.25,underlineLinks:true,linkPreviews:true});
-assert.deepEqual(normalizePreferences({density:'injected',fontScale:Infinity,underlineLinks:'true',token:'not retained'}),{density:'cozy',fontScale:1,underlineLinks:false,linkPreviews:true});
+// The display basics; the themes work added more fields (themes.md), each normalized the same way.
+const basics=(p)=>({density:p.density,fontScale:p.fontScale,underlineLinks:p.underlineLinks,linkPreviews:p.linkPreviews});
+const defaults=normalizePreferences(null);
+assert.deepEqual(basics(defaults),{density:'cozy',fontScale:1,underlineLinks:false,linkPreviews:true});
+assert.deepEqual(normalizePreferences(defaults),defaults,'normalizing is stable');
+assert.deepEqual(basics(normalizePreferences({density:'compact',fontScale:'1.25',underlineLinks:true})),{density:'compact',fontScale:1.25,underlineLinks:true,linkPreviews:true});
+const injected=normalizePreferences({density:'injected',fontScale:Infinity,underlineLinks:'true',token:'not retained',theme:'<style>',zoom:9});
+assert.deepEqual(injected,defaults,'unknown values fall back and unknown keys are not kept');
 const {swipeAction}=await import('../public/navigation.js');
 assert.equal(swipeAction('',120,4),'panel:left');
 assert.equal(swipeAction('',-120,4),'panel:right');

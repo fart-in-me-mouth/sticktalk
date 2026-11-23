@@ -50,6 +50,9 @@ pub(super) fn incoming(a: &App) -> Option<&DmCall> {
         .values()
         .filter(|c| {
             c.ringing.contains(&me)
+                // Someone you ignore does not ring you (privacy.md); they are
+                // not told, so the server keeps ringing as usual.
+                && !super::privacy::ignored(c.started_by)
                 && a.voice_channel != Some(c.channel_id)
                 && a.model.channels.contains_key(&c.channel_id)
         })

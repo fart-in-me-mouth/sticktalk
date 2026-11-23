@@ -76,8 +76,10 @@ try {
     await page.waitForSelector('.role-editor-link:has-text("Design")');
     await page.locator('.role-editor-link:has-text("Design")').click();
     await page.waitForSelector('[data-live-form=role-save]');
-    assert.equal(await page.locator('.permission-group').count(),5);
-    assert.equal(await page.locator('[data-role-bit]').count(),27);
+    // General, Text, Threads, Voice & Video, Events, Moderation: every
+    // assignable right (src/permission_lists.rs checks them against the protocol).
+    assert.equal(await page.locator('.permission-group').count(),6);
+    assert.equal(await page.locator('[data-role-bit]').count(),42);
     screenshots.push(await shot(page,'role-editor'));
     await act(page,'dialog:roles');await page.waitForSelector('.role-color');
     screenshots.push(await shot(page,'roles'));

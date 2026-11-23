@@ -8,6 +8,7 @@
 //! compare), `record` runs inside it after the command succeeded, and `after`
 //! runs once it committed. Anything timed (timeouts, pauses, raid alerts) is
 //! expired by one task sleeping until the next deadline, never by polling.
+pub(crate) mod age;
 pub(crate) mod audit;
 pub(crate) mod automod;
 pub(crate) mod coverage;
@@ -1314,12 +1315,7 @@ pub(crate) async fn mutate(
         }
         ConfirmAge { channel_id: ch } => {
             access(c, u, ch, Permissions::VIEW_CHANNEL).await?;
-            sqlx::query("INSERT OR IGNORE INTO age_confirmations VALUES(?,?,?)")
-                .bind(id(u)?)
-                .bind(id(ch)?)
-                .bind(now() as i64)
-                .execute(&mut *c)
-                .await?;
+            age::confirm(c, u, ch, now()).await?;
             Ok(CommandResult::Ack)
         }
     }
@@ -1474,12 +1470,8 @@ async fn age_restricted_flag(c: &mut SqliteConnection, ch: Id) -> Result<bool> {
 /// History of an age-restricted channel stays hidden until the viewer confirms
 /// they are an adult (`ModerationCommand::ConfirmAge`).
 pub(crate) async fn age_gate(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<()> {
-    let blocked: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM channel_age_restricted WHERE channel_id=?1) AND NOT EXISTS(SELECT 1 FROM age_confirmations WHERE channel_id=?1 AND user_id=?2)")
-        .bind(id(ch)?)
-        .bind(id(u)?)
-        .fetch_one(&mut *c)
-        .await?;
-    if blocked {
+    // The channel itself or any channel it is nested in (`age.rs`).
+    if age::blocked(c, u, ch).await? {
         return Err(denied(
             "age_restricted",
             "This channel is age-restricted. Confirm you are an adult to see it.",

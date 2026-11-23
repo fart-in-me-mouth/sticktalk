@@ -235,6 +235,14 @@ async fn serve(app: App, e: Id, h: HeaderMap, preview: bool) -> Result<Response>
             || crate::community::featured_emoji(&mut c, g, e).await?,
         ErrorCode::NotFound,
     )?;
+    // An emoji's image never changes (only its name does).
+    let tag = crate::caching::etag("emoji", e.0, if preview { "still" } else { "image" });
+    if crate::caching::fresh(&h, &tag) {
+        return Ok(crate::caching::not_modified(
+            crate::caching::Policy::Checked,
+            &tag,
+        ));
+    }
     let bytes: Vec<u8> = r.get(if preview && r.get::<bool, _>("animated") {
         "preview"
     } else {
@@ -245,7 +253,12 @@ async fn serve(app: App, e: Id, h: HeaderMap, preview: bool) -> Result<Response>
     } else {
         r.get("content_type")
     };
-    Ok(crate::expression::asset_response(&mime, bytes))
+    Ok(crate::caching::image(
+        crate::caching::Policy::Checked,
+        &tag,
+        &mime,
+        bytes,
+    ))
 }
 struct Media {
     data: Vec<u8>,
