@@ -400,10 +400,18 @@ pub(super) fn action(app: Shared, raw: &str) {
         "submit" if arg.starts_with("cm-") => {
             feature(app, Feature::Community, Call::Submit(arg.into()))
         }
-        "apps" => super::apps::action(app, arg),
-        "submit" if super::apps::is_form(arg) => super::apps::submit(app, arg),
-        "id" => super::identity::action(app, arg),
-        "submit" if arg.starts_with("id-") => super::identity::submit(app, arg),
+        "apps" => feature(app, Feature::Apps, Call::Action(kind.into(), arg.into())),
+        "submit" if super::apps::is_form(arg) => {
+            feature(app, Feature::Apps, Call::Submit(arg.into()))
+        }
+        "id" => feature(
+            app,
+            Feature::Identity,
+            Call::Action(kind.into(), arg.into()),
+        ),
+        "submit" if arg.starts_with("id-") => {
+            feature(app, Feature::Identity, Call::Submit(arg.into()))
+        }
         "pins-refresh" => {
             let (epoch, generation) = {
                 let a = app.borrow();
@@ -759,9 +767,11 @@ pub(super) fn action(app: Shared, raw: &str) {
             let arg = arg.to_owned();
             spawn_local(async move { super::calls::action(app, arg).await });
         }
-        "activity" => super::activities::action(app, arg),
-        "activity-signal" => super::activities::signal(app, arg),
-        "activity-send-file" => super::activities::send_file(app, arg),
+        "activity" | "activity-signal" | "activity-send-file" => feature(
+            app,
+            Feature::Activities,
+            Call::Action(kind.into(), arg.into()),
+        ),
         "media" => media_action(arg),
         "media-error" => fail(&app, arg.into()),
         "upload" | "avatar-upload" | "guild-icon-upload" => {
@@ -1350,14 +1360,14 @@ fn open_dialog(app: Shared, name: &str) {
         (super::privacy::owns_dialog(name), Feature::Privacy),
         (super::community::owns_dialog(name), Feature::Community),
         (super::themes::owns_dialog(name), Feature::Themes),
+        (super::apps::owns_dialog(name), Feature::Apps),
+        (super::identity::owns_dialog(name), Feature::Identity),
     ];
     for (owned, f) in owners {
         if owned {
             feature(app.clone(), f, Call::Opened(name.into()));
         }
     }
-    super::identity::opened(app.clone(), name);
-    super::apps::opened(app.clone(), name);
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
     let name = name.to_owned();
@@ -2143,6 +2153,7 @@ fn respond(
                     operation,
                     Some(Command::Community(CommunityCommand::Subscribe))
                 )
+                || operation.as_ref().is_some_and(super::apps::housekeeping)
                 || matches!(
                     (&operation, &reply),
                     (Some(Command::Appearance(AppearanceCommand::Subscribe)), Reply::Raw(raw))
@@ -2157,29 +2168,17 @@ fn respond(
                 Some(op) if super::community::owns(op) => Some(Feature::Community),
                 Some(op) if super::expression::owns(op) => Some(Feature::Expression),
                 Some(op) if super::profiles::owns(op) => Some(Feature::Profiles),
+                Some(op) if super::apps::owns(op) => Some(Feature::Apps),
+                Some(op) if super::identity::owns(op) => Some(Feature::Identity),
                 _ => None,
             };
             if let Some(f) = handler {
                 drop(a);
                 return Some((f, operation, reply));
             }
-            if let Some(op) = operation.clone().filter(super::identity::owns) {
-                drop(a);
-                if let Reply::Core(result) = reply {
-                    super::identity::answered(app.clone(), op, result);
-                }
-                return None;
-            }
             // Invite cards say whether you are in their server.
             if matches!(operation, Some(Command::JoinGuild { .. })) {
                 super::identity::forget_invites(&a);
-            }
-            if let Some(op) = operation.clone().filter(super::apps::owns) {
-                drop(a);
-                if let Reply::Core(result) = reply {
-                    super::apps::answered(app.clone(), op, result);
-                }
-                return None;
             }
             a.error.clear();
             a.notice.clear();
@@ -2387,6 +2386,8 @@ fn prefetch_for(action: &str) {
                 spawn_local(super::ui::__preload_load_stage_dialog());
             } else if super::themes::owns_dialog(arg) {
                 spawn_local(super::ui::__preload_load_themes_page());
+            } else if super::identity::has_view(arg) {
+                spawn_local(super::ui::__preload_load_identity_dialog());
             }
             [
                 (super::content::owns_dialog(arg), Feature::Content),
@@ -2398,6 +2399,8 @@ fn prefetch_for(action: &str) {
                 (super::community::owns_dialog(arg), Feature::Community),
                 (super::stage::owns_dialog(arg), Feature::Stage),
                 (super::themes::owns_dialog(arg), Feature::Themes),
+                (super::apps::owns_dialog(arg), Feature::Apps),
+                (super::identity::owns_dialog(arg), Feature::Identity),
             ]
             .into_iter()
             .find_map(|(owned, f)| owned.then_some(f))
@@ -2416,6 +2419,9 @@ fn prefetch_for(action: &str) {
         "cm" => Some(Feature::Community),
         "stage" => Some(Feature::Stage),
         "appearance" => Some(Feature::Themes),
+        "apps" => Some(Feature::Apps),
+        "id" => Some(Feature::Identity),
+        "activity" => Some(Feature::Activities),
         k if k.starts_with("nav-") => Some(Feature::Nav),
         k if super::content::ACTIONS.contains(&k) => Some(Feature::Content),
         k if super::threads::ACTIONS.contains(&k) => Some(Feature::Threads),

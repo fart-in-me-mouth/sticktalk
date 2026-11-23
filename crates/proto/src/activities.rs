@@ -186,6 +186,11 @@ pub enum ActivitySignal {
     ShareMedia {
         session_id: Id,
         attachment_id: AttachmentId,
+        /// The sharer confirmed that everyone in the activity may watch this
+        /// file, even people who cannot read the conversation it is from.
+        /// Refused without it (field `confirm`).
+        #[serde(default)]
+        confirmed: bool,
     },
     /// The host keeps a short result for when the session ends.
     SaveResult {

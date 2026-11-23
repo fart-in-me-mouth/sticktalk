@@ -100,9 +100,24 @@ fn minutes(ms: u64) -> String {
     }
 }
 
-/// An invite card in chat (the message's `extra.activity`).
+/// An invite card in chat (the message's `extra.activity`). Its renderer is
+/// a split module loaded with the first card on screen; until then the card
+/// is a placeholder of its size.
 pub(super) fn card(a: &App, m: &Message) -> AnyView {
-    let Some(card) = m.extra.activity.as_deref() else {
+    if m.extra.activity.is_none() {
+        return ().into_any();
+    }
+    match lazy_view(a, |a| &a.views.activity_card, || Box::pin(load_activity_card())) {
+        Some(render) => render(a, m),
+        None => view!{<div class="activity-card mt-1 min-h-[66px] max-w-[min(100%,440px)] rounded-lg border bg-card" role="status" aria-label="Loading activity"></div>}.into_any(),
+    }
+}
+#[lazy]
+pub(in crate::live) fn load_activity_card() -> fn(&App, &Message) -> AnyView {
+    card_view
+}
+fn card_view(a: &App, m: &Message) -> AnyView {
+    let Some(card) = m.extra.activity.as_ref().and_then(|c| c.get()) else {
         return ().into_any();
     };
     let here = a.voice_channel == Some(card.call_channel_id);

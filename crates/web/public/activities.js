@@ -10,6 +10,17 @@
 // No timers and no animation loops: everything runs on events.
 import * as extras from './callextras.js';
 
+// This feature's stylesheet (styles/activities.css) comes with it, not with the app.
+const styled = new Promise((done) => {
+  if (document.querySelector('link[data-activities-css]')) return done();
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = '/public/activities.css';
+  link.dataset.activitiesCss = '';
+  link.onload = link.onerror = () => done();
+  document.head.append(link);
+});
+
 const SDK = 1;
 const $ = (s, root = document) => root.querySelector(s);
 const make = (tag, className = '', text = '') => {
@@ -153,8 +164,9 @@ function onState(d) {
 }
 
 // ---- actions from the app -------------------------------------------------------
-export function action(a, fn) {
+export async function action(a, fn) {
   emit = fn;
+  await styled;
   if (a === 'launcher') return launcher();
   if (a.startsWith('join:')) {
     const id = a.slice(5);
@@ -225,6 +237,9 @@ function openFrame() {
   const layer = make('section', 'activity-layer');
   layer.id = 'live-activity-layer';
   layer.setAttribute('aria-label', `${session.activity.name} activity`);
+  // Not drawn unstyled while the stylesheet is still on its way.
+  layer.style.visibility = 'hidden';
+  void styled.then(() => layer.style.removeProperty('visibility'));
   const bar = make('header', 'activity-bar');
   const body = make('div', 'activity-body');
   const video = make('video', 'activity-player');
@@ -431,7 +446,12 @@ async function onFrameMessage(e) {
       case 'share-media': {
         const item = await pickMedia();
         if (!item) return reply(id, false, 'cancelled');
-        await signal('share_media', { session_id: s.session_id, attachment_id: item.attachment_id });
+        // Everyone in the activity can watch a shared file, even someone who
+        // cannot read the conversation it is from: the sharer says so, once
+        // per file (the server refuses a share without it).
+        if (!confirmedMedia.has(item.attachment_id) && !(await confirmShare(item))) return reply(id, false, 'cancelled');
+        confirmedMedia.add(item.attachment_id);
+        await signal('share_media', { session_id: s.session_id, attachment_id: item.attachment_id, confirmed: true });
         return reply(id, true, null, { id: item.attachment_id, name: item.filename, type: item.content_type });
       }
       case 'resize': {
@@ -549,6 +569,25 @@ function more() {
   for (const p of others.slice(0, 8)) item(`Report ${p.name}…`, () => emit(`privacy:report,activity,${session.channel_id},${session.session_id},${p.session.user_id}`));
   d.append(field, list, extras.button('Close', 'button secondary', () => d.close()));
   d.showModal();
+}
+
+/** Files this person already confirmed sharing (this page's lifetime; bounded). */
+const confirmedMedia = new Set();
+function confirmShare(item) {
+  if (confirmedMedia.size >= 256) confirmedMedia.clear();
+  return new Promise((resolve) => {
+    const d = dialog('Share With Everyone?', 'activity-share-confirm');
+    d.append(make('p', '', `Everyone in this activity will be able to watch ${item.filename}, even people who can’t read the conversation it’s from.`));
+    let answer = false;
+    const row = make('div', 'activity-dialog-actions');
+    row.append(
+      extras.button('Cancel', 'button secondary', () => d.close()),
+      extras.button('Share', 'button primary', () => { answer = true; d.close(); }),
+    );
+    d.append(row);
+    d.addEventListener('close', () => resolve(answer), { once: true });
+    d.showModal();
+  });
 }
 
 /** Post an invite card into a conversation (the call's chat by default). */

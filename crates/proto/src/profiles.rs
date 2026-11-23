@@ -212,7 +212,7 @@ pub struct UserStyle {
     pub bot: bool,
     /// The server tag the user wears (`identity.rs`); global only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tag: Option<crate::WornTag>,
+    pub tag: Option<crate::TagExtra>,
 }
 impl UserStyle {
     pub fn is_empty(&self) -> bool {

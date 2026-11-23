@@ -5,6 +5,12 @@
 //! `styles/identity.css`. Nothing here polls: settings load when a page
 //! opens, a tag card when it is clicked, an invite card once when a link to it
 //! is on screen (then from a bounded cache).
+//!
+//! Lazily loaded (docs/features/perf.md): identity has no events or results
+//! of its own, so it is one split module, `run` (actions, forms, page and card
+//! fetches, the answers to its commands). The core keeps the state struct,
+//! the name/tag/banner renderers and the checks that hand work over.
+use super::features::{self, Call, Feature, Reply};
 use super::*;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, VecDeque};
@@ -80,20 +86,18 @@ pub(super) fn admin_page(page: &str) -> bool {
     matches!(page, "id-tags" | "id-appearance" | "id-vanity")
 }
 
-/// A dialog opened: load what it shows. The loading code (and the decoders
-/// of what it loads) is a split module, out of the first load.
-pub(super) fn opened(app: Shared, name: &str) {
-    if admin_page(name)
+/// Dialogs this feature loads data for when they open (`run`).
+pub(super) fn owns_dialog(name: &str) -> bool {
+    admin_page(name)
         || name == "profile-edit"
         || name.starts_with("discover:")
         || name.starts_with("join:")
-    {
-        let name = name.to_owned();
-        spawn_local(async move { opened_lazy(app, name).await });
-    }
 }
-#[lazy]
-fn opened_lazy(app: Shared, name: String) {
+/// Dialogs whose views are in this feature's view module (`ui::identity`).
+pub(super) fn has_view(name: &str) -> bool {
+    admin_page(name) || name.starts_with("id-tag:")
+}
+fn opened(app: Shared, name: String) {
     let name = name.as_str();
     let guild = app.borrow().guild;
     if admin_page(name) {
@@ -187,12 +191,8 @@ fn load_tag(app: Shared, g: Id) {
 }
 
 /// Called while rendering: an invite link is on screen. Its card is fetched
-/// once, after this render, and kept in a small cache.
-// Decoding an invite card is only needed once one is on screen.
-#[lazy]
-fn invite_decoder() -> fn(sticktalk_client_core::http::HttpResponse) -> Result<InviteCard, String> {
-    decode_json::<InviteCard>
-}
+/// once, after this render, by this feature's module, and kept in a small
+/// cache.
 pub(super) fn want_invite(a: &App, code: &str) {
     let s = &a.identity;
     if s.invites.borrow().contains_key(code) {
@@ -202,7 +202,16 @@ pub(super) fn want_invite(a: &App, code: &str) {
     if s.fetching.replace(true) {
         return;
     }
-    let owner = a.owner.clone();
+    if let Some(app) = a.owner.upgrade() {
+        features::defer(
+            app,
+            Feature::Identity,
+            Call::Other("invites", String::new()),
+        );
+    }
+}
+fn fetch_invites(app: &Shared) {
+    let owner = Rc::downgrade(app);
     spawn_local(async move {
         loop {
             let Some(app) = owner.upgrade() else { return };
@@ -217,7 +226,6 @@ pub(super) fn want_invite(a: &App, code: &str) {
                     }
                 }
             };
-            let decode = invite_decoder().await;
             let result = http
                 .execute(
                     "GET",
@@ -227,7 +235,7 @@ pub(super) fn want_invite(a: &App, code: &str) {
                     30_000,
                 )
                 .await
-                .and_then(decode);
+                .and_then(decode_json::<InviteCard>);
             let a = app.borrow();
             if a.epoch != epoch {
                 a.identity.fetching.set(false);
@@ -275,13 +283,8 @@ pub(super) fn forget_invites(a: &App) {
     a.identity.order.borrow_mut().clear();
 }
 
-/// `id:` actions. Their code is a split module, loaded on first use.
-pub(super) fn action(app: Shared, arg: &str) {
-    let arg = arg.to_owned();
-    spawn_local(async move { action_lazy(app, arg).await });
-}
-#[lazy]
-fn action_lazy(app: Shared, arg: String) {
+/// `id:` actions.
+fn action(app: Shared, arg: String) {
     let mut parts = arg.split(',');
     let verb = parts.next().unwrap_or_default();
     let rest: Vec<&str> = parts.collect();
@@ -493,12 +496,7 @@ fn action_lazy(app: Shared, arg: String) {
     }
 }
 
-pub(super) fn submit(app: Shared, form: &str) {
-    let form = form.to_owned();
-    spawn_local(async move { submit_lazy(app, form).await });
-}
-#[lazy]
-fn submit_lazy(app: Shared, form: String) {
+fn submit(app: Shared, form: String) {
     let form = form.as_str();
     let mut a = app.borrow_mut();
     let Some(g) = a.guild else { return };
@@ -533,23 +531,33 @@ fn submit_lazy(app: Shared, form: String) {
     media_action(&format!("form-sent:{form}"));
 }
 
-/// An upload finished. Returns whether it was for a server image.
+/// An upload finished. Returns whether it was for a server image (whose
+/// upload this feature's module started, so it is loaded).
 pub(super) fn uploaded(a: &mut App, purpose: UploadPurpose, file: &Attachment) -> bool {
-    if purpose != UploadPurpose::Avatar {
+    if purpose != UploadPurpose::Avatar || a.identity.upload.is_none() {
         return false;
     }
+    if let Some(app) = a.owner.upgrade() {
+        features::defer(
+            app,
+            Feature::Identity,
+            Call::Other("uploaded", file.id.0.to_string()),
+        );
+    }
+    true
+}
+fn image_uploaded(a: &mut App, file: Id) {
     let Some((g, slot, crop)) = a.identity.upload.take() else {
-        return false;
+        return;
     };
     send(
         a,
         IdentityCommand::SetImage {
             guild_id: g,
             slot,
-            image: Some(ImageRef { id: file.id, crop }),
+            image: Some(ImageRef { id: file, crop }),
         },
     );
-    true
 }
 
 fn form_of(cmd: &IdentityCommand) -> Option<&'static str> {
@@ -570,7 +578,7 @@ pub(super) fn failed(cmd: Option<&Command>) {
         }
     }
 }
-pub(super) fn answered(app: Shared, cmd: Command, result: CommandResult) {
+fn answered(app: Shared, cmd: Command, result: CommandResult) {
     let Command::Identity(c) = cmd else { return };
     let (reload, mine) = {
         let mut a = app.borrow_mut();
@@ -608,4 +616,28 @@ pub(super) fn answered(app: Shared, cmd: Command, result: CommandResult) {
     if mine {
         load_mine(app);
     }
+}
+
+/// Everything a person does with server identity (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    identity,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    match call {
+        Call::Action(_, arg) => action(app, arg),
+        Call::Submit(form) => submit(app, form),
+        Call::Opened(name) => opened(app, name),
+        Call::Other("invites", _) => fetch_invites(&app),
+        Call::Other("uploaded", file) => {
+            if let Some(file) = id(&file) {
+                image_uploaded(&mut app.borrow_mut(), file);
+            }
+        }
+        Call::Answer(Some(op), Reply::Core(result)) => answered(app, op, result),
+        _ => {}
+    }
+    Ok(true)
 }

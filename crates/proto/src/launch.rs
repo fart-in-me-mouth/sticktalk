@@ -20,7 +20,7 @@ pub struct Role {
     /// Gradient or holographic style and icon (`identity.rs`). Set with
     /// `IdentityCommand`; `UpdateRole` leaves it unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub look: Option<Box<RoleLook>>,
+    pub look: Option<crate::RoleLookExtra>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -5,6 +5,14 @@
 //! Everything else (the launcher, the frame and its SDK bridge, the shared
 //! player) is `public/activities.js`, loaded the first time an activity is
 //! seen or the launcher is opened. Nobody pays for any of it otherwise.
+//!
+//! Lazily loaded (docs/features/perf.md): the voice envelope's activity
+//! events go, undecoded, to `state`; the actions (launcher, join, signals,
+//! sharing a file) to `run`. `activities.js` (the host: launcher, frame, SDK
+//! bridge, player) is imported only when this client launches or joins one,
+//! opens the launcher, or takes part: until then a session someone else
+//! started is only shown by the Rust views (the banner, the dot).
+use super::features::{self, Call};
 use super::*;
 
 #[wasm_bindgen(raw_module = "/public/live.js")]
@@ -30,7 +38,11 @@ pub(super) struct State {
     nonces: std::collections::VecDeque<u64>,
     /// "X started Y" banners the person closed.
     pub dismissed: Option<Id>,
+    /// `activities.js` has been asked for (it then gets every event).
+    host: bool,
 }
+/// The tag an activity event from the voice envelope is handed over with.
+pub(super) const VOICE_TAG: &str = "voice_activities";
 
 /// The activity of the call this client is in now (none after leaving it).
 pub(super) fn current(a: &App) -> Option<&ActivitySession> {
@@ -44,8 +56,22 @@ fn forward(event: &ActivityEvent) {
     activity_event(&v.to_string());
 }
 
+/// The host script is needed now: give it the session it has not seen.
+fn wake_host(app: &Shared) {
+    let session = {
+        let mut a = app.borrow_mut();
+        if std::mem::replace(&mut a.activities.host, true) {
+            return;
+        }
+        current(&a).cloned()
+    };
+    if let Some(s) = session {
+        forward(&ActivityEvent::Session(Box::new(s)));
+    }
+}
+
 /// `VoiceEvent::Activities`, from the voice envelope.
-pub(super) fn voice_event(app: &Shared, event: ActivityEvent) {
+fn voice_event(app: &Shared, event: ActivityEvent) {
     let mut a = app.borrow_mut();
     let mut join = None;
     let touch = match &event {
@@ -84,14 +110,27 @@ pub(super) fn voice_event(app: &Shared, event: ActivityEvent) {
     if touch {
         a.touch();
     }
+    // Someone else's session: the call view shows it; the host script loads
+    // when this client takes part (or opens the launcher).
+    let taking_part = matches!(&event, ActivityEvent::Session(s) if s.you.is_some())
+        || matches!(
+            &event,
+            ActivityEvent::State { .. } | ActivityEvent::Message { .. }
+        );
+    let host = a.activities.host || taking_part || join.is_some();
+    a.activities.host = host;
     drop(a);
-    forward(&event);
+    if host {
+        forward(&event);
+    }
     if let Some(id) = join {
         activity_action(&format!("join:{}", id.0));
     }
 }
 
-/// An answer (Ack or Error) to a signal `activities.js` sent: it goes back there.
+/// An answer (Ack or Error) to a signal `activities.js` sent: it goes back
+/// there. Written by hand: serializing a `VoiceEvent` would bring every
+/// variant's encoder into the voice module.
 pub(super) fn answer(app: &Shared, nonce: u64, event: &VoiceEvent) -> bool {
     let mut a = app.borrow_mut();
     let Some(i) = a.activities.nonces.iter().position(|n| *n == nonce) else {
@@ -99,27 +138,24 @@ pub(super) fn answer(app: &Shared, nonce: u64, event: &VoiceEvent) -> bool {
     };
     a.activities.nonces.remove(i);
     drop(a);
-    let mut v = serde_json::to_value(event).unwrap_or_default();
-    crate::wire::stringify_ids(&mut v);
+    let v = match event {
+        VoiceEvent::Ack => serde_json::json!({ "type": "ack" }),
+        VoiceEvent::Error { code, message } => serde_json::json!({
+            "type": "error",
+            "data": { "code": code, "message": message },
+        }),
+        _ => return false,
+    };
+    let mut v = v;
     v["request_nonce"] = nonce.to_string().into();
     activity_event(&v.to_string());
     true
 }
 
 /// `activity-signal:<nonce>:<json>` from `activities.js`: an activity signal
-/// to send. Decoding JSON into a `VoiceSignal` is large code: it stays in a
-/// lazily loaded chunk, as the media host's signals do (`voice_action`).
-pub(super) fn signal(app: Shared, arg: &str) {
-    let epoch = app.borrow().epoch;
-    let arg = arg.to_owned();
-    spawn_local(async move { signal_lazy(app, arg, epoch).await });
-}
-
-#[lazy]
-fn signal_lazy(app: Shared, arg: String, epoch: u64) {
-    if app.borrow().epoch != epoch {
-        return;
-    }
+/// to send. Decoding JSON into a `VoiceSignal` is large code: it is shared
+/// with the media host's signals (`voice_action`), out of the core.
+fn signal(app: Shared, arg: String) {
     let Some((n, raw)) = arg.split_once(':') else {
         return;
     };
@@ -140,7 +176,7 @@ fn signal_lazy(app: Shared, arg: String, epoch: u64) {
 
 /// `activity-send-file:<channel>:<upload>`: a file uploaded for Watch Together
 /// is sent to the call's chat, so it is a readable attachment there.
-pub(super) fn send_file(app: Shared, arg: &str) {
+fn send_file(app: Shared, arg: &str) {
     let Some((c, u)) = arg.split_once(':') else {
         return;
     };
@@ -161,12 +197,15 @@ pub(super) fn send_file(app: Shared, arg: &str) {
 }
 
 /// `activity:<verb>[,<args>]` from the views and from `activities.js`.
-pub(super) fn action(app: Shared, arg: &str) {
+fn action(app: Shared, arg: &str) {
     let mut parts = arg.split(',');
     let verb = parts.next().unwrap_or_default();
     match verb {
         // Open the launcher (the button in the call controls).
-        "launcher" => activity_action("launcher"),
+        "launcher" => {
+            wake_host(&app);
+            activity_action("launcher")
+        }
         "layout" => {
             let mut a = app.borrow_mut();
             a.activities.layout = match parts.next() {
@@ -199,6 +238,7 @@ pub(super) fn action(app: Shared, arg: &str) {
                 )
             };
             if here {
+                wake_host(&app);
                 activity_action(&format!("join:{}", session.0));
                 operations::action(app, &format!("voice:{}", call.0));
                 return;
@@ -222,4 +262,39 @@ pub(super) fn action(app: Shared, arg: &str) {
         }
         _ => {}
     }
+}
+
+/// What a person does with activities (`features.rs`): the launcher, joining,
+/// the host script's signals, sharing a file into the call's chat.
+#[leptos::wasm_split::wasm_split(
+    activities,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    if let Call::Action(kind, arg) = call {
+        match kind.as_str() {
+            "activity-signal" => signal(app, arg),
+            "activity-send-file" => send_file(app, &arg),
+            _ => action(app, &arg),
+        }
+    }
+    Ok(true)
+}
+
+/// The call's activity events (from the voice envelope, `mod.rs`).
+#[leptos::wasm_split::wasm_split(
+    activities_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    if let Call::Event(raw) = call {
+        let Ok(e) = crate::inbound::feature::activity_event(&raw.data) else {
+            return Ok(false);
+        };
+        voice_event(&app, e);
+    }
+    Ok(true)
 }

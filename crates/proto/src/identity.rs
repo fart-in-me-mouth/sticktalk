@@ -172,6 +172,23 @@ pub fn reserved_vanity(code: &str) -> bool {
     RESERVED_VANITY.contains(&code)
 }
 
+/// `UserStyle::tag`, `Guild::look` and `Role::look` ride on every user, server
+/// and role. The web app keeps them undecoded (`deferred.rs`) and its name,
+/// rail and sidebar renderers read the few fields they draw straight from the
+/// JSON; the settings pages and cards decode them. The same on the wire.
+#[cfg(not(target_arch = "wasm32"))]
+pub type TagExtra = WornTag;
+#[cfg(target_arch = "wasm32")]
+pub type TagExtra = crate::Deferred<WornTag>;
+#[cfg(not(target_arch = "wasm32"))]
+pub type GuildLookExtra = Box<GuildLook>;
+#[cfg(target_arch = "wasm32")]
+pub type GuildLookExtra = crate::Deferred<GuildLook>;
+#[cfg(not(target_arch = "wasm32"))]
+pub type RoleLookExtra = Box<RoleLook>;
+#[cfg(target_arch = "wasm32")]
+pub type RoleLookExtra = crate::Deferred<RoleLook>;
+
 /// A tag as everyone sees it next to a member's name. The badge is the glyph
 /// in `color2` on a `color` tile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

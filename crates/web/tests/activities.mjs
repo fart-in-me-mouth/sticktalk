@@ -334,6 +334,11 @@ try {
   await wa.locator('button:has-text("Add a Video or Audio File")').click();
   await alice.waitForSelector('dialog.activity-media');
   await alice.locator('dialog.activity-media .activity-upload input[type=file]').setInputFiles({ name: 'clip.webm', mimeType: 'video/webm', buffer: await clip(alice) });
+  // The sharer confirms once that everyone in the activity may watch it.
+  await alice.waitForSelector('dialog.activity-share-confirm');
+  assert.match(await alice.locator('dialog.activity-share-confirm').innerText(), /Everyone in this activity will be able to watch clip\.webm/);
+  await shot(alice, 'watch-together-confirm');
+  await alice.locator('dialog.activity-share-confirm button:has-text("Share")').click();
   await until(async () => (await activity(alice))?.player?.item != null, 30000);
   await until(async () => (await activity(bob))?.player?.item != null && !(await activity(bob)).player.paused, 30000);
   await wait(1500);

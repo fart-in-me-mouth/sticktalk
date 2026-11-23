@@ -127,7 +127,7 @@ export function speak(text, rate) {
 /// Deafened in a call (media.js keeps this current): speech stays quiet.
 export function deafened() { return globalThis.__sticktalkDeafened === true; }
 let installed = false;
-const SECRET = '.streamer-invite,.streamer-account,.streamer-note,#p-note,.streamer-request,.request-messages,.markdown a[href*="invite="],section[aria-labelledby="authsec-email-title"] :is(p,strong,code),section[aria-labelledby="authsec-passkeys-title"] li';
+const SECRET = '.streamer-invite,.streamer-account,.streamer-note,#p-note,.streamer-request,.request-messages,section[aria-labelledby="authsec-email-title"] :is(p,strong,code),section[aria-labelledby="authsec-passkeys-title"] li';
 function install() {
   if (installed) return;
   installed = true;

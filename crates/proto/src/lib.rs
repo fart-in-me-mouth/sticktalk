@@ -5,6 +5,10 @@ mod activities;
 pub use activities::*;
 mod apps;
 pub use apps::*;
+#[cfg(target_arch = "wasm32")]
+mod deferred;
+#[cfg(target_arch = "wasm32")]
+pub use deferred::*;
 mod authsec;
 pub use authsec::*;
 mod browser;

@@ -1,24 +1,98 @@
 //! Server identity views (`docs/features/identity.md`).
 //!
 //! The renderers lists use (a name's role style, the role icon and the server
-//! tag after it, the sidebar banner, the rail's animated icon, invite cards in
-//! messages) are small and draw only what the snapshot already carries. The
-//! settings pages, the role editor controls, the tag card and the join card
-//! are reached only from dialogs, so the splitter keeps them out of the first
-//! load. Looks are `styles/identity.css`; badge glyphs are CSS masks on
-//! `/public/tags/<glyph>.svg`, fetched only when a tag is on screen.
+//! tag after it, the sidebar banner, the rail's animated icon, the invite
+//! card's placeholder in messages) are small and draw only what the snapshot
+//! already carries: they are in the core. The settings pages, the role
+//! editor's style and icon controls and the tag card are this feature's view
+//! module (`load_identity_dialog`), the invite card renderer another
+//! (`load_invite_view`). Looks are `styles/identity.css`; badge glyphs are CSS
+//! masks on `/public/tags/<glyph>.svg`, fetched only when a tag is on screen.
 use super::*;
 use crate::live::identity::admin_page;
 
 fn hex(c: u32) -> String {
     format!("#{:06x}", c & 0xFF_FFFF)
 }
+/// A glyph name that is safe in a URL (the server only stores known ones;
+/// the list itself, `TAG_GLYPHS`, is only needed by the tag editor).
 fn glyph(id: &str) -> &str {
-    if known_glyph(id) {
+    if !id.is_empty() && id.len() <= 16 && id.bytes().all(|b| b.is_ascii_lowercase() || b == b'-') {
         id
     } else {
         "star"
     }
+}
+
+// ------------------------------------------------- the snapshot's fields
+//
+// A user's tag and a server's or role's look arrive undecoded in the web
+// build (`sticktalk_proto::Deferred`): their derived decoders would be in the
+// first load, with every user, server and role. These read the few fields the
+// renderers draw straight from the JSON.
+
+fn num(v: &serde_json::Value) -> Option<u64> {
+    v.as_u64()
+}
+fn color_of(v: &serde_json::Value) -> Option<u32> {
+    num(v).and_then(|c| u32::try_from(c).ok())
+}
+/// The tag a user summary carries.
+fn worn_tag(u: &UserSummary) -> Option<WornTag> {
+    let v = u.style.tag.as_ref()?.raw();
+    Some(WornTag {
+        guild_id: Id(num(&v["guild_id"])?),
+        text: v["text"].as_str()?.to_owned(),
+        glyph: v["glyph"].as_str().unwrap_or_default().to_owned(),
+        color: color_of(&v["color"]).unwrap_or(0),
+        color2: color_of(&v["color2"]).unwrap_or(0),
+    })
+}
+fn image_of(v: &serde_json::Value) -> Option<ImageMeta> {
+    let crop = &v["crop"];
+    Some(ImageMeta {
+        id: Id(num(&v["id"])?),
+        animated: v["animated"].as_bool().unwrap_or(false),
+        crop: (!crop.is_null()).then(|| Crop {
+            zoom: num(&crop["zoom"]).unwrap_or(100) as u16,
+            x: num(&crop["x"]).unwrap_or(50).min(100) as u8,
+            y: num(&crop["y"]).unwrap_or(50).min(100) as u8,
+        }),
+    })
+}
+/// A server's banner or animated icon (`slot` is `banner` or `icon`).
+fn guild_image(g: &Guild, slot: &str) -> Option<ImageMeta> {
+    image_of(&g.look.as_ref()?.raw()[slot])
+}
+fn hides_tags(g: &Guild) -> bool {
+    g.look
+        .as_ref()
+        .is_some_and(|l| l.raw()["hide_tags"].as_bool() == Some(true))
+}
+/// A role's gradient or holographic style.
+fn role_style(r: &Role) -> Option<RoleStyle> {
+    let v = &r.look.as_ref()?.raw()["style"];
+    let paint = match v["paint"].as_str()? {
+        "gradient" => RolePaint::Gradient,
+        "holographic" => RolePaint::Holographic,
+        _ => return None,
+    };
+    Some(RoleStyle {
+        paint,
+        color2: color_of(&v["color2"]),
+        color3: color_of(&v["color3"]),
+    })
+}
+fn role_icon_of(r: &Role) -> Option<RoleIcon> {
+    let v = &r.look.as_ref()?.raw()["icon"];
+    if v.is_null() {
+        return None;
+    }
+    Some(RoleIcon {
+        rev: num(&v["rev"]).and_then(|n| u32::try_from(n).ok()),
+        emoji_id: num(&v["emoji_id"]).map(Id),
+        emoji: v["emoji"].as_str().unwrap_or_default().to_owned(),
+    })
 }
 
 // ------------------------------------------------------------- list views
@@ -36,26 +110,21 @@ fn hidden_here(a: &App, t: &WornTag) -> bool {
     a.guild != Some(t.guild_id)
         && a.guild
             .and_then(|g| a.model.guilds.get(&g))
-            .and_then(|g| g.guild.look.as_ref())
-            .is_some_and(|l| l.hide_tags)
+            .is_some_and(|g| hides_tags(&g.guild))
 }
 /// The tag `u` wears, from the freshest copy of them the app has.
-fn worn<'a>(a: &'a App, u: &'a UserSummary) -> Option<&'a WornTag> {
-    a.model
-        .users
-        .get(&u.id)
-        .map_or(u.style.tag.as_ref(), |x| x.style.tag.as_ref())
-        .filter(|t| !hidden_here(a, t))
+fn worn(a: &App, u: &UserSummary) -> Option<WornTag> {
+    worn_tag(a.model.users.get(&u.id).unwrap_or(u)).filter(|t| !hidden_here(a, t))
 }
 pub(super) fn tag(a: &App, u: &UserSummary) -> AnyView {
-    worn(a, u).map_or_else(|| ().into_any(), chip)
+    worn(a, u).map_or_else(|| ().into_any(), |t| chip(&t))
 }
 /// The chip inside a row that is itself a button (member list, direct
 /// messages, friends): not a second button; the row opens the profile, whose
 /// card has the clickable tag.
 pub(super) fn tag_static(a: &App, u: &UserSummary) -> AnyView {
     match worn(a, u) {
-        Some(t) => view!{<span class="server-tag" title=format!("Server tag: {}",t.text)>{badge(t,"tag-badge")}<span class="tag-text">{t.text.clone()}</span></span>}.into_any(),
+        Some(t) => view!{<span class="server-tag" title=format!("Server tag: {}",t.text)>{badge(&t,"tag-badge")}<span class="tag-text">{t.text.clone()}</span></span>}.into_any(),
         None => ().into_any(),
     }
 }
@@ -81,7 +150,7 @@ pub(super) fn tag_text(a: &App, user: Id) -> String {
         .users
         .get(&user)
         .and_then(|u| worn(a, u))
-        .map(|t| t.text.clone())
+        .map(|t| t.text)
         .unwrap_or_default()
 }
 
@@ -128,15 +197,13 @@ fn paint(r: &Role, s: &RoleStyle) -> (&'static str, String) {
 /// The role whose color a member's name takes: the highest with a color or
 /// a style.
 fn name_role(a: &App, user: Id) -> Option<&Role> {
-    top_role(a, user, |r| {
-        r.color != 0 || r.look.as_ref().is_some_and(|l| l.style.is_some())
-    })
+    top_role(a, user, |r| r.color != 0 || role_style(r).is_some())
 }
 /// A name in its role's style. The user's own name style wins (the inner
 /// `.styled-name` is left alone) unless "Show plain names" is on; "Role
 /// colors" off or as a dot turn the style off. See identity.css.
 pub(super) fn role_name(a: &App, user: Id, shown: &str, inner: AnyView) -> AnyView {
-    match name_role(a, user).and_then(|r| r.look.as_ref().and_then(|l| l.style).map(|s| (r, s))) {
+    match name_role(a, user).and_then(|r| role_style(r).map(|s| (r, s))) {
         Some((r, s)) => {
             let (class, vars) = paint(r, &s);
             view! {<span class=class style=vars data-name=shown.to_owned()>{inner}</span>}
@@ -161,19 +228,20 @@ pub(super) fn role_icon(a: &App, user: Id) -> AnyView {
     let Some(g) = a.guild else {
         return ().into_any();
     };
-    match top_role(a, user, |r| {
-        r.look.as_ref().is_some_and(|l| l.icon.is_some())
-    }) {
-        Some(r) => match r.look.as_ref().and_then(|l| l.icon.as_ref()) {
-            Some(i) => role_icon_view(g, r, i, "role-icon"),
-            None => ().into_any(),
-        },
+    match top_role(a, user, |r| role_icon_of(r).is_some())
+        .and_then(|r| role_icon_of(r).map(|i| (r, i)))
+    {
+        Some((r, i)) => role_icon_view(g, r, &i, "role-icon"),
         None => ().into_any(),
     }
 }
-/// What follows a name in messages and the member list: role icon, tag.
+/// What follows a name in messages: the APP tag, role icon, server tag.
 pub(super) fn after_name(a: &App, u: &UserSummary) -> AnyView {
-    view! {{role_icon(a,u.id)}{tag(a,u)}}.into_any()
+    view! {{super::apps::tag(u)}{role_icon(a,u.id)}{tag(a,u)}}.into_any()
+}
+/// What follows a name in a member row (itself a button): role icon, tag.
+pub(super) fn row_after(a: &App, u: &UserSummary) -> AnyView {
+    view! {{role_icon(a,u.id)}{tag_static(a,u)}}.into_any()
 }
 
 fn crop_vars(c: Option<Crop>) -> (&'static str, String) {
@@ -205,14 +273,13 @@ fn file_picture(m: &ImageMeta, class: &str) -> AnyView {
     };
     picture(m, still, format!("/api/v1/files/{}", m.id.0), class)
 }
-fn open_banner(a: &App) -> Option<&ImageMeta> {
+fn open_banner(a: &App) -> Option<ImageMeta> {
     if a.nav.favorites {
         return None;
     }
     a.guild
         .and_then(|g| a.model.guilds.get(&g))
-        .and_then(|g| g.guild.look.as_ref())
-        .and_then(|l| l.banner.as_ref())
+        .and_then(|g| guild_image(&g.guild, "banner"))
 }
 /// The channel sidebar over a banner: its header floats over the picture.
 pub(super) fn sidebar_class(a: &App) -> &'static str {
@@ -227,24 +294,18 @@ pub(super) fn sidebar_class(a: &App) -> &'static str {
 /// sidebar color as it goes (a scroll-driven opacity, where supported).
 pub(super) fn sidebar_banner(a: &App) -> AnyView {
     match open_banner(a) {
-        Some(m) => view!{<div class="guild-banner id-play" aria-hidden="true">{file_picture(m,"guild-banner-img")}<span class="guild-banner-scrim"></span></div>}.into_any(),
+        Some(m) => view!{<div class="guild-banner id-play" aria-hidden="true">{file_picture(&m,"guild-banner-img")}<span class="guild-banner-scrim"></span></div>}.into_any(),
         None => ().into_any(),
     }
 }
 /// The rail's server icon when it moves or is cropped: the still first frame,
 /// animating only while the button is hovered or focused.
 pub(super) fn rail_face(g: &GuildSummary, class: &str) -> Option<AnyView> {
-    let m = g
-        .guild
-        .look
-        .as_ref()?
-        .icon
-        .as_ref()
-        .filter(|m| Some(m.id) == g.guild.icon_id)?;
+    let m = guild_image(&g.guild, "icon").filter(|m| Some(m.id) == g.guild.icon_id)?;
     // Clipped to the button: a zoomed crop must not spill out of the rail.
     Some(
         view! {<span class="absolute inset-0 overflow-hidden rounded-[inherit]">{picture(
-            m,
+            &m,
             format!("/api/v1/files/{}/thumbnail", m.id.0),
             format!("/api/v1/files/{}", m.id.0),
             class,
@@ -256,29 +317,28 @@ pub(super) fn rail_face(g: &GuildSummary, class: &str) -> Option<AnyView> {
 /// Codes of invites to this server in a message: `<origin>/?invite=CODE` or
 /// `<origin>/invite/CODE`, at most three.
 fn invite_codes(origin: &str, text: &str) -> Vec<String> {
-    let mut found: Vec<(usize, String)> = vec![];
-    if origin.is_empty() {
-        return vec![];
-    }
-    for marker in ["/?invite=", "/invite/"] {
-        let needle = format!("{}{marker}", origin.trim_end_matches('/'));
-        let mut at = 0;
-        while let Some(i) = text[at..].find(&needle) {
-            at += i + needle.len();
-            let code: String = text[at..]
-                .chars()
-                .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-                .collect();
-            if (3..=32).contains(&code.len()) {
-                found.push((at, code));
-            }
-        }
-    }
-    // In the order the message has them.
-    found.sort();
     let mut out: Vec<String> = vec![];
-    for (_, code) in found {
-        if !out.contains(&code) && out.len() < 3 {
+    if origin.is_empty() {
+        return out;
+    }
+    let base = origin.trim_end_matches('/');
+    let needles = [format!("{base}/?invite="), format!("{base}/invite/")];
+    // In the order the message has them: always the nearer of the two forms.
+    let mut at = 0;
+    while out.len() < 3 {
+        let Some((i, n)) = needles
+            .iter()
+            .filter_map(|n| text[at..].find(n.as_str()).map(|i| (i, n.len())))
+            .min()
+        else {
+            break;
+        };
+        at += i + n;
+        let code: String = text[at..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+            .collect();
+        if (3..=32).contains(&code.len()) && !out.contains(&code) {
             out.push(code);
         }
     }
@@ -286,9 +346,8 @@ fn invite_codes(origin: &str, text: &str) -> Vec<String> {
 }
 /// An invite code as text. Every place here that shows one uses this, so
 /// Streamer Mode hides them all (`.streamer-invite`, themes.css).
-pub(super) fn invite_code(code: &str) -> AnyView {
-    view! {<code class="invite-code streamer-invite" data-invite-code="">{code.to_owned()}</code>}
-        .into_any()
+fn invite_code(code: &str) -> AnyView {
+    super::invite_text(code, "invite-code")
 }
 fn counts(c: &InviteCard) -> String {
     format!(
@@ -425,7 +484,7 @@ pub(super) fn role_pills(a: &App, guild: Option<Id>, user: Id) -> AnyView {
     view!{<section class="profile-section mt-3 rounded-lg p-3 text-sm"><h3 class="category mb-1">"Roles"</h3><ul class="flex flex-wrap gap-1" aria-label="Roles">{roles.into_iter().map(|r|view!{<li>{pill(g,r)}</li>}).collect_view()}</ul></section>}.into_any()
 }
 fn pill(g: Id, r: &Role) -> AnyView {
-    let style = r.look.as_ref().and_then(|l| l.style);
+    let style = role_style(r);
     let (class, vars) = match &style {
         Some(s) => {
             let (c, v) = paint(r, s);
@@ -434,7 +493,7 @@ fn pill(g: Id, r: &Role) -> AnyView {
         None => ("", String::new()),
     };
     let dot = if r.color == 0 { 0xA8A8B0 } else { r.color };
-    view!{<span class="role-pill"><span class=format!("role-pill-dot {}",if style.is_some(){format!("painted {class}")}else{String::new()}) style=format!("background-color:{};{vars}",hex(dot))></span>{r.look.as_ref().and_then(|l|l.icon.as_ref()).map(|i|role_icon_view(g,r,i,"role-icon"))}<span class=class style=vars.clone() data-name=r.name.clone()><span>{r.name.clone()}</span></span></span>}.into_any()
+    view!{<span class="role-pill"><span class=format!("role-pill-dot {}",if style.is_some(){format!("painted {class}")}else{String::new()}) style=format!("background-color:{};{vars}",hex(dot))></span>{role_icon_of(r).map(|i|role_icon_view(g,r,&i,"role-icon"))}<span class=class style=vars.clone() data-name=r.name.clone()><span>{r.name.clone()}</span></span></span>}.into_any()
 }
 
 /// The card behind a click on a tag.
@@ -455,7 +514,7 @@ fn tag_card(a: &App) -> AnyView {
                 .model
                 .me
                 .as_ref()
-                .and_then(|m| m.user.style.tag.as_ref())
+                .and_then(|m| worn_tag(&m.user))
                 .is_some_and(|t| t.guild_id == *g);
             view!{<div class="flex flex-wrap gap-2"><button type="button" class="button secondary" data-live=format!("guild:{}",g.0)>"Open Server"</button>{(!wearing).then(||view!{<button type="button" class="button primary" data-live=format!("id:wear,{}",g.0)>"Wear This Tag"</button>})}</div>}.into_any()
         }
@@ -497,12 +556,15 @@ pub(super) fn tag_picker(a: &App) -> AnyView {
 }
 
 /// Style and icon controls under the role editor.
-pub(super) fn role_controls(a: &App, r: &Role) -> AnyView {
+fn role_controls(a: &App, r: &Role) -> AnyView {
     if r.id == r.guild_id {
         return ().into_any();
     }
     let allowed = settings::can(a, Permissions::MANAGE_ROLES);
-    let look = r.look.as_deref().cloned().unwrap_or_default();
+    let look = RoleLook {
+        style: role_style(r),
+        icon: role_icon_of(r),
+    };
     let style = look.style;
     let paint_now = match style.map(|s| s.paint) {
         Some(RolePaint::Gradient) => "gradient",
@@ -546,7 +608,7 @@ pub(super) fn role_controls(a: &App, r: &Role) -> AnyView {
     </fieldset>}.into_any()
 }
 fn name_preview(r: &Role) -> AnyView {
-    match r.look.as_ref().and_then(|l| l.style) {
+    match role_style(r) {
         Some(s) => {
             let (class, vars) = paint(r, &s);
             view!{<span class=class style=vars data-name="Member name"><span>"Member name"</span></span>}.into_any()
@@ -601,8 +663,7 @@ fn tags_page(a: &App) -> AnyView {
     let hide = a
         .guild
         .and_then(|g| a.model.guilds.get(&g))
-        .and_then(|g| g.guild.look.as_ref())
-        .is_some_and(|l| l.hide_tags);
+        .is_some_and(|g| hides_tags(&g.guild));
     let me = a
         .model
         .me
@@ -724,7 +785,7 @@ fn date(ms: u64) -> String {
 }
 
 /// Every dialog this module renders, with its frame.
-pub(super) fn dialog(a: &App) -> Option<AnyView> {
+fn dialog_view(a: &App) -> Option<AnyView> {
     let d = a.dialog.as_str();
     Some(match d {
         "id-tags" => settings::server_layout(a, tags_page(a)),
@@ -733,6 +794,51 @@ pub(super) fn dialog(a: &App) -> Option<AnyView> {
         _ if d.starts_with("id-tag:") => modal(a, "tag-card-dialog", "Server tag", tag_card(a)),
         _ => return None,
     })
+}
+
+/// This feature's view module: the settings pages, the tag card and the
+/// role editor's style and icon controls (not in the shared dialog module).
+#[derive(Clone, Copy)]
+pub(in crate::live) struct Views {
+    dialog: fn(&App) -> Option<AnyView>,
+    role_controls: fn(&App, &Role) -> AnyView,
+}
+/// The table `ui::load_identity_dialog` (the split point) returns.
+pub(super) fn table() -> Views {
+    Views {
+        dialog: dialog_view,
+        role_controls,
+    }
+}
+fn views(a: &App) -> Option<Views> {
+    lazy_view(
+        a,
+        |a| &a.views.identity,
+        || Box::pin(super::load_identity_dialog()),
+    )
+}
+/// A dialog of this feature, or its frame with "Loading…" while its view
+/// module downloads.
+pub(super) fn dialog(a: &App) -> Option<AnyView> {
+    let d = a.dialog.as_str();
+    if !crate::live::identity::has_view(d) {
+        return None;
+    }
+    Some(match views(a).and_then(|v| (v.dialog)(a)) {
+        Some(view) => view,
+        None if admin_page(d) => settings::server_layout(a, loading("Server Identity")),
+        None => loading_dialog(a),
+    })
+}
+/// The role editor's style and icon controls (from the view module).
+pub(super) fn role_editor(a: &App, r: &Role) -> AnyView {
+    if r.id == r.guild_id {
+        return ().into_any();
+    }
+    match views(a) {
+        Some(v) => (v.role_controls)(a, r),
+        None => view! {<p class="muted-copy mt-8" role="status">"Loading…"</p>}.into_any(),
+    }
 }
 
 #[cfg(test)]

@@ -81,7 +81,6 @@ pub(in crate::live) struct Views {
     extra: fn(&App, &Message) -> AnyView,
     interaction: fn(&App, &Message) -> AnyView,
     ephemeral: fn(&App, Id) -> AnyView,
-    picker: fn(&App) -> AnyView,
 }
 #[lazy]
 pub(in crate::live) fn load_views() -> Views {
@@ -90,7 +89,6 @@ pub(in crate::live) fn load_views() -> Views {
         extra: extra_view,
         interaction,
         ephemeral,
-        picker,
     }
 }
 
@@ -106,13 +104,19 @@ pub(super) fn tag(u: &UserSummary) -> AnyView {
 }
 /// A webhook message's own name for its author.
 pub(super) fn author(m: &Message, u: &mut UserSummary) {
-    if let Some(name) = m.extra.app.as_ref().and_then(|x| x.username.clone()) {
-        u.display_name = Some(name);
+    // Read from the undecoded extra: its decoder is in the views module.
+    if let Some(name) = m
+        .extra
+        .app
+        .as_ref()
+        .and_then(|x| x.raw()["username"].as_str())
+    {
+        u.display_name = Some(name.to_owned());
     }
 }
 /// A webhook message's own avatar (a stored copy), if it has one.
 pub(super) fn avatar_override(m: &Message) -> Option<AnyView> {
-    let url = m.extra.app.as_ref()?.avatar.clone()?;
+    let url = m.extra.app.as_ref()?.raw()["avatar"].as_str()?.to_owned();
     Some(view!{<img class="message-avatar size-10 rounded-full object-cover" src=url alt="" width="40" height="40"/>}.into_any())
 }
 pub(super) fn extra(a: &App, m: &Message) -> AnyView {
@@ -125,7 +129,11 @@ pub(super) fn extra(a: &App, m: &Message) -> AnyView {
     }
 }
 pub(super) fn interaction_line(a: &App, m: &Message) -> AnyView {
-    if m.extra.app.as_ref().is_none_or(|x| x.interaction.is_none()) {
+    if m.extra
+        .app
+        .as_ref()
+        .is_none_or(|x| x.raw()["interaction"].is_null())
+    {
         return ().into_any();
     }
     match behavior::views(a) {
@@ -142,14 +150,20 @@ pub(super) fn ephemeral_list(a: &App, ch: Id) -> AnyView {
         None => ().into_any(),
     }
 }
+/// The `/` picker: a small view module of its own (not the pages' `Views`),
+/// loaded with the first `/`.
 pub(super) fn picker_view(a: &App) -> AnyView {
     if a.apps.picker.is_none() {
         return ().into_any();
     }
-    match behavior::views(a) {
-        Some(v) => (v.picker)(a),
+    match lazy_view(a, |a| &a.views.apps_picker, || Box::pin(load_picker())) {
+        Some(v) => v(a),
         None => ().into_any(),
     }
+}
+#[lazy]
+fn load_picker() -> fn(&App) -> AnyView {
+    picker
 }
 pub(super) fn page_view(a: &App, name: &str) -> AnyView {
     match behavior::views(a) {
@@ -275,13 +289,19 @@ fn components(a: &App, ch: Id, m: Id, rows: &[ActionRow]) -> AnyView {
     }).collect_view()}</div>}).collect_view()}</div>}.into_any()
 }
 fn extra_view(a: &App, m: &Message) -> AnyView {
-    let Some(x) = m.extra.app.as_ref() else {
+    let Some(x) = m.extra.app.as_ref().and_then(|x| x.get()) else {
         return ().into_any();
     };
     view!{<div class="app-extra flex flex-col gap-2">{x.embeds.iter().map(|e|embed(a,m,e)).collect_view()}{if x.components.is_empty(){().into_any()}else{components(a,m.channel_id,m.id,&x.components)}}</div>}.into_any()
 }
 fn interaction(a: &App, m: &Message) -> AnyView {
-    let Some(i) = m.extra.app.as_ref().and_then(|x| x.interaction.clone()) else {
+    let Some(i) = m
+        .extra
+        .app
+        .as_ref()
+        .and_then(|x| x.get())
+        .and_then(|x| x.interaction.clone())
+    else {
         return ().into_any();
     };
     let who = a
@@ -305,7 +325,7 @@ fn as_message(e: &EphemeralMessage) -> Message {
         reactions: vec![],
         call: None,
         extra: MessageExtra {
-            app: Some(Box::new(e.app.clone())),
+            app: Some(Deferred::new(&e.app)),
             ..Default::default()
         },
     }

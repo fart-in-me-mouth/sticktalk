@@ -144,6 +144,8 @@ pub enum AuditAction {
     /// are `role_update`; banner, icon and invite background `guild_update`.
     ServerTagUpdate,
     VanityUpdate,
+    /// A file shared into Watch Together in a guild call (`activities.rs`).
+    ActivityMediaShare,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -225,6 +227,7 @@ impl AuditAction {
         Self::WebhookDelete,
         Self::ServerTagUpdate,
         Self::VanityUpdate,
+        Self::ActivityMediaShare,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -307,6 +310,7 @@ impl AuditAction {
             Self::WebhookDelete => "webhook_delete",
             Self::ServerTagUpdate => "server_tag_update",
             Self::VanityUpdate => "vanity_update",
+            Self::ActivityMediaShare => "activity_media_share",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -393,6 +397,7 @@ impl AuditAction {
             Self::WebhookDelete => "Deleted a webhook",
             Self::ServerTagUpdate => "Changed the server tag",
             Self::VanityUpdate => "Changed the vanity link",
+            Self::ActivityMediaShare => "Shared a file into an activity",
         }
     }
 }

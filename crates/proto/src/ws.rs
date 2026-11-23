@@ -348,7 +348,7 @@ pub enum CommandResult {
     Community(CommunityResult),
     Schedule(crate::ScheduleResult),
     Appearance(AppearanceResult),
-    Apps(crate::AppResult),
+    Apps(crate::AppResultExtra),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -475,7 +475,7 @@ pub enum Event {
     /// Only sent to streams that sent `AppearanceCommand::Subscribe`.
     Appearance(AppearanceEvent),
     /// Only sent to streams that sent `AppCommand::Subscribe`, and to bots.
-    Apps(crate::AppEvent),
+    Apps(crate::AppEventExtra),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

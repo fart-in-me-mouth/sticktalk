@@ -1,7 +1,10 @@
 /* Shared activities (public/activities.js, src/live/ui/activities.rs): the
    place an activity takes in the call view, its tile and frame, the floating
-   mini window, the launcher, invites and the server's settings. Imported by
-   app.css; colors only from the theme tokens. */
+   mini window, the launcher, invites and the server's settings. Colors only
+   from the theme tokens. Its own stylesheet (public/activities.css), loaded
+   by activities.js: no one pays for it before using an activity. It sees the
+   app's theme and utilities through @reference, and emits only these rules. */
+@reference "./app.css";
 @layer components {
   /* The call view keeps this box for the activity; the tile is drawn over it. */
   .activity-slot {

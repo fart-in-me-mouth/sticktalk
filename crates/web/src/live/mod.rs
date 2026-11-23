@@ -905,7 +905,6 @@ async fn socket(app: Shared, epoch: u64) {
                                                 a.roles.insert(r.id, r.clone());
                                             }
                                         }
-                                        Event::Apps(e) => apps::event(&mut a, e.clone()),
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id
@@ -1084,28 +1083,33 @@ async fn socket(app: Shared, epoch: u64) {
                                 // is the stage feature's, not the media host's: it goes,
                                 // undecoded, to that feature's state module. The empty list
                                 // sent after every Ready changes nothing while none is known.
-                                let stage = (payload.version == VOICE_VERSION
+                                // Activity sessions likewise go to the activities feature.
+                                let routed = (payload.version == VOICE_VERSION
                                     && payload.kind == "event")
                                     .then(|| inbound::tagged(&payload.payload).ok())
                                     .flatten()
-                                    .filter(|(tag, _)| *tag == "stage")
-                                    .and_then(|(_, data)| data);
-                                if let Some(data) = stage {
-                                    let idle = payload.payload == crate::wire::EMPTY_STAGE_SNAPSHOT
+                                    .and_then(|(tag, data)| {
+                                        let to = match tag {
+                                            "stage" => (features::Feature::Stage, stage::VOICE_TAG),
+                                            "activities" => (
+                                                features::Feature::Activities,
+                                                activities::VOICE_TAG,
+                                            ),
+                                            _ => return None,
+                                        };
+                                        Some((to, data?))
+                                    });
+                                if let Some(((feature, tag), data)) = routed {
+                                    let idle = feature == features::Feature::Stage
+                                        && payload.payload == crate::wire::EMPTY_STAGE_SNAPSHOT
                                         && app.borrow().stage.live.is_empty();
                                     if !idle {
                                         let raw = inbound::Raw {
-                                            tag: stage::VOICE_TAG,
+                                            tag,
                                             data: data.to_vec(),
                                         };
                                         let call = features::Call::Event(raw);
-                                        match features::run(
-                                            app.clone(),
-                                            features::Feature::Stage,
-                                            call,
-                                        )
-                                        .await
-                                        {
+                                        match features::run(app.clone(), feature, call).await {
                                             Ok(true) => {}
                                             Ok(false) => {
                                                 app.borrow_mut().error =
@@ -1248,8 +1252,8 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
         if matches!(event, VoiceEvent::Stage(_)) {
             return;
         }
-        if let VoiceEvent::Activities(e) = event {
-            activities::voice_event(&app, e);
+        // Activity events go to the activities feature before this (`socket`).
+        if matches!(event, VoiceEvent::Activities(_)) {
             return;
         }
         if matches!(event, VoiceEvent::Ack | VoiceEvent::Error { .. })

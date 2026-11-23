@@ -986,6 +986,13 @@ pub enum AppCommand {
     },
 }
 
+/// `CommandResult::Apps`, like [`AppEventExtra`]: the web app's apps module
+/// decodes its own results, so the core never builds this variant.
+#[cfg(not(target_arch = "wasm32"))]
+pub type AppResultExtra = AppResult;
+#[cfg(target_arch = "wasm32")]
+pub type AppResultExtra = crate::Deferred<AppResult>;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum AppResult {
@@ -1007,6 +1014,14 @@ pub enum AppResult {
     Message(Box<Message>),
     Ephemeral(Box<EphemeralMessage>),
 }
+
+/// `Event::Apps`. The web app hands these to its apps module undecoded
+/// (`inbound.rs`) and never builds this variant, so there it is the JSON
+/// (`deferred.rs`): its clone and drop code stay out of the first load.
+#[cfg(not(target_arch = "wasm32"))]
+pub type AppEventExtra = AppEvent;
+#[cfg(target_arch = "wasm32")]
+pub type AppEventExtra = crate::Deferred<AppEvent>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]

@@ -344,7 +344,7 @@ pub(super) fn invites(a: &App) -> AnyView {
         .collect::<Vec<_>>();
     view!{{form("Invites","invite",view!{<p class="muted-copy">"Create a link valid for 7 days, for up to 100 people."</p><fieldset disabled=!allowed><input id="f-name" type="hidden"/></fieldset>}.into_any())}
         {if !a.admin_busy&&invites.is_empty(){view!{<p class="muted-copy">"No active invites."</p>}.into_any()}else{().into_any()}}
-        {invites.into_iter().map(|i|view!{<div class="settings-list-row flex flex-wrap items-center gap-3 border-b py-4"><span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere"><code class="streamer-invite self-start">{i.code.clone()}</code><small>{format!("{} / {} uses",i.uses,i.max_uses)}</small></span><button class="button secondary" data-copy=format!("{}/?invite={}",a.origin,i.code)>"Copy Link"</button>{button("Revoke",&format!("dialog:invite-revoke:{}",i.code),"danger-text")}</div>}).collect_view()}{more(a)}
+        {invites.into_iter().map(|i|view!{<div class="settings-list-row flex flex-wrap items-center gap-3 border-b py-4"><span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere">{super::invite_text(&i.code,"self-start")}<small>{format!("{} / {} uses",i.uses,i.max_uses)}</small></span><button class="button secondary" data-copy=format!("{}/?invite={}",a.origin,i.code)>"Copy Link"</button>{button("Revoke",&format!("dialog:invite-revoke:{}",i.code),"danger-text")}</div>}).collect_view()}{more(a)}
     }.into_any()
 }
 pub(super) fn bans(a: &App) -> AnyView {

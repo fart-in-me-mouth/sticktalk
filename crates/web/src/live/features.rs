@@ -33,6 +33,9 @@ pub(super) fn from_name(name: &str) -> Option<Feature> {
             "community" => Feature::Community,
             "stage" => Feature::Stage,
             "themes" => Feature::Themes,
+            "apps" => Feature::Apps,
+            "identity" => Feature::Identity,
+            "activities" => Feature::Activities,
             _ => return None,
         })
     }
@@ -117,6 +120,17 @@ fn dispatch(
         (Feature::Stage, false) => Box::pin(super::stage::run(app, call)),
         (Feature::Themes, true) => Box::pin(super::themes::state(app, call)),
         (Feature::Themes, false) => Box::pin(super::themes::run(app, call)),
+        // Apps' answers are to what its pages and the `/` picker sent: they go
+        // to `run`, which sent them, not to its small event module.
+        (Feature::Apps, true) if !matches!(call, Call::Answer(..)) => {
+            Box::pin(super::apps::state(app, call))
+        }
+        (Feature::Apps, _) => Box::pin(super::apps::run(app, call)),
+        // Identity has no events or results of its own (its answers are Acks):
+        // one module for everything a person does with it.
+        (Feature::Identity, _) => Box::pin(super::identity::run(app, call)),
+        (Feature::Activities, true) => Box::pin(super::activities::state(app, call)),
+        (Feature::Activities, false) => Box::pin(super::activities::run(app, call)),
     }
 }
 
@@ -167,6 +181,9 @@ pub(super) fn prefetch(f: Feature) {
             Feature::Community => super::community::prefetch().await,
             Feature::Stage => super::stage::prefetch().await,
             Feature::Themes => super::themes::prefetch().await,
+            Feature::Apps => super::apps::prefetch().await,
+            Feature::Identity => super::identity::prefetch().await,
+            Feature::Activities => super::activities::prefetch().await,
         };
     });
 }

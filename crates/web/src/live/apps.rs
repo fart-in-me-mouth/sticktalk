@@ -3,6 +3,15 @@
 //! interactions (ephemeral answers, forms) and app messages. Views are in
 //! `ui/apps.rs` and load on first use. Nothing here polls: data is fetched
 //! when a page opens (or a picker needs it) and kept current by `Event::Apps`.
+//!
+//! Lazily loaded (docs/features/perf.md): `state` (its events) and `run`
+//! (pages, forms, actions and the answers to the commands those send) are
+//! split modules. The composer's paths are small modules of their own, so
+//! typing `/` or sending `/shrug` does not wait for the pages: the picker
+//! (`compose_lazy`, and its view `ui::apps::load_picker`), sending a command
+//! (`run_slash`) and a channel's command list (`load_catalog`). The core keeps
+//! only the state struct and the checks that decide whether to hand over.
+use super::features::{self, Call, Feature, Reply};
 use super::*;
 use std::collections::BTreeSet;
 
@@ -175,7 +184,7 @@ fn link_from_location() -> Option<Id> {
     id(&value)
 }
 
-pub(super) fn event(a: &mut App, e: AppEvent) {
+fn event(a: &mut App, e: AppEvent) {
     match e {
         AppEvent::Interaction(_) => {}
         AppEvent::Ephemeral(m) => {
@@ -208,7 +217,7 @@ pub(super) fn event(a: &mut App, e: AppEvent) {
                         *list = choices;
                         let request = p.request.clone();
                         if let Some(app) = a.owner.upgrade() {
-                            spawn_local(async move { compose_lazy(app, request, false).await });
+                            spawn_local(compose_lazy(app, request, false));
                         }
                     }
                 }
@@ -241,14 +250,18 @@ pub(super) fn event(a: &mut App, e: AppEvent) {
             {
                 if let Some(app) = a.owner.upgrade() {
                     let dialog = a.dialog.clone();
-                    spawn_local(async move { refresh(app, dialog).await });
+                    features::defer(app, Feature::Apps, Call::Other("refresh", dialog));
                 }
             }
         }
         AppEvent::AppsUpdated => {
             if a.apps.developer.is_some() {
                 if let Some(app) = a.owner.upgrade() {
-                    spawn_local(async move { refresh(app, "developer".into()).await });
+                    features::defer(
+                        app,
+                        Feature::Apps,
+                        Call::Other("refresh", "developer".into()),
+                    );
                 }
             }
         }
@@ -276,14 +289,10 @@ pub(super) fn title(page: &str) -> Option<&'static str> {
     is_user_page(page).then_some("Developer")
 }
 
-/// A page opened: fetch what it shows.
-pub(super) fn opened(app: Shared, name: &str) {
-    if owns_page(name) {
-        let name = name.to_owned();
-        spawn_local(async move { refresh(app, name).await });
-    }
+/// Dialogs whose data this feature fetches when they open (`run`).
+pub(super) fn owns_dialog(name: &str) -> bool {
+    owns_page(name)
 }
-#[lazy]
 async fn refresh(app: Shared, name: String) {
     let (http, guild, epoch) = {
         let a = app.borrow();
@@ -409,18 +418,19 @@ pub(super) fn channel_opened(app: Shared, ch: Id) {
             && !a.apps.catalogs.iter().any(|c| c.channel_id == ch)
     };
     if wanted {
-        spawn_local(async move {
-            catalog(app, ch, false).await;
-        });
+        spawn_local(load_catalog(app, ch));
     }
+}
+#[lazy]
+async fn load_catalog(app: Shared, ch: Id) {
+    catalog(app, ch, false).await;
 }
 
 // ---------------------------------------------------------------- the picker
 
-/// `complete:/|<text before the cursor>`.
+/// `complete:/|<text before the cursor>`: the picker loads on the first `/`.
 pub(super) fn compose(app: Shared, request: &str) {
-    let request = request.to_owned();
-    spawn_local(async move { compose_lazy(app, request, true).await });
+    spawn_local(compose_lazy(app, request.to_owned(), true));
 }
 pub(super) fn close_picker(a: &mut App) {
     a.apps.picker = None;
@@ -1093,9 +1103,7 @@ pub(super) fn slash(app: &Shared, content: &str) -> bool {
     }
     a.apps.picker = None;
     drop(a);
-    let app = app.clone();
-    let content = content.to_owned();
-    spawn_local(async move { run_slash(app, content).await });
+    spawn_local(run_slash(app.clone(), content.to_owned()));
     true
 }
 fn sent(a: &App) {
@@ -1172,15 +1180,10 @@ async fn run_slash(app: Shared, content: String) {
 
 // ------------------------------------------------------- actions and forms
 
-/// `apps:<what>,<arg>,…` from a button.
-pub(super) fn action(app: Shared, arg: &str) {
-    let arg = arg.to_owned();
-    spawn_local(async move { act(app, arg).await });
-}
 fn parts(arg: &str) -> Vec<&str> {
     arg.split(',').collect()
 }
-#[lazy]
+/// `apps:<what>,<arg>,…` from a button.
 async fn act(app: Shared, arg: String) {
     let p = parts(&arg);
     let n = |i: usize| p.get(i).and_then(|v| id(v));
@@ -1305,13 +1308,24 @@ fn rules_of(list: &GuildIntegrations, target: Id) -> Vec<CommandTarget> {
         .unwrap_or_default()
 }
 
-/// The avatar upload finished: it is an app's icon or a webhook's avatar.
+/// The avatar upload finished: it is an app's icon or a webhook's avatar
+/// (the form that started it is this feature's, so `run` is loaded).
 pub(super) fn uploaded(a: &mut App, purpose: UploadPurpose, file: &Attachment) -> bool {
-    if purpose != UploadPurpose::Avatar {
+    if purpose != UploadPurpose::Avatar || a.apps.icon_for.is_none() {
         return false;
     }
+    if let Some(app) = a.owner.upgrade() {
+        features::defer(
+            app,
+            Feature::Apps,
+            Call::Other("uploaded", file.id.0.to_string()),
+        );
+    }
+    true
+}
+fn icon_uploaded(a: &mut App, file: Id) {
     let Some((kind, target)) = a.apps.icon_for.take() else {
-        return false;
+        return;
     };
     match kind.as_str() {
         "app" => {
@@ -1325,7 +1339,7 @@ pub(super) fn uploaded(a: &mut App, purpose: UploadPurpose, file: &Attachment) -
                 let draft = AppDraft {
                     name: info.name,
                     description: info.description,
-                    icon: Patch::Set(file.id),
+                    icon: Patch::Set(file),
                     public: info.public,
                     intents: info.intents,
                     permissions: info.permissions,
@@ -1344,21 +1358,16 @@ pub(super) fn uploaded(a: &mut App, purpose: UploadPurpose, file: &Attachment) -
             AppCommand::UpdateWebhook {
                 webhook_id: target,
                 name: None,
-                avatar: Patch::Set(file.id),
+                avatar: Patch::Set(file),
                 channel_id: None,
             },
         ),
         _ => {}
     }
-    true
 }
 
 pub(super) fn is_form(form: &str) -> bool {
     form.starts_with("apps-")
-}
-pub(super) fn submit(app: Shared, form: &str) {
-    let form = form.to_owned();
-    spawn_local(async move { submit_lazy(app, form).await });
 }
 fn bits(prefix: &str, all: impl Iterator<Item = u64>) -> u64 {
     all.filter(|b| checked(&format!("{prefix}{b}")))
@@ -1370,7 +1379,6 @@ fn permission_bits() -> Permissions {
         super::ui::apps::PERMISSIONS.iter().map(|p| p.1),
     ))
 }
-#[lazy]
 async fn submit_lazy(app: Shared, form: String) {
     let mut a = app.borrow_mut();
     let sent_form = |form: &str| media_action(&format!("form-sent:{form}"));
@@ -1569,7 +1577,15 @@ pub(super) fn owns(op: &Command) -> bool {
     // All of them: the generic answer path would close the open page.
     matches!(op, Command::Apps(_))
 }
-pub(super) fn answered(app: Shared, op: Command, result: CommandResult) {
+/// Answers that change nothing the person sees: the core drops them, so
+/// they load nothing (the subscription after every Ready, autocomplete).
+pub(super) fn housekeeping(op: &Command) -> bool {
+    matches!(
+        op,
+        Command::Apps(AppCommand::Subscribe | AppCommand::Autocomplete { .. })
+    )
+}
+fn answered(app: Shared, op: Command, result: AppResult) {
     // Housekeeping answers change nothing the person sees.
     if matches!(
         op,
@@ -1580,9 +1596,6 @@ pub(super) fn answered(app: Shared, op: Command, result: CommandResult) {
     let mut a = app.borrow_mut();
     a.error.clear();
     let Command::Apps(op) = op else { return };
-    let CommandResult::Apps(result) = result else {
-        return;
-    };
     match (op, result) {
         (
             AppCommand::CreateApp(_) | AppCommand::ResetToken { .. },
@@ -1663,4 +1676,51 @@ pub(super) fn answered(app: Shared, op: Command, result: CommandResult) {
         _ => {}
     }
     a.touch();
+}
+
+/// Everything a person does with apps: pages, forms, actions, the `/` picker,
+/// running a command, and the answers to the commands these send (they were
+/// sent from here, so this module is already loaded).
+#[leptos::wasm_split::wasm_split(
+    apps,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    match call {
+        Call::Action(_, arg) => spawn_local(act(app, arg)),
+        Call::Submit(form) => spawn_local(submit_lazy(app, form)),
+        Call::Opened(name) | Call::Other("refresh", name) => spawn_local(refresh(app, name)),
+        Call::Other("uploaded", file) => {
+            if let Some(file) = id(&file) {
+                icon_uploaded(&mut app.borrow_mut(), file);
+            }
+        }
+        Call::Answer(Some(op), reply) => {
+            let result = match reply {
+                // A plain acknowledgement from the core's decoder.
+                Reply::Core(_) => AppResult::Ack,
+                Reply::Raw(raw) => match crate::inbound::feature::app_result(&raw.data) {
+                    Ok(r) => r,
+                    Err(()) => return Ok(false),
+                },
+            };
+            answered(app, op, result);
+        }
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// Apps' events: ephemeral answers, forms, autocomplete, catalogs changing.
+#[leptos::wasm_split::wasm_split(apps_state, wasm_split_path = ::leptos::wasm_split, fallible)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    if let Call::Event(raw) = call {
+        let Ok(e) = crate::inbound::feature::app_event(&raw.data) else {
+            return Ok(false);
+        };
+        event(&mut app.borrow_mut(), e);
+    }
+    Ok(true)
 }
