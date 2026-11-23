@@ -177,7 +177,7 @@ pub(super) fn attachments(a: &App, files: &[Attachment]) -> AnyView {
         _ => ("grid-cols-3", 0),
     };
     view!{
-        {if media.is_empty(){().into_any()}else{view!{<div class=format!("attachment-media mt-2 max-w-[min(100%,520px)] {}",if cells>1{format!("attachment-grid grid gap-1 {grid}")}else{String::new()}) data-count=cells.to_string()>{media.into_iter().enumerate().map(|(i,f)|{
+        {if media.is_empty(){().into_any()}else{view!{<div class=format!("attachment-media mt-2 {}",if cells>1{format!("attachment-grid grid max-w-[min(100%,520px)] gap-1 {grid}")}else{"max-w-full".to_string()}) data-count=cells.to_string()>{media.into_iter().enumerate().map(|(i,f)|{
             let span=match (grid,i<wide) {
                 ("grid-cols-6",true)=>"col-span-3",
                 ("grid-cols-6",false)=>"col-span-2",

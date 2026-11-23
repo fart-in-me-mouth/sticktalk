@@ -519,7 +519,7 @@ try {
   await alice.mouse.wheel(0, 100);
   await bob.waitForFunction(() => window.__host.some((m) => m.input?.type === "wheel"), null, { timeout: 15000 });
   const told = await bob.evaluate(() => window.__host);
-  assert.deepEqual(told[0], { control: "start", who: "alice_call", label: told[0].label, surface: "monitor", width: 640, height: 360 });
+  assert.deepEqual(told[0], { control: "start", who: "alice_call", label: told[0].label, surface: "monitor", width: 640, height: 360, agent: false });
   const inputs = told.filter((m) => m.control === "input").map((m) => m.input);
   const moved = inputs.find((i) => i.type === "move");
   assert(Math.abs(moved.data.x - 32768) < 400 && Math.abs(moved.data.y - 32768) < 400, `the middle of the picture is the middle of the screen: ${JSON.stringify(moved)}`);
