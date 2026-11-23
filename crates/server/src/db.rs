@@ -103,7 +103,7 @@ pub fn user_row(r: &SqliteRow) -> UserSummary {
         display_name: r.get("display_name"),
         avatar_id: r.get::<Option<i64>, _>("avatar_id").map(|v| Id(v as u64)),
         status_text: r.get("status_text"),
-        style: crate::profiles::style_column(r),
+        style: Box::new(crate::profiles::style_column(r)),
     }
 }
 pub async fn user(c: &mut SqliteConnection, u: Id) -> Result<UserSummary> {
@@ -185,7 +185,7 @@ pub async fn member(c: &mut SqliteConnection, g: Id, u: Id) -> Result<Member> {
         permissions: crate::permissions::evaluate(c, u, g, None).await?,
         role_ids: crate::permissions::role_ids(c, g, u).await?,
         timeout_until: crate::moderation::timeout_until(c, g, u).await?,
-        server_style: crate::profiles::member_style(c, g, u).await?,
+        server_style: Box::new(crate::profiles::member_style(c, g, u).await?),
         nickname: sqlx::query_scalar(
             "SELECT nickname FROM nicknames WHERE guild_id=? AND user_id=?",
         )

@@ -31,8 +31,9 @@ pub struct UserSummary {
     pub avatar_id: Option<AttachmentId>,
     pub status_text: Option<String>,
     /// Animated avatar, name style, decoration and nameplate (`profiles.rs`).
+    /// Boxed so that enums carrying a user stay small.
     #[serde(default, skip_serializing_if = "crate::UserStyle::is_empty")]
-    pub style: crate::UserStyle,
+    pub style: Box<crate::UserStyle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -114,8 +115,9 @@ pub struct Member {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_until: Option<UnixMillis>,
     /// What this member's server profile overrides in lists (`profiles.rs`).
+    /// Boxed: most members have none, and `Member` travels in large enums.
     #[serde(default, skip_serializing_if = "crate::UserStyle::is_empty")]
-    pub server_style: crate::UserStyle,
+    pub server_style: Box<crate::UserStyle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

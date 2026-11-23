@@ -409,7 +409,9 @@ pub enum ProfilesCommand {
         image: Option<ImageRef>,
     },
     /// Up to six earned badge IDs, in display order.
-    SetBadges { shown: Vec<String> },
+    SetBadges {
+        shown: Vec<String>,
+    },
     /// A moderator removes a member's server avatar and/or banner. Time Out
     /// Members is required, and the member must be below the moderator. The
     /// nickname is reset with the existing `SetNickname` (Manage Nicknames).
@@ -574,10 +576,10 @@ mod tests {
         .unwrap();
         assert_eq!(rmp_serde::from_slice::<UserSummary>(&old).unwrap(), u);
         let styled = UserSummary {
-            style: UserStyle {
+            style: Box::new(UserStyle {
                 decoration: Some("halo".into()),
                 ..Default::default()
-            },
+            }),
             ..u.clone()
         };
         let back: UserSummary =

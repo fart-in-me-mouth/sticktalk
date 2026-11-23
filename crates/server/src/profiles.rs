@@ -46,7 +46,9 @@ fn text(s: &str, max: usize) -> Result<String> {
     Ok(s.to_owned())
 }
 fn optional_text(s: Option<String>, max: usize) -> Result<Option<String>> {
-    Ok(s.map(|s| text(&s, max)).transpose()?.filter(|s| !s.is_empty()))
+    Ok(s.map(|s| text(&s, max))
+        .transpose()?
+        .filter(|s| !s.is_empty()))
 }
 fn rgb(c: Option<u32>) -> Result<Option<u32>> {
     require(c.is_none_or(|c| c <= 0xFF_FFFF), ErrorCode::InvalidRequest)?;
@@ -96,7 +98,10 @@ async fn save_style(c: &mut SqliteConnection, u: Id, s: &UserStyle) -> Result<()
         .await?;
     Ok(())
 }
-pub(crate) async fn look(c: &mut SqliteConnection, u: Id) -> Result<(ProfileLook, Option<Vec<String>>)> {
+pub(crate) async fn look(
+    c: &mut SqliteConnection,
+    u: Id,
+) -> Result<(ProfileLook, Option<Vec<String>>)> {
     let r = sqlx::query("SELECT look,shown_badges FROM profile_looks WHERE user_id=?")
         .bind(id(u)?)
         .fetch_optional(&mut *c)
@@ -119,7 +124,11 @@ async fn save_look(c: &mut SqliteConnection, u: Id, l: &ProfileLook) -> Result<(
     Ok(())
 }
 /// `u`'s profile in server `g`, with the server nickname.
-pub(crate) async fn server_profile(c: &mut SqliteConnection, g: Id, u: Id) -> Result<ServerProfile> {
+pub(crate) async fn server_profile(
+    c: &mut SqliteConnection,
+    g: Id,
+    u: Id,
+) -> Result<ServerProfile> {
     let s: Option<String> =
         sqlx::query_scalar("SELECT profile FROM member_profiles WHERE guild_id=? AND user_id=?")
             .bind(id(g)?)
@@ -127,14 +136,20 @@ pub(crate) async fn server_profile(c: &mut SqliteConnection, g: Id, u: Id) -> Re
             .fetch_optional(&mut *c)
             .await?;
     let mut p: ServerProfile = parse(s);
-    p.nickname = sqlx::query_scalar("SELECT nickname FROM nicknames WHERE guild_id=? AND user_id=?")
-        .bind(id(g)?)
-        .bind(id(u)?)
-        .fetch_optional(&mut *c)
-        .await?;
+    p.nickname =
+        sqlx::query_scalar("SELECT nickname FROM nicknames WHERE guild_id=? AND user_id=?")
+            .bind(id(g)?)
+            .bind(id(u)?)
+            .fetch_optional(&mut *c)
+            .await?;
     Ok(p)
 }
-async fn save_server_profile(c: &mut SqliteConnection, g: Id, u: Id, p: &ServerProfile) -> Result<()> {
+async fn save_server_profile(
+    c: &mut SqliteConnection,
+    g: Id,
+    u: Id,
+    p: &ServerProfile,
+) -> Result<()> {
     let stored = ServerProfile {
         nickname: None,
         ..p.clone()
@@ -203,7 +218,12 @@ pub(crate) async fn erase(c: &mut SqliteConnection, u: Id) -> Result<()> {
 
 /// A user's look changed: tell them, everyone who can see them, and every
 /// server they are in (their `Member` carries the user summary too).
-async fn user_changed(c: &mut SqliteConnection, core: &Core, u: Id, out: &mut Deliveries) -> Result<()> {
+async fn user_changed(
+    c: &mut SqliteConnection,
+    core: &Core,
+    u: Id,
+    out: &mut Deliveries,
+) -> Result<()> {
     let me = me(c, u).await?;
     out.push((vec![u], Event::SelfUpdated(me.clone())));
     let mut viewers = vec![];
@@ -224,8 +244,16 @@ async fn user_changed(c: &mut SqliteConnection, core: &Core, u: Id, out: &mut De
     }
     Ok(())
 }
-async fn member_changed(c: &mut SqliteConnection, g: Id, u: Id, out: &mut Deliveries) -> Result<()> {
-    out.push((guild_users(c, g).await?, Event::MemberUpsert(member(c, g, u).await?)));
+async fn member_changed(
+    c: &mut SqliteConnection,
+    g: Id,
+    u: Id,
+    out: &mut Deliveries,
+) -> Result<()> {
+    out.push((
+        guild_users(c, g).await?,
+        Event::MemberUpsert(member(c, g, u).await?),
+    ));
     Ok(())
 }
 async fn profile_viewers(c: &mut SqliteConnection, u: Id) -> Result<Vec<Id>> {
@@ -277,7 +305,13 @@ async fn image(c: &mut SqliteConnection, u: Id, r: ImageRef) -> Result<ImageMeta
         crop: r.crop.filter(|c| !c.is_identity()),
     })
 }
-async fn track(c: &mut SqliteConnection, u: Id, g: i64, slot: ImageSlot, m: Option<&ImageMeta>) -> Result<()> {
+async fn track(
+    c: &mut SqliteConnection,
+    u: Id,
+    g: i64,
+    slot: ImageSlot,
+    m: Option<&ImageMeta>,
+) -> Result<()> {
     sqlx::query("DELETE FROM profile_uploads WHERE user_id=? AND guild_id=? AND slot=?")
         .bind(id(u)?)
         .bind(g)
@@ -336,7 +370,10 @@ pub(crate) async fn mutate(
             ));
             Ok(CommandResult::Ack)
         }
-        ProfilesCommand::UpdateServer { guild_id: g, edit: e } => {
+        ProfilesCommand::UpdateServer {
+            guild_id: g,
+            edit: e,
+        } => {
             role(c, u, g).await?;
             let old = server_profile(c, g, u).await?;
             let new = ServerProfile {
@@ -501,15 +538,20 @@ pub(crate) async fn mine(c: &mut SqliteConnection, u: Id) -> Result<MyProfiles> 
         .collect();
     ordered.extend(earned.into_iter().filter(|b| !shown.contains(&b.id)));
     let mut servers = vec![];
-    for g in sqlx::query_scalar::<_, i64>("SELECT guild_id FROM guild_members WHERE user_id=? ORDER BY guild_id")
-        .bind(id(u)?)
-        .fetch_all(&mut *c)
-        .await?
+    for g in sqlx::query_scalar::<_, i64>(
+        "SELECT guild_id FROM guild_members WHERE user_id=? ORDER BY guild_id",
+    )
+    .bind(id(u)?)
+    .fetch_all(&mut *c)
+    .await?
     {
         let g = Id(g as u64);
         let profile = server_profile(c, g, u).await?;
         if !profile.is_empty() {
-            servers.push(GuildServerProfile { guild_id: g, profile });
+            servers.push(GuildServerProfile {
+                guild_id: g,
+                profile,
+            });
         }
     }
     Ok(MyProfiles {
@@ -535,18 +577,25 @@ async fn card_endpoint(
     Ok(Json(card(&mut c, u, v, g).await?))
 }
 /// `v`'s profile card as `u` sees it, opened from server `g`.
-pub(crate) async fn card(c: &mut SqliteConnection, u: Id, v: Id, g: Option<Id>) -> Result<ProfileCard> {
+pub(crate) async fn card(
+    c: &mut SqliteConnection,
+    u: Id,
+    v: Id,
+    g: Option<Id>,
+) -> Result<ProfileCard> {
     profile_access(c, u, v).await?;
     let p = crate::launch::user_profile(c, v).await?;
     let (look, shown) = look(c, v).await?;
     let earned = badges::earned(c, v).await?;
     let (server, member_since) = match g {
         Some(g) if role(c, u, g).await.is_ok() => {
-            let since: Option<i64> = sqlx::query_scalar("SELECT joined_at FROM guild_members WHERE guild_id=? AND user_id=?")
-                .bind(id(g)?)
-                .bind(id(v)?)
-                .fetch_optional(&mut *c)
-                .await?;
+            let since: Option<i64> = sqlx::query_scalar(
+                "SELECT joined_at FROM guild_members WHERE guild_id=? AND user_id=?",
+            )
+            .bind(id(g)?)
+            .bind(id(v)?)
+            .fetch_optional(&mut *c)
+            .await?;
             match since {
                 Some(t) => {
                     let s = server_profile(c, g, v).await?;

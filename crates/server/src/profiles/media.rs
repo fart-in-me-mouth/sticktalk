@@ -92,14 +92,18 @@ fn limits() -> image::Limits {
 /// return the first frame and the frame count.
 fn frames<'a>(decoder: impl AnimationDecoder<'a>, w: u32, h: u32) -> Result<(RgbaImage, u32)> {
     let pixels = u64::from(w) * u64::from(h);
-    require(pixels <= MAX_ANIMATED_FRAME_PIXELS, ErrorCode::PayloadTooLarge)?;
+    require(
+        pixels <= MAX_ANIMATED_FRAME_PIXELS,
+        ErrorCode::PayloadTooLarge,
+    )?;
     let mut first = None;
     let mut count = 0u32;
     for frame in decoder.into_frames() {
         let frame = frame.map_err(|_| bad())?;
         count += 1;
         require(
-            count <= MAX_ANIMATION_FRAMES && u64::from(count) * pixels <= MAX_ANIMATION_TOTAL_PIXELS,
+            count <= MAX_ANIMATION_FRAMES
+                && u64::from(count) * pixels <= MAX_ANIMATION_TOTAL_PIXELS,
             ErrorCode::PayloadTooLarge,
         )?;
         if first.is_none() {
@@ -194,11 +198,14 @@ fn rendition(first: &RgbaImage) -> Result<(Vec<u8>, u32, u32)> {
     let mut flat = image::RgbImage::new(w, h);
     for (x, y, p) in first.enumerate_pixels() {
         let a = u32::from(p[3]);
-        let mix = |i: usize| ((u32::from(p[i]) * a + u32::from(BACKDROP[i]) * (255 - a)) / 255) as u8;
+        let mix =
+            |i: usize| ((u32::from(p[i]) * a + u32::from(BACKDROP[i]) * (255 - a)) / 255) as u8;
         flat.put_pixel(x, y, image::Rgb([mix(0), mix(1), mix(2)]));
     }
     let (bw, bh) = if w >= 2 * h { (960, 384) } else { (256, 256) };
-    let t = DynamicImage::ImageRgb8(flat).thumbnail(w.min(bw), h.min(bh)).to_rgb8();
+    let t = DynamicImage::ImageRgb8(flat)
+        .thumbnail(w.min(bw), h.min(bh))
+        .to_rgb8();
     let mut bytes = vec![];
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, 82)
         .encode_image(&t)
@@ -242,8 +249,12 @@ mod tests {
             let mut e = GifEncoder::new(&mut bytes);
             for i in 0..frames {
                 let shade = (i * 40 % 255) as u8;
-                e.encode_frame(Frame::new(RgbaImage::from_pixel(w, h, Rgba([shade, 0, 0, 255]))))
-                    .unwrap();
+                e.encode_frame(Frame::new(RgbaImage::from_pixel(
+                    w,
+                    h,
+                    Rgba([shade, 0, 0, 255]),
+                )))
+                .unwrap();
             }
         }
         std::fs::write(&path, bytes).unwrap();

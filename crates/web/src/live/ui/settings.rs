@@ -347,6 +347,8 @@ pub(super) fn appearance() -> AnyView {
         <label class="field"><span>"Chat Font Scaling"</span><select data-preference="fontScale"><option value="0.8">"80%"</option><option value="0.9">"90%"</option><option value="1">"100%"</option><option value="1.1">"110%"</option><option value="1.25">"125%"</option><option value="1.5">"150%"</option></select></label>
         <label class="live-checkbox"><span>"Always underline links"</span><input type="checkbox" data-preference="underlineLinks"/></label>
         <label class="live-checkbox"><span>"Show website previews for links"</span><input type="checkbox" data-preference="linkPreviews"/></label>
+        <h3 class="mt-6">"Profiles"</h3><label class="live-checkbox"><span class="flex flex-col"><span>"Show plain names"</span><small class="text-xs text-subtle">"Other people’s name fonts, colors and effects are turned off. Role colors stay."</small></span><input type="checkbox" data-preference="plainNames"/></label>
+        <label class="live-checkbox"><span class="flex flex-col"><span>"Reduce cosmetics"</span><small class="text-xs text-subtle">"Hide other people’s avatar decorations, nameplates, profile effects and frames."</small></span><input type="checkbox" data-preference="reduceCosmetics"/></label>
         <div class="settings-divider"></div><h3>"Preview"</h3><p class="appearance-preview rounded-lg border bg-card p-4">"This is how your messages will look."</p><p class="muted-copy">"StickTalk respects your device’s reduced motion setting."</p>
     }.into_any()
 }

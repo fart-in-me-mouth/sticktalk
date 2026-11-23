@@ -5,6 +5,7 @@ mod content;
 mod moderation;
 mod nav;
 mod operations;
+mod profiles;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
 use futures_channel::mpsc;
@@ -149,6 +150,8 @@ struct App {
     /// Polls, forwarding, scheduled messages, voice messages, GIF favorites.
     content: content::State,
     moderation: moderation::State,
+    /// Profile cards, the profile editor and profile image uploads.
+    profiles: profiles::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -178,6 +181,7 @@ impl App {
         self.roles.clear();
         self.devices.clear();
         self.profile = None;
+        self.profiles = Default::default();
         self.pins.clear();
         self.notifications.clear();
         self.admin_after = None;
@@ -372,6 +376,7 @@ pub fn mount() {
             nav: Default::default(),
             content: Default::default(),
             moderation: Default::default(),
+            profiles: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();

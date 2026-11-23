@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 
-const modules=['authsec-login.js','authsec.js','backgrounds-worker.js','backgrounds.js','callextras.js','calls.js','clips.js','content.js','gifs.js','live.js','media.js','message-menu.js','nav.js','navigation.js','preferences.js','ptt.js','push.js','soundboard.js','ui.js','viewer.js'];
+const modules=['authsec-login.js','authsec.js','backgrounds-worker.js','backgrounds.js','callextras.js','calls.js','clips.js','content.js','gifs.js','live.js','media.js','message-menu.js','nav.js','navigation.js','preferences.js','profiles.js','ptt.js','push.js','soundboard.js','ui.js','viewer.js'];
 async function readRuntime(directory) {
   const hash=createHash('sha256'), sources=new Map();
   for(const name of modules) {

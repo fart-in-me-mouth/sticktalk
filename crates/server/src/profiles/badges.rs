@@ -34,11 +34,12 @@ pub(crate) async fn earned(c: &mut SqliteConnection, u: Id) -> Result<Vec<Badge>
         .await?
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
     let created = created.max(0) as u64;
-    let awards: Vec<String> =
-        sqlx::query_scalar("SELECT badge FROM badge_awards WHERE user_id=? ORDER BY awarded_at,badge")
-            .bind(id(u)?)
-            .fetch_all(&mut *c)
-            .await?;
+    let awards: Vec<String> = sqlx::query_scalar(
+        "SELECT badge FROM badge_awards WHERE user_id=? ORDER BY awarded_at,badge",
+    )
+    .bind(id(u)?)
+    .fetch_all(&mut *c)
+    .await?;
     let has = |b: &str| awards.iter().any(|a| a == b);
     let mut out = vec![];
     if has("instance_admin") {
@@ -181,7 +182,10 @@ pub enum BadgeCommand {
 }
 /// Awardable IDs: the administrator's built-in badges and existing custom ones.
 async fn awardable(c: &mut SqliteConnection, badge: &str) -> Result<()> {
-    if BUILTIN_BADGES.iter().any(|(b, _, awarded)| *awarded && *b == badge) {
+    if BUILTIN_BADGES
+        .iter()
+        .any(|(b, _, awarded)| *awarded && *b == badge)
+    {
         return Ok(());
     }
     let n = badge
@@ -266,13 +270,14 @@ pub(crate) async fn run(c: &mut SqliteConnection, command: &BadgeCommand) -> Res
             require(n < MAX_CUSTOM_BADGES as i64, ErrorCode::LimitExceeded)?;
             let bytes = std::fs::read(icon)?;
             let png = media::badge_icon(&bytes)?;
-            let r = sqlx::query("INSERT INTO badges(name,description,icon,created_at) VALUES(?,?,?,?)")
-                .bind(name)
-                .bind(description)
-                .bind(png)
-                .bind(now() as i64)
-                .execute(&mut *c)
-                .await?;
+            let r =
+                sqlx::query("INSERT INTO badges(name,description,icon,created_at) VALUES(?,?,?,?)")
+                    .bind(name)
+                    .bind(description)
+                    .bind(png)
+                    .bind(now() as i64)
+                    .execute(&mut *c)
+                    .await?;
             println!("Created badge c{}", r.last_insert_rowid());
         }
         BadgeCommand::Delete { id: b } => {
