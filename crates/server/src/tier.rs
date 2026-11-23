@@ -128,6 +128,23 @@ pub(crate) async fn maintain(app: &App) -> Result<bool> {
     let Ok(_uploads) = app.0.upload_io.try_lock() else {
         return Ok(true);
     };
+    maintain_locked(app, remote).await
+}
+/// One maintenance pass that waits for the locks instead of reporting "busy".
+/// Tests use it: the background worker may be mid-pass (for example retrying a
+/// publication that failed while the node was down), and `maintain` would then
+/// return at once without doing the work the test is about to assert on.
+/// Lock order matches upload finalization: uploads first, then the tier.
+#[cfg(test)]
+pub(crate) async fn maintain_waiting(app: &App) -> Result<bool> {
+    let Some(remote) = &app.0.tier.remote else {
+        return Ok(false);
+    };
+    let _uploads = app.0.upload_io.lock().await;
+    let _serial = app.0.tier.io.lock().await;
+    maintain_locked(app, remote).await
+}
+async fn maintain_locked(app: &App, remote: &RemoteStore) -> Result<bool> {
     // Reclaim expired tombstones while real work is pending, including when
     // the node is too full to accept another chunk. Never poll an idle node.
     remote.free_space().await?;

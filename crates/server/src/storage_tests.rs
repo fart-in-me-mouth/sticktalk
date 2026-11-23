@@ -390,7 +390,7 @@ async fn hybrid_main_outage_resume_cache_permissions_sync_and_backup() {
         "abcdefgh"
     );
     let node = Node::start(dir.path(), Some(addr)).await;
-    crate::tier::maintain(&app).await.unwrap();
+    crate::tier::maintain_waiting(&app).await.unwrap();
     assert!(!app
         .0
         .config
@@ -414,7 +414,7 @@ async fn hybrid_main_outage_resume_cache_permissions_sync_and_backup() {
         .execute(&app.0.pool)
         .await
         .unwrap();
-    crate::tier::maintain(&app).await.unwrap();
+    crate::tier::maintain_waiting(&app).await.unwrap();
     assert_eq!(
         sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM blob_replicas WHERE synced=1")
             .fetch_one(&app.0.pool)
@@ -477,7 +477,7 @@ async fn hybrid_main_outage_resume_cache_permissions_sync_and_backup() {
         .execute(&app.0.pool)
         .await
         .unwrap();
-    crate::tier::maintain(&app).await.unwrap();
+    crate::tier::maintain_waiting(&app).await.unwrap();
     // Tombstone retains bytes for restoring the 14-day snapshots.
     assert!(dir
         .path()
@@ -678,7 +678,7 @@ async fn hybrid_lru_cache_and_backup_retention() {
         .await
         .unwrap();
     let _body = app.0.tier.get(&app, "cachea.bin", 0, 1).await.unwrap();
-    crate::tier::maintain(&app).await.unwrap();
+    crate::tier::maintain_waiting(&app).await.unwrap();
     assert!(app.0.tier.local.path("cachea.bin").unwrap().exists());
     assert!(!app.0.tier.local.path("cacheb.bin").unwrap().exists());
     assert!(!app.0.tier.local.path("cachec.jpg").unwrap().exists());
