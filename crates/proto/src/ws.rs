@@ -286,6 +286,8 @@ pub enum Command {
     },
     /// Polls, forwarding, scheduled messages and rich attachments (`content.rs`).
     Content(ContentCommand),
+    /// Stickers, Super Reactions and typing indicators (`expression.rs`).
+    Expression(ExpressionCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -324,6 +326,7 @@ pub enum CommandResult {
     Subscription { presences: Vec<Presence> },
     Content(ContentResult),
     Moderation(ModerationResult),
+    Expression(ExpressionResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -435,6 +438,8 @@ pub enum Event {
     Content(ContentEvent),
     /// Only sent to streams that sent `ModerationCommand::Subscribe`.
     Moderation(ModerationEvent),
+    /// Only sent to streams that sent `ExpressionCommand::Subscribe`.
+    Expression(ExpressionEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

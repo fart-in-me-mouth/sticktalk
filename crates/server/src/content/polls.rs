@@ -53,6 +53,10 @@ pub(super) async fn create(
     let CommandResult::Message(mut message) = send(c, core, key, u, draft, out).await? else {
         return Err(Error::new(ErrorCode::Internal));
     };
+    // A custom emoji the author may not use here is dropped (expression.rs).
+    for (_, emoji) in answers.iter_mut() {
+        *emoji = crate::expression::poll_emoji(c, u, d.channel_id, emoji.take()).await?;
+    }
     let expires = now() + u64::from(d.duration_hours) * 3_600_000;
     sqlx::query("INSERT INTO polls(message_id,question,multiple,expires_at) VALUES(?,?,?,?)")
         .bind(id(message.id)?)

@@ -36,6 +36,10 @@ bitflags::bitflags! {
         const VIEW_AUDIT_LOG = 1 << 29;
         /// Time out members (Discord's "Moderate Members").
         const MODERATE_MEMBERS = 1 << 30;
+        /// Use custom emoji from other servers here (granted to @everyone by default).
+        const USE_EXTERNAL_EMOJI = 1 << 40;
+        /// Send stickers from other servers here (granted to @everyone by default).
+        const USE_EXTERNAL_STICKERS = 1 << 41;
     }
 }
 

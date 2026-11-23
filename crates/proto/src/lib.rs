@@ -6,6 +6,8 @@ mod calls;
 pub use calls::*;
 mod content;
 pub use content::*;
+mod expression;
+pub use expression::*;
 mod features3;
 mod gifs;
 mod ids;

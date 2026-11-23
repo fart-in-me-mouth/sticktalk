@@ -361,6 +361,12 @@ pub(crate) async fn precheck(
             hook.slowmode = Some(*channel_id);
         }
         Command::Content(cmd) => content_check(app, core, c, u, cmd).await?,
+        // Sticker messages get the same checks as `SendMessage`.
+        Command::Expression(cmd) => {
+            if let Some((ch, content, mentions)) = crate::expression::outgoing(cmd) {
+                message_check(app, core, c, u, ch, content, mentions, true).await?
+            }
+        }
         _ => {}
     }
     Ok(hook)

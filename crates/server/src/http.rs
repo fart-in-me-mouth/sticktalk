@@ -25,6 +25,7 @@ pub fn router(app: App) -> axum::Router {
         .merge(crate::mcp::routes())
         .merge(crate::nav::routes())
         .merge(crate::content::routes())
+        .merge(crate::expression::routes())
         .merge(crate::moderation::routes())
         .route(
             "/api/v1/users/@me/server-folders",

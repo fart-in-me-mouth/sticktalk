@@ -7,7 +7,6 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use sqlx::{Row, SqliteConnection};
 use std::collections::HashMap;
 use sticktalk_proto::*;
-use unicode_segmentation::UnicodeSegmentation;
 type Deliveries = Vec<(Vec<Id>, Event)>;
 fn event(out: &mut Deliveries, users: Vec<Id>, e: Event) {
     if let Some((previous_users, previous_event)) = out.last_mut() {
@@ -438,6 +437,11 @@ pub(crate) async fn execute(
             s.content_features = true;
         }
     }
+    if matches!(req.command, Command::Expression(_)) {
+        if let Some(s) = core.streams.get_mut(key) {
+            s.expression_features = true;
+        }
+    }
     let mut replayed = false;
     let outcome: Result<CommandResult>=async {
         require(req.nonce>0&&req.nonce<=i64::MAX as u64,ErrorCode::InvalidRequest)?;
@@ -726,6 +730,7 @@ pub(crate) async fn mutate(
     match cmd {
         Launch(cmd) => crate::launch::mutate(c, core, key, u, cmd, out).await,
         Content(cmd) => crate::content::mutate(c, core, key, u, cmd, out).await,
+        Expression(cmd) => crate::expression::mutate(c, core, key, u, cmd, out).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
@@ -1793,7 +1798,7 @@ pub(crate) async fn mutate(
             compact(c, out, g).await?;
             Ok(CommandResult::Ack)
         }
-        SendMessage(d) => {
+        SendMessage(mut d) => {
             unique(&d.attachment_ids, MAX_MESSAGE_ATTACHMENTS)?;
             let channel = validate_message(
                 c,
@@ -1804,6 +1809,7 @@ pub(crate) async fn mutate(
                 d.attachment_ids.len(),
             )
             .await?;
+            d.content = crate::expression::check_content(c, u, &channel, &d.content).await?;
             crate::slowmode::check(c, u, d.channel_id).await?;
             let ch = d.channel_id;
             let recipients = audience(c, ch).await?;
@@ -1871,7 +1877,7 @@ pub(crate) async fn mutate(
             reads_event(c, out, ch).await?;
             Ok(CommandResult::Message(m))
         }
-        EditMessage(e) => {
+        EditMessage(mut e) => {
             let old = command_message(c, u, e.channel_id, e.message_id, false).await?;
             validate_message(
                 c,
@@ -1885,6 +1891,7 @@ pub(crate) async fn mutate(
             require(old.author_id == u, ErrorCode::Forbidden)?;
             require(old.call.is_none(), ErrorCode::Forbidden)?;
             let channel = channel(c, e.channel_id).await?;
+            e.content = crate::expression::check_content(c, u, &channel, &e.content).await?;
             let expanded =
                 crate::mentions::resolve(c, core, u, &channel, &e.content, &e.mention_ids).await?;
             let mentions = expanded.users.clone();
@@ -1987,20 +1994,10 @@ pub(crate) async fn mutate(
             mut emoji,
         } => {
             let added = adding_reaction;
-            text(c, u, ch, Permissions::ADD_REACTIONS).await?;
+            let channel = text(c, u, ch, Permissions::ADD_REACTIONS).await?;
             command_message(c, u, ch, m, false).await?;
-            if let Some(eid) = custom_emoji_id(&emoji) {
-                crate::custom_emoji::reaction(c, ch, eid, added).await?;
-                emoji = format!("<:emoji:{}>", eid.0);
-            } else {
-                require(
-                    !emoji.is_empty()
-                        && emoji.len() <= 32
-                        && emoji.graphemes(true).count() == 1
-                        && emojis::get(&emoji).is_some(),
-                    ErrorCode::InvalidRequest,
-                )?;
-            }
+            // Custom emoji: from a server the reactor is in (expression.rs).
+            emoji = crate::expression::reaction_emoji(c, u, &channel, &emoji, added).await?;
             let changed = if added {
                 let n: i64 = sqlx::query_scalar(
                     "SELECT COUNT(DISTINCT emoji) FROM reactions WHERE message_id=? AND emoji<>?",
@@ -2066,6 +2063,7 @@ pub(crate) async fn mutate(
                 .rate(format!("typing:{}:{}", u.0, ch.0), 15., 1.)
                 .is_ok()
             {
+                crate::expression::typing(c, u, ch, out).await?;
                 event(
                     out,
                     audience(c, ch)

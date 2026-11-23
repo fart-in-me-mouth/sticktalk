@@ -39,6 +39,13 @@ pub struct MessageExtra {
     /// add the GIF to their favorites. The message text is its media URL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gif: Option<String>,
+    /// Stickers sent with the message (`expression.rs`), at most three.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stickers: Vec<crate::StickerItem>,
+    /// Super Reactions, kept apart from `Message::reactions` so older apps
+    /// never see them (`expression.rs`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub super_reactions: Vec<ReactionSummary>,
 }
 impl MessageExtra {
     pub fn is_empty(&self) -> bool {
@@ -46,6 +53,8 @@ impl MessageExtra {
             && self.forwarded.is_none()
             && self.embeds.is_empty()
             && self.gif.is_none()
+            && self.stickers.is_empty()
+            && self.super_reactions.is_empty()
     }
 }
 

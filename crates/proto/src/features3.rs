@@ -1,7 +1,8 @@
 //! Additive text feature DTOs. Custom emoji tokens are `<:name:id>`.
 use crate::*;
 use serde::{Deserialize, Serialize};
-pub const MAX_GUILD_EMOJI: usize = 50;
+/// Still plus animated (`MAX_GUILD_STATIC_EMOJI` + `MAX_GUILD_ANIMATED_EMOJI`).
+pub const MAX_GUILD_EMOJI: usize = 500;
 pub const MAX_EMOJI_BYTES: usize = 256 * 1024;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GuildEmoji {

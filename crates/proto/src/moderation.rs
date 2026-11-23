@@ -93,6 +93,9 @@ pub enum AuditAction {
     AutomodBlock,
     AutomodAlert,
     AutomodTimeout,
+    StickerCreate,
+    StickerUpdate,
+    StickerDelete,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -132,6 +135,9 @@ impl AuditAction {
         Self::AutomodBlock,
         Self::AutomodAlert,
         Self::AutomodTimeout,
+        Self::StickerCreate,
+        Self::StickerUpdate,
+        Self::StickerDelete,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -172,6 +178,9 @@ impl AuditAction {
             Self::AutomodBlock => "automod_block",
             Self::AutomodAlert => "automod_alert",
             Self::AutomodTimeout => "automod_timeout",
+            Self::StickerCreate => "sticker_create",
+            Self::StickerUpdate => "sticker_update",
+            Self::StickerDelete => "sticker_delete",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -216,6 +225,9 @@ impl AuditAction {
             Self::AutomodBlock => "AutoMod blocked a message",
             Self::AutomodAlert => "AutoMod sent an alert",
             Self::AutomodTimeout => "AutoMod timed out a member",
+            Self::StickerCreate => "Added a sticker",
+            Self::StickerUpdate => "Updated a sticker",
+            Self::StickerDelete => "Deleted a sticker",
         }
     }
 }
@@ -231,6 +243,7 @@ pub enum AuditTarget {
     Invite,
     Emoji,
     AutomodRule,
+    Sticker,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

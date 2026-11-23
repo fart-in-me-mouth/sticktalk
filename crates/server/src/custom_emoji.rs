@@ -8,8 +8,8 @@ use crate::{
 use axum::{
     body::{to_bytes, Body},
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Response},
+    http::HeaderMap,
+    response::Response,
     routing::get,
 };
 use image::{AnimationDecoder, ImageDecoder};
@@ -106,14 +106,29 @@ async fn upload(
     require(current == u, ErrorCode::Unauthenticated)?;
     manage(&mut c, u, Id(g)).await?;
     let mut tx = c.begin().await?;
-    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM guild_emoji WHERE guild_id=?")
-        .bind(g as i64)
-        .fetch_one(&mut *tx)
-        .await?;
-    require(n < MAX_GUILD_EMOJI as i64, ErrorCode::LimitExceeded)?;
+    // Still and animated emoji have their own slots (expression.md).
+    let n: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM guild_emoji WHERE guild_id=? AND animated=?")
+            .bind(g as i64)
+            .bind(media.animated)
+            .fetch_one(&mut *tx)
+            .await?;
+    let max = if media.animated {
+        MAX_GUILD_ANIMATED_EMOJI
+    } else {
+        MAX_GUILD_STATIC_EMOJI
+    };
+    if n >= max as i64 {
+        let mut e = Error::new(ErrorCode::LimitExceeded);
+        e.0.message = format!(
+            "This server already has {max} {} emoji.",
+            if media.animated { "animated" } else { "still" }
+        );
+        return Err(e);
+    }
     unique_name(&mut tx, Id(g), None, &q.name).await?;
     let eid = core.id().await?;
-    sqlx::query("INSERT INTO guild_emoji VALUES(?,?,?,?,?,?,?)")
+    sqlx::query("INSERT INTO guild_emoji(id,guild_id,name,animated,content_type,data,preview,creator_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
         .bind(id(eid)?)
         .bind(g as i64)
         .bind(&q.name)
@@ -121,6 +136,8 @@ async fn upload(
         .bind(media.mime)
         .bind(media.data)
         .bind(media.preview)
+        .bind(id(u)?)
+        .bind(crate::state::now() as i64)
         .execute(&mut *tx)
         .await?;
     crate::moderation::audit::emoji_created(&mut tx, u, Id(g), eid, &q.name).await?;
@@ -196,19 +213,6 @@ pub(crate) async fn mutate(
     ));
     Ok(CommandResult::Ack)
 }
-pub(crate) async fn reaction(c: &mut SqliteConnection, ch: Id, e: Id, added: bool) -> Result<()> {
-    // A reaction's token is immutable even after renaming. Removal is allowed after deletion.
-    if !added {
-        return Ok(());
-    }
-    let g = channel(c, ch)
-        .await?
-        .summary
-        .guild_id
-        .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
-    let found = emojis(c, g).await?.into_iter().find(|v| v.id == e);
-    require(found.is_some(), ErrorCode::InvalidRequest)
-}
 async fn asset(State(app): State<App>, Path(e): Path<u64>, h: HeaderMap) -> Result<Response> {
     serve(app, Id(e), h, false).await
 }
@@ -224,7 +228,18 @@ async fn serve(app: App, e: Id, h: HeaderMap, preview: bool) -> Result<Response>
         .fetch_optional(&mut *c)
         .await?
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
-    guild(&mut c, u, Id(r.get::<i64, _>("guild_id") as u64)).await?;
+    // Members of its server, or readers of a conversation it was used in.
+    require(
+        crate::expression::may_see(
+            &mut c,
+            u,
+            "emoji",
+            e,
+            Id(r.get::<i64, _>("guild_id") as u64),
+        )
+        .await?,
+        ErrorCode::NotFound,
+    )?;
     let bytes: Vec<u8> = r.get(if preview && r.get::<bool, _>("animated") {
         "preview"
     } else {
@@ -235,16 +250,7 @@ async fn serve(app: App, e: Id, h: HeaderMap, preview: bool) -> Result<Response>
     } else {
         r.get("content_type")
     };
-    Ok((
-        StatusCode::OK,
-        [
-            ("content-type", mime),
-            ("cache-control", "private, no-store".into()),
-            ("x-content-type-options", "nosniff".into()),
-        ],
-        bytes,
-    )
-        .into_response())
+    Ok(crate::expression::asset_response(&mime, bytes))
 }
 struct Media {
     data: Vec<u8>,
@@ -264,7 +270,10 @@ fn normalize(bytes: &[u8]) -> Result<Media> {
     require(
         matches!(
             format,
-            image::ImageFormat::Png | image::ImageFormat::Gif | image::ImageFormat::WebP
+            image::ImageFormat::Png
+                | image::ImageFormat::Jpeg
+                | image::ImageFormat::Gif
+                | image::ImageFormat::WebP
         ),
         ErrorCode::UnsupportedMediaType,
     )?;
@@ -359,7 +368,7 @@ mod tests {
         commands,
         state::{hash, now},
     };
-    use axum::http::Request;
+    use axum::http::{Request, StatusCode};
     use base64::Engine;
     use tower::ServiceExt;
     fn png() -> Vec<u8> {

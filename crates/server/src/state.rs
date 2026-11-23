@@ -154,6 +154,8 @@ pub(crate) struct Stream {
     pub text_features: bool,
     /// Sent `ContentCommand::Subscribe`: receives `Event::Content`.
     pub content_features: bool,
+    /// Sent `ExpressionCommand::Subscribe`: receives `Event::Expression`.
+    pub expression_features: bool,
 }
 impl Drop for Connection {
     fn drop(&mut self) {
@@ -178,6 +180,7 @@ impl Stream {
             launch_features: false,
             text_features: false,
             content_features: false,
+            expression_features: false,
         }
     }
     pub fn cursor(&self) -> ResumeCursor {
@@ -326,6 +329,9 @@ impl Core {
                 continue;
             }
             if !s.content_features && matches!(&event, Event::Content(_)) {
+                continue;
+            }
+            if !s.expression_features && matches!(&event, Event::Expression(_)) {
                 continue;
             }
             if !s.launch_features
