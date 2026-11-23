@@ -168,13 +168,18 @@ try {
     const m = await alice.evaluate(() => {
       const input = document.querySelector('.call-chat #live-input');
       const r = input?.getBoundingClientRect();
-      return { input: r ? Math.round(r.width) : 0, pageOverflow: document.documentElement.scrollWidth > innerWidth + 1 };
+      // The chat stays inside its pane: not under the member list or off screen.
+      const chat = document.querySelector('.call-chat')?.getBoundingClientRect();
+      const pane = document.querySelector('.call-chat')?.closest('main')?.getBoundingClientRect();
+      const outside = !!(chat && pane && (chat.right > Math.min(pane.right, innerWidth) + 1));
+      return { input: r ? Math.round(r.width) : 0, outside, pageOverflow: document.documentElement.scrollWidth > innerWidth + 1 };
     });
     report.callChat[`${width}x${height}`] = m;
     await alice.screenshot({ path: join(shots, `call-chat${suffix}-${width}x${height}.png`) });
     if (strict) {
       assert.ok(m.input >= 80, `call chat at ${width}px: the message box is ${m.input}px wide`);
       assert.equal(m.pageOverflow, false, `call chat at ${width}px: the page scrolls sideways`);
+      assert.equal(m.outside, false, `call chat at ${width}px: it runs past its pane (under the member list)`);
     }
   }
   await alice.setViewportSize({ width: 1440, height: 900 });
