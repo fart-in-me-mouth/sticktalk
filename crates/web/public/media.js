@@ -21,7 +21,8 @@ let pc,
   input = "",
   cameraDevice = "",
   levelsTimer,
-  deviceListener = false;
+  deviceListener = false,
+  joinSounds = true;
 let idleReceivers = [];
 // End-to-end encryption (e2ee.js): loaded when the server welcomes this device
 // into a call that can be encrypted; its events run in order.
@@ -34,9 +35,12 @@ try {
   input = id(stored.input);
   output = id(stored.output);
   cameraDevice = id(stored.camera);
+  joinSounds = stored.joinSound !== false;
 } catch { /* Storage may be disabled in a private browser. */ }
 function rememberDevices() {
-  try { localStorage.setItem(DEVICES, JSON.stringify({ input, output, camera: cameraDevice })); } catch {}
+  try {
+    localStorage.setItem(DEVICES, JSON.stringify({ input, output, camera: cameraDevice, joinSound: joinSounds }));
+  } catch {}
 }
 // What the browser calls the connection, in words for people.
 const CALL_STATES = {
@@ -115,14 +119,10 @@ function boost(entry, gain) {
     entry.boost?.source.disconnect();
     entry.boost?.node.disconnect();
     entry.boost = null;
+    restAudio();
     return;
   }
-  if (!audioContext) {
-    audioContext = new AudioContext();
-    // The same speaker the rest of the call plays through.
-    if (output) audioContext.setSinkId?.(output).catch(() => {});
-  }
-  if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+  wakeAudio().catch(() => {});
   if (!entry.boost || entry.boost.stream !== stream) {
     entry.boost?.source.disconnect();
     entry.boost?.node.disconnect();
@@ -138,6 +138,54 @@ function discard(id) {
   boost(entry, 0);
   entry.tile.remove();
   elements.delete(id);
+}
+// The audio engine runs only while a boosted voice or a chime is playing.
+// The browser applies resume and suspend in the order asked, so the last one
+// stands; `awake` is what was asked last (the reported state lags behind).
+let awake = false, chiming = 0, chimes = 0, chimeAt = 0;
+function wakeAudio() {
+  if (!audioContext) {
+    audioContext = new AudioContext();
+    // The same speaker the rest of the call plays through.
+    if (output) audioContext.setSinkId?.(output).catch(() => {});
+  }
+  awake = true;
+  return audioContext.resume();
+}
+function restAudio() {
+  if (!awake || chiming) return;
+  for (const e of elements.values()) if (e.boost) return;
+  awake = false;
+  audioContext.suspend().catch(() => {});
+}
+// Someone joined your call: two soft rising notes, made here instead of
+// downloaded. People arriving together make one sound.
+async function joinSound() {
+  if (!joinSounds || !globalThis.AudioContext || performance.now() - chimeAt < 600) return;
+  chimeAt = performance.now();
+  chiming++;
+  try {
+    // A browser that will not start audio yet stays silent instead of chiming late.
+    await Promise.race([wakeAudio(), new Promise((_, fail) => setTimeout(fail, 1000))]);
+    const context = audioContext, t = context.currentTime + 0.02;
+    let last;
+    for (const [hz, at] of [[587.33, 0], [880, 0.11]]) {
+      const tone = context.createOscillator(), level = context.createGain();
+      tone.frequency.value = hz;
+      level.gain.setValueAtTime(0, t + at);
+      level.gain.linearRampToValueAtTime(0.14, t + at + 0.012);
+      level.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.32);
+      tone.connect(level).connect(context.destination);
+      tone.onended = () => level.disconnect();
+      tone.start(t + at);
+      tone.stop(t + at + 0.34);
+      last = tone;
+    }
+    chimes++;
+    await new Promise((done) => last.addEventListener('ended', done));
+  } catch { /* No sound is better than a late one. */ }
+  chiming--;
+  restAudio();
 }
 // The one place that decides what a tile's media element plays.
 function applyAudio(entry) {
@@ -728,6 +776,8 @@ export function bindScreenZoom(tile, video, onGesture = () => {}) {
 }
 async function updateParticipant(participant) {
   if (!pc || participant.session.user_id === self()) return;
+  // Not for the people who were already here when you joined.
+  if (!participants.has(key(participant.session))) joinSound();
   participants.set(key(participant.session), participant);
   const active = new Set(
     participant.tracks.map((t) => `${key(participant.session)}:${t.mid}`),
@@ -1672,6 +1722,21 @@ async function devices() {
     field.append(select);
     root.append(field);
   }
+  const chime = document.createElement("label");
+  chime.className = "live-checkbox";
+  const chimeLabel = document.createElement("span");
+  chimeLabel.textContent = "Play a sound when someone joins your call";
+  const chimeSwitch = document.createElement("input");
+  chimeSwitch.type = "checkbox";
+  chimeSwitch.checked = joinSounds;
+  chimeSwitch.onchange = () => {
+    joinSounds = chimeSwitch.checked;
+    rememberDevices();
+    // Turning it on plays it once, so you know what to listen for.
+    joinSound();
+  };
+  chime.append(chimeLabel, chimeSwitch);
+  root.append(chime);
   const note = document.createElement("p");
   note.textContent =
     "Echo cancellation, noise suppression, and automatic gain control are enabled for voice.";
@@ -1913,6 +1978,8 @@ export async function diagnostics() {
     : [];
   return {
     joined,
+    joinSounds: chimes,
+    audioEngine: audioContext?.state ?? "none",
     pendingRequests:requests.size,
     trace,
     localSdp: pc?.localDescription?.sdp,
