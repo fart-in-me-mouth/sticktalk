@@ -364,7 +364,9 @@ pub(super) async fn create_post(
     };
     // The ordinary send path: permissions, mentions, moderation checks.
     let sent = if post.attachments.is_empty() {
-        crate::content::send(c, core, key, u, draft, out).await?
+        // Boxed: the send path is deep; inline, its future made every frame
+        // above it larger (docs/features/perf.md, stack depth).
+        Box::pin(crate::content::send(c, core, key, u, draft, out)).await?
     } else {
         Box::pin(crate::content::mutate(
             c,

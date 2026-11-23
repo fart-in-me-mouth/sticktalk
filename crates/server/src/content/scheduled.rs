@@ -297,7 +297,7 @@ fn failure(e: &Error) -> String {
 }
 
 /// Sends every scheduled message that is due, oldest first.
-pub(super) async fn deliver_due(app: &App) -> Result<()> {
+pub(crate) async fn deliver_due(app: &App) -> Result<()> {
     loop {
         let mut core = app.0.core.lock().await;
         let mut c = app.0.pool.acquire().await?;

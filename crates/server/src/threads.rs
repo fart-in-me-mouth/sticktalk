@@ -14,6 +14,8 @@
 //! is queued. With nothing to do it only waits.
 mod announce;
 mod forum;
+#[cfg(test)]
+pub(crate) use announce::deliver_queue as deliver_crossposts;
 mod routes;
 #[cfg(test)]
 mod tests;
@@ -384,7 +386,7 @@ pub(crate) async fn mutate(
         }
         CreatePost(post) => {
             core.rate(format!("thread:{}", u.0), 10., 5.)?;
-            return forum::create_post(c, core, key, u, post, out).await;
+            return Box::pin(forum::create_post(c, core, key, u, post, out)).await;
         }
         Update { thread_id, patch } => {
             ThreadResult::Thread(Box::new(update(c, u, thread_id, patch, out).await?))
