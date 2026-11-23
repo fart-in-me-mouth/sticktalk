@@ -1,6 +1,26 @@
 use crate::Error;
+use std::collections::{BTreeSet, VecDeque};
 use std::time::{Duration, Instant};
 use sticktalk_proto::*;
+
+/// One step of an AI agent's script, performed by the server on the
+/// controller's behalf (see `Sfu::agent_script`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AgentStep {
+    Input(ControlInput),
+    /// Ask the sharer's app for one picture of the shared surface.
+    Capture {
+        id: u64,
+        max: u16,
+        quality: u8,
+    },
+}
+
+/// Most steps one script may hold, and the longest it may run.
+pub const AGENT_SCRIPT_STEPS: usize = 4096;
+pub const AGENT_SCRIPT_TIME: Duration = Duration::from_secs(60);
+/// Longest that keys and buttons stay held after a script with no new one.
+pub const AGENT_HOLD_TIME: Duration = Duration::from_secs(60);
 
 pub(crate) struct Grant {
     pub controller: VoiceSession,
@@ -8,16 +28,32 @@ pub(crate) struct Grant {
     pub sequence: Option<u64>,
     pub window: Instant,
     pub count: u16,
+    /// Held by the controller's AI agent: input comes from the host, never
+    /// from the controller's own data channel.
+    pub agent: bool,
+    /// The agent's steps still to perform, in time order.
+    pub script: VecDeque<(Instant, AgentStep)>,
+    /// What the agent holds down, so an agent that goes quiet lets go.
+    pub held_keys: BTreeSet<u16>,
+    pub held_buttons: u8,
+    pub keep_held: Duration,
+    pub release_at: Option<Instant>,
 }
 
 impl Grant {
-    pub fn new(controller: VoiceSession, now: Instant) -> Self {
+    pub fn new(controller: VoiceSession, agent: bool, now: Instant) -> Self {
         Self {
             controller,
             id: rand::random(),
             sequence: None,
             window: now,
             count: 0,
+            agent,
+            script: VecDeque::new(),
+            held_keys: BTreeSet::new(),
+            held_buttons: 0,
+            keep_held: Duration::ZERO,
+            release_at: None,
         }
     }
 
@@ -40,6 +76,9 @@ impl Grant {
             ControlInput::Key { usage, .. } => (4..=0xe7).contains(usage),
             ControlInput::Wheel { x, y } => x.unsigned_abs() <= 4096 && y.unsigned_abs() <= 4096,
             ControlInput::Move { .. } => true,
+            ControlInput::MoveBy { dx, dy } => {
+                dx.unsigned_abs() <= 2048 && dy.unsigned_abs() <= 2048
+            }
         };
         if !valid {
             return Err(Error::Invalid);
@@ -54,6 +93,33 @@ impl Grant {
         self.count += 1;
         self.sequence = Some(sequence);
         Ok(())
+    }
+
+    /// Remembers what an agent's input presses or lets go.
+    pub fn note(&mut self, input: &ControlInput) {
+        match *input {
+            ControlInput::Key { usage, down: true } => {
+                self.held_keys.insert(usage);
+            }
+            ControlInput::Key { usage, down: false } => {
+                self.held_keys.remove(&usage);
+            }
+            ControlInput::Button { button, down } if button < 8 => {
+                if down {
+                    self.held_buttons |= 1 << button;
+                } else {
+                    self.held_buttons &= !(1 << button);
+                }
+            }
+            _ => {}
+        }
+    }
+    pub fn holding(&self) -> bool {
+        !self.held_keys.is_empty() || self.held_buttons != 0
+    }
+    /// When this grant next needs the clock: a script step, or letting go.
+    pub fn due(&self) -> Option<Instant> {
+        self.script.front().map(|s| s.0).or(self.release_at)
     }
 }
 

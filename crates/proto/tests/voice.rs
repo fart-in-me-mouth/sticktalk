@@ -140,12 +140,25 @@ fn voice_contract_shapes_and_legacy_envelope() {
         VoiceEvent::ControlRequested {
             requester: session(),
             timeout_ms: 30_000,
+            agent: false,
+        },
+        VoiceEvent::ControlRequested {
+            requester: session(),
+            timeout_ms: 30_000,
+            agent: true,
         },
         VoiceEvent::ControlDenied { sharer: session() },
         VoiceEvent::ControlGranted {
             sharer: session(),
             controller: session(),
             grant: u64::MAX,
+            agent: false,
+        },
+        VoiceEvent::ControlGranted {
+            sharer: session(),
+            controller: session(),
+            grant: 7,
+            agent: true,
         },
         VoiceEvent::ControlRevoked {
             sharer: session(),
@@ -182,6 +195,7 @@ fn voice_contract_shapes_and_legacy_envelope() {
             usage: 0xe0,
             down: false,
         },
+        ControlInput::MoveBy { dx: -2048, dy: 17 },
     ] {
         roundtrip(ControlData::Input {
             sharer: session(),
@@ -191,6 +205,28 @@ fn voice_contract_shapes_and_legacy_envelope() {
         });
     }
     roundtrip(ControlData::ReleaseAll { grant: 99 });
+    roundtrip(ControlData::Capture {
+        grant: 99,
+        id: u64::MAX,
+        max: 1280,
+        quality: 70,
+    });
+    // A person's request and grant keep their exact earlier shape: an older
+    // client never sees the agent field, and its events still decode here.
+    let person = VoiceEvent::ControlGranted {
+        sharer: session(),
+        controller: session(),
+        grant: 5,
+        agent: false,
+    };
+    let wire = serde_json::to_value(&person).unwrap();
+    assert!(wire["data"].get("agent").is_none());
+    assert_eq!(serde_json::from_value::<VoiceEvent>(wire).unwrap(), person);
+    let asked = serde_json::json!({"type":"control_requested","data":{"requester":{"user_id":1,"connection_id":2},"timeout_ms":30000}});
+    assert!(matches!(
+        serde_json::from_value::<VoiceEvent>(asked).unwrap(),
+        VoiceEvent::ControlRequested { agent: false, .. }
+    ));
     roundtrip(ChannelKind::Voice);
     // Exact pre-Phase-2 map shape continues to deserialize and re-serialize.
     let legacy = serde_json::json!({"type":"voice","data":{"nonce":13,"version":0,"kind":"reserved","payload":[0,127,255]}});

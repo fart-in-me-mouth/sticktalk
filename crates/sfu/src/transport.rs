@@ -1,4 +1,4 @@
-use crate::{Error, Out, Sfu};
+use crate::{control::AgentStep, Error, Out, Sfu};
 use std::time::Instant;
 use sticktalk_proto::*;
 use tokio::sync::mpsc;
@@ -21,7 +21,27 @@ pub enum Command {
         session: VoiceSession,
         channel: ChannelId,
     },
+    /// Remote control for `session`'s AI agent. The host must have checked that
+    /// the agent may act for that session. The reply says whether it was taken.
+    Agent {
+        session: VoiceSession,
+        action: AgentAction,
+        reply: tokio::sync::oneshot::Sender<Result<(), Error>>,
+    },
     Shutdown,
+}
+#[derive(Debug)]
+pub enum AgentAction {
+    /// Ask the sharer; the answer arrives as the usual control events.
+    Request {
+        sharer: VoiceSession,
+    },
+    /// See `Sfu::agent_script`.
+    Script {
+        steps: Vec<(std::time::Duration, AgentStep)>,
+        keep_held: std::time::Duration,
+    },
+    Revoke,
 }
 #[derive(Debug)]
 pub struct SignalOut {
@@ -160,6 +180,18 @@ impl Sfu {
                         Some(Command::Move {session,channel}) => { if self.move_session(session,channel).is_err() { self.overloaded(session,&socket,&revoked).await; } },
                         Some(Command::Disconnect(session)) => self.overloaded(session,&socket,&revoked).await,
                         Some(Command::Path { session, path }) => { let _ = self.set_path(session, path); }
+                        Some(Command::Agent { session, action, reply }) => {
+                            let now = Instant::now();
+                            let result = match action {
+                                AgentAction::Request { sharer } => self.agent_request(session, sharer, now),
+                                AgentAction::Script { steps, keep_held } => self.agent_script(session, steps, keep_held, now),
+                                AgentAction::Revoke => self.agent_revoke(session, now),
+                            };
+                            if matches!(result, Err(Error::Backpressure)) {
+                                self.overloaded(session,&socket,&revoked).await;
+                            }
+                            let _ = reply.send(result);
+                        }
                         Some(Command::Shutdown) | None => break,
                     }
                 }

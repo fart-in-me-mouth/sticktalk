@@ -636,6 +636,10 @@ pub enum VoiceEvent {
     ControlRequested {
         requester: VoiceSession,
         timeout_ms: u32,
+        /// The requester's AI agent (an MCP connection) would hold the control,
+        /// not the requester's own mouse and keyboard.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        agent: bool,
     },
     ControlDenied {
         sharer: VoiceSession,
@@ -644,6 +648,9 @@ pub enum VoiceEvent {
         sharer: VoiceSession,
         controller: VoiceSession,
         grant: u64,
+        /// Input comes from the controller's AI agent through the server.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        agent: bool,
     },
     ControlRevoked {
         sharer: VoiceSession,
@@ -679,6 +686,12 @@ pub enum ControlInput {
         usage: u16,
         down: bool,
     },
+    /// Raw mouse movement in device counts (how a game reads the mouse), each
+    /// within -2048..2048. Not a position: the pointer may be hidden or locked.
+    MoveBy {
+        dx: i16,
+        dy: i16,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -692,4 +705,13 @@ pub enum ControlData {
     },
     /// Server -> sharer only. Release ALL held keys/buttons, idempotently.
     ReleaseAll { grant: u64 },
+    /// Server -> sharer only, for an agent's grant: upload one picture of the
+    /// shared surface, at most `max` pixels on its longer side, as a JPEG of
+    /// `quality` 1..100, to `POST /api/v1/voice/control/frames/{id}`.
+    Capture {
+        grant: u64,
+        id: u64,
+        max: u16,
+        quality: u8,
+    },
 }

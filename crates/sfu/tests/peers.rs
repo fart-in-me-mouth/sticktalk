@@ -1104,3 +1104,215 @@ fn voice_flags_offer_rights_and_moves_are_enforced_by_sfu() {
     assert!(events.iter().any(|e|matches!(e,sticktalk_sfu::Out::Signal{to,event:VoiceEvent::Left{session},..} if *to==n.peers[b].key && *session==key)));
     assert_eq!(n.sfu.session_count(), 2);
 }
+
+#[test]
+fn an_agent_controls_through_the_host_with_timed_steps_and_lets_go() {
+    use sticktalk_sfu::{AgentStep, Error};
+    let mut n = Network::new(40_000_000);
+    let a = n.add(true);
+    // The agent's person is in the call but is not watching the stream.
+    let b = n.add(false);
+    let (sharer, controller) = (n.peers[a].key, n.peers[b].key);
+    n.clear();
+    assert!(n
+        .sfu
+        .agent_script(controller, vec![], Duration::ZERO, n.now)
+        .is_err());
+    n.sfu.agent_request(controller, sharer, n.now).unwrap();
+    n.collect_sfu();
+    n.flush();
+    assert!(n
+        .signals
+        .iter()
+        .any(|(to, e)| *to == sharer
+            && matches!(e, VoiceEvent::ControlRequested { agent: true, .. })));
+    n.signal(
+        a,
+        VoiceSignal::DecideControl {
+            requester: controller,
+            allow: true,
+        },
+    )
+    .unwrap();
+    let id = n
+        .signals
+        .iter()
+        .find_map(|(_, e)| match e {
+            VoiceEvent::ControlGranted {
+                grant,
+                agent: true,
+                controller: c,
+                ..
+            } if *c == controller => Some(*grant),
+            _ => None,
+        })
+        .unwrap();
+    // The person's own channel cannot drive their agent's grant.
+    n.data(b, input(sharer, id, 1));
+    assert!(n.peers[a].control.is_empty());
+
+    let key = |down| AgentStep::Input(ControlInput::Key { usage: 26, down });
+    let look = ControlInput::MoveBy { dx: 40, dy: -3 };
+    n.sfu
+        .agent_script(
+            controller,
+            vec![
+                (Duration::ZERO, key(true)),
+                (Duration::from_millis(50), AgentStep::Input(look.clone())),
+                (
+                    Duration::from_millis(100),
+                    AgentStep::Capture {
+                        id: 77,
+                        max: 1280,
+                        quality: 70,
+                    },
+                ),
+            ],
+            Duration::from_millis(500),
+            n.now,
+        )
+        .unwrap();
+    n.collect_sfu();
+    n.flush();
+    n.advance(Duration::from_millis(10));
+    // Only the first step is due; the rest wait for their time.
+    assert_eq!(n.peers[a].control.len(), 1);
+    assert!(matches!(
+        n.sfu
+            .agent_script(controller, vec![], Duration::ZERO, n.now),
+        Err(Error::Limit)
+    ));
+    n.advance(Duration::from_millis(120));
+    let sent = |sequence, input| ControlData::Input {
+        sharer,
+        grant: id,
+        sequence,
+        input,
+    };
+    assert_eq!(
+        n.peers[a].control,
+        vec![
+            sent(
+                1,
+                ControlInput::Key {
+                    usage: 26,
+                    down: true
+                }
+            ),
+            sent(2, look),
+            ControlData::Capture {
+                grant: id,
+                id: 77,
+                max: 1280,
+                quality: 70
+            },
+        ]
+    );
+    // The key stays down for the agreed time after the script, then is let go
+    // without ending control.
+    let released = ControlData::ReleaseAll { grant: id };
+    n.advance(Duration::from_millis(300));
+    assert!(!n.peers[a].control.contains(&released));
+    n.advance(Duration::from_millis(300));
+    assert!(n.peers[a].control.contains(&released));
+    n.clear();
+    n.sfu
+        .agent_script(
+            controller,
+            vec![
+                (Duration::ZERO, key(true)),
+                (Duration::from_millis(10), key(false)),
+            ],
+            Duration::from_millis(100),
+            n.now,
+        )
+        .unwrap();
+    n.collect_sfu();
+    n.flush();
+    n.advance(Duration::from_millis(400));
+    // Nothing was left held, so nothing more is sent.
+    assert_eq!(n.peers[a].control.len(), 2);
+    assert!(matches!(
+        n.sfu.agent_script(
+            controller,
+            vec![
+                (Duration::from_millis(5), key(true)),
+                (Duration::ZERO, key(false))
+            ],
+            Duration::ZERO,
+            n.now
+        ),
+        Err(Error::Invalid)
+    ));
+    n.sfu.agent_revoke(controller, n.now).unwrap();
+    n.collect_sfu();
+    n.flush();
+    n.advance(Duration::from_millis(10));
+    assert!(n.peers[a].control.contains(&released));
+    assert!(n
+        .signals
+        .iter()
+        .any(|(_, e)| matches!(e, VoiceEvent::ControlRevoked { grant, .. } if *grant == id)));
+    assert!(n
+        .sfu
+        .agent_script(controller, vec![], Duration::ZERO, n.now)
+        .is_err());
+}
+
+#[test]
+fn an_agent_grant_ends_on_bad_input_withdrawal_and_leaving() {
+    use sticktalk_sfu::AgentStep;
+    let mut n = Network::new(40_000_000);
+    let a = n.add(true);
+    let b = n.add(false);
+    let (sharer, controller) = (n.peers[a].key, n.peers[b].key);
+    let allow = |n: &mut Network| {
+        n.clear();
+        n.sfu.agent_request(controller, sharer, n.now).unwrap();
+        n.signal(
+            a,
+            VoiceSignal::DecideControl {
+                requester: controller,
+                allow: true,
+            },
+        )
+        .unwrap();
+        grant(n)
+    };
+    // A question the agent withdraws is answered "no" for its person.
+    n.sfu.agent_request(controller, sharer, n.now).unwrap();
+    assert!(n.sfu.agent_request(controller, sharer, n.now).is_err());
+    n.sfu.agent_revoke(controller, n.now).unwrap();
+    n.collect_sfu();
+    assert!(n
+        .signals
+        .iter()
+        .any(|(to, e)| *to == controller && matches!(e, VoiceEvent::ControlDenied { .. })));
+    // Input the SFU would refuse from a person ends an agent's grant too.
+    let id = allow(&mut n);
+    n.sfu
+        .agent_script(
+            controller,
+            vec![(
+                Duration::ZERO,
+                AgentStep::Input(ControlInput::MoveBy { dx: 5000, dy: 0 }),
+            )],
+            Duration::ZERO,
+            n.now,
+        )
+        .unwrap();
+    n.collect_sfu();
+    n.flush();
+    n.advance(Duration::from_millis(10));
+    assert_eq!(
+        n.peers[a].control,
+        vec![ControlData::ReleaseAll { grant: id }]
+    );
+    // The person leaving the call takes their agent's control with them.
+    let id = allow(&mut n);
+    n.signal(b, VoiceSignal::Leave).unwrap();
+    n.advance(Duration::from_millis(20));
+    assert!(n.peers[a]
+        .control
+        .contains(&ControlData::ReleaseAll { grant: id }));
+}

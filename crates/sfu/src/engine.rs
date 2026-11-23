@@ -4,7 +4,9 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::control::{Budget, Grant};
+use crate::control::{
+    AgentStep, Budget, Grant, AGENT_HOLD_TIME, AGENT_SCRIPT_STEPS, AGENT_SCRIPT_TIME,
+};
 use crate::validation::{self, valid_id};
 use sticktalk_proto::*;
 use str0m::bwe::BweKind;
@@ -207,7 +209,8 @@ struct Peer {
     deafened: bool,
     control: Option<DataChannelId>,
     grant: Option<Grant>,
-    request: Option<(VoiceSession, Instant)>,
+    /// Who asked, until when the question stands, and whether for their AI agent.
+    request: Option<(VoiceSession, Instant, bool)>,
     deadline: Instant,
     created: Instant,
     connected: bool,
@@ -399,6 +402,7 @@ impl Sfu {
                 [
                     Some(p.deadline),
                     p.request.map(|r| r.1),
+                    p.grant.as_ref().and_then(Grant::due),
                     p.speaking_until,
                     (!p.connected).then_some(p.created + Duration::from_secs(30)),
                 ]
@@ -663,7 +667,7 @@ impl Sfu {
                     },
                 )?;
             }
-            VoiceSignal::RequestControl { sharer } => self.request_control(key, sharer)?,
+            VoiceSignal::RequestControl { sharer } => self.request_control(key, sharer, false)?,
             VoiceSignal::DecideControl { requester, allow } => {
                 self.decide_control(key, requester, allow)?
             }
@@ -1228,11 +1232,12 @@ impl Sfu {
             .and_then(|p| p.routes.get(mid))
             .map(|r| r.publisher);
         if let Some(sharer) = sharer {
-            if self
-                .peers
-                .get(&sharer)
-                .is_some_and(|p| p.grant.as_ref().is_some_and(|g| g.controller == key))
-            {
+            if self.peers.get(&sharer).is_some_and(|p| {
+                p.grant
+                    .as_ref()
+                    // An agent sees through uploaded pictures, not this route.
+                    .is_some_and(|g| g.controller == key && !g.agent)
+            }) {
                 self.revoke(sharer)?;
             }
         }
@@ -1479,6 +1484,22 @@ impl Sfu {
             }
             if self.peers[&key].request.is_some_and(|r| r.1 <= self.now) {
                 self.cancel_request(key)?;
+            }
+            if self.peers[&key]
+                .grant
+                .as_ref()
+                .and_then(Grant::due)
+                .is_some_and(|t| t <= self.now)
+            {
+                // A sharer whose transport fails during a step has just been
+                // closed by peer_operation. Only that call ends, never the SFU.
+                let result = self.run_agent(key);
+                if matches!(result, Err(Error::Backpressure)) {
+                    return result;
+                }
+                if !self.peers.contains_key(&key) {
+                    continue;
+                }
             }
             if self.peers[&key]
                 .speaking_until
@@ -2061,33 +2082,191 @@ impl Sfu {
             })
         })
     }
+    /// A person asks with their own mouse and keyboard, over their own control
+    /// channel, for a stream they are watching. Their AI agent (`agent`) needs
+    /// neither: its input comes from the host, and it sees through pictures
+    /// the sharer's app uploads.
     fn request_control(
         &mut self,
         requester: VoiceSession,
         sharer: VoiceSession,
+        agent: bool,
     ) -> Result<(), Error> {
         self.authorized(sharer)?;
         if requester == sharer
             || self.peers[&requester].channel != self.peers[&sharer].channel
-            || !self.viewing_screen(requester, sharer)
+            || !(agent || self.viewing_screen(requester, sharer))
             || !self.screen_active(sharer)
             || self.peers[&sharer].grant.is_some()
             || self.peers[&sharer].request.is_some()
-            || self.peers[&requester].control.is_none()
+            || !(agent || self.peers[&requester].control.is_some())
             || self.peers[&sharer].control.is_none()
         {
             return Err(Error::Forbidden);
         }
         self.peers.get_mut(&sharer).unwrap().request =
-            Some((requester, self.now + Duration::from_secs(30)));
+            Some((requester, self.now + Duration::from_secs(30), agent));
         self.send(
             sharer,
             0,
             VoiceEvent::ControlRequested {
                 requester,
                 timeout_ms: 30_000,
+                agent,
             },
         )
+    }
+    fn agent_sharer(&self, controller: VoiceSession) -> Option<VoiceSession> {
+        self.peers
+            .iter()
+            .find(|(_, p)| {
+                p.grant
+                    .as_ref()
+                    .is_some_and(|g| g.agent && g.controller == controller)
+            })
+            .map(|(s, _)| *s)
+    }
+    /// The host asks, for `requester`'s AI agent, to control `sharer`'s shared
+    /// screen. The sharer is asked exactly as for a person, and told it is an
+    /// agent. The host must have checked that the agent may act for `requester`.
+    pub fn agent_request(
+        &mut self,
+        requester: VoiceSession,
+        sharer: VoiceSession,
+        now: Instant,
+    ) -> Result<(), Error> {
+        self.now = self.now.max(now);
+        self.authorized(requester)?;
+        if !self.peers.contains_key(&sharer) {
+            return Err(Error::Forbidden);
+        }
+        self.request_control(requester, sharer, true)
+    }
+    /// Queue input (and picture requests) for the agent's grant, each at an
+    /// offset from now. Steps are performed on the SFU's own clock, in order,
+    /// under the same checks and limits as a person's input. One script at a
+    /// time: `Error::Limit` while the last one is still running. Whatever is
+    /// still held down when the script ends is let go `keep_held` later unless
+    /// another script arrives first.
+    pub fn agent_script(
+        &mut self,
+        controller: VoiceSession,
+        steps: Vec<(Duration, AgentStep)>,
+        keep_held: Duration,
+        now: Instant,
+    ) -> Result<(), Error> {
+        self.now = self.now.max(now);
+        self.authorized(controller)?;
+        let sharer = self.agent_sharer(controller).ok_or(Error::Forbidden)?;
+        if steps.len() > AGENT_SCRIPT_STEPS
+            || steps.windows(2).any(|w| w[1].0 < w[0].0)
+            || steps.last().is_some_and(|s| s.0 > AGENT_SCRIPT_TIME)
+        {
+            return Err(Error::Invalid);
+        }
+        let start = self.now;
+        let grant = self.peers.get_mut(&sharer).unwrap().grant.as_mut().unwrap();
+        if !grant.script.is_empty() {
+            return Err(Error::Limit);
+        }
+        grant.script = steps
+            .into_iter()
+            .map(|(at, step)| (start + at, step))
+            .collect();
+        grant.keep_held = keep_held.min(AGENT_HOLD_TIME);
+        grant.release_at = None;
+        self.run_agent(sharer)
+    }
+    /// The agent gives control back, or withdraws a question not yet answered.
+    pub fn agent_revoke(&mut self, controller: VoiceSession, now: Instant) -> Result<(), Error> {
+        self.now = self.now.max(now);
+        if let Some(sharer) = self.agent_sharer(controller) {
+            self.revoke(sharer)?;
+        }
+        let asked: Vec<_> = self
+            .peers
+            .iter()
+            .filter(|(_, p)| p.request.is_some_and(|r| r.0 == controller && r.2))
+            .map(|(s, _)| *s)
+            .collect();
+        for sharer in asked {
+            self.cancel_request(sharer)?;
+        }
+        Ok(())
+    }
+    /// Performs the agent's steps that are due, then lets go of what it holds
+    /// once it has been quiet for long enough.
+    fn run_agent(&mut self, sharer: VoiceSession) -> Result<(), Error> {
+        loop {
+            let now = self.now;
+            let Some(grant) = self.peers.get_mut(&sharer).and_then(|p| p.grant.as_mut()) else {
+                return Ok(());
+            };
+            if grant.script.front().is_none_or(|(at, _)| *at > now) {
+                break;
+            }
+            let (_, step) = grant.script.pop_front().unwrap();
+            let id = grant.id;
+            match step {
+                AgentStep::Input(input) => {
+                    let sequence = grant.sequence.map_or(1, |s| s + 1);
+                    let accepted = grant.accept(grant.controller, id, sequence, &input, now);
+                    if accepted.is_ok() {
+                        grant.note(&input);
+                    }
+                    let message = ControlData::Input {
+                        sharer,
+                        grant: id,
+                        sequence,
+                        input,
+                    };
+                    // As for a person: never drop a key-up and leave control on.
+                    if accepted.is_err()
+                        || !self.screen_active(sharer)
+                        || !self.write_control(sharer, &message)?
+                    {
+                        return self.revoke(sharer);
+                    }
+                }
+                AgentStep::Capture {
+                    id: capture,
+                    max,
+                    quality,
+                } => {
+                    // A picture that cannot be asked for is simply not taken.
+                    let message = ControlData::Capture {
+                        grant: id,
+                        id: capture,
+                        max,
+                        quality,
+                    };
+                    let _ = self.write_control(sharer, &message)?;
+                }
+            }
+        }
+        let now = self.now;
+        let Some(grant) = self.peers.get_mut(&sharer).and_then(|p| p.grant.as_mut()) else {
+            return Ok(());
+        };
+        if !grant.script.is_empty() {
+            return Ok(());
+        }
+        if !grant.holding() {
+            grant.release_at = None;
+            return Ok(());
+        }
+        let at = *grant.release_at.get_or_insert(now + grant.keep_held);
+        if at <= now {
+            grant.release_at = None;
+            grant.held_keys.clear();
+            grant.held_buttons = 0;
+            let id = grant.id;
+            if !self.write_control(sharer, &ControlData::ReleaseAll { grant: id })? {
+                // The keys cannot be let go while control stays on: end it.
+                return self.revoke(sharer);
+            }
+        }
+        Ok(())
     }
     fn decide_control(
         &mut self,
@@ -2097,14 +2276,15 @@ impl Sfu {
     ) -> Result<(), Error> {
         self.authorized(requester)?;
         let request = self.peers[&sharer].request.ok_or(Error::Forbidden)?;
+        let agent = request.2;
         if request.0 != requester
             || request.1 <= self.now
-            || !self.viewing_screen(requester, sharer)
+            || !(agent || self.viewing_screen(requester, sharer))
             || !self.screen_active(sharer)
             || self.peers[&sharer].grant.is_some()
             || self.peers[&requester].channel != self.peers[&sharer].channel
             || self.peers[&sharer].control.is_none()
-            || self.peers[&requester].control.is_none()
+            || !(agent || self.peers[&requester].control.is_some())
         {
             return Err(Error::Forbidden);
         }
@@ -2112,21 +2292,28 @@ impl Sfu {
         if !allow {
             return self.send(requester, 0, VoiceEvent::ControlDenied { sharer });
         }
-        let grant = Grant::new(requester, self.now);
+        let grant = Grant::new(requester, agent, self.now);
         let id = grant.id;
         self.peers.get_mut(&sharer).unwrap().grant = Some(grant);
-        tracing::info!(?sharer, ?requester, grant = id, "remote control granted");
+        tracing::info!(
+            ?sharer,
+            ?requester,
+            grant = id,
+            agent,
+            "remote control granted"
+        );
         self.broadcast(
             self.peers[&sharer].channel,
             VoiceEvent::ControlGranted {
                 sharer,
                 controller: requester,
                 grant: id,
+                agent,
             },
         )
     }
     fn cancel_request(&mut self, sharer: VoiceSession) -> Result<(), Error> {
-        if let Some((requester, _)) = self.peers.get_mut(&sharer).and_then(|p| p.request.take()) {
+        if let Some((requester, ..)) = self.peers.get_mut(&sharer).and_then(|p| p.request.take()) {
             self.send(requester, 0, VoiceEvent::ControlDenied { sharer })?;
         }
         Ok(())
@@ -2211,7 +2398,8 @@ impl Sfu {
         let matching = self.peers[&sharer]
             .grant
             .as_ref()
-            .is_some_and(|g| g.controller == sender && g.id == grant);
+            // An agent's grant takes input from the host only.
+            .is_some_and(|g| g.controller == sender && g.id == grant && !g.agent);
         if !matching {
             return Err(Error::Forbidden);
         }

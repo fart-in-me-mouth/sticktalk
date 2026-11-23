@@ -119,6 +119,13 @@ assert.deepEqual(unpackControl(packControl({type:'key',data:{usage:0xe5,down:fal
 assert.throws(()=>unpackControl(new Uint8Array([0x81,0xa1,0x61])),'truncated input is refused');
 assert.throws(()=>unpackControl(new Uint8Array([0x01,0x02])),'trailing bytes are refused');
 assert.throws(()=>unpackControl(new Uint8Array(600)),'oversized input is refused');
+// An AI agent's grant: the server's request for a picture, and raw mouse movement for the app.
+const {frameSize}=await import('../public/media.js');
+assert.deepEqual(unpackControl(packControl({type:'capture',data:{grant:18446744073709551615n,id:9007199254740991n,max:1280,quality:70}})),{type:'capture',data:{grant:'18446744073709551615',id:9007199254740991,max:1280,quality:70}});
+assert.deepEqual(unpackControl(packControl({type:'input',data:{input:{type:'move_by',data:{dx:-2048,dy:17}}}})).data.input,{type:'move_by',data:{dx:-2048,dy:17}});
+assert.deepEqual(frameSize(2560,1440,1280),{width:1280,height:720});
+assert.deepEqual(frameSize(1080,1920,1280),{width:720,height:1280});
+assert.deepEqual(frameSize(800,600,1280),{width:800,height:600},'a picture is never enlarged');
 assert.deepEqual([KEY_USAGE.KeyA,KEY_USAGE.Digit0,KEY_USAGE.F12,KEY_USAGE.ShiftRight,KEY_USAGE.MetaLeft],[4,39,69,0xe5,undefined]);
 // A 1920x1080 picture letterboxed in a 1000x1000 box: only the picture maps, edge to edge.
 const box={left:100,top:50,width:1000,height:1000};

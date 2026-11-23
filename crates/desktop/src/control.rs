@@ -11,6 +11,9 @@
 //! - The Windows key is refused, and Esc pressed on the real keyboard ends the
 //!   session at once (input performed here never counts as that).
 //!
+//! The viewer may be a person, or a person's AI agent acting through the
+//! server. The question says which, and everything above holds for both.
+//!
 //! Building what to send is pure and tested. Tests never send input.
 use serde::Deserialize;
 use std::{collections::BTreeSet, time::Instant};
@@ -38,6 +41,12 @@ pub enum Input {
         usage: u16,
         down: bool,
     },
+    /// Raw mouse movement in device counts, the way a game reads the mouse
+    /// to turn its camera. Not a position on the surface.
+    MoveBy {
+        dx: i16,
+        dy: i16,
+    },
 }
 
 /// What the page may say to the app.
@@ -54,6 +63,9 @@ pub enum Message {
         width: u32,
         #[serde(default)]
         height: u32,
+        /// The viewer's AI agent would hold the control, not the viewer.
+        #[serde(default)]
+        agent: bool,
     },
     Input {
         input: Input,
@@ -214,6 +226,11 @@ pub enum Step {
         extended: bool,
         down: bool,
     },
+    /// Pointer movement relative to where it is, in mouse counts.
+    Nudge {
+        dx: i32,
+        dy: i32,
+    },
 }
 
 /// `None` when the input must be dropped: an unknown key or button, or a point
@@ -241,6 +258,13 @@ pub fn plan(input: Input, surface: Surface, desktop: Surface) -> Option<Vec<Step
                 down,
             }]
         }
+        Input::MoveBy { dx, dy } if dx.unsigned_abs() <= 2048 && dy.unsigned_abs() <= 2048 => {
+            vec![Step::Nudge {
+                dx: i32::from(dx),
+                dy: i32::from(dy),
+            }]
+        }
+        Input::MoveBy { .. } => return None,
     })
 }
 
@@ -346,6 +370,32 @@ pub fn display_name(who: &str) -> String {
         "Someone in your call".into()
     } else {
         name
+    }
+}
+
+/// What the person at this PC is asked. `what` names the shared surface.
+pub fn question_text(who: &str, what: &str, agent: bool) -> String {
+    let stop = "To stop at any time, press Esc on your own keyboard, or press Stop in StickTalk.";
+    if agent {
+        format!(
+            "{who}’s AI agent wants to see and control {what}.\n\n\
+             This is not {who} using their own mouse and keyboard: an AI app \
+             connected to their StickTalk account would move your mouse and \
+             press your keys there, and is sent pictures of what you are sharing \
+             while it does.\n\n\
+             Only allow this if you are sharing in a call right now and expected \
+             this request, and only if you trust {who} and their AI app. While \
+             it is on, it can do what you can do there.\n\n\
+             {stop}\n\nAllow the AI agent to control it?"
+        )
+    } else {
+        format!(
+            "{who} wants to control {what} with their mouse and keyboard.\n\n\
+             Only allow this if you are sharing in a call right now and expected \
+             this request, and only for someone you trust. While it is on, they \
+             can do what you can do there.\n\n\
+             {stop}\n\nAllow remote control?"
+        )
     }
 }
 
@@ -568,6 +618,8 @@ mod native {
                     },
                 }]
             }
+            // Relative: Windows hands a game exactly these counts.
+            Step::Nudge { dx, dy } => vec![mouse(dx, dy, 0, MOUSEEVENTF_MOVE)],
         }
     }
 
@@ -782,6 +834,9 @@ mod native {
                     Input::Wheel { .. } => {
                         free && inside(foreground) && (!shared || inside(WindowFromPoint(cursor)))
                     }
+                    // Raw movement steers whatever has focus (a game's camera),
+                    // from a pointer that is on the shared surface.
+                    Input::MoveBy { .. } => free && inside(foreground),
                     _ => inside(foreground),
                 }
             }
@@ -859,6 +914,7 @@ mod native {
     pub fn ask(
         who: &str,
         target: Target,
+        agent: bool,
         wanted: impl Fn() -> bool + Send + Sync + 'static,
     ) -> bool {
         let wanted = std::sync::Arc::new(wanted);
@@ -885,13 +941,13 @@ mod native {
                 }
             }
         });
-        let allowed = question(who, target);
+        let allowed = question(who, target, agent);
         answered.store(true, Ordering::SeqCst);
         // A "Yes" to a request that has run out or been withdrawn allows nothing.
         allowed && current()
     }
 
-    fn question(who: &str, target: Target) -> bool {
+    fn question(who: &str, target: Target, agent: bool) -> bool {
         let what = match target {
             Target::Screen(_) => "your whole screen".to_string(),
             Target::Window(id) => {
@@ -905,15 +961,7 @@ mod native {
                 }
             }
         };
-        let text = format!(
-            "{} wants to control {what} with their mouse and keyboard.\n\n\
-             Only allow this if you are sharing in a call right now and expected \
-             this request, and only for someone you trust. While it is on, they \
-             can do what you can do there.\n\n\
-             To stop at any time, press Esc on your own keyboard, or press Stop \
-             in StickTalk.\n\nAllow remote control?",
-            display_name(who)
-        );
+        let text = question_text(&display_name(who), &what, agent);
         let answer = unsafe {
             MessageBoxW(
                 None,
@@ -967,7 +1015,20 @@ mod tests {
                 label: "screen:0:0".into(),
                 surface: "monitor".into(),
                 width: 1920,
-                height: 1080
+                height: 1080,
+                agent: false
+            })
+        );
+        assert!(matches!(
+            parse(
+                r#"{"control":"start","who":"bob","label":"screen:0:0","surface":"monitor","agent":true}"#
+            ),
+            Some(Message::Start { agent: true, .. })
+        ));
+        assert_eq!(
+            parse(r#"{"control":"input","input":{"type":"move_by","data":{"dx":-40,"dy":3}}}"#),
+            Some(Message::Input {
+                input: Input::MoveBy { dx: -40, dy: 3 }
             })
         );
         assert_eq!(
@@ -1105,6 +1166,28 @@ mod tests {
             plan(Input::Move { x: 100, y: 100 }, SCREEN, DESKTOP).as_deref(),
             Some([Step::Pointer { .. }])
         ));
+        // Raw movement keeps its counts and is not tied to a place.
+        assert_eq!(
+            plan(Input::MoveBy { dx: -40, dy: 3 }, SCREEN, DESKTOP),
+            Some(vec![Step::Nudge { dx: -40, dy: 3 }])
+        );
+        assert_eq!(
+            plan(Input::MoveBy { dx: 2049, dy: 0 }, SCREEN, DESKTOP),
+            None
+        );
+    }
+
+    #[test]
+    fn the_question_says_when_an_ai_agent_is_asking() {
+        let person = question_text("bob", "your whole screen", false);
+        assert!(person.starts_with("bob wants to control your whole screen with their mouse"));
+        assert!(!person.contains("AI"));
+        let agent = question_text("bob", "your whole screen", true);
+        assert!(agent.starts_with("bob’s AI agent wants to see and control your whole screen."));
+        assert!(agent.contains("is sent pictures of what you are sharing"));
+        for text in [person, agent] {
+            assert!(text.contains("press Esc on your own keyboard"));
+        }
     }
 
     #[test]

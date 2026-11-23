@@ -221,9 +221,11 @@ impl Call {
                 }
             }
             VoiceEvent::Stats(stats) if self.channel.is_some() => self.stats = Some(stats.clone()),
+            // This client cannot say that an AI agent is asking, so it does not ask.
             VoiceEvent::ControlRequested {
                 requester,
                 timeout_ms,
+                agent: false,
             } if self.own.is_some() => {
                 self.control
                     .request(*requester, now_ms, (*timeout_ms).min(30_000));
@@ -232,6 +234,7 @@ impl Call {
                 sharer,
                 controller,
                 grant,
+                ..
             } if self.channel.is_some() => {
                 if self.participants.contains_key(sharer)
                     && self.participants.contains_key(controller)

@@ -728,6 +728,7 @@ export function event(event) {
       participants.delete(prefix);
       if (controlling && key(controlling.sharer) === prefix) endControlling();
       if (controlled && key(controlled.requester) === prefix) endControlled();
+      if (agentControl && [agentControl.sharer, agentControl.controller].some((s) => key(s) === prefix)) endAgentControl();
       for (const [id, s] of subscriptions)
         if (key(s.participant.session) === prefix) {
           signal("unsubscribe", { receiver_mid: s.transceiver.mid });
@@ -787,12 +788,19 @@ export function event(event) {
                  key(data.controller) === key(controlled.requester)) {
         clearTimeout(controlled.timer);
         controlled.grant = String(data.grant);
+        // An agent sees through pictures taken here: have the newest at hand.
+        if (controlled.agent) watchFrames();
+        mount();
+      } else if (data.agent && data.controller.user_id === self()) {
+        // Your own AI agent was allowed: say so here, with a way to stop it.
+        agentControl = { sharer: data.sharer, controller: data.controller, grant: String(data.grant) };
         mount();
       }
       break;
     case "control_revoked":
       if (controlling && key(data.sharer) === key(controlling.sharer)) endControlling();
       if (controlled && data.sharer.user_id === self()) endControlled();
+      if (agentControl && key(data.sharer) === key(agentControl.sharer) && String(data.grant) === agentControl.grant) endAgentControl();
       break;
     case "guild_left":
       if (data.session.user_id === self() && joined) stop(false);
@@ -970,11 +978,16 @@ const CONTROL = "sticktalk-control-v1";
 const host = () =>
   globalThis.__sticktalkHost?.control && globalThis.ipc?.postMessage ? globalThis.ipc : null;
 const tellHost = (message) => host()?.postMessage(JSON.stringify(message));
+// An app that can also be controlled by a person's AI agent (see below).
+const hostTakesAgents = () => Number(globalThis.__sticktalkHost?.control) >= 2;
 let controlChannel = null;
 // As the viewer: { sharer, tile, state: "asking" | "active", grant, sequence, held, buttons }.
 let controlling = null;
-// As the sharer: { requester, name, pending, grant }.
+// As the sharer: { requester, name, agent, pending, grant }. `agent` means the
+// requester's AI agent holds the control, through the server.
 let controlled = null;
+// As the person whose AI agent controls someone's screen: { sharer, controller, grant }.
+let agentControl = null;
 
 // MessagePack, only as much as a control message needs: maps with text keys,
 // text, whole numbers and booleans. Field names and shapes are proto's ControlData.
@@ -1157,14 +1170,22 @@ function endControlled() {
   clearTimeout(controlled.timer);
   tellHost({ control: "stop" });
   controlled = null;
+  unwatchFrames();
   mount();
 }
-// Either side ends it: the viewer gives control back, or the sharer takes it back.
+function endAgentControl() {
+  if (!agentControl) return;
+  agentControl = null;
+  mount();
+}
+// Either side ends it: the viewer gives control back (or takes it from their
+// own AI agent), or the sharer takes it back.
 function stopControl() {
-  if (!controlling && !controlled) return;
+  if (!controlling && !controlled && !agentControl) return;
   if (pc && joined) signal("revoke_control");
   endControlling();
   endControlled();
+  endAgentControl();
 }
 function bindControl(entry) {
   const video = entry.media, tile = entry.tile;
@@ -1229,11 +1250,13 @@ function bindControl(entry) {
 // As the sharer: only the Windows app can be controlled, and it asks you itself.
 function controlRequested(data) {
   const screen = publications.get("screen"), settings = screen?.track.getSettings() ?? {};
-  if (!host() || !screen || controlled || !["monitor", "window"].includes(settings.displaySurface)) {
+  const agent = data.agent === true;
+  // An older app would ask as if the person themselves wanted control.
+  if (!host() || (agent && !hostTakesAgents()) || !screen || controlled || !["monitor", "window"].includes(settings.displaySurface)) {
     signal("decide_control", { requester: data.requester, allow: false });
     return;
   }
-  controlled = { requester: data.requester, name: person(data.requester.user_id).name, pending: true };
+  controlled = { requester: data.requester, name: person(data.requester.user_id).name, agent, pending: true };
   // The server forgets the question after 30 seconds; answer "no" just before.
   controlled.timer = setTimeout(() => hostDecision(false), Math.max(1000, Math.min(Number(data.timeout_ms) || 30000, 30000) - 1500));
   tellHost({
@@ -1243,6 +1266,7 @@ function controlRequested(data) {
     surface: settings.displaySurface,
     width: settings.width ?? 0,
     height: settings.height ?? 0,
+    agent,
   });
 }
 function hostDecision(allow) {
@@ -1274,8 +1298,86 @@ function receiveControl(data) {
   try { message = unpackControl(new Uint8Array(data)); } catch { return; }
   if (String(message?.data?.grant) !== controlled.grant) return;
   if (message.type === "release_all") tellHost({ control: "release" });
+  else if (message.type === "capture") { if (controlled.agent) sendFrame(message.data); }
   else if (message.type === "input" && String(message.data.sharer?.user_id) === self())
     tellHost({ control: "input", input: message.data.input });
+}
+// ---- pictures for an AI agent ------------------------------------------------
+// An agent that controls this screen sees it through pictures taken here, when
+// the server asks, from the very track being shared. The newest frame is kept
+// at hand while that lasts: this page may be hidden behind a game, where a
+// <video> would stand still. Nothing runs once control has ended.
+let frames = null; // { track, reader, latest }
+function watchFrames() {
+  const source = publications.get("screen")?.track;
+  if (frames || !source || typeof MediaStreamTrackProcessor !== "function") return;
+  const track = source.clone();
+  const reader = new MediaStreamTrackProcessor({ track, maxBufferSize: 1 }).readable.getReader();
+  const watch = (frames = { track, reader, latest: null });
+  (async () => {
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (frames !== watch) { value.close(); break; }
+        watch.latest?.close();
+        watch.latest = value;
+      }
+    } catch { /* the share ended */ }
+  })();
+}
+function unwatchFrames() {
+  const watch = frames;
+  if (!watch) return;
+  frames = null;
+  watch.reader.cancel().catch(() => {});
+  watch.track.stop();
+  watch.latest?.close();
+  watch.latest = null;
+}
+// The size a picture is sent at: its longer side at most `max` pixels.
+export function frameSize(width, height, max) {
+  const scale = Math.min(1, max / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}
+async function sendFrame(request) {
+  const asked = controlled, id = request?.id;
+  if (!asked?.grant || !Number.isSafeInteger(id) || id < 0) return;
+  const max = Math.max(320, Math.min(1920, Number(request.max) || 1280));
+  const quality = Math.max(0.1, Math.min(1, (Number(request.quality) || 70) / 100));
+  let image = null;
+  try {
+    watchFrames();
+    image = frames?.latest?.clone() ?? null;
+    if (!image) {
+      // No frame has come by yet (or this engine cannot read the track): take one.
+      const track = publications.get("screen")?.track;
+      if (!track || typeof ImageCapture !== "function") return;
+      image = await Promise.race([
+        new ImageCapture(track).grabFrame(),
+        new Promise((_, reject) => setTimeout(() => reject(Error("timed out")), 2000)),
+      ]);
+    }
+    const size = frameSize(image.displayWidth ?? image.width, image.displayHeight ?? image.height, max);
+    const canvas = new OffscreenCanvas(size.width, size.height);
+    canvas.getContext("2d", { alpha: false }).drawImage(image, 0, 0, size.width, size.height);
+    const body = await canvas.convertToBlob({ type: "image/jpeg", quality });
+    // Control ended while the picture was made: it is no longer theirs to see.
+    if (controlled !== asked) return;
+    const csrf = document.cookie.split(";").map((v) => v.trim())
+      .find((v) => v.startsWith("__Host-sticktalk_csrf="))?.split("=").slice(1).join("=") ?? "";
+    await fetch(`/api/v1/voice/control/frames/${id}`, {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Content-Type": "image/jpeg", "X-StickTalk-CSRF": csrf },
+      body,
+    });
+  } catch {
+    // The agent is told that no picture arrived; there is nothing to do here.
+  } finally {
+    image?.close?.();
+  }
 }
 function stop(notify) {
   if(notify)wantCall=false;
@@ -1292,6 +1394,7 @@ function stop(notify) {
   local = null;
   endControlling();
   endControlled();
+  endAgentControl();
   controlChannel = null;
   pc?.close();
   pc = null;
@@ -1404,7 +1507,12 @@ export function mount() {
   }
   // Someone is using your mouse and keyboard: always say so, with a way to stop.
   let banner = $("#live-control-banner");
-  if (controlled?.grant) {
+  const controlNotice = controlled?.grant
+    ? `${controlled.name}${controlled.agent ? "’s AI agent" : ""} is controlling your screen. Press Esc to stop.`
+    : agentControl
+      ? `Your AI agent is controlling ${person(agentControl.sharer.user_id).name}’s screen.`
+      : null;
+  if (controlNotice) {
     if (!banner) {
       banner = document.createElement("aside");
       banner.id = "live-control-banner";
@@ -1418,7 +1526,7 @@ export function mount() {
       banner.append(text, end);
       document.body.append(banner);
     }
-    banner.firstChild.textContent = `${controlled.name} is controlling your screen. Press Esc to stop.`;
+    if (banner.firstChild.textContent !== controlNotice) banner.firstChild.textContent = controlNotice;
   } else banner?.remove();
   if (stopCameraTest && !cameraBox?.isConnected) stopCameraTest();
   const connected = $("#live-connected");

@@ -126,6 +126,8 @@ pub fn build(
                 },
             }]
         }
+        // Raw mouse movement exists for AI agents, which this client never allows.
+        ControlInput::MoveBy { .. } => return Err("Unsupported input".into()),
     })
 }
 
