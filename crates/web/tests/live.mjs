@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { once } from "node:events";
+import { crc32, deflateSync } from "node:zlib";
 import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { resolve, join, dirname, basename } from "node:path";
 const output = process.env.STICKTALK_QA_DIR ?? "screenshots/live";
@@ -106,6 +107,29 @@ async function form(page, kind, name, extra = {}) {
     else await e.fill(value);
   }
   await page.locator("[data-live-form] [type=submit]").click();
+}
+/** A plain opaque PNG of the given size. */
+function png(width, height) {
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc32(body), body.length + 4);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8); // 8-bit RGB
+  const row = Buffer.alloc(1 + width * 3, 0x6b);
+  row[0] = 0; // no filter
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", deflateSync(Buffer.concat(Array(height).fill(row)))),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
 }
 async function message(page, text) {
   await page.locator("#live-input").fill(text);
@@ -460,8 +484,26 @@ try {
   });
   await alice.waitForSelector('.live-upload:has-text("workspace.jpg")');
   await message(alice, "An image uploaded from the browser");
+  // A light picture is drawn from the file itself, at its own size.
+  const drawn = (page) =>
+    page.locator("[data-view-image] img").last().evaluate(async (e) => {
+      await e.decode();
+      return {
+        original:
+          new URL(e.currentSrc).pathname ===
+          e.closest("[data-view-image]").dataset.viewImage,
+        natural: e.naturalWidth,
+        width: e.getBoundingClientRect().width,
+        height: e.getBoundingClientRect().height,
+        overflow:
+          document.querySelector("#live-messages").scrollWidth -
+          document.querySelector("#live-messages").clientWidth,
+      };
+    });
   await alice.waitForSelector("[data-view-image] img");
-  assert.equal(originals.length, 0);
+  const photo = await drawn(alice);
+  assert.deepEqual([photo.original, photo.width, photo.height], [true, 256, 170]);
+  assert(originals.length >= 1);
   await alice.locator("[data-view-image]").last().click();
   await alice.waitForFunction(
     () => document.querySelector("#live-viewer img")?.naturalWidth > 0,
@@ -482,10 +524,28 @@ try {
   assert(await alice.locator('#live-viewer a[target="_blank"]').count());
   checks.push("viewer original-on-demand, zoom/reset, two-pointer pinch/pan, save and open-original controls");
   await alice.keyboard.press("Escape");
+  // A wide screenshot strip fills the column instead of shrinking to a
+  // 256-pixel thumbnail sliver.
+  await alice.locator("#live-file").setInputFiles({
+    name: "strip.png",
+    mimeType: "image/png",
+    buffer: png(1296, 125),
+  });
+  await alice.waitForSelector('.live-upload:has-text("strip.png")');
+  await message(alice, "A wide screenshot strip");
+  await alice.waitForSelector('[data-view-image][data-filename="strip.png"] img');
+  const strip = await drawn(alice);
+  assert.equal(strip.original, true);
+  assert.equal(strip.natural, 1296);
+  assert(strip.width > 600 && strip.width <= 1296, `strip is ${strip.width} wide`);
+  assert(Math.abs(strip.width / strip.height - 1296 / 125) < 0.2);
+  assert(strip.overflow <= 0, "the strip must not widen the message list");
+  if (process.env.STICKTALK_WIDE_IMAGE_SHOT)
+    await alice.screenshot({ path: process.env.STICKTALK_WIDE_IMAGE_SHOT });
   await message(bob, "Hello @alice_web");
   await alice.waitForSelector(".mention");
   checks.push(
-    "thumbnail only before viewer gesture + original-on-demand + explicit mention",
+    "pictures drawn at their own size + viewer original + explicit mention",
   );
   const screenshots = [];
   await mkdir(output, { recursive: true });

@@ -847,13 +847,13 @@ export function installPlatform() {
         (r) =>
           (r.type === 'attributes' && (r.target.matches('.live-shell,[data-role-id]') || r.target.id==='sticktalk')) ||
           r.type === "childList" &&
-          !r.target.closest?.('#live-media-stage,#live-device-settings,#live-viewer,[data-authsec-root],#authsec-dialog,#live-activity-layer,.activity-dialog') &&
+          !r.target.closest?.('#live-media-stage,#live-call-park,#live-device-settings,#live-viewer,[data-authsec-root],#authsec-dialog,#live-activity-layer,.activity-dialog') &&
           [...r.addedNodes,...r.removedNodes].some(
             (n) =>
               n.nodeType === 1 &&
               (!n.closest ||
                 !n.closest(
-                  "#live-media-stage,#live-device-settings,#live-viewer,[data-authsec-root] *,#authsec-dialog,#live-activity-layer,.activity-dialog",
+                  "#live-media-stage,#live-call-park,#live-device-settings,#live-viewer,[data-authsec-root] *,#authsec-dialog,#live-activity-layer,.activity-dialog",
                 )),
           ),
       )

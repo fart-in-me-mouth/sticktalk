@@ -65,7 +65,19 @@ is a native window that loads this same app from the server.
   SSRCs while retaining fingerprints/MIDs. Tracks, timers and peer state stop on leave/WS loss.
   Microphone constraints enable echo cancellation, noise suppression and AGC.
   Device pickers use enumerateDevices/devicechange; output uses setSinkId when
-  supported. Desktop display capture offers 15/30/60 fps and 720/1080/1440p ideals.
+  supported. Desktop display capture has no quality choices: 30 fps at the source's
+  own size (at most 3840×2160), with `contentHint = "motion"` and
+  `degradationPreference = "maintain-framerate"`, so the browser lowers the
+  resolution instead of the frame rate when the SFU's bitrate ceiling, the uplink
+  or the encoder cannot carry the full picture, and raises it again by itself.
+  Away from the call view, the stream you were watching (the focused tile, else a
+  shared screen, else a camera; never your own) moves by itself to the browser's
+  picture-in-picture window, with mute and hang-up buttons where the browser has
+  them. Closing that window keeps it closed until you return to the call. "Pop
+  Out" (on a tile, or in the call bar) instead opens the stream in a
+  `window.open("")` window built from this page, which can be resized and go full
+  screen (button, double-click or F). No extra connection or decode either way:
+  both show the same MediaStream.
 - `public/push.js` is also lazy. Permission is requested only from the explainer's
   button handler. The generated service worker caches only an app-shell allowlist,
   never API/account content; its push handler uses generic lock-screen text and

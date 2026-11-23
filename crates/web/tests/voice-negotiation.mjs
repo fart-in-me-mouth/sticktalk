@@ -5,14 +5,15 @@ import assert from 'node:assert/strict';
 import {writeFile} from 'node:fs/promises';
 import {chromium} from 'playwright';
 import {harness,register,form,act,until,output,shot} from './qa-harness.mjs';
-const h=await harness(),rounds=[];let desktop,alice,bob;
+const h=await harness(),rounds=[];let desktop,alice,bob,stream;
 const diagnostic=p=>p.evaluate(async()=>await(await import('/public/media.js')).diagnostics());
 const decoded=d=>d.stats.filter(r=>r.type==='inbound-rtp'&&r.kind==='video').reduce((n,r)=>n+(r.framesDecoded??0),0);
 try {
   alice=await h.phone();
   desktop=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--allow-loopback-in-peer-connection','--disable-features=WebRtcHideLocalIpsWithMdns','--mute-audio','--disable-notifications','--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost']});
   const context=await desktop.newContext({viewport:{width:1440,height:900},permissions:['microphone','camera']});
-  await context.route('**/*',r=>['127.0.0.1','localhost','[::1]'].includes(new URL(r.request().url()).hostname)?r.continue():r.abort());
+  const loopback=r=>['127.0.0.1','localhost','[::1]'].includes(new URL(r.request().url()).hostname)?r.continue():r.abort();
+  await context.route('**/*',loopback);
   bob=await context.newPage();
   const remoteDelay=Number(process.env.STICKTALK_QA_REMOTE_DELAY_MS??7500);
   if(remoteDelay)await bob.addInitScript(delay=>{
@@ -57,11 +58,45 @@ try {
       await alice.setViewportSize({width:390,height:844});
       await alice.locator('#live-call-mini > button').first().click();await alice.waitForSelector('.voice-view');
       assert.equal(await alice.locator('#live-call-mini').count(),0);
+      // On a desktop, leaving the call view keeps the other camera on screen in
+      // the browser's picture-in-picture window; returning takes it back.
+      const tile='.participant-tile[data-kind=camera]:not([data-self])';
+      await bob.locator('.channel-header [aria-label="Open Chat"]').click();
+      await bob.waitForSelector('#live-call-mini');
+      await until(()=>bob.evaluate(tile=>document.pictureInPictureElement?.matches(`${tile} video`)??false,tile));
+      assert(await bob.locator('#live-call-mini .call-mini-popout').isVisible());
+      await bob.locator('#live-call-mini > button').first().click();await bob.waitForSelector('.voice-view');
+      await until(()=>bob.evaluate(()=>!document.pictureInPictureElement));
+      assert.equal(await bob.locator('#live-call-park').count(),0);
+      assert.equal(await bob.locator(`#live-media-stage ${tile}`).count(),1);
+      // Pop Out: the same picture in a window of its own, which can go full screen.
+      // Playwright never answers a request it intercepts from a blank window opened
+      // by a page, so the window's stylesheets load with interception off. The
+      // launch flags above still keep every other host unreachable meanwhile.
+      await context.unroute('**/*',loopback);
+      [stream]=await Promise.all([context.waitForEvent('page'),bob.locator(`${tile} .tile-popout`).click()]);
+      await until(()=>stream.evaluate(()=>document.querySelector('video')?.videoWidth>0));
+      assert.equal(await stream.title(),await bob.locator(`${tile} .participant-label > span`).first().textContent());
+      // Styled by the app's own stylesheet: the video fills the window, the name and button lie over it.
+      await stream.setViewportSize({width:900,height:600});
+      await until(()=>stream.evaluate(()=>{const video=document.querySelector('video').getBoundingClientRect(),bar=document.querySelector('.stream-window-bar').getBoundingClientRect();return getComputedStyle(document.body).backgroundColor==='rgb(0, 0, 0)'&&video.width===innerWidth&&video.height===innerHeight&&bar.bottom===innerHeight;}));
+      await context.route('**/*',loopback);
+      assert.equal(await stream.locator('.stream-window-bar > span').textContent(),await stream.title());
+      // Headless Chromium refuses full screen in a second window, so only the button is checked.
+      assert.equal(await stream.locator('.stream-window-bar button').getAttribute('aria-label'),'Full Screen');
+      // With the stream in its own window, leaving the call view opens no second copy.
+      await bob.locator('.channel-header [aria-label="Open Chat"]').click();
+      await bob.waitForSelector('#live-call-mini');
+      assert(await bob.locator('#live-call-mini .call-mini-popout').isHidden());
+      assert.equal(await bob.evaluate(()=>!!document.pictureInPictureElement),false);
+      await bob.locator('#live-call-mini > button').first().click();await bob.waitForSelector('.voice-view');
     }
 
     rounds.push({round,decodedDelta:active.map((d,i)=>decoded(d)-base[i]),states:active.map(d=>d.state),remoteWidths:active.map(d=>d.tracks.find(t=>t.kind==='camera'&&!t.own)?.videoWidth)});
     await Promise.all([act(alice,'media:camera'),act(bob,'media:camera')]);
     await until(async()=>(await Promise.all([diagnostic(alice),diagnostic(bob)])).every(d=>d.publications===1&&d.subscriptions===1));
+    // The camera it showed is off: the stream's window closes by itself.
+    if(round===1)await until(()=>stream.isClosed());
   }
   await Promise.all([act(alice,'media:leave'),act(bob,'media:leave')]);
   await until(async()=>(await Promise.all([diagnostic(alice),diagnostic(bob)])).every(d=>!d.joined&&d.publications===0&&d.subscriptions===0&&d.tracks.length===0&&d.pendingRequests===0));

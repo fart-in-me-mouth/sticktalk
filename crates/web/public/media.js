@@ -135,6 +135,7 @@ function boost(entry, gain) {
 function discard(id) {
   const entry = elements.get(id);
   if (!entry) return;
+  if (entry.media === pip) leavePip();
   boost(entry, 0);
   entry.tile.remove();
   elements.delete(id);
@@ -254,6 +255,29 @@ export function displayAudio(supported) {
     autoGainControl: false,
     ...(supported?.restrictOwnAudio ? { restrictOwnAudio: true } : {}),
   };
+}
+// A shared screen is sent at 30 frames a second, in the sharpest picture the
+// connection and the encoder can carry at that rate. There is nothing to choose.
+export const STREAM_FPS = 30;
+export function displayVideo() {
+  // The source's own size and shape. 3840×2160 is as large as H.264 encoders and
+  // decoders commonly go; a larger screen is captured scaled to fit inside it.
+  return {
+    frameRate: { ideal: STREAM_FPS, max: STREAM_FPS },
+    width: { max: 3840 },
+    height: { max: 2160 },
+  };
+}
+// When the full picture cannot be carried, the browser sends it smaller instead
+// of dropping frames, and returns to full size by itself when there is room.
+// `bps` is the SFU's ceiling for the track, when it has sent one.
+export function streamEncoding(params, bps) {
+  params.degradationPreference = "maintain-framerate";
+  for (const e of params.encodings ?? []) {
+    e.maxFramerate = STREAM_FPS;
+    if (bps) e.maxBitrate = bps;
+  }
+  return params;
 }
 export function retainSpeaking(states, sessionKey, active) {
   if (!active) states.delete(sessionKey);
@@ -430,6 +454,18 @@ async function publish(track, kind, stream) {
   if (track.kind === "video") preferH264(transceiver);
   else preferOpus(transceiver);
   e2ee?.sender(transceiver.sender, kind);
+  if (kind === "screen") {
+    // Chromium treats a captured screen as text, which it never sends smaller:
+    // on a slow connection the frame rate falls instead. "motion" is the opposite.
+    track.contentHint = "motion";
+    try {
+      const sender = transceiver.sender;
+      await sender.setParameters(streamEncoding(sender.getParameters()));
+    } catch {
+      // Not before the first negotiation in every browser. The SFU's first
+      // bitrate for the track sets the same parameters.
+    }
+  }
   publications.set(kind, { kind, track, stream, transceiver });
   return transceiver;
 }
@@ -672,6 +708,19 @@ function createTile(id, p, kind) {
       tile.append(full);
     }
   }
+  // Someone else's video can move to a window of its own.
+  if (media.tagName === 'VIDEO' && p.session.user_id !== self() && canPopOut()) {
+    const pop = document.createElement('button');
+    pop.type = 'button';
+    pop.className = 'icon-button tile-popout';
+    pop.setAttribute('aria-label', 'Pop Out');
+    pop.title = 'Pop Out';
+    pop.append(glyph('external-link'));
+    for (const type of ['click', 'keydown', 'pointerdown'])
+      pop.addEventListener(type, (e) => e.stopPropagation());
+    pop.onclick = () => popOut(id).catch(report);
+    tile.append(pop);
+  }
   const entry = { tile, label, name, state, media, user: p.session.user_id, kind, volumeKey: volumeKey(p, kind) };
   if (kind === 'screen' && p.session.user_id !== self()) {
     entry.control = document.createElement('button');
@@ -904,7 +953,8 @@ export function event(event) {
         if (!p) return;
         const params = p.transceiver.sender.getParameters();
         if (!params.encodings?.length) return;
-        for (const e of params.encodings) e.maxBitrate = extras.videoCap(p, Number(data.bps));
+        if (p.kind === "screen") streamEncoding(params, Number(data.bps));
+        else for (const e of params.encodings) e.maxBitrate = extras.videoCap(p, Number(data.bps));
         await p.transceiver.sender.setParameters(params);
       });
       break;
@@ -1081,26 +1131,20 @@ function showShareOptions() {
   const title = document.createElement("h2");
   title.id = "live-share-title";
   title.textContent = "Share Screen";
-  const labelled = (text, control) => {
-    const label = document.createElement("label");
-    label.className = "field";
-    label.textContent = text;
-    label.append(control);
-    return label;
-  };
-  // Resolution, frame rate and smoother-motion or sharper-text, remembered.
-  const quality = extras.shareFields();
   const note = document.createElement("p");
   note.className = "muted-copy";
   note.textContent =
     "Next, choose what to share. To share its sound too, turn on the audio option in that window.";
+  const quality = document.createElement("p");
+  quality.className = "muted-copy";
+  quality.textContent = `Your stream runs at ${STREAM_FPS} fps, as sharp as your connection allows.`;
   const start = document.createElement("button");
   start.textContent = "Share";
   start.className = "button primary";
   start.onclick = async () => {
     // getDisplayMedia is invoked inside this user gesture, not after negotiation.
     const capture = navigator.mediaDevices.getDisplayMedia({
-      video: extras.displayConstraints(),
+      video: displayVideo(),
       audio: displayAudio(navigator.mediaDevices.getSupportedConstraints?.()),
     });
     dialog.close();
@@ -1131,7 +1175,6 @@ function showShareOptions() {
       // In the Windows app the shared screen can be controlled, with your consent.
       if (host()) controlChannelReady();
       enqueue(negotiate);
-      extras.tune("screen");
       extras.streamsChanged();
     } catch (e) {
       if (e.name !== "NotAllowedError") report(e);
@@ -1141,7 +1184,7 @@ function showShareOptions() {
   cancel.className = "button secondary";
   cancel.textContent = "Cancel";
   cancel.onclick = () => dialog.close();
-  dialog.append(title, ...quality, note, start, cancel);
+  dialog.append(title, note, quality, start, cancel);
   document.body.append(dialog);
   dialog.showModal();
 }
@@ -1466,6 +1509,12 @@ globalThis.addEventListener?.("sticktalk-host", (e) => {
     else stopControl();
     if (typeof detail.reason === "string" && detail.reason) report(new Error(detail.reason.slice(0, 200)));
   }
+  // The person closed the stream's window from its title bar.
+  if (detail.window === "closed" && popout) {
+    popout.video.srcObject = null;
+    popout = null;
+    mount();
+  }
 });
 function receiveControl(data) {
   if (!(data instanceof ArrayBuffer) || !controlled?.grant) return;
@@ -1554,6 +1603,241 @@ async function sendFrame(request) {
     image?.close?.();
   }
 }
+// ---- a stream outside the call view -------------------------------------------
+// Away from the call view, the stream stays on screen in the browser's own
+// picture-in-picture window, which opens by itself. "Pop Out" moves a stream
+// to a separate window instead, one that can be resized and go full screen.
+// `pip` is the video this code put there (never one the person chose from the
+// browser's menu); `pipDismissed` is set when they close it, until they return;
+// `pipFailed` is a video the browser refused, not asked for again by itself.
+let pip = null, pipPending = null, pipFailed = null, pipDismissed = false, pipWaiting = false, pipTries = 0;
+// The stream in its own window: { id, win, video, name }.
+let popout = null, popoutBound = false;
+let callButtons = false;
+const streamHost = () =>
+  globalThis.__sticktalkHost?.windows && globalThis.ipc?.postMessage ? globalThis.ipc : null;
+// The Windows app opens the window itself; an older one cannot.
+const canPopOut = () => !globalThis.__sticktalkHost || !!streamHost();
+// What is shown away from the call view: the tile you focused, else a shared
+// screen, else a camera. Never your own picture.
+function featured() {
+  const videos = [...elements].filter(([, e]) => e.media.tagName === "VIDEO" && !e.tile.dataset.self);
+  return (videos.find(([id]) => id === focusedTile) ?? videos.find(([, e]) => e.kind === "screen") ?? videos[0])?.[0] ?? null;
+}
+function leavePip() {
+  const old = pip;
+  pip = pipPending = null;
+  if (old && document.pictureInPictureElement === old) document.exitPictureInPicture().catch(() => {});
+}
+// Picture-in-picture needs a click or key press first. Without one (a stream
+// that starts while you read a channel), it opens on the next.
+function pipOnGesture() {
+  if (pipWaiting || ++pipTries > 3) return;
+  pipWaiting = true;
+  const retry = () => {
+    pipWaiting = false;
+    removeEventListener("pointerup", retry, true);
+    removeEventListener("keydown", retry, true);
+    pipFailed = null;
+    // After the click itself has been handled: it may be the way back to the call.
+    setTimeout(mount, 0);
+  };
+  addEventListener("pointerup", retry, true);
+  addEventListener("keydown", retry, true);
+}
+function syncPip(away) {
+  if (!document.pictureInPictureEnabled) return;
+  if (!away) {
+    pipDismissed = false;
+    pipFailed = null;
+    pipTries = 0;
+  }
+  const entry = away && !pipDismissed && !popout ? elements.get(featured()) : null;
+  const media = entry?.media ?? null;
+  if (!media) return leavePip();
+  if (media === pip || media === pipPending || media === pipFailed) return;
+  // A video outside the page cannot be shown, so it waits in a hidden corner.
+  if (!entry.tile.isConnected) {
+    let park = $("#live-call-park");
+    if (!park) {
+      park = document.createElement("div");
+      park.id = "live-call-park";
+      park.className = "call-park";
+      park.inert = true;
+      document.body.append(park);
+    }
+    park.append(entry.tile);
+  }
+  if (!media.readyState) {
+    // No picture has arrived yet.
+    media.addEventListener("loadedmetadata", mount, { once: true });
+    return;
+  }
+  // From here the window belongs to the new video: the one before leaving it
+  // is not the person closing it.
+  const previous = pip;
+  pip = null;
+  pipPending = media;
+  media.requestPictureInPicture().then(() => {
+    if (pipPending !== media) {
+      // Meanwhile the call view came back, or another stream took over.
+      if (pip !== media && document.pictureInPictureElement === media) document.exitPictureInPicture().catch(() => {});
+      return;
+    }
+    pipPending = null;
+    pip = media;
+    media.addEventListener("leavepictureinpicture", () => {
+      if (pip !== media) return;
+      pip = null;
+      pipDismissed = true;
+    }, { once: true });
+  }, (error) => {
+    if (pipPending !== media) return;
+    pipPending = null;
+    pipFailed = media;
+    if (previous && document.pictureInPictureElement === previous) pip = previous;
+    if (error.name === "NotAllowedError") pipOnGesture();
+  });
+}
+// Mute and hang-up buttons in the picture-in-picture window, where the browser has them.
+function syncCallButtons() {
+  const session = navigator.mediaSession;
+  if (!session) return;
+  if (callButtons !== joined) {
+    callButtons = joined;
+    for (const [name, command] of [["togglemicrophone", "mute"], ["hangup", "leave"]])
+      try { session.setActionHandler(name, joined ? () => action(command) : null); } catch { /* Not offered by this browser. */ }
+  }
+  if (joined) session.setMicrophoneActive?.(!muted && !deafened)?.catch?.(() => {});
+}
+function closePopout() {
+  const old = popout;
+  popout = null;
+  if (!old) return;
+  old.video.srcObject = null;
+  try { old.win.close(); } catch { /* Already gone. */ }
+  streamHost()?.postMessage(JSON.stringify({ window: "close" }));
+}
+// The Windows app makes the window first; the page then opens into it.
+function hostWindow() {
+  return new Promise((resolve, reject) => {
+    const failed = () => reject(new Error("The stream window couldn’t be opened."));
+    const done = (e) => {
+      const state = e.detail?.window;
+      if (state !== "ready" && state !== "failed") return;
+      clearTimeout(timer);
+      removeEventListener("sticktalk-host", done);
+      if (state === "ready") resolve();
+      else failed();
+    };
+    const timer = setTimeout(() => { removeEventListener("sticktalk-host", done); failed(); }, 5000);
+    addEventListener("sticktalk-host", done);
+    streamHost().postMessage(JSON.stringify({ window: "stream" }));
+  });
+}
+async function popOut(id) {
+  const entry = elements.get(id);
+  if (!entry || entry.media.tagName !== "VIDEO" || !canPopOut()) return;
+  if (popout?.id === id && !popout.win.closed) {
+    popout.win.focus();
+    return;
+  }
+  closePopout();
+  const generation = epoch;
+  if (streamHost()) await hostWindow();
+  if (generation !== epoch || elements.get(id) !== entry) {
+    streamHost()?.postMessage(JSON.stringify({ window: "close" }));
+    return;
+  }
+  const win = window.open("", "sticktalk-stream", "popup,width=1280,height=720");
+  if (!win) {
+    streamHost()?.postMessage(JSON.stringify({ window: "close" }));
+    throw new Error("The stream window was blocked. Allow pop-ups for StickTalk, then try again.");
+  }
+  // The window is a blank page of this app's own: same styles, built from here.
+  // Black from the first paint, and over the app's own page background.
+  const doc = win.document;
+  doc.documentElement.style.background = doc.body.style.background = "#000";
+  for (const sheet of document.querySelectorAll('link[rel~="stylesheet"]')) {
+    const link = doc.createElement("link");
+    link.rel = "stylesheet";
+    link.href = sheet.href;
+    doc.head.append(link);
+  }
+  doc.body.className = "stream-window";
+  const video = doc.createElement("video");
+  video.autoplay = true;
+  video.muted = true; // Its sound keeps playing from the call, at the volume set there.
+  video.playsInline = true;
+  const bar = doc.createElement("div");
+  bar.className = "stream-window-bar";
+  const name = doc.createElement("span");
+  const full = doc.createElement("button");
+  full.type = "button";
+  full.className = "icon-button";
+  // Icons live in the main page; this window gets its own copy of the drawing.
+  const symbol = document.getElementById("i-maximize");
+  const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  for (const node of symbol?.childNodes ?? []) svg.append(doc.importNode(node, true));
+  full.append(svg);
+  const label = () => {
+    const text = doc.fullscreenElement ? "Exit Full Screen" : "Full Screen";
+    full.title = text;
+    full.setAttribute("aria-label", text);
+  };
+  label();
+  const toggle = () => {
+    if (doc.fullscreenElement) doc.exitFullscreen().catch(() => {});
+    else doc.documentElement.requestFullscreen().catch(() => {});
+  };
+  full.onclick = toggle;
+  video.ondblclick = toggle;
+  doc.addEventListener("fullscreenchange", label);
+  doc.addEventListener("keydown", (e) => {
+    if (e.key !== "f" && e.key !== "F" && e.key !== "F11") return;
+    e.preventDefault();
+    toggle();
+  });
+  // The name and button show while the pointer moves, then get out of the way.
+  let idle;
+  const wake = () => {
+    doc.body.classList.add("is-active");
+    win.clearTimeout(idle);
+    idle = win.setTimeout(() => doc.body.classList.remove("is-active"), 2500);
+  };
+  doc.addEventListener("pointermove", wake);
+  doc.addEventListener("focusin", wake);
+  bar.append(name, full);
+  doc.body.append(video, bar);
+  win.addEventListener("pagehide", () => {
+    if (popout?.win !== win) return;
+    closePopout();
+    mount();
+  });
+  if (!popoutBound) {
+    // Leaving or reloading the app takes the stream's window with it.
+    popoutBound = true;
+    addEventListener("pagehide", closePopout);
+  }
+  popout = { id, win, video, name };
+  wake();
+  mount();
+}
+function syncPopout() {
+  if (!popout) return;
+  const entry = elements.get(popout.id);
+  if (!entry || popout.win.closed) return closePopout();
+  const { video, win, name } = popout, stream = entry.media.srcObject, title = entry.name.textContent;
+  if (video.srcObject !== stream) {
+    video.srcObject = stream;
+    video.play().catch(() => {});
+  }
+  if (name.textContent !== title) name.textContent = title;
+  if (win.document.title !== title) win.document.title = title;
+}
 function stop(notify, keepEncryption = false) {
   if(notify){wantCall=false;wantCamera=false;listenOnly=false;pendingListen=false;stageList.stop();}
   if (!keepEncryption) {
@@ -1579,6 +1863,8 @@ function stop(notify, keepEncryption = false) {
   extras.stop();
   endAgentControl();
   controlChannel = null;
+  leavePip();
+  pipDismissed = false;
   pc?.close();
   pc = null;
   senders.clear();
@@ -1641,12 +1927,15 @@ export function mount() {
       }, {passive:true});
     }
   }
+  syncPopout();
   let mini = $('#live-call-mini');
   if (joined && !voiceView && !$('.live-modal')) {
     if (!mini) {
       mini = document.createElement('aside'); mini.id='live-call-mini'; mini.className='call-mini-bar';
       const restore=document.createElement('button');restore.dataset.live=`voice:${callChannel}`;restore.textContent='Voice Connected · Return to call';
-      mini.append(restore);
+      const pop=document.createElement('button');pop.className='icon-button call-mini-popout';pop.setAttribute('aria-label','Pop Out Stream');pop.title='Pop Out Stream';
+      pop.append(glyph('external-link'));pop.onclick=()=>popOut(featured()).catch(report);
+      mini.append(restore,pop);
       for (const [glyph,label,command] of [['mic','Mute','mute'],['phone-off','Disconnect','leave']]) {
         const button=document.createElement('button');button.className='icon-button';button.dataset.live=`media:${command}`;button.setAttribute('aria-label',label);
         const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.classList.add('icon');svg.setAttribute('aria-hidden','true');
@@ -1654,7 +1943,14 @@ export function mount() {
       }
       document.body.append(mini);
     }
+    // With a stream to watch, the bar can move it to a window of its own.
+    const stream = canPopOut() && !popout && !!featured();
+    mini.querySelector('.call-mini-popout').hidden = !stream;
+    mini.classList.toggle('has-stream', stream);
   } else mini?.remove();
+  const away = joined && !voiceView;
+  syncPip(away);
+  syncCallButtons();
   const stage = $("#live-media-stage");
   if (focusedTile && !elements.has(focusedTile)) focusedTile = null;
   // A focused voice tile gives way to that person's camera when they turn it on.
@@ -1690,6 +1986,7 @@ export function mount() {
     stage.style.setProperty("--columns", String(columns));
     stage.style.setProperty("--rows", String(Math.max(1, Math.ceil(count / columns))));
   }
+  if (!away) $("#live-call-park")?.remove();
   // Someone is using your mouse and keyboard: always say so, with a way to stop.
   let banner = $("#live-control-banner");
   const controlNotice = controlled?.grant
@@ -2101,6 +2398,15 @@ export async function diagnostics() {
     stage: stageList.diagnostics(),
     extras: extras.diagnostics(),
     e2ee: e2ee ? await e2ee.diagnostics() : null,
+    sending: [...publications.values()].map((p) => {
+      const params = p.transceiver.sender.getParameters();
+      return {
+        kind: p.kind,
+        hint: p.track.contentHint,
+        degradation: params.degradationPreference,
+        encodings: params.encodings,
+      };
+    }),
     tracks: [...elements.values()].map((e) => ({
       kind: e.tile.dataset.kind,
       own: !!e.tile.dataset.self,

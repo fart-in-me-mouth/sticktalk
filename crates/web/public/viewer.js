@@ -85,7 +85,7 @@ export function openViewer(target) {
     image.src = original.src; image.classList.remove('viewer-loading'); root.querySelector('[role=status]').textContent = '';
   };
   original.onerror = () => { if (generation === token) root.querySelector('[role=status]').textContent = 'Could not load original.'; };
-  // This is the only original-image request; the normal chat loads thumbnails.
+  // The chat draws a heavy picture as its thumbnail; its original loads here.
   original.src = target.dataset.viewImage;
   const footer = document.createElement('footer');
   const label = document.createElement('span');

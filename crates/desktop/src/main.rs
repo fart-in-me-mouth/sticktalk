@@ -18,6 +18,8 @@ mod policy;
 mod ptt;
 mod shell_page;
 #[cfg(windows)]
+mod stream_window;
+#[cfg(windows)]
 mod webview;
 mod window_state;
 

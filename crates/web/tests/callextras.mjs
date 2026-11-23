@@ -258,27 +258,16 @@ try {
   numbers.audioChannel256 = await sendRate(bob, 'audio');
   checks.push(`a voice channel's bitrate is changed in Edit Channel and reaches live calls at once (256 kbps set; measured ${numbers.audioChannel256} b/s)`);
 
-  // ---- Stream quality: before (the old 720p30 path) and 1080p60 -----------------------
-  await bob.evaluate(() => { globalThis.__sticktalkLegacyQuality = true; });
+  // ---- Stream quality: nothing to choose (30 fps at the source's size) -----------------
   await act(bob, 'media:share');
+  await bob.waitForSelector('.live-share-options .button.primary');
+  assert.equal(await bob.locator('.live-share-options select').count(), 0);
+  await shot(bob, 'share-dialog');
   await bob.locator('.live-share-options .button.primary').click();
-  await until(async () => (await diagnostic(alice)).tracks.some((t) => t.kind === 'screen' && t.videoWidth > 0), 30000);
-  await wait(3000);
-  numbers.screenBefore = { ...(await inbound(alice)), sent: await sendRate(bob, 'video', 3) };
-  await act(bob, 'media:share');
-  await until(async () => !(await diagnostic(alice)).tracks.some((t) => t.kind === 'screen'), 20000);
-  await bob.evaluate(() => { globalThis.__sticktalkLegacyQuality = false; });
-  await act(bob, 'media:share');
-  await bob.waitForSelector('.live-share-options select[aria-label="Resolution"]');
-  await bob.locator('.live-share-options select[aria-label="Resolution"]').selectOption('1080');
-  await bob.locator('.live-share-options select[aria-label="Frame Rate"]').selectOption('60');
-  await bob.locator('.live-share-options select[aria-label="Optimize For"]').selectOption('motion');
-  await shot(bob, 'share-quality-picker');
-  await bob.locator('.live-share-options .button.primary').click();
-  assert.equal(await bob.evaluate(() => window.__displayConstraints.video.frameRate.ideal), 60);
+  assert.equal(await bob.evaluate(() => window.__displayConstraints.video.frameRate.ideal), 30);
   await until(async () => (await diagnostic(alice)).tracks.some((t) => t.kind === 'screen' && t.videoWidth > 0), 30000);
   await wait(5000);
-  numbers.screen1080p60 = { ...(await inbound(alice)), sent: await sendRate(bob, 'video', 3) };
+  numbers.screenAuto = { ...(await inbound(alice)), sent: await sendRate(bob, 'video', 3) };
   await alice.waitForSelector('.participant-tile[data-kind="screen"] .tile-quality');
   const badge = await alice.locator('.participant-tile[data-kind="screen"] .tile-quality').textContent();
   assert.match(badge, /^\d+×\d+ · \d+ fps$/);
@@ -289,7 +278,7 @@ try {
   });
   numbers.screenEncoder = encoder;
   await shot(alice, 'stream-delivered-quality');
-  checks.push(`screen share quality picker; viewers see what is delivered ("${badge}"); 1080p60: ${JSON.stringify(numbers.screen1080p60)} vs old path ${JSON.stringify(numbers.screenBefore)}`);
+  checks.push(`a shared screen has no quality choices; viewers see what is delivered ("${badge}"): ${JSON.stringify(numbers.screenAuto)}`);
 
   // ---- Clips: on, the call is told, save one, trim, keep, share ----------------------
   await act(bob, 'media:more');

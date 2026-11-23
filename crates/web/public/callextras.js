@@ -361,18 +361,11 @@ export function cameraConstraints() {
     frameRate: { ideal: q.fps, max: q.fps },
   };
 }
-export function displayConstraints() {
-  if (legacy()) return { frameRate: { ideal: 30, max: 30 }, height: { ideal: 720 }, width: { ideal: 1280 } };
-  const q = prefs.screen;
-  return {
-    frameRate: { ideal: q.fps, max: q.fps },
-    ...(q.height < 2160 ? { height: { ideal: q.height }, width: { ideal: Math.round((q.height * 16) / 9) } } : {}),
-  };
-}
-/** Encoder settings for a published camera or screen: its cap, frame rate and
- *  what gives way first when the network or the CPU cannot keep up. */
+/** Encoder settings for a published camera: its cap, frame rate and what gives
+ *  way first when the network or the CPU cannot keep up. A shared screen has no
+ *  choices (media.js: 30 fps, as sharp as the connection carries). */
 export function tune(kind) {
-  if (legacy()) return;
+  if (legacy() || kind !== 'camera') return;
   host.enqueue(async () => {
     const p = host.publication(kind);
     if (!p) return;
@@ -408,16 +401,7 @@ function selectField(label, options, value, change) {
   field.append(select);
   return field;
 }
-/** The quality fields of the Share Screen dialog; choices are remembered. */
-export function shareFields() {
-  return [
-    selectField('Resolution', HEIGHTS, prefs.screen.height, (v) => savePrefs({ screen: { ...prefs.screen, height: Number(v) } })),
-    selectField('Frame Rate', RATES.map((n) => [n, `${n} fps`]), prefs.screen.fps, (v) => savePrefs({ screen: { ...prefs.screen, fps: Number(v) } })),
-    selectField('Optimize For', [['motion', 'Smoother motion (games, video)'], ['detail', 'Sharper text (code, documents)']],
-      prefs.screen.mode, (v) => savePrefs({ screen: { ...prefs.screen, mode: v } })),
-  ];
-}
-function qualityFields(onCamera, onScreen) {
+function qualityFields(onCamera) {
   const box = document.createElement('div');
   box.className = 'call-quality-fields';
   const heading = (text) => Object.assign(document.createElement('h3'), { className: 'category mt-4', textContent: text });
@@ -425,22 +409,15 @@ function qualityFields(onCamera, onScreen) {
     heading('Camera'),
     selectField('Camera Resolution', HEIGHTS.slice(0, 4), prefs.camera.height, (v) => { savePrefs({ camera: { ...prefs.camera, height: Number(v) } }); onCamera?.(); }),
     selectField('Camera Frame Rate', RATES.map((n) => [n, `${n} fps`]), prefs.camera.fps, (v) => { savePrefs({ camera: { ...prefs.camera, fps: Number(v) } }); onCamera?.(); }),
-    heading('Screen Share'),
-    ...shareFields().map((f) => { f.querySelector('select').addEventListener('change', () => onScreen?.()); return f; }),
   );
   const note = document.createElement('p');
   note.className = 'muted-copy';
-  note.textContent = 'StickTalk sends the quality you choose when your device and connection allow it, and steps down smoothly when they don’t. Everyone sees what is actually being delivered on each stream.';
+  note.textContent = 'StickTalk sends the camera quality you choose when your device and connection allow it, and steps down smoothly when they don’t. A shared screen always runs at 30 fps, as sharp as your connection allows. Everyone sees what is actually being delivered on each stream.';
   box.append(note);
   return box;
 }
-function liveQualityChanged(kind) {
-  if (kind === 'camera' && host.publication('camera')) host.restartCamera();
-  if (kind === 'screen') {
-    const p = host.publication('screen');
-    if (p) p.track.applyConstraints(displayConstraints()).catch(() => {});
-    tune('screen');
-  }
+function liveQualityChanged() {
+  if (host.publication('camera')) host.restartCamera();
 }
 
 // ---- what each stream really delivers ---------------------------------------------
@@ -535,7 +512,7 @@ function more() {
 }
 function qualityDialog() {
   const d = dialog('Stream & Camera Quality');
-  d.append(qualityFields(() => liveQualityChanged('camera'), () => liveQualityChanged('screen')),
+  d.append(qualityFields(() => liveQualityChanged()),
     button('Done', 'button primary', () => d.close()));
   d.showModal();
 }
@@ -597,7 +574,7 @@ export function settings() {
     Object.assign(document.createElement('p'), { className: 'muted-copy', textContent: 'Off by default. While it is on and a stream is playing in a call, StickTalk keeps the last moments in memory on this device so you can save them. Everyone in the call sees that clips are on.' }),
     button('Clip Library…', 'button secondary', () => action('library')));
   root.append(heading('Soundboard'), soundControls(), heading('Entrance Sound'), entrance,
-    heading('Video Quality'), qualityFields(() => host?.publication('camera') && liveQualityChanged('camera'), () => host?.publication('screen') && liveQualityChanged('screen')),
+    heading('Video Quality'), qualityFields(() => host?.publication('camera') && liveQualityChanged()),
     heading('Camera Background'), background, heading('Clips'), clips);
   return root;
 }
