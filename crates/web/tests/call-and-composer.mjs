@@ -3,7 +3,8 @@
 // and by pasting), editing and deleting a message, the message menu, the member
 // list and who is online, the "Saved." confirmation on forms that stay open, the
 // phone layout of the member drawer and settings, sign-in messages, and a call:
-// who is in it, mute indicators, a stream's sound and per-person volume.
+// who is in it, the sound when someone joins, mute indicators, a stream's sound
+// and per-person volume.
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -379,7 +380,7 @@ try {
   await alice.waitForFunction(() => !document.querySelector(".live-modal"));
   await alice.waitForSelector('[data-live^="voice:"]:has-text("Call Voice")');
   const voice = await alice.locator('[data-live^="voice:"]:has-text("Call Voice")').getAttribute("data-live");
-  // Bob joins first: Alice, not yet in the call, sees him listed under the channel.
+  // Making the channel put Alice in its call. Bob joins and is listed under the channel.
   await act(bob, voice);
   await alice.waitForSelector('.voice-occupants li:has-text("bob_call")', { timeout: 15000 });
   checks.push("a voice channel lists who is in it");
@@ -394,6 +395,25 @@ try {
     return false;
   };
   assert(await flowing(["audio"]), `voice did not connect: ${JSON.stringify(await diagnostic(alice))}; ${errors}; ${log}`);
+  // Whoever was in the call first hears the other arrive, once; the newcomer hears
+  // nothing for the people already there. Afterwards the audio engine rests.
+  const chimed = async (page, count, engine) => {
+    let seen;
+    for (let i = 0; i < 40; i++) {
+      seen = await diagnostic(page);
+      if (seen.joinSounds === count && seen.audioEngine === engine) return true;
+      await wait(250);
+    }
+    throw Error(`expected ${count} join sound(s) and a ${engine} audio engine: ${seen.joinSounds}, ${seen.audioEngine}`);
+  };
+  const heard = async () => [(await diagnostic(alice)).joinSounds, (await diagnostic(bob)).joinSounds];
+  for (let i = 0; i < 40 && (await heard()).every((n) => n === 0); i++) await wait(250);
+  await wait(1000);
+  const arrival = await heard();
+  assert.equal(arrival[0] + arrival[1], 1, `one arrival, one sound: ${arrival}`);
+  await chimed(alice, arrival[0], arrival[0] ? "suspended" : "none");
+  await chimed(bob, arrival[1], arrival[1] ? "suspended" : "none");
+  checks.push("someone joining your call plays one sound; the people already there do not");
   await act(bob, "media:share");
   await bob.locator(".live-share-options .button.primary").click();
   assert(await flowing(["audio", "screen", "system_audio"]), `stream did not arrive: ${JSON.stringify(await diagnostic(alice))}; ${errors}; ${log}`);
@@ -502,6 +522,34 @@ try {
   await alice.waitForSelector("#live-input");
   assert.equal(await alice.locator(".voice-view").count(), 0);
   checks.push("leaving a call returns to the conversation you were in");
+  // Muting, deafening, sharing and volume were not arrivals; boosting has stopped.
+  await chimed(alice, arrival[0], "suspended");
+  await chimed(bob, arrival[1], arrival[1] ? "suspended" : "none");
+  // Alice comes back: Bob, still in the call, hears her arrive.
+  const hears = async (page) => (await diagnostic(page)).tracks.some((t) => t.kind === "audio" && !t.own);
+  const rejoin = async () => {
+    for (let i = 0; i < 60 && (await hears(bob)); i++) await wait(250);
+    assert.equal(await hears(bob), false, "Alice has left Bob's call");
+    await act(alice, voice);
+    for (let i = 0; i < 120 && !(await hears(bob)); i++) await wait(250);
+    assert.equal(await hears(bob), true, `Alice did not come back: ${errors}; ${log}`);
+  };
+  await rejoin();
+  await chimed(bob, arrival[1] + 1, "suspended");
+  await act(alice, "media:leave");
+  checks.push("someone coming back to your call plays the sound again");
+  // Bob turns the sound off in Audio Devices; Alice coming back is then silent.
+  await act(bob, "media:output");
+  const chime = bob.locator('#live-device-settings .live-checkbox:has-text("someone joins") input');
+  assert.equal(await chime.isChecked(), true, "the join sound is on unless you turn it off");
+  await chime.uncheck();
+  assert.equal(await bob.evaluate(() => JSON.parse(localStorage.getItem("sticktalk-call-devices")).joinSound), false);
+  await bob.locator(".live-device-dialog > .button.secondary").click();
+  await rejoin();
+  await wait(1500);
+  await chimed(bob, arrival[1] + 1, "suspended");
+  await act(alice, "media:leave");
+  checks.push("the join sound can be turned off, and that is remembered");
   await act(bob, "media:leave");
   assert.deepEqual(errors, []);
   for (const check of checks) console.log(`passed: ${check}`);
