@@ -98,6 +98,14 @@ pub enum AuditAction {
     StickerDelete,
     /// A moderator removed a member's server avatar or banner (`profiles.rs`).
     MemberProfileReset,
+    // Scheduled events and Stages (`schedule.rs`, `stage.rs`).
+    EventCreate,
+    EventUpdate,
+    EventCancel,
+    EventDelete,
+    StageStart,
+    StageUpdate,
+    StageEnd,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -141,6 +149,13 @@ impl AuditAction {
         Self::StickerUpdate,
         Self::StickerDelete,
         Self::MemberProfileReset,
+        Self::EventCreate,
+        Self::EventUpdate,
+        Self::EventCancel,
+        Self::EventDelete,
+        Self::StageStart,
+        Self::StageUpdate,
+        Self::StageEnd,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -185,6 +200,13 @@ impl AuditAction {
             Self::StickerUpdate => "sticker_update",
             Self::StickerDelete => "sticker_delete",
             Self::MemberProfileReset => "member_profile_reset",
+            Self::EventCreate => "event_create",
+            Self::EventUpdate => "event_update",
+            Self::EventCancel => "event_cancel",
+            Self::EventDelete => "event_delete",
+            Self::StageStart => "stage_start",
+            Self::StageUpdate => "stage_update",
+            Self::StageEnd => "stage_end",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -233,6 +255,13 @@ impl AuditAction {
             Self::StickerUpdate => "Updated a sticker",
             Self::StickerDelete => "Deleted a sticker",
             Self::MemberProfileReset => "Reset a server profile",
+            Self::EventCreate => "Created an event",
+            Self::EventUpdate => "Updated an event",
+            Self::EventCancel => "Cancelled an event",
+            Self::EventDelete => "Deleted an event",
+            Self::StageStart => "Started a Stage",
+            Self::StageUpdate => "Updated a Stage",
+            Self::StageEnd => "Ended a Stage",
         }
     }
 }
@@ -249,6 +278,8 @@ pub enum AuditTarget {
     Emoji,
     AutomodRule,
     Sticker,
+    /// A scheduled event (`schedule.rs`).
+    Event,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

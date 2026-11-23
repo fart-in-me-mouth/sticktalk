@@ -162,7 +162,7 @@ async fn joined(c: &mut SqliteConnection, out: &mut Deliveries, g: Id, u: Id) ->
     for ch in &detail.channels {
         if matches!(
             ch.kind,
-            ChannelKind::Text | ChannelKind::Voice | ChannelKind::Announcement
+            ChannelKind::Text | ChannelKind::Voice | ChannelKind::Announcement | ChannelKind::Stage
         ) {
             init_read(c, u, ch.id, true).await?;
             reads.push(read(c, u, ch.id).await?);
@@ -456,6 +456,11 @@ pub(crate) async fn execute(
             s.expression_features = true;
         }
     }
+    if matches!(req.command, Command::Schedule(_)) {
+        if let Some(s) = core.streams.get_mut(key) {
+            s.schedule_features = true;
+        }
+    }
     let mut replayed = false;
     let outcome: Result<CommandResult>=async {
         require(req.nonce>0&&req.nonce<=i64::MAX as u64,ErrorCode::InvalidRequest)?;
@@ -509,7 +514,7 @@ pub(crate) async fn execute(
                     let newly_visible=!old.iter().any(|o|o.id==ch.id);
                     let mut full=channel(&mut tx,ch.id).await?;full.summary=ch.clone();
                     out.push((vec![*v],Event::ChannelUpsert(full)));
-                    if newly_visible && matches!(ch.kind,ChannelKind::Text|ChannelKind::Voice|ChannelKind::Announcement) {init_read(&mut tx,*v,ch.id,true).await?;out.push((vec![*v],Event::ReadStateUpdated(read(&mut tx,*v,ch.id).await?)));}
+                    if newly_visible && matches!(ch.kind,ChannelKind::Text|ChannelKind::Voice|ChannelKind::Announcement|ChannelKind::Stage) {init_read(&mut tx,*v,ch.id,true).await?;out.push((vec![*v],Event::ReadStateUpdated(read(&mut tx,*v,ch.id).await?)));}
                 }
             }
         }
@@ -561,7 +566,7 @@ pub(crate) async fn execute(
                 core.emit_filtered(&[viewer], Event::PresenceUpdated(Presence { user_id: target, status: PresenceStatus::Offline }), |s| !was_base && s.interests.contains(&target))?;
             }
         }
-        if voice_snapshot { crate::voice::snapshot(core, &mut c, key, u).await?; }
+        if voice_snapshot { crate::voice::snapshot(core, &mut c, key, u).await?; crate::stage::snapshot(core, &mut c, key, u).await?; }
         sync_base_presence(&mut c, core, previous_base).await?;
         if subscription_changed {
             let base = base_presence(&mut c, u).await?;
@@ -747,6 +752,7 @@ pub(crate) async fn mutate(
         Content(cmd) => crate::content::mutate(c, core, key, u, cmd, out).await,
         Threads(cmd) => crate::threads::mutate(c, core, key, u, cmd, out).await,
         Expression(cmd) => crate::expression::mutate(c, core, key, u, cmd, out).await,
+        Schedule(cmd) => Box::pin(crate::schedule::mutate(c, core, key, u, cmd, out)).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
@@ -1318,6 +1324,7 @@ pub(crate) async fn mutate(
                 .execute(&mut *c)
                 .await?;
             joined(c, out, g, u).await?;
+            crate::schedule::joined_by_invite(c, i.id, u).await?;
             let i = invite(c, i.id).await?;
             if i.uses == i.max_uses {
                 sqlx::query("UPDATE invites SET inactive_notified=1 WHERE id=?")
@@ -1585,6 +1592,7 @@ pub(crate) async fn mutate(
                         | ChannelKind::Voice
                         | ChannelKind::Announcement
                         | ChannelKind::Forum
+                        | ChannelKind::Stage
                 ),
                 ErrorCode::InvalidRequest,
             )?;
@@ -1615,7 +1623,10 @@ pub(crate) async fn mutate(
             crate::threads::channel_created(c, ch, kind).await?;
             let messages = matches!(
                 kind,
-                ChannelKind::Text | ChannelKind::Voice | ChannelKind::Announcement
+                ChannelKind::Text
+                    | ChannelKind::Voice
+                    | ChannelKind::Announcement
+                    | ChannelKind::Stage
             );
             if messages {
                 for v in guild_users(c, g).await? {

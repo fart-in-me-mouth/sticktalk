@@ -307,6 +307,7 @@ pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Re
                 | ChannelKind::Voice
                 | ChannelKind::Announcement
                 | ChannelKind::Thread
+                | ChannelKind::Stage
         ),
         ErrorCode::InvalidRequest,
     )?;
@@ -530,6 +531,7 @@ pub async fn message(
     crate::content::decorate(c, u, &mut message).await?;
     crate::threads::decorate(c, u, &mut message).await?;
     crate::expression::decorate(c, u, &mut message).await?;
+    crate::stage::decorate(c, &mut message).await?;
     Ok(message)
 }
 pub async fn read(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<ReadState> {
@@ -565,7 +567,7 @@ pub async fn read_states(c: &mut SqliteConnection, u: Id) -> Result<Vec<ReadStat
                 | ChannelKind::Announcement
         ) {
             out.push(read(c, u, ch.id).await?);
-        } else if ch.kind == ChannelKind::Voice {
+        } else if matches!(ch.kind, ChannelKind::Voice | ChannelKind::Stage) {
             init_read(c, u, ch.id, true).await?;
             out.push(read(c, u, ch.id).await?);
         }
@@ -655,7 +657,7 @@ pub async fn ready(c: &mut SqliteConnection, core: &mut Core, key: &[u8], u: Id)
             .voice
             .values()
             .filter(|v| visible_channels.contains(&v.state.channel_id))
-            .filter(|v| v.joined && !v.dm())
+            .filter(|v| v.joined && !v.dm() && !v.listener)
             .map(|v| v.state.clone())
             .collect(),
     })

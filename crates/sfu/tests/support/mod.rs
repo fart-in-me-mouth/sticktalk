@@ -223,6 +223,83 @@ impl Network {
         );
         index
     }
+    /// A Stage audience member as the web app makes one: one recvonly audio
+    /// m-line, no data channel, no publications. Connects on the next advance.
+    pub fn add_audio_listener(&mut self) -> usize {
+        let index = self.peers.len();
+        let key = session(index as u64 + 1);
+        self.sfu
+            .handle_signal(
+                key,
+                1,
+                VoiceSignal::Join {
+                    channel_id: Id(1),
+                    capabilities: caps(),
+                },
+                self.now,
+            )
+            .unwrap();
+        self.collect_sfu();
+        let address: SocketAddr = format!("127.0.0.1:{}", 55000 + index).parse().unwrap();
+        let mut rtc = rtc_config().build(self.now);
+        rtc.add_local_candidate(Candidate::host(address, "udp").unwrap())
+            .unwrap();
+        drain_initial(&mut rtc);
+        let mut api = rtc.sdp_api();
+        let audio = api.add_media(MediaKind::Audio, Direction::RecvOnly, None, None, None);
+        let (offer, pending) = api.apply().unwrap();
+        drain_initial(&mut rtc);
+        // Never used: this peer has no data channel.
+        let channel = rtc_config()
+            .build(self.now)
+            .sdp_api()
+            .add_channel("unused".into());
+        self.sfu
+            .handle_signal(
+                key,
+                2,
+                VoiceSignal::Offer {
+                    sdp: offer.to_sdp_string(),
+                    tracks: vec![],
+                },
+                self.now,
+            )
+            .unwrap();
+        let output: Vec<_> = self.sfu.drain().collect();
+        let sdp = output
+            .iter()
+            .find_map(|o| match o {
+                Out::Signal {
+                    to,
+                    event: VoiceEvent::Answer { sdp },
+                    ..
+                } if *to == key => Some(sdp.clone()),
+                _ => None,
+            })
+            .expect("SDP answer");
+        for out in output {
+            self.queue_out(out);
+        }
+        rtc.sdp_api()
+            .accept_answer(pending, SdpAnswer::from_sdp_string(&sdp).unwrap())
+            .unwrap();
+        self.peers.push(Peer {
+            rtc,
+            address,
+            key,
+            audio,
+            video: audio,
+            screen: audio,
+            channel,
+            events: vec![],
+            deadline: self.now,
+            received: 0,
+            frames: 0,
+            control: vec![],
+        });
+        self.collect_peer(index);
+        index
+    }
     pub fn signal(
         &mut self,
         index: usize,

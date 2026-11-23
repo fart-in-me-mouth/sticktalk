@@ -152,6 +152,8 @@ pub enum ChannelKind {
     Forum,
     /// A thread or forum post. Never listed with ordinary channels.
     Thread,
+    /// One-to-many audio: speakers and an audience (`stage.rs`).
+    Stage,
 }
 
 /// Topic is deliberately excluded from the initial sidebar snapshot.

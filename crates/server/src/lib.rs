@@ -31,8 +31,10 @@ mod moderation;
 mod nav;
 pub mod profiles;
 mod reauth;
+mod schedule;
 mod search;
 mod slowmode;
+mod stage;
 pub mod storage_node;
 #[cfg(test)]
 mod storage_tests;
@@ -60,6 +62,8 @@ pub fn router(app: App) -> axum::Router {
     moderation::spawn(&app);
     authsec::spawn(&app);
     threads::spawn(&app);
+    stage::spawn(&app);
+    schedule::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]

@@ -53,6 +53,13 @@ bitflags::bitflags! {
         const USE_EXTERNAL_EMOJI = 1 << 44;
         /// Send stickers from other servers here (granted to @everyone by default).
         const USE_EXTERNAL_STICKERS = 1 << 45;
+        // Stage channels and scheduled events (`stage.rs`, `schedule.rs`).
+        /// Create, edit, start, cancel and delete any scheduled event.
+        const MANAGE_EVENTS = 1 << 52;
+        /// Create events, and manage the ones you created.
+        const CREATE_EVENTS = 1 << 53;
+        /// Raise your hand on a Stage (granted to @everyone by default).
+        const REQUEST_TO_SPEAK = 1 << 54;
     }
 }
 

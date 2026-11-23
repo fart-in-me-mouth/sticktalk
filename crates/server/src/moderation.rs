@@ -1204,7 +1204,10 @@ pub(crate) async fn mutate(
                 .guild_id
                 .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
             require(
-                matches!(channel.summary.kind, ChannelKind::Text | ChannelKind::Voice),
+                matches!(
+                    channel.summary.kind,
+                    ChannelKind::Text | ChannelKind::Voice | ChannelKind::Stage
+                ),
                 ErrorCode::InvalidRequest,
             )?;
             let was = age_restricted_flag(c, ch).await?;

@@ -676,5 +676,68 @@ pub(crate) async fn reminder(app: &App, user: Id, channel: Id, message: Id) -> R
     Ok(())
 }
 
+/// A scheduled event `user` is interested in is starting (`schedule.rs`).
+/// Generic lock-screen text, only to devices they are not using, never in
+/// Do Not Disturb or when they muted the server or turned it off.
+pub(crate) fn event_starting(app: &App, user: Id, guild: Id, event: Id) {
+    let app = app.clone();
+    tokio::spawn(async move {
+        let stop = app.0.shutdown.clone();
+        tokio::select! {_=stop.cancelled()=>{},_=deliver_event(&app,user,guild,event)=>{}}
+    });
+}
+async fn deliver_event(app: &App, user: Id, guild: Id, event: Id) -> Result<()> {
+    if focused(&*app.0.core.lock().await, user) {
+        return Ok(());
+    }
+    let mut c = app.0.pool.acquire().await?;
+    db::enabled(&mut c, user).await?;
+    if !crate::schedule::push_allowed(&mut c, user, guild).await? {
+        return Ok(());
+    }
+    let rows=sqlx::query("SELECT p.id,p.endpoint,p.p256dh,p.auth FROM push_subscriptions p JOIN sessions s ON s.token_hash=p.session_hash WHERE s.user_id=? AND s.expires_at>? LIMIT 25").bind(db::id(user)?).bind(state::now() as i64).fetch_all(&mut *c).await?;
+    drop(c);
+    let payload = serde_json::to_vec(&PushPayload {
+        url: format!("/?event={}", event.0),
+        channel_id: event,
+        message_id: event,
+        count: 1,
+        title: "StickTalk".into(),
+        body: "An event is starting".into(),
+    })
+    .map_err(|_| crypto_error())?;
+    let topic = URL_SAFE_NO_PAD
+        .encode(&state::hash(format!("event:{}:{}", user.0, event.0).as_bytes())[..16]);
+    for row in rows {
+        let endpoint = app.0.push.endpoint(&row.get::<String, _>("endpoint"))?;
+        let body = encrypt(
+            &decode(&row.get::<String, _>("p256dh"), 65)?,
+            &decode(&row.get::<String, _>("auth"), 16)?,
+            &payload,
+        )?;
+        let response = app
+            .0
+            .push
+            .client
+            .post(endpoint.clone())
+            .header("authorization", app.0.push.authorization(&endpoint)?)
+            .header("content-encoding", "aes128gcm")
+            .header("content-type", "application/octet-stream")
+            .header("ttl", "1800")
+            .header("urgency", "normal")
+            .header("topic", topic.clone())
+            .body(body)
+            .send()
+            .await;
+        if response.is_ok_and(|r| matches!(r.status().as_u16(), 404 | 410)) {
+            sqlx::query("DELETE FROM push_subscriptions WHERE id=?")
+                .bind(row.get::<String, _>("id"))
+                .execute(&app.0.pool)
+                .await?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests;
