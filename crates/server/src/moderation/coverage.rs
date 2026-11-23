@@ -178,6 +178,58 @@ pub(crate) async fn name_check(
     ))
 }
 
+/// Text someone shows the others in an activity (whiteboard text, a guess, a
+/// result) in voice channel `ch` of server `g`: the channel's keyword rules
+/// that block apply (its exemptions too; Manage Server is exempt), and a block
+/// is logged like a blocked message (`activities.rs`).
+pub(crate) async fn activity_text_check(
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    u: Id,
+    g: Id,
+    ch: Id,
+    text: &str,
+) -> Result<()> {
+    if acl::evaluate(c, u, g, Some(ch))
+        .await?
+        .contains(Permissions::MANAGE_GUILD)
+    {
+        return Ok(());
+    }
+    let roles = acl::role_ids(c, g, u).await?;
+    let lineage = acl::lineage(c, g, ch).await?;
+    let Some(h) = blocking_keyword(core, c, g, &roles, &lineage, text).await? else {
+        return Ok(());
+    };
+    let mut tx = c.begin().await?;
+    ensure_automod_user(&mut tx).await?;
+    let author = user(&mut tx, u).await?;
+    audit::write(
+        &mut tx,
+        AUTOMOD_USER,
+        audit::Entry::new(g, AuditAction::AutomodBlock, AuditTarget::User, Some(u))
+            .named(author.username)
+            .change("rule", None, Some(h.rule.name.clone()))
+            .change(
+                "activity_text",
+                None,
+                Some(text.chars().take(500).collect()),
+            )
+            .reason(Some(format!(
+                "Text in an activity was flagged because {}.",
+                h.why
+            ))),
+    )
+    .await?;
+    tx.commit().await?;
+    Err(denied(
+        "automod",
+        h.rule.actions.message.clone().unwrap_or_else(|| {
+            format!("This server's AutoMod blocked this text because {}.", h.why)
+        }),
+    ))
+}
+
 /// An announcement copy arriving from another server is screened by the
 /// receiving server's keyword rules (its channel exemptions apply; nobody in
 /// the receiving server wrote it, so no member is exempt). A blocked copy is

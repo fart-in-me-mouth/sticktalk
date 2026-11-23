@@ -63,6 +63,9 @@ bitflags::bitflags! {
         /// Send messages read aloud to the people viewing the channel (`/tts`,
         /// `themes.rs`); on for @everyone by default.
         const SEND_TTS_MESSAGES = 1 << 56;
+        /// Launch and take part in activities in a guild voice channel
+        /// (`activities.rs`); on for @everyone by default.
+        const USE_ACTIVITIES = 1 << 48;
     }
 }
 

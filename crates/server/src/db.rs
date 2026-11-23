@@ -535,6 +535,7 @@ pub async fn message(
     crate::threads::decorate(c, u, &mut message).await?;
     crate::expression::decorate(c, u, &mut message).await?;
     crate::stage::decorate(c, &mut message).await?;
+    crate::activities::decorate(c, &mut message).await?;
     Ok(message)
 }
 pub async fn read(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<ReadState> {
