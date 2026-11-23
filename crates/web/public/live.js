@@ -334,7 +334,9 @@ export function beforeRender() {
       ...document.querySelectorAll(
         ".live-modal input:not([type=file]),.live-modal select,.live-modal textarea",
       ),
-    ].filter(e=>e.dataset.dirty==='true'||e.closest('form')?.dataset.dirty==='true').map((e) => {
+    // The profile editor keeps its own fields across renders (profiles.js); a
+    // snapshot replayed by a later, unrelated mutation would undo typing there.
+    ].filter(e=>(e.dataset.dirty==='true'||e.closest('form')?.dataset.dirty==='true')&&!e.closest('[data-profiles-editor]')).map((e) => {
       const selector = e.id ? `#${CSS.escape(e.id)}` :
         ['group-user','member-role','role-bit','settings-search'].map(key => e.hasAttribute(`data-${key}`) ? `[data-${key}="${CSS.escape(e.getAttribute(`data-${key}`))}"]` : null).find(Boolean);
       return [selector, e.value, e.type === 'checkbox' ? e.checked : null];

@@ -261,14 +261,21 @@ pub(super) fn submit(app: Shared, form: &str) {
     let (primary, accent) = tint();
     match form {
         "profiles-user" => {
-            let display = read("pf-display-name").trim().to_owned();
-            if Some(display.as_str()) != me.display_name.as_deref().or(Some("")) {
+            let display = read("f-name").trim().to_owned();
+            let status = read("f-value").trim().to_owned();
+            let text = |s: String| {
+                if s.is_empty() {
+                    Patch::Clear
+                } else {
+                    Patch::Set(s)
+                }
+            };
+            if display != me.display_name.clone().unwrap_or_default()
+                || status != me.status_text.clone().unwrap_or_default()
+            {
                 a.command(Command::UpdateProfile(ProfilePatch {
-                    display_name: if display.is_empty() {
-                        Patch::Clear
-                    } else {
-                        Patch::Set(display)
-                    },
+                    display_name: text(display),
+                    status_text: text(status),
                     ..Default::default()
                 }));
             }
@@ -290,7 +297,7 @@ pub(super) fn submit(app: Shared, form: &str) {
         }
         "profiles-server" => {
             let Some(g) = a.profiles.guild else { return };
-            let nickname = read("pf-display-name").trim().to_owned();
+            let nickname = read("pf-nickname").trim().to_owned();
             let current = a
                 .profiles
                 .mine

@@ -134,6 +134,12 @@
   opacity: 1;
 }
 
+/* A profile card plays its avatar and banner while it is open. */
+.profile-card .avatar-anim {
+  background-image: var(--anim);
+  opacity: 1;
+}
+
 /* ---- Nameplates (member list, direct messages) ------------------------- */
 :is(.member-row, .channel-row):has(> .nameplate) {
   position: relative;
@@ -204,6 +210,8 @@
 .profile-card .markdown a { color: inherit; text-decoration: underline; }
 .profile-banner-box {
   position: relative;
+  width: 100%;
+  height: auto;
   aspect-ratio: 5 / 2;
   overflow: hidden;
   background: var(--banner, var(--color-brand-avatar));
@@ -341,10 +349,13 @@
 
 /* Crop dialog (public/profiles.js). */
 .crop-dialog { width: min(480px, calc(100vw - 32px)); }
-.crop-stage { position: relative; margin: 16px auto; touch-action: none; cursor: grab; }
+.crop-stage { position: relative; margin: 16px auto; overflow: hidden; border-radius: 8px; touch-action: none; cursor: grab; }
+.crop-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.crop-dialog input[type="range"] { width: 100%; accent-color: var(--accent); }
 .crop-stage:active { cursor: grabbing; }
 .crop-stage canvas { display: block; width: 100%; height: 100%; border-radius: 8px; }
-.crop-mask { position: absolute; inset: 0; pointer-events: none; border-radius: 8px; box-shadow: inset 0 0 0 9999px rgb(0 0 0 / 0.55); }
+.crop-mask { position: absolute; inset: 0; pointer-events: none; border-radius: 2px; box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55), inset 0 0 0 2px rgb(255 255 255 / 0.8); }
+.crop-stage { padding: 0; }
 .crop-mask.round { border-radius: 9999px; }
 
 /* Settings > Appearance > "Reduce cosmetics": other people's decorations,

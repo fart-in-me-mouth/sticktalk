@@ -2091,6 +2091,8 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                                         | LaunchCommand::UpdateDevice { .. }
                                         | LaunchCommand::PinMessage { .. }
                                         | LaunchCommand::SetNotifications(_)
+                                        // Saved from the profile editor, which stays open.
+                                        | LaunchCommand::SetNickname { .. }
                                 )
                         )
                     ) {
