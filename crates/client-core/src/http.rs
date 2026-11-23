@@ -73,19 +73,15 @@ pub struct Http<A> {
     pub adapter: A,
 }
 pub fn validate_server(server: &str) -> Result<String, String> {
-    let url =
-        url::Url::parse(server).map_err(|_| "Enter a valid http(s) server address".to_string())?;
-    if url.scheme() != "https"
-        && !(url.scheme() == "http"
-            && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")))
+    let url = crate::urls::parse(server)
+        .ok_or_else(|| "Enter a valid http(s) server address".to_string())?;
+    if url.scheme != "https"
+        && !(url.scheme == "http"
+            && matches!(url.host.as_str(), "127.0.0.1" | "localhost" | "[::1]"))
     {
         return Err("Use HTTPS; HTTP is allowed only on loopback".into());
     }
-    if !url.username().is_empty()
-        || url.password().is_some()
-        || url.query().is_some()
-        || url.fragment().is_some()
-    {
+    if url.credentials || url.query || url.fragment {
         return Err("Server address must not contain credentials, query or fragment".into());
     }
     Ok(server.trim_end_matches('/').to_string())

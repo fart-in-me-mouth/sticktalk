@@ -264,7 +264,11 @@ pub(super) fn event(a: &mut App, e: ContentEvent) {
             if let Some((m, answer, _, _)) = a.content.voters.clone() {
                 if m == message_id && a.dialog.starts_with("poll-voters:") {
                     if let Some(app) = a.owner.upgrade() {
-                        spawn_local(async move { voters(app, m, answer, false).await });
+                        features::defer(
+                            app,
+                            features::Feature::Content,
+                            features::Call::Other("voters", format!("{},{answer}", m.0)),
+                        );
                     }
                 }
             }
@@ -387,7 +391,7 @@ async fn gif_favorites(app: Shared, epoch: u64) {
             .await
             .ok()
             .and_then(|v| v.as_string())
-            .and_then(|s| serde_json::from_str::<GifPage>(&s).ok()),
+            .and_then(|s| serde_json::from_slice::<GifPage>(s.as_bytes()).ok()),
             GifCapability::Disabled => None,
         };
         items.extend(page.map(|p| p.items).unwrap_or_default());
@@ -954,4 +958,69 @@ pub(super) fn submit(app: Shared, form: &str) {
         }
         _ => {}
     }
+}
+
+/// The content feature's one entry point: everything above is reached only
+/// from here (or from the small helpers the core calls), so it is in its own
+/// WASM module (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    content,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    match call {
+        Call::Action(kind, arg) => action(app, &kind, &arg),
+        Call::Other("voters", arg) => {
+            if let Some((m, answer)) = arg
+                .split_once(',')
+                .and_then(|(m, a)| Some((id(m)?, a.parse().ok()?)))
+            {
+                spawn_local(async move { voters(app, m, answer, false).await });
+            }
+        }
+        Call::Submit(form) => submit(app, &form),
+        Call::Opened(name) => opened(app, &name),
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// The content feature's state: its events, the answers to its commands and the fresh snapshot (Ready).
+/// A separate, small split entry: keeping a feature's state current does not
+/// load its pages and forms (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    content_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    use features::{Call, Reply};
+    match call {
+        Call::Ready => ready(app),
+        Call::Event(raw) => {
+            let Ok(e) = crate::inbound::feature::content_event(&raw.data) else {
+                return Ok(false);
+            };
+            event(&mut app.borrow_mut(), e);
+        }
+        Call::Answer(op, Reply::Raw(raw)) => {
+            let Ok(result) = crate::inbound::feature::content_result(&raw.data) else {
+                return Ok(false);
+            };
+            let mut a = app.borrow_mut();
+            answered(&mut a, op.as_ref(), result);
+            a.touch();
+        }
+
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// Dialogs whose opening this feature handles (`opened`).
+pub(super) fn owns_dialog(name: &str) -> bool {
+    name == "poll" || name.starts_with("forward:") || name == "gif"
 }

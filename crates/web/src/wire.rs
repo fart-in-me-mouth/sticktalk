@@ -127,6 +127,189 @@ pub fn stringify_ids(v: &mut serde_json::Value) {
         _ => {}
     }
 }
+/// MessagePack for the messages every session sends without anyone doing
+/// anything (identify, heartbeats, focus, the subscriptions after Ready, the
+/// device name), and a few small frequent commands, written by hand. The
+/// full command encoder (every command's serializer) then downloads only
+/// with a command a person sends. Byte for byte what `rmp_serde` writes;
+/// None for anything else.
+pub fn encode_small(nonce: Nonce, msg: Small<'_>) -> Option<Vec<u8>> {
+    let mut w = Writer(Vec::with_capacity(64));
+    match msg {
+        Small::Message(ClientMsg::Identify(i)) => {
+            w.tag("identify");
+            let fields = 3 + usize::from(i.launch_features) + usize::from(i.text_features);
+            w.map(fields);
+            w.str("version").uint(u64::from(i.version));
+            w.str("token").str(&i.token);
+            w.str("resume");
+            match &i.resume {
+                None => {
+                    w.nil();
+                }
+                Some(c) => {
+                    w.map(2).str("stream_id").str(&c.stream_id);
+                    w.str("seq").uint(c.seq);
+                }
+            }
+            if i.launch_features {
+                w.str("launch_features").bool(true);
+            }
+            if i.text_features {
+                w.str("text_features").bool(true);
+            }
+        }
+        Small::Message(ClientMsg::Heartbeat(h)) => {
+            w.tag("heartbeat").map(2).str("nonce").uint(h.nonce);
+            w.str("last_seq").uint(h.last_seq);
+        }
+        Small::Message(ClientMsg::Focus { focused }) => {
+            w.tag("focus").map(1).str("focused").bool(*focused);
+        }
+        Small::Message(_) => return None,
+        Small::Command(command) => {
+            w.tag("command")
+                .map(2)
+                .str("nonce")
+                .uint(nonce)
+                .str("command");
+            match command {
+                Command::Content(ContentCommand::Subscribe) => w.unit_in("content", "subscribe"),
+                Command::Threads(ThreadCommand::Subscribe) => w.unit_in("threads", "subscribe"),
+                Command::Expression(ExpressionCommand::Subscribe) => {
+                    w.unit_in("expression", "subscribe")
+                }
+                Command::Privacy(PrivacyCommand::Subscribe) => w.unit_in("privacy", "subscribe"),
+                Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe)) => {
+                    w.tag("launch").unit_in("moderation", "subscribe")
+                }
+                Command::Launch(LaunchCommand::UpdateDevice {
+                    device_name,
+                    platform,
+                }) => {
+                    w.tag("launch").tag("update_device").map(2);
+                    w.str("device_name").str(device_name);
+                    w.str("platform").str(platform);
+                }
+                Command::SubscribeGuild {
+                    guild_id,
+                    presence_user_ids,
+                } => {
+                    w.tag("subscribe_guild").map(2).str("guild_id");
+                    match guild_id {
+                        Some(g) => w.uint(g.0),
+                        None => w.nil(),
+                    };
+                    w.str("presence_user_ids").array(presence_user_ids.len());
+                    for u in presence_user_ids {
+                        w.uint(u.0);
+                    }
+                }
+                Command::MarkRead {
+                    channel_id,
+                    message_id,
+                } => {
+                    w.tag("mark_read")
+                        .map(2)
+                        .str("channel_id")
+                        .uint(channel_id.0);
+                    w.str("message_id").uint(message_id.0);
+                }
+                Command::Typing { channel_id } => {
+                    w.tag("typing").map(1).str("channel_id").uint(channel_id.0);
+                }
+                _ => return None,
+            }
+        }
+    }
+    Some(w.0)
+}
+/// What `encode_small` writes.
+pub enum Small<'a> {
+    Message(&'a ClientMsg),
+    Command(&'a Command),
+}
+struct Writer(Vec<u8>);
+impl Writer {
+    fn len(&mut self, n: usize, fix: u8, fix_max: usize, m16: u8, m32: u8) -> &mut Self {
+        if n <= fix_max {
+            self.0.push(fix | n as u8);
+        } else if n <= 0xffff {
+            self.0.push(m16);
+            self.0.extend_from_slice(&(n as u16).to_be_bytes());
+        } else {
+            self.0.push(m32);
+            self.0.extend_from_slice(&(n as u32).to_be_bytes());
+        }
+        self
+    }
+    fn map(&mut self, n: usize) -> &mut Self {
+        self.len(n, 0x80, 15, 0xde, 0xdf)
+    }
+    fn array(&mut self, n: usize) -> &mut Self {
+        self.len(n, 0x90, 15, 0xdc, 0xdd)
+    }
+    fn str(&mut self, s: &str) -> &mut Self {
+        if s.len() <= 31 {
+            self.0.push(0xa0 | s.len() as u8);
+        } else if s.len() <= 0xff {
+            self.0.extend_from_slice(&[0xd9, s.len() as u8]);
+        } else {
+            self.len(s.len(), 0, 0, 0xda, 0xdb);
+        }
+        self.0.extend_from_slice(s.as_bytes());
+        self
+    }
+    fn uint(&mut self, v: u64) -> &mut Self {
+        match v {
+            0..=0x7f => self.0.push(v as u8),
+            0x80..=0xff => self.0.extend_from_slice(&[0xcc, v as u8]),
+            0x100..=0xffff => {
+                self.0.push(0xcd);
+                self.0.extend_from_slice(&(v as u16).to_be_bytes());
+            }
+            0x1_0000..=0xffff_ffff => {
+                self.0.push(0xce);
+                self.0.extend_from_slice(&(v as u32).to_be_bytes());
+            }
+            _ => {
+                self.0.push(0xcf);
+                self.0.extend_from_slice(&v.to_be_bytes());
+            }
+        }
+        self
+    }
+    fn bool(&mut self, v: bool) -> &mut Self {
+        self.0.push(if v { 0xc3 } else { 0xc2 });
+        self
+    }
+    fn nil(&mut self) -> &mut Self {
+        self.0.push(0xc0);
+        self
+    }
+    /// The start of an adjacently tagged variant with content: `{type, data: `.
+    fn tag(&mut self, tag: &str) -> &mut Self {
+        self.map(2).str("type").str(tag).str("data")
+    }
+    /// `{type: outer, data: {type: inner}}`: a unit variant inside a variant.
+    fn unit_in(&mut self, outer: &str, inner: &str) {
+        self.tag(outer).map(1).str("type").str(inner);
+    }
+}
+pub fn encode_message(msg: &ClientMsg) -> Result<Vec<u8>, String> {
+    rmp_serde::to_vec_named(msg).map_err(|_| "Could not encode command".to_string())
+}
+/// `ClientMsg::Command(CommandRequest { nonce, command })`, byte for byte,
+/// from a borrowed command (the app keeps each pending command only once).
+pub fn encode_command(nonce: Nonce, command: &Command) -> Result<Vec<u8>, String> {
+    #[derive(serde::Serialize)]
+    #[serde(tag = "type", content = "data", rename_all = "snake_case")]
+    enum Borrowed<'a> {
+        Command { nonce: Nonce, command: &'a Command },
+    }
+    rmp_serde::to_vec_named(&Borrowed::Command { nonce, command })
+        .map_err(|_| "Could not encode command".to_string())
+}
 pub fn decode_signal(raw: &str) -> Result<VoiceSignal, String> {
     fn numbers(v: &mut serde_json::Value) {
         match v {
@@ -247,6 +430,97 @@ pub const EMPTY_CALL_SNAPSHOT: &[u8] = b"\x82\xa4type\xadcall_snapshot\xa4data\x
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn small_messages_are_written_exactly_as_rmp_serde_writes_them() {
+        let owned = |nonce, command: Command| {
+            encode_message(&ClientMsg::Command(CommandRequest { nonce, command })).unwrap()
+        };
+        let commands = [
+            Command::Content(ContentCommand::Subscribe),
+            Command::Threads(ThreadCommand::Subscribe),
+            Command::Expression(ExpressionCommand::Subscribe),
+            Command::Privacy(PrivacyCommand::Subscribe),
+            Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe)),
+            Command::Launch(LaunchCommand::UpdateDevice {
+                device_name: "Chrome on Windows".into(),
+                platform: "x".repeat(40),
+            }),
+            Command::SubscribeGuild {
+                guild_id: Some(Id(250565579184799744)),
+                presence_user_ids: (0..20).map(|i| Id(i * 70_000)).collect(),
+            },
+            Command::SubscribeGuild {
+                guild_id: None,
+                presence_user_ids: vec![],
+            },
+            Command::MarkRead {
+                channel_id: Id(300),
+                message_id: Id(u64::MAX >> 1),
+            },
+            Command::Typing {
+                channel_id: Id(127),
+            },
+        ];
+        for (i, command) in commands.into_iter().enumerate() {
+            let nonce = [0, 5, 200, 70_000, u64::MAX >> 1][i % 5];
+            assert_eq!(
+                encode_small(nonce, Small::Command(&command)).as_deref(),
+                Some(owned(nonce, command.clone()).as_slice()),
+                "{command:?}"
+            );
+        }
+        for msg in [
+            ClientMsg::Identify(Identify {
+                version: PROTOCOL_VERSION,
+                token: String::new(),
+                resume: None,
+                launch_features: true,
+                text_features: true,
+            }),
+            ClientMsg::Identify(Identify {
+                resume: Some(ResumeCursor {
+                    stream_id: "f0718bda130a48e5b8362db1c56ac7ea".into(),
+                    seq: 1234,
+                }),
+                ..Default::default()
+            }),
+            ClientMsg::Heartbeat(Heartbeat {
+                nonce: u64::MAX >> 1,
+                last_seq: 99,
+            }),
+            ClientMsg::Focus { focused: false },
+        ] {
+            assert_eq!(
+                encode_small(0, Small::Message(&msg)).unwrap(),
+                encode_message(&msg).unwrap(),
+                "{msg:?}"
+            );
+        }
+        assert!(encode_small(
+            1,
+            Small::Command(&Command::Content(ContentCommand::EndPoll {
+                channel_id: Id(1),
+                message_id: Id(2)
+            }))
+        )
+        .is_none());
+    }
+    #[test]
+    fn a_borrowed_command_encodes_exactly_like_the_owned_message() {
+        let command = Command::SendMessage(MessageDraft {
+            channel_id: Id(4),
+            content: "hi".into(),
+            reply_to: Some(Id(2)),
+            attachment_ids: vec![Id(9)],
+            mention_ids: vec![],
+        });
+        let owned = encode_message(&ClientMsg::Command(CommandRequest {
+            nonce: 77,
+            command: command.clone(),
+        }))
+        .unwrap();
+        assert_eq!(encode_command(77, &command).unwrap(), owned);
+    }
     #[test]
     fn the_empty_call_snapshot_bytes_match_the_encoding() {
         let encoded = rmp_serde::to_vec_named(&VoiceEvent::CallSnapshot { calls: vec![] }).unwrap();

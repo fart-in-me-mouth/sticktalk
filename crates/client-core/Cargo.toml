@@ -25,4 +25,4 @@ futures-channel = "0.3"
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window", "Performance", "WebSocket", "BinaryType", "MessageEvent", "CloseEvent", "Event", "Request", "RequestInit", "RequestMode", "RequestRedirect", "RequestCredentials", "Response", "Headers", "ReadableStream", "ReadableStreamDefaultReader", "Blob", "Crypto", "AbortController", "AbortSignal"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Performance", "WebSocket", "BinaryType", "MessageEvent", "CloseEvent", "Event", "Request", "RequestInit", "RequestMode", "RequestRedirect", "RequestCredentials", "Response", "Headers", "ReadableStream", "ReadableStreamDefaultReader", "Blob", "Crypto", "AbortController", "AbortSignal", "Url"] }

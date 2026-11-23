@@ -154,9 +154,8 @@ fn closing(source: &str, delimiter: &str) -> Option<usize> {
     None
 }
 fn safe_url(s: &str) -> bool {
-    url::Url::parse(s).is_ok_and(|u| {
-        matches!(u.scheme(), "https" | "http") && !u.host_str().unwrap_or_default().is_empty()
-    })
+    crate::urls::parse(s)
+        .is_some_and(|u| matches!(u.scheme.as_str(), "https" | "http") && !u.host.is_empty())
 }
 fn inline(
     mut s: &str,

@@ -108,7 +108,7 @@ pub(super) fn ready(app: Shared) {
         if a.expression.recent.is_empty() {
             a.expression.recent = storage_get("sticktalk-recent-emoji")
                 .filter(|v| v.len() <= 4096)
-                .and_then(|v| serde_json::from_str::<Vec<String>>(&v).ok())
+                .and_then(|v| serde_json::from_slice::<Vec<String>>(v.as_bytes()).ok())
                 .unwrap_or_default()
                 .into_iter()
                 .filter(|e| e.len() <= 64)
@@ -116,7 +116,7 @@ pub(super) fn ready(app: Shared) {
                 .collect();
             a.expression.recent_stickers = storage_get("sticktalk-recent-stickers")
                 .filter(|v| v.len() <= 1024)
-                .and_then(|v| serde_json::from_str::<Vec<u64>>(&v).ok())
+                .and_then(|v| serde_json::from_slice::<Vec<u64>>(v.as_bytes()).ok())
                 .unwrap_or_default()
                 .into_iter()
                 .map(Id)
@@ -216,7 +216,11 @@ fn refresh_admin(a: &App, guild: Id) {
         .is_some_and(|(g, _)| *g == guild)
     {
         if let Some(app) = a.owner.upgrade() {
-            spawn_local(async move { load_admin(app, guild).await });
+            features::defer(
+                app,
+                features::Feature::Expression,
+                features::Call::Other("admin", guild.0.to_string()),
+            );
         }
     }
 }
@@ -295,9 +299,17 @@ fn resolve_soon(a: &App) {
     if a.expression.resolving.replace(true) {
         return;
     }
-    let owner = a.owner.clone();
+    // Called while rendering: the lookup runs in this feature's module, later.
+    if let Some(app) = a.owner.upgrade() {
+        features::defer(
+            app,
+            features::Feature::Expression,
+            features::Call::Other("resolve", String::new()),
+        );
+    }
+}
+fn resolve(app: Shared) {
     spawn_local(async move {
-        let Some(app) = owner.upgrade() else { return };
         let (http, epoch, ids) = {
             let a = app.borrow();
             let mut wanted = a.expression.wanted.borrow_mut();
@@ -1104,4 +1116,67 @@ fn pictographic(v: u32) -> bool {
             | 0x2139
             | 0x24C2
     )
+}
+
+/// The expression feature's one entry point (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    expression,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    match call {
+        Call::Action(kind, arg) => action(app, &kind, &arg),
+        Call::Other("admin", g) => {
+            if let Some(g) = id(&g) {
+                spawn_local(async move { load_admin(app, g).await });
+            }
+        }
+        Call::Submit(form) => submit(app, &form),
+        Call::Opened(name) => opened(app, &name),
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// The expression feature's state: its events, the answers to its commands and the fresh snapshot (Ready).
+/// A separate, small split entry: keeping a feature's state current does not
+/// load its pages and forms (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    expression_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    use features::{Call, Reply};
+    match call {
+        Call::Ready => ready(app),
+        Call::Event(raw) => {
+            let Ok(e) = crate::inbound::feature::expression_event(&raw.data) else {
+                return Ok(false);
+            };
+            event(&mut app.borrow_mut(), e);
+        }
+        Call::Answer(Some(op), reply) => {
+            let result = match reply {
+                Reply::Core(result) => result,
+                Reply::Raw(raw) => match crate::inbound::feature::expression_result(&raw.data) {
+                    Ok(r) => CommandResult::Expression(r),
+                    Err(()) => return Ok(false),
+                },
+            };
+            answered(app, op, result);
+        }
+        Call::Other("resolve", _) => resolve(app),
+
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// Dialogs whose opening this feature handles (`opened`).
+pub(super) fn owns_dialog(name: &str) -> bool {
+    name == "emoji" || name == "stickers" || name.starts_with("emoji-react:") || admin_page(name)
 }

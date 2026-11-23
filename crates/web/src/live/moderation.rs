@@ -1213,3 +1213,63 @@ pub(super) fn clock(ms: u64) -> String {
         format!("{}:{:02}", s / 60, s % 60)
     }
 }
+
+/// The moderation feature's one entry point (`features.rs`). The state the
+/// first screen needs (slowmode, age gates, timeouts) is fetched by the core
+/// helpers above; pages, forms and events are here.
+#[leptos::wasm_split::wasm_split(
+    moderation,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    match call {
+        Call::Action(_, arg) => action(app, &arg),
+        Call::Submit(form) => submit(app, &form),
+        Call::Opened(name) => opened(app, &name),
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// The moderation feature's state: its events, the answers to its commands.
+/// A separate, small split entry: keeping a feature's state current does not
+/// load its pages and forms (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    moderation_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    use features::{Call, Reply};
+    match call {
+        Call::Event(raw) => {
+            let Ok(e) = inbound::de::<ModerationEvent>(&raw.data) else {
+                return Ok(false);
+            };
+            event(&mut app.borrow_mut(), &e);
+        }
+        Call::Answer(Some(op), reply) => {
+            let result = match reply {
+                Reply::Core(result) => result,
+                Reply::Raw(raw) => match inbound::de::<ModerationResult>(&raw.data) {
+                    Ok(r) => CommandResult::Moderation(r),
+                    Err(()) => return Ok(false),
+                },
+            };
+            answered(app, op, result);
+        }
+
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// Dialogs whose opening this feature handles (`opened`).
+pub(super) fn owns_dialog(name: &str) -> bool {
+    matches!(name, "audit-log" | "automod" | "safety" | "prune")
+        || name.starts_with("automod-rule:")
+        || name.starts_with("channel-perms:")
+}

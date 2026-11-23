@@ -3,6 +3,7 @@ mod authsec;
 mod calls;
 mod content;
 mod expression;
+mod features;
 mod history_cache;
 mod moderation;
 mod nav;
@@ -12,12 +13,12 @@ mod profiles;
 mod threads;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
+use crate::inbound::{self, Inbound};
 use futures_channel::mpsc;
 use futures_util::{FutureExt, SinkExt, StreamExt};
 use leptos::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 use sticktalk_client_core::{
-    backend::decode,
     http::{Body, Http, HttpRequest, HttpResponse, HttpTransport},
     io::{nonce, Clock, Task},
     model::Model,
@@ -88,7 +89,7 @@ struct App {
     voice_channel: Option<Id>,
     /// Direct and group calls, and the chat beside a call.
     calls: calls::Calls,
-    connection: Option<mpsc::Sender<ClientMsg>>,
+    connection: Option<mpsc::Sender<Outgoing>>,
     pending: BTreeMap<sticktalk_proto::Nonce, (Command, u64)>,
     epoch: u64,
     privacy_generation: u64,
@@ -152,6 +153,8 @@ struct App {
     voice_render: Option<fn(&App) -> AnyView>,
     loading_dialog: std::cell::Cell<bool>,
     loading_voice: std::cell::Cell<bool>,
+    /// Views in their own modules (the forum, search results).
+    views: ui::LazyViews,
     nav: nav::NavState,
     /// Polls, forwarding, scheduled messages, voice messages, GIF favorites.
     content: content::State,
@@ -272,7 +275,7 @@ impl App {
         if self
             .connection
             .as_mut()
-            .is_none_or(|tx| tx.try_send(message).is_err())
+            .is_none_or(|tx| tx.try_send(Outgoing::Message(message)).is_err())
         {
             self.error = "Connection unavailable. Try again when reconnected.".into();
             self.touch();
@@ -290,9 +293,17 @@ impl App {
             return;
         }
         let n = nonce(&Browser);
-        self.pending
-            .insert(n, (command.clone(), Browser.monotonic_ms()));
-        self.send(ClientMsg::Command(CommandRequest { nonce: n, command }));
+        // Kept once, for the answer and for a resend after a reconnect; the
+        // socket encodes it from here.
+        self.pending.insert(n, (command, Browser.monotonic_ms()));
+        if self
+            .connection
+            .as_mut()
+            .is_none_or(|tx| tx.try_send(Outgoing::Command(n)).is_err())
+        {
+            self.error = "Connection unavailable. Try again when reconnected.".into();
+            self.touch();
+        }
     }
     fn voice(&mut self, signal: VoiceSignal) {
         self.voice_request(signal, nonce(&Browser));
@@ -391,6 +402,7 @@ pub fn mount() {
             voice_render: None,
             loading_dialog: std::cell::Cell::new(false),
             loading_voice: std::cell::Cell::new(false),
+            views: Default::default(),
             nav: Default::default(),
             content: Default::default(),
             moderation: Default::default(),
@@ -438,7 +450,7 @@ pub fn mount() {
                 .await
                 .ok()
                 .and_then(|v| v.as_string())
-                .and_then(|s| serde_json::from_str::<BrowserSession>(&s).ok());
+                .and_then(|s| serde_json::from_slice::<BrowserSession>(s.as_bytes()).ok());
             let session = if let Some(session) = recovered {
                 Ok(session)
             } else {
@@ -516,26 +528,64 @@ fn end_session(app: &Shared, notice: &str) {
     a.touch();
 }
 
-type MessageEncoder = fn(&ClientMsg) -> Result<Vec<u8>, String>;
+/// What the app hands the socket: a message, or the nonce of a pending command.
+enum Outgoing {
+    Message(ClientMsg),
+    Command(sticktalk_proto::Nonce),
+}
+#[derive(Clone, Copy)]
+struct Encoders {
+    message: fn(&ClientMsg) -> Result<Vec<u8>, String>,
+    command: fn(sticktalk_proto::Nonce, &Command) -> Result<Vec<u8>, String>,
+}
 // Keep optional command serializers out of the login/idle core. The split
 // loader caches this function; the named MessagePack wire format is unchanged.
 #[lazy]
-fn load_message_encoder() -> MessageEncoder {
-    encode_message
+fn load_message_encoder() -> Encoders {
+    Encoders {
+        message: encode_message,
+        command: encode_command,
+    }
 }
-fn encode_message(msg: &ClientMsg) -> Result<Vec<u8>, String> {
-    rmp_serde::to_vec_named(msg).map_err(|_| "Could not encode command".to_string())
-}
+use crate::wire::{encode_command, encode_message};
 async fn send(
     socket: &mut sticktalk_client_core::protocol::Outgoing,
     msg: &ClientMsg,
 ) -> Result<(), String> {
+    // Identify, heartbeats and focus need no encoder module.
+    if let Some(bytes) = crate::wire::encode_small(0, crate::wire::Small::Message(msg)) {
+        return send_bytes(socket, bytes).await;
+    }
     let encode = load_message_encoder().await;
-    let bytes = encode(msg)?;
+    send_bytes(socket, (encode.message)(msg)?).await
+}
+async fn send_bytes(
+    socket: &mut sticktalk_client_core::protocol::Outgoing,
+    bytes: Vec<u8>,
+) -> Result<(), String> {
     if bytes.len() > MAX_WS_FRAME_BYTES as usize {
         return Err("Command is too large".into());
     }
     socket.send(Frame::Binary(bytes)).await
+}
+/// A pending command, encoded from where it is kept. None when it was answered.
+async fn encode_pending(
+    app: &Shared,
+    nonce: sticktalk_proto::Nonce,
+) -> Option<Result<Vec<u8>, String>> {
+    // The subscriptions and housekeeping commands a session sends by itself.
+    {
+        let a = app.borrow();
+        let (command, _) = a.pending.get(&nonce)?;
+        if let Some(bytes) = crate::wire::encode_small(nonce, crate::wire::Small::Command(command))
+        {
+            return Some(Ok(bytes));
+        }
+    }
+    let encode = load_message_encoder().await;
+    let a = app.borrow();
+    let (command, _) = a.pending.get(&nonce)?;
+    Some((encode.command)(nonce, command))
 }
 async fn socket(app: Shared, epoch: u64) {
     let mut backoff = 500;
@@ -578,7 +628,7 @@ async fn socket(app: Shared, epoch: u64) {
                 }
                 enum Wake {
                     Frame(Option<Result<Frame, String>>),
-                    Send(Option<ClientMsg>),
+                    Send(Option<Outgoing>),
                     Timer,
                 }
                 let wake = {
@@ -591,8 +641,18 @@ async fn socket(app: Shared, epoch: u64) {
                     futures_util::select! {v=f=>Wake::Frame(v),v=r=>Wake::Send(v),_=t=>Wake::Timer}
                 };
                 match wake {
-                    Wake::Send(Some(msg)) => {
+                    Wake::Send(Some(Outgoing::Message(msg))) => {
                         if send(&mut outgoing, &msg).await.is_err() {
+                            break;
+                        }
+                    }
+                    Wake::Send(Some(Outgoing::Command(n))) => {
+                        let sent = match encode_pending(&app, n).await {
+                            Some(Ok(bytes)) => send_bytes(&mut outgoing, bytes).await,
+                            Some(Err(e)) => Err(e),
+                            None => Ok(()),
+                        };
+                        if sent.is_err() {
                             break;
                         }
                     }
@@ -626,12 +686,12 @@ async fn socket(app: Shared, epoch: u64) {
                         return;
                     }
                     Wake::Frame(Some(Ok(Frame::Binary(bytes)))) => {
-                        let Ok(frame) = decode(&bytes) else {
+                        let Ok(frame) = inbound::frame(&bytes) else {
                             app.borrow_mut().error = "Invalid server protocol frame".into();
                             break;
                         };
                         match frame {
-                            ServerMsg::Hello(h) => {
+                            Inbound::Hello(h) => {
                                 if identified || h.version != PROTOCOL_VERSION {
                                     break;
                                 }
@@ -656,7 +716,7 @@ async fn socket(app: Shared, epoch: u64) {
                                     break;
                                 }
                             }
-                            ServerMsg::Ready(ready) => {
+                            Inbound::Ready(ready) => {
                                 {
                                     let mut a = app.borrow_mut();
                                     a.roles =
@@ -675,7 +735,11 @@ async fn socket(app: Shared, epoch: u64) {
                                     break;
                                 }
                                 operations::ready(app.clone());
-                                nav::ready(app.clone());
+                                features::spawn(
+                                    app.clone(),
+                                    features::Feature::Nav,
+                                    features::Call::Ready,
+                                );
                                 moderation::connected(app.clone());
                                 privacy::connected(app.clone());
                                 let channel = app.borrow().channel;
@@ -687,7 +751,7 @@ async fn socket(app: Shared, epoch: u64) {
                                     !document().hidden() && document().has_focus().unwrap_or(false);
                                 let _ = send(&mut outgoing, &ClientMsg::Focus { focused }).await;
                             }
-                            ServerMsg::Resumed(_) => {
+                            Inbound::Resumed => {
                                 {
                                     let mut a = app.borrow_mut();
                                     a.ready = true;
@@ -704,12 +768,46 @@ async fn socket(app: Shared, epoch: u64) {
                                     !document().hidden() && document().has_focus().unwrap_or(false);
                                 let _ = send(&mut outgoing, &ClientMsg::Focus { focused }).await;
                             }
-                            ServerMsg::HeartbeatAck(_) => ack = Browser.monotonic_ms(),
-                            ServerMsg::ResyncRequired(_) => {
+                            Inbound::HeartbeatAck => ack = Browser.monotonic_ms(),
+                            Inbound::ResyncRequired => {
                                 app.borrow_mut().model.cursor = None;
                                 break;
                             }
-                            ServerMsg::Event(event) => {
+                            // A feature's event goes, undecoded, to that feature's module
+                            // (routes in `inbound.rs`, modules in `features.rs`). The next
+                            // frame waits for it, so the server's order is kept.
+                            Inbound::Event(seq, inbound::Routed::Feature(f, raw), _) => {
+                                let fresh = app
+                                    .borrow()
+                                    .model
+                                    .cursor
+                                    .as_ref()
+                                    .is_some_and(|c| seq > c.seq);
+                                if fresh {
+                                    match features::run(app.clone(), f, features::Call::Event(raw))
+                                        .await
+                                    {
+                                        Ok(true) => {}
+                                        Ok(false) => {
+                                            app.borrow_mut().error =
+                                                "Invalid server protocol frame".into();
+                                            break;
+                                        }
+                                        // Not downloaded: reconnect. The cursor has not moved,
+                                        // so the resumed stream sends the event again.
+                                        Err(_) => break,
+                                    }
+                                    if app.borrow().epoch != epoch {
+                                        return;
+                                    }
+                                    let mut a = app.borrow_mut();
+                                    a.model.advance(seq);
+                                    leave_missing_channel(&mut a);
+                                    a.touch();
+                                }
+                            }
+                            Inbound::Event(seq, inbound::Routed::Core(event), size) => {
+                                let event = Box::new(EventEnvelope { seq, event });
                                 let mut a = app.borrow_mut();
                                 let admin_access = match &event.event {
                                     Event::GuildUpsert(g) => {
@@ -774,23 +872,12 @@ async fn socket(app: Shared, epoch: u64) {
                                                 a.roles.insert(r.id, r.clone());
                                             }
                                         }
-                                        Event::Moderation(e) => moderation::event(&mut a, e),
-                                        Event::Privacy(e) => privacy::event(&mut a, e),
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id
                                                     || v.channel_id != n.channel_id
                                             });
                                             a.notifications.push(n.clone());
-                                        }
-                                        Event::NavUpdated(_)
-                                        | Event::SavedUpdated(_)
-                                        | Event::ReminderDue(_) => nav::event(&mut a, &event.event),
-                                        Event::Content(e) => content::event(&mut a, e.clone()),
-                                        Event::DataExportUpdated(_) => authsec::event(&event.event),
-                                        Event::Threads(e) => threads::event(&mut a, e.clone()),
-                                        Event::Expression(e) => {
-                                            expression::event(&mut a, e.clone())
                                         }
                                         _ => {}
                                     }
@@ -830,7 +917,7 @@ async fn socket(app: Shared, epoch: u64) {
                                         | Event::ChannelRemoved { .. }
                                         | Event::GuildRemoved { .. }
                                 );
-                                let applied = a.model.apply(*event);
+                                let applied = a.model.apply_sized(*event, size);
                                 if applied && badge {
                                     privacy::badge(&a);
                                 }
@@ -899,17 +986,7 @@ async fn socket(app: Shared, epoch: u64) {
                                         media_action("transport-lost");
                                     }
                                 }
-                                if a.channel
-                                    .is_some_and(|c| !a.model.channels.contains_key(&c))
-                                {
-                                    a.channel = None;
-                                    a.screen = "home".into();
-                                    a.extent = None;
-                                    a.window_ids.clear();
-                                    a.attachments.clear();
-                                    a.reply = None;
-                                    a.editing = None;
-                                }
+                                leave_missing_channel(&mut a);
                                 a.touch();
                                 drop(a);
                                 if arrived {
@@ -954,10 +1031,10 @@ async fn socket(app: Shared, epoch: u64) {
                                     });
                                 }
                             }
-                            ServerMsg::Response(response) => {
-                                operations::response(app.clone(), *response).await
+                            Inbound::Response(response) => {
+                                operations::response(app.clone(), response).await
                             }
-                            ServerMsg::Voice(payload) => {
+                            Inbound::Voice(payload) => {
                                 // Voice-state broadcasts also reach people who are not in
                                 // the call: they show who is in each voice channel. Only
                                 // someone in a call has the events passed on to the media host.
@@ -972,7 +1049,7 @@ async fn socket(app: Shared, epoch: u64) {
                                     forward_voice(app.clone(), epoch, payload).await;
                                 }
                             }
-                            ServerMsg::Error(e) => {
+                            Inbound::Error(e) => {
                                 if matches!(
                                     e.code,
                                     ErrorCode::Unauthenticated | ErrorCode::SessionExpired
@@ -1029,11 +1106,25 @@ async fn socket(app: Shared, epoch: u64) {
         backoff = (backoff * 2).min(15_000);
     }
 }
+/// The open conversation is gone (removed, or no longer visible): go home.
+fn leave_missing_channel(a: &mut App) {
+    if a.channel
+        .is_some_and(|c| !a.model.channels.contains_key(&c))
+    {
+        a.channel = None;
+        a.screen = "home".into();
+        a.extent = None;
+        a.window_ids.clear();
+        a.attachments.clear();
+        a.reply = None;
+        a.editing = None;
+    }
+}
 async fn retry_pending(
     app: &Shared,
     socket: &mut sticktalk_client_core::protocol::Outgoing,
 ) -> Result<(), String> {
-    let requests = {
+    let nonces = {
         let mut a = app.borrow_mut();
         let before = a.pending.len();
         a.pending
@@ -1042,16 +1133,12 @@ async fn retry_pending(
             a.error = "Some actions could not be confirmed. Check history before retrying.".into();
             a.touch();
         }
-        a.pending
-            .iter()
-            .map(|(nonce, (command, _))| CommandRequest {
-                nonce: *nonce,
-                command: command.clone(),
-            })
-            .collect::<Vec<_>>()
+        a.pending.keys().copied().collect::<Vec<_>>()
     };
-    for request in requests {
-        send(socket, &ClientMsg::Command(request)).await?;
+    for n in nonces {
+        if let Some(bytes) = encode_pending(app, n).await {
+            send_bytes(socket, bytes?).await?;
+        }
     }
     Ok(())
 }
@@ -1083,7 +1170,7 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
     if app.borrow().epoch != epoch {
         return;
     }
-    if let Ok(event) = rmp_serde::from_slice::<VoiceEvent>(&payload.payload) {
+    if let Ok(event) = inbound::de::<VoiceEvent>(&payload.payload) {
         if matches!(
             event,
             VoiceEvent::CallState(_)
