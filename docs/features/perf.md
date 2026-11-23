@@ -172,7 +172,7 @@ core's data.
 
 ## The structure
 
-### 1. Frames are routed, not decoded (`live/inbound.rs`)
+### 1. Frames are routed, not decoded (`crates/web/src/inbound.rs`)
 
 A small MessagePack reader walks a frame without decoding it: it finds the
 `type` tags and the byte ranges of `data` values. The core decodes only the
@@ -190,16 +190,25 @@ byte strings become arrays of numbers, which is how serde reads them back;
 nesting is limited to 32 levels as before. Cost: one extra pass over each
 frame (microseconds for an event; about a millisecond for a large Ready).
 
-### 3. One split entry per feature (`live/features.rs`)
+### 3. Two split entries per feature (`live/features.rs`)
 
 Each feature module (`content`, `threads`, `expression`, `moderation`,
-`privacy`, `nav`, `profiles`, `authsec`) has exactly one split function,
-`<feature>::run(app, Call)`, declared with
-`#[wasm_split(<feature>, fallible, preload(prefetch))]`. Its controller, REST
-decoders and event/result decoders are reachable only from there, so the
-splitter puts them in `split_<feature>.wasm`. The core talks to a feature only
-through `Call`s: `Action`, `Submit`, `Opened`, `Ready`, `Event(Raw)`,
-`Answer(op, Reply)`, `Other(name, arg)`.
+`privacy`, `nav`; `profiles` and `authsec` have only `run`) has two split
+functions:
+
+- `<feature>::state(app, Call)`, `#[wasm_split(<feature>_state, fallible)]`:
+  its events, the answers to its commands and the fresh snapshot (Ready). The
+  first screen loads only these, for the features it shows.
+- `<feature>::run(app, Call)`, `#[wasm_split(<feature>, fallible, preload(prefetch))]`:
+  its actions, forms, dialogs and page fetches. A page refresh an event asks
+  for goes here too (`features::defer(.., Call::Other(..))`), so the state
+  module does not carry page code.
+
+Its controller, REST decoders and event/result decoders are reachable only
+from these, so the splitter puts them in `split_<feature>[_state].wasm`. The
+core talks to a feature only through `Call`s: `Action`, `Submit`, `Opened`,
+`Ready`, `Event(Raw)`, `Answer(op, Reply)`, `Other(name, arg)`;
+`features::dispatch` sends `Event`, `Ready` and `Answer` to `state`.
 
 - `features::spawn` runs a call synchronously when the module is loaded (a
   loaded module answers on the first poll), otherwise as soon as it arrives.
@@ -258,18 +267,23 @@ is no idle-time prefetch: it would put every feature in idle memory.
 1. `inbound.rs`, `routes! { route_event ... features { "<tag>" => <Feature>, } }`.
    (A core event goes in `newtype`/`fields`/`unit` instead.)
 2. `inbound::owner`: add the variant (the match is exhaustive, so this does not
-   compile until it is classified).
-3. In your feature's `run`: `Call::Event(raw) => { let Ok(e) = inbound::de::<YourEvent>(&raw.data) else { return Ok(false) }; event(&mut app.borrow_mut(), e); }`.
-   Use `raw.tag` if the feature has several `Event` variants (see `nav::run`).
+   compile until it is classified). The test `every_variant_is_listed_with_its_serde_tag`
+   compares the tables with serde's own variant names.
+3. Decode it in your feature's `state`: list your event enum's variants in
+   `inbound::feature` with `decode_tagged!` (variant by variant, without
+   serde's buffered second decoder), then
+   `Call::Event(raw) => { let Ok(e) = crate::inbound::feature::your_event(&raw.data) else { return Ok(false) }; event(&mut app.borrow_mut(), e); }`.
+   Use `raw.tag` if the feature has several `Event` variants (see `nav::state`).
 
 **A command result.** `routes! { route_result ... features { "<tag>" => <Feature>, } }`,
-and in `run`: `Call::Answer(op, Reply::Raw(raw)) => inbound::de::<YourResult>(&raw.data)`.
+and in `state`: `Call::Answer(op, Reply::Raw(raw)) => crate::inbound::feature::your_result(&raw.data)`.
 `operations::response` hands a result to the feature it is routed to (or to a
 feature that `owns` the command: moderation, expression, profiles, privacy).
 
-**A new feature module.** Add a `Feature` variant and its two lines in
-`features.rs` (`dispatch`, `prefetch`) and `from_name`. Give the module one
-entry point:
+**A new feature module.** Add a `Feature` variant (`inbound.rs`) and its lines
+in `features.rs` (`dispatch`, `prefetch`, `from_name`). Give the module two
+entry points, `state` (events, answers, Ready; `wasm_split(<name>_state, ...)`)
+and `run` (everything a person does):
 
 ```rust
 #[leptos::wasm_split::wasm_split(<name>, wasm_split_path = ::leptos::wasm_split, fallible, preload(prefetch))]
@@ -318,9 +332,10 @@ core. After:
   and `Call::Submit(form)` for `content::FORMS`.
 - `open_dialog`: `content::owns_dialog(name)` decides whether a dialog opening
   loads content (`poll`, `forward:*`, `gif`).
-- `content::run` (end of `live/content.rs`) maps each `Call` to the existing
-  functions, decoding events with `inbound::de::<ContentEvent>` and results
-  with `inbound::de::<ContentResult>`.
+- `content::state` (end of `live/content.rs`) handles `Ready`, events
+  (`inbound::feature::content_event`) and answers
+  (`inbound::feature::content_result`); `content::run` handles actions, forms
+  and dialogs. Each maps a `Call` to the existing functions.
 - What stays in the core: `draft_of`, `send_command` and `uploaded` (the send
   path uses them on every message), and the message views that draw polls and
   embeds.
