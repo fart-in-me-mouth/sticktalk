@@ -187,6 +187,7 @@ pub fn encode_small(nonce: Nonce, msg: Small<'_>) -> Option<Vec<u8>> {
                 Command::Appearance(AppearanceCommand::Subscribe) => {
                     w.unit_in("appearance", "subscribe")
                 }
+                Command::Apps(AppCommand::Subscribe) => w.unit_in("apps", "subscribe"),
                 Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe)) => {
                     w.tag("launch").unit_in("moderation", "subscribe")
                 }
@@ -458,6 +459,7 @@ mod tests {
             Command::Community(CommunityCommand::Subscribe),
             Command::Schedule(ScheduleCommand::Subscribe),
             Command::Appearance(AppearanceCommand::Subscribe),
+            Command::Apps(AppCommand::Subscribe),
             Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe)),
             Command::Launch(LaunchCommand::UpdateDevice {
                 device_name: "Chrome on Windows".into(),

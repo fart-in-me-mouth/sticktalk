@@ -546,6 +546,7 @@ function person(userId) {
       $(`[data-member-name="${userId}"]`)?.textContent ??
       (userId === self() ? "You" : "Participant"),
     avatar: row?.dataset.avatar ?? "",
+    tag: row?.dataset.tag ?? "",
   };
 }
 function glyph(name) {
@@ -654,6 +655,8 @@ function describe(entry) {
     (entry.kind !== "screen" ? who.name : mine ? "Your screen" : `${who.name}'s screen`) +
     (entry.blocked ? " · Tap to play" : "");
   if (entry.name.textContent !== text) entry.name.textContent = text;
+  // The server tag the person wears (identity.css draws it after the name).
+  if ((entry.name.dataset.tag ?? "") !== who.tag) entry.name.dataset.tag = who.tag;
   entry.tile.setAttribute("aria-label", `Focus ${text}`);
   const avatar = entry.tile.querySelector(".call-avatar");
   if (avatar && who.avatar) {
@@ -834,6 +837,7 @@ export function event(event) {
     }
     case "speaking":
       retainSpeaking(speaking, key(data.session), data.speaking);
+      extras.speaking(data);
       for (const entry of elements.values())
         if (entry.tile.dataset.participant === key(data.session) && entry.kind !== "screen")
           entry.tile.classList.toggle("is-speaking", data.speaking);

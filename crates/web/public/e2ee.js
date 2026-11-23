@@ -5,6 +5,15 @@
 // loads this when a call starts; nothing here exists outside a call.
 import * as core from './e2ee-core.js';
 
+// This feature's stylesheet (styles/e2ee.css) comes with it, not with the app.
+if (!document.querySelector('link[data-e2ee-css]')) {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = '/public/e2ee.css';
+  link.dataset.e2eeCss = '';
+  document.head.append(link);
+}
+
 const MODE = globalThis.RTCRtpScriptTransform ? 'script'
   : globalThis.RTCRtpSender?.prototype?.createEncodedStreams ? 'legacy' : null;
 /** This browser can encrypt calls (the same test the app makes before Join). */

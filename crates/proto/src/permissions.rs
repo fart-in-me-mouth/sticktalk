@@ -53,6 +53,11 @@ bitflags::bitflags! {
         const USE_EXTERNAL_EMOJI = 1 << 44;
         /// Send stickers from other servers here (granted to @everyone by default).
         const USE_EXTERNAL_STICKERS = 1 << 45;
+        // Apps and webhooks (`apps.rs`).
+        /// Create, edit, rotate and delete a channel's webhooks.
+        const MANAGE_WEBHOOKS = 1 << 46;
+        /// Use apps' slash, user and message commands (on for @everyone by default).
+        const USE_APPLICATION_COMMANDS = 1 << 47;
         // Stage channels and scheduled events (`stage.rs`, `schedule.rs`).
         /// Create, edit, start, cancel and delete any scheduled event.
         const MANAGE_EVENTS = 1 << 52;
@@ -63,6 +68,9 @@ bitflags::bitflags! {
         /// Send messages read aloud to the people viewing the channel (`/tts`,
         /// `themes.rs`); on for @everyone by default.
         const SEND_TTS_MESSAGES = 1 << 56;
+        /// Launch and take part in activities in a guild voice channel
+        /// (`activities.rs`); on for @everyone by default.
+        const USE_ACTIVITIES = 1 << 48;
     }
 }
 

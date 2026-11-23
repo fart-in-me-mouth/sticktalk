@@ -4,7 +4,7 @@ import {readFile,writeFile,mkdir,cp} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {hostGraphFingerprint} from './version-runtime.mjs';
-import {buildStyles,copyUiSdk} from './styles.mjs';
+import {buildStyles,copyUiSdk,LAZY_STYLES} from './styles.mjs';
 import {copySegmentation} from './vendor.mjs';
 const target=resolve(process.env.CARGO_TARGET_DIR), dist=resolve(process.env.TRUNK_STAGING_DIR);
 await mkdir(dist,{recursive:true});
@@ -19,6 +19,7 @@ await cp('public',join(dist,'public'),{recursive:true});
 await copyUiSdk(join(dist,'public'));
 await copySegmentation(join(dist,'public'));
 await writeFile(join(dist,style),css);
+for(const name of LAZY_STYLES) await writeFile(join(dist,'public',`${name}.css`),await buildStyles(target,name));
 let html=await readFile('index.html','utf8');
 html=html.replace(/<link data-trunk rel="rust"[^>]*>/,`<script type="module">import init, * as bindings from './${pkg}/${entry}.js'; await init({module_or_path:'./${pkg}/${entry}_bg.wasm'});</script>`)
   .replace(/<link data-trunk rel="tailwind-css"[^>]*>/,`<link rel="stylesheet" href="/${style}">`)

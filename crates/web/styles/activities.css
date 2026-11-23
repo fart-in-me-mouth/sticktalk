@@ -1,0 +1,164 @@
+/* Shared activities (public/activities.js, src/live/ui/activities.rs): the
+   place an activity takes in the call view, its tile and frame, the floating
+   mini window, the launcher, invites and the server's settings. Colors only
+   from the theme tokens. Its own stylesheet (public/activities.css), loaded
+   by activities.js: no one pays for it before using an activity. It sees the
+   app's theme and utilities through @reference, and emits only these rules. */
+@reference "./app.css";
+@layer components {
+  /* The call view keeps this box for the activity; the tile is drawn over it. */
+  .activity-slot {
+    @apply min-h-[220px] flex-[3_1_0] rounded-xl;
+  }
+  .voice-view:has(#live-activity-slot[data-layout='split']) #live-media-stage {
+    @apply max-h-[34%] min-h-[96px] flex-[1_1_0];
+  }
+  .voice-view:has(#live-activity-slot[data-layout='focus']) #live-media-stage {
+    @apply max-h-[88px] flex-none overflow-hidden;
+  }
+  .voice-view:has(#live-activity-slot[data-layout='mini']) .activity-slot {
+    @apply hidden;
+  }
+  .activity-layer {
+    @apply fixed z-[45] flex flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-lg;
+  }
+  .activity-layer[data-mode='mini'] {
+    @apply right-4 bottom-[calc(16px+var(--safe-bottom,0px))] h-[260px] w-[min(380px,calc(100vw-32px))];
+  }
+  .activity-bar {
+    @apply flex h-11 flex-none items-center gap-2 border-b bg-sidebar px-2;
+  }
+  .activity-title {
+    @apply flex min-w-0 flex-1 items-center gap-2 px-1 text-sm;
+  }
+  .activity-people {
+    @apply m-0 flex list-none -space-x-1.5 p-0;
+  }
+  .activity-people li {
+    @apply grid size-6 place-items-center overflow-hidden rounded-full border-2 border-sidebar bg-muted text-[11px] font-semibold text-subtle;
+  }
+  .activity-people li img {
+    @apply size-full object-cover;
+  }
+  .activity-people li.is-speaking {
+    @apply border-primary;
+  }
+  .activity-people li.more {
+    @apply w-auto rounded-full px-1.5;
+  }
+  .activity-actions {
+    @apply flex flex-none items-center gap-0.5;
+  }
+  .activity-bar-button {
+    @apply grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground touch:size-11;
+  }
+  .activity-leave {
+    @apply text-destructive hover:text-destructive;
+  }
+  .activity-body {
+    @apply relative flex min-h-0 flex-1 flex-col bg-background;
+  }
+  .activity-player {
+    @apply min-h-0 w-full flex-1 object-contain;
+  }
+  /* theme-lint: artwork */
+  .activity-player {
+    background: #000;
+  }
+  /* theme-lint: end */
+  .activity-player-audio {
+    @apply flex flex-none items-center justify-center border-b bg-muted px-4 py-3 text-center text-sm text-foreground;
+  }
+  .activity-frame {
+    @apply min-h-0 w-full flex-1 border-0 bg-background;
+  }
+  .activity-body[data-player='video'] .activity-frame {
+    flex: 0 0 var(--activity-frame-height, 40%);
+  }
+  .activity-note {
+    @apply absolute bottom-3 left-1/2 max-w-[calc(100%-24px)] -translate-x-1/2 rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md;
+  }
+  .activity-note:empty,
+  .activity-note[hidden] {
+    @apply hidden;
+  }
+  /* The launcher. */
+  dialog.activity-launcher {
+    @apply w-[min(560px,calc(100vw-32px))] max-w-[min(560px,calc(100vw-32px))];
+  }
+  .activity-grid {
+    @apply my-3 grid list-none grid-cols-1 gap-2 p-0;
+  }
+  .activity-choice {
+    @apply flex items-center gap-3 rounded-lg border bg-card p-3;
+  }
+  .activity-choice-icon {
+    @apply grid size-11 flex-none place-items-center rounded-lg bg-muted text-2xl text-primary;
+  }
+  .activity-choice-text {
+    @apply flex min-w-0 flex-1 flex-col;
+  }
+  .activity-choice-description {
+    @apply text-[13px] text-subtle;
+  }
+  .activity-choice-players {
+    @apply text-xs text-muted-foreground;
+  }
+  .activity-start {
+    @apply h-9 flex-none px-3 touch:min-h-11;
+  }
+  .activity-join {
+    @apply my-2;
+  }
+  .activity-results ul {
+    @apply m-0 list-none p-0 text-sm text-subtle;
+  }
+  .activity-results li {
+    @apply py-1;
+  }
+  .activity-dialog-actions {
+    @apply mt-4 flex justify-end gap-2 phone:flex-col-reverse;
+  }
+  .activity-volume {
+    @apply mt-2;
+  }
+  /* Choosing a file for Watch Together. */
+  .activity-media-tabs {
+    @apply my-2 flex flex-wrap gap-2;
+  }
+  .activity-media-list {
+    @apply m-0 flex max-h-[320px] list-none flex-col gap-1 overflow-y-auto p-0;
+  }
+  .activity-media-item {
+    @apply flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm hover:bg-accent focus-visible:bg-accent;
+  }
+  .activity-media-item small {
+    @apply ml-auto flex-none text-muted-foreground;
+  }
+  .activity-upload {
+    @apply my-3 flex w-fit cursor-pointer items-center gap-2;
+  }
+  .activity-settings-list {
+    @apply flex flex-col;
+  }
+  .activity-setting-text {
+    @apply flex min-w-0 flex-col;
+  }
+  .activity-setting-text small {
+    @apply text-[13px] text-subtle;
+  }
+  @media (max-width: 767px) {
+    .activity-slot {
+      @apply min-h-[200px] flex-[2_1_0] rounded-lg;
+    }
+    .activity-layer[data-mode='mini'] {
+      @apply right-2 bottom-[calc(76px+var(--safe-bottom,0px))] h-[200px] w-[calc(100vw-16px)];
+    }
+    .activity-people {
+      @apply hidden;
+    }
+    dialog.activity-launcher {
+      @apply w-full max-w-none;
+    }
+  }
+}

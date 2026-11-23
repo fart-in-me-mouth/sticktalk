@@ -522,6 +522,21 @@ pub(super) fn action(app: Shared, arg: &str) {
                 ),
                 "user" => id(second).map(|user_id| ReportTarget::User { user_id }),
                 "guild" => id(second).map(|guild_id| ReportTarget::Guild { guild_id }),
+                // `activity,<call>,<session>,<user>` (`activities.js`).
+                "activity" => match (
+                    id(second),
+                    rest.get(2).and_then(|v| id(v)),
+                    rest.get(3).and_then(|v| id(v)),
+                ) {
+                    (Some(channel_id), Some(session_id), Some(user_id)) => {
+                        Some(ReportTarget::Activity {
+                            channel_id,
+                            session_id,
+                            user_id,
+                        })
+                    }
+                    _ => None,
+                },
                 _ => None,
             };
             if let Some(t) = target {

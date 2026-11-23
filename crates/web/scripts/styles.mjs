@@ -10,15 +10,19 @@ import {dirname,join,resolve} from 'node:path';
 const modules=resolve('node_modules');
 const missing=name=>new Error(`${name} is not installed. Run "npm ci --ignore-scripts" in crates/web first.`);
 
-/** Compiles the app stylesheet into the task target and returns its bytes. */
-export async function buildStyles(target) {
+/** Compiles a stylesheet into the task target and returns its bytes. */
+export async function buildStyles(target, entry = 'app') {
   const cli=join(modules,'@tailwindcss/cli/dist/index.mjs');
   await readFile(cli).catch(()=>{throw missing('Tailwind CSS');});
-  const out=join(target,'web-css','app.css');
+  const out=join(target,'web-css',`${entry}.css`);
   await mkdir(dirname(out),{recursive:true});
-  execFileSync(process.execPath,[cli,'-i','styles/app.css','-o',out,'--minify'],{stdio:['ignore','ignore','inherit'],windowsHide:true});
+  execFileSync(process.execPath,[cli,'-i',`styles/${entry}.css`,'-o',out,'--minify'],{stdio:['ignore','ignore','inherit'],windowsHide:true});
   return readFile(out);
 }
+/** Feature stylesheets loaded by their feature's script on first use, not
+ * with the app: `styles/<name>.css` (it `@reference`s app.css) becomes
+ * `public/<name>.css`. Served `no-cache` (unhashed), so a deploy replaces it. */
+export const LAZY_STYLES=['activities','e2ee'];
 
 /** Copies the UI SDK modules that public/ui.js imports into <public>/ui-sdk/<version>/. */
 export async function copyUiSdk(publicDir) {

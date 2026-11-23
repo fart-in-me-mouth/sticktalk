@@ -9,6 +9,11 @@ description = "Shared, runtime-free StickTalk wire contracts"
 serde.workspace = true
 bitflags.workspace = true
 
+# The web build keeps two large message extras undecoded (`deferred.rs`);
+# serde_json is already part of it.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+serde_json.workspace = true
+
 [dev-dependencies]
 rmp-serde.workspace = true
 serde_json.workspace = true

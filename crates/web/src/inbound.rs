@@ -33,6 +33,12 @@ pub enum Feature {
     Stage,
     /// Themes, appearance, text-to-speech.
     Themes,
+    /// Apps, bots, application commands, webhooks, the `/` picker.
+    Apps,
+    /// Server tags, role styles and icons, server images, invite cards.
+    Identity,
+    /// Shared activities in calls.
+    Activities,
 }
 
 /// What one server frame says, as far as the core reads it.
@@ -272,6 +278,7 @@ routes! {
         "community" => Community,
         "schedule" => Stage,
         "appearance" => Themes,
+        "apps" => Apps,
     }
 }
 
@@ -306,6 +313,7 @@ routes! {
         "community" => Community,
         "schedule" => Stage,
         "appearance" => Themes,
+        "apps" => Apps,
     }
 }
 
@@ -519,6 +527,49 @@ pub mod feature {
         pub fn appearance_result -> AppearanceResult, tags APPEARANCE_RESULT;
         newtype { "library" => Library(Box<ThemeLibrary>), }
         fields {}
+        unit {}
+    }
+    crate::decode_tagged! {
+        pub fn app_event -> AppEvent, tags APP_EVENT;
+        newtype {
+            "interaction" => Interaction(Box<Interaction>),
+            "ephemeral" => Ephemeral(Box<EphemeralMessage>),
+        }
+        fields {
+            "ephemeral_removed" => EphemeralRemoved { channel_id: ChannelId, id: MessageId },
+            "modal" => Modal { interaction_id: Id, app_id: Id, channel_id: ChannelId, modal: Modal },
+            "autocomplete" => Autocomplete { request: u32, choices: Vec<Choice> },
+            "failed" => Failed { interaction_id: Id, channel_id: ChannelId, message: String },
+            "commands_updated" => CommandsUpdated { guild_id: GuildId },
+            "integrations_updated" => IntegrationsUpdated { guild_id: GuildId },
+        }
+        unit { "apps_updated" => AppsUpdated, }
+    }
+    crate::decode_tagged! {
+        pub fn app_result -> AppResult, tags APP_RESULT;
+        newtype {
+            "app" => App(Box<AppInfo>),
+            "installation" => Installation(Box<Installation>),
+            "webhook" => Webhook(Box<Webhook>),
+            "webhook_secret" => WebhookSecret(Box<WebhookSecret>),
+            "commands" => Commands(Vec<ApplicationCommand>),
+            "message" => Message(Box<Message>),
+            "ephemeral" => Ephemeral(Box<EphemeralMessage>),
+        }
+        fields {
+            "token" => Token { app: Box<AppInfo>, token: String },
+            "interaction" => Interaction { interaction_id: Id },
+        }
+        unit { "ack" => Ack, }
+    }
+    crate::decode_tagged! {
+        pub fn activity_event -> ActivityEvent, tags ACTIVITY_EVENT;
+        newtype { "session" => Session(Box<ActivitySession>), }
+        fields {
+            "ended" => Ended { session_id: Id, channel_id: ChannelId, summary: Box<ActivitySummary> },
+            "state" => State { session_id: Id, reset: bool, done: bool, version: u64, server_time: UnixMillis, entries: Vec<ActivityEntry> },
+            "message" => Message { session_id: Id, from: u16, data: String },
+        }
         unit {}
     }
 }
@@ -838,6 +889,7 @@ pub fn owner(e: &Event) -> Option<Feature> {
         Community(_) => Some(Feature::Community),
         Schedule(_) => Some(Feature::Stage),
         Appearance(_) => Some(Feature::Themes),
+        Apps(_) => Some(Feature::Apps),
     }
 }
 
@@ -908,7 +960,14 @@ mod tests {
             serde_tags::<CommandResult>(),
             "CommandResult: route_result"
         );
-        let decoders: [(&str, &[&str], std::collections::BTreeSet<String>); 15] = [
+        let decoders: [(&str, &[&str], std::collections::BTreeSet<String>); 18] = [
+            ("AppEvent", APP_EVENT, serde_tags::<AppEvent>()),
+            ("AppResult", APP_RESULT, serde_tags::<AppResult>()),
+            (
+                "ActivityEvent",
+                ACTIVITY_EVENT,
+                serde_tags::<ActivityEvent>(),
+            ),
             ("PrivacyEvent", PRIVACY_EVENT, serde_tags::<PrivacyEvent>()),
             (
                 "PrivacyResult",
@@ -1024,6 +1083,52 @@ mod tests {
             appearance_event,
         );
         check(AppearanceResult::Library(Box::default()), appearance_result);
+        check(AppEvent::AppsUpdated, app_event);
+        check(AppEvent::CommandsUpdated { guild_id: Id(5) }, app_event);
+        check(
+            AppEvent::Autocomplete {
+                request: 7,
+                choices: vec![Choice {
+                    name: "One".into(),
+                    value: OptionValue::Integer(1),
+                }],
+            },
+            app_event,
+        );
+        check(
+            AppEvent::Failed {
+                interaction_id: Id(1),
+                channel_id: Id(2),
+                message: "No answer.".into(),
+            },
+            app_event,
+        );
+        check(AppResult::Ack, app_result);
+        check(
+            AppResult::Interaction {
+                interaction_id: Id(9),
+            },
+            app_result,
+        );
+        check(
+            ActivityEvent::Message {
+                session_id: Id(3),
+                from: 2,
+                data: "{}".into(),
+            },
+            activity_event,
+        );
+        check(
+            ActivityEvent::State {
+                session_id: Id(3),
+                reset: true,
+                done: false,
+                version: 4,
+                server_time: 5,
+                entries: vec![],
+            },
+            activity_event,
+        );
     }
 
     #[test]

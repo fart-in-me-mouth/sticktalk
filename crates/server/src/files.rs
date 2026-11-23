@@ -459,8 +459,10 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
             expires > now() as i64 && row.get::<i64, _>("owner_id") == id(u)?,
             ErrorCode::NotFound,
         )?;
-    } else if !crate::content::forwarded_file_access(&mut c, u, a).await?
+    } else if !crate::activities::file_access(&core, u, a)
+        && !crate::content::forwarded_file_access(&mut c, u, a).await?
         && !crate::profiles::file_access(&mut c, u, a).await?
+        && !crate::identity::file_access(&mut c, u, a).await?
     {
         let ch:Option<i64>=sqlx::query_scalar("SELECT m.channel_id FROM message_attachments ma JOIN messages m ON ma.message_id=m.id WHERE ma.attachment_id=? AND m.deleted_at IS NULL").bind(id(a)?).fetch_optional(&mut *c).await?;
         if let Some(ch) = ch {
@@ -484,6 +486,19 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
             }
         }
     }
+    drop(c);
+    drop(core);
+    serve(&app, a, &row, &headers, thumb).await
+}
+/// Sends upload `a` (its row) to someone already allowed to read it: the
+/// original or its thumbnail, with ranges and conditional requests.
+pub(crate) async fn serve(
+    app: &App,
+    a: Id,
+    row: &sqlx::sqlite::SqliteRow,
+    headers: &HeaderMap,
+    thumb: bool,
+) -> Result<Response> {
     require(
         (!thumb || !headers.contains_key("range")) && headers.get_all("range").iter().count() <= 1,
         ErrorCode::InvalidRequest,
@@ -579,9 +594,7 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
     builder = builder
         .header("content-type", mime)
         .header("content-length", length);
-    drop(c);
-    drop(core);
-    let body = app.0.tier.get(&app, &key, start, length).await?;
+    let body = app.0.tier.get(app, &key, start, length).await?;
     builder
         .body(body)
         .map_err(|_| Error::new(ErrorCode::Internal))

@@ -53,7 +53,24 @@ pub struct MessageExtra {
     /// A finished Stage's record, or a shared event's card (`stage.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stage: Option<Box<crate::StageMessage>>,
+    /// An activity invite card (`activities.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<ActivityExtra>,
+    /// Embeds, components and webhook details from an app (`apps.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app: Option<AppExtra>,
 }
+/// `MessageExtra::activity`. The web app keeps it undecoded until its
+/// feature draws it (`deferred.rs`); the same on the wire.
+#[cfg(not(target_arch = "wasm32"))]
+pub type ActivityExtra = Box<crate::ActivityCard>;
+#[cfg(target_arch = "wasm32")]
+pub type ActivityExtra = crate::Deferred<crate::ActivityCard>;
+/// `MessageExtra::app`, like [`ActivityExtra`].
+#[cfg(not(target_arch = "wasm32"))]
+pub type AppExtra = Box<crate::AppMessage>;
+#[cfg(target_arch = "wasm32")]
+pub type AppExtra = crate::Deferred<crate::AppMessage>;
 impl MessageExtra {
     pub fn is_empty(&self) -> bool {
         self.poll.is_none()
@@ -64,6 +81,8 @@ impl MessageExtra {
             && self.stickers.is_none()
             && self.super_reactions.is_none()
             && self.stage.is_none()
+            && self.activity.is_none()
+            && self.app.is_none()
     }
     pub fn stickers(&self) -> &[crate::StickerItem] {
         self.stickers.as_deref().map_or(&[], Vec::as_slice)

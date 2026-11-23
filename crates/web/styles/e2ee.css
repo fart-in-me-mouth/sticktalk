@@ -1,6 +1,9 @@
 /* End-to-end encrypted calls (docs/E2EE.md): the lock in the call, its
-   banners, the encryption panel and verification. Imported by app.css; colors
-   come only from theme tokens (docs/features/themes.md). */
+   banners, the encryption panel and verification. Its own stylesheet
+   (public/e2ee.css), loaded by e2ee.js when a call starts: no one pays for it
+   before then. It sees the app's theme and utilities through @reference.
+   Colors come only from theme tokens (docs/features/themes.md). */
+@reference "./app.css";
 @layer components {
   .e2ee-status {
     @apply mb-2 flex flex-none flex-col items-center gap-1.5;

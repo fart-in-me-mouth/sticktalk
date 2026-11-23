@@ -63,6 +63,19 @@ impl Policy {
         }
     }
 
+    /// The server's app document itself (`/`, any query): the only page the
+    /// window's message channel listens to. Never a frame's page, such as an
+    /// activity under `/activities/`, even though it is on the server's
+    /// origin: WebView2 can run the host's scripts in frames too.
+    pub fn is_app_page(&self, url: &str) -> bool {
+        match (&self.server, Url::parse(url)) {
+            (Some(server), Ok(url)) => {
+                url.origin() == *server && matches!(url.path(), "/" | "/index.html")
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_shell(&self, url: &str) -> bool {
         Url::parse(url).is_ok_and(|url| url.origin() == self.shell)
     }
@@ -152,6 +165,31 @@ mod tests {
 
     fn external(url: &str) -> Decision {
         Decision::External(url.to_string())
+    }
+
+    #[test]
+    fn only_the_app_document_may_message_the_window() {
+        let p = policy(Some("https://chat.example.com"));
+        for url in [
+            "https://chat.example.com/",
+            "https://chat.example.com/?invite=abc",
+            "https://chat.example.com/index.html#top",
+        ] {
+            assert!(p.is_app_page(url), "{url}");
+        }
+        for url in [
+            // Activity frames and the registered-activity shell.
+            "https://chat.example.com/activities/whiteboard/index.html",
+            "https://chat.example.com/activities/frame/custom-1",
+            "https://chat.example.com/public/activities/sdk.js",
+            "https://chat.example.com/oauth/authorize",
+            "https://games.example/",
+            "http://chat.example.com/",
+            "null",
+            "about:srcdoc",
+        ] {
+            assert!(!p.is_app_page(url), "{url}");
+        }
     }
 
     #[test]

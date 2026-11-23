@@ -298,6 +298,10 @@ pub enum Command {
     Schedule(crate::ScheduleCommand),
     /// Custom and server themes, `/tts` messages (`themes.rs`).
     Appearance(AppearanceCommand),
+    /// Apps, bots, application commands and webhooks (`apps.rs`).
+    Apps(crate::AppCommand),
+    /// Server tags, role styles and icons, server images, vanity links (`identity.rs`).
+    Identity(IdentityCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -344,6 +348,7 @@ pub enum CommandResult {
     Community(CommunityResult),
     Schedule(crate::ScheduleResult),
     Appearance(AppearanceResult),
+    Apps(crate::AppResultExtra),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -469,6 +474,8 @@ pub enum Event {
     Schedule(crate::ScheduleUpdate),
     /// Only sent to streams that sent `AppearanceCommand::Subscribe`.
     Appearance(AppearanceEvent),
+    /// Only sent to streams that sent `AppCommand::Subscribe`, and to bots.
+    Apps(crate::AppEventExtra),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:
@@ -621,6 +628,8 @@ pub enum VoiceSignal {
     Stage(crate::StageSignal),
     /// End-to-end encrypted calls (`e2ee.rs`). Host-handled.
     E2ee(crate::E2eeSignal),
+    /// Shared activities in this call (`activities.rs`). Host-handled.
+    Activities(crate::ActivitySignal),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -766,6 +775,8 @@ pub enum VoiceEvent {
     Stage(crate::StageEvent),
     /// End-to-end encrypted calls (`e2ee.rs`): to sessions in the call only.
     E2ee(crate::E2eeEvent),
+    /// Shared activities in this call (`activities.rs`).
+    Activities(crate::ActivityEvent),
 }
 
 /// ONLY sent as binary named MessagePack on CONTROL_CHANNEL_LABEL, never WS.

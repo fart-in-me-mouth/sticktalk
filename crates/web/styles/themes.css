@@ -124,7 +124,7 @@
 /* ---- Streamer Mode -------------------------------------------------------
    While on, chosen kinds of private details are covered. A covered value is
    revealed once by clicking it (public/live.js adds .revealed). */
-:root[data-streamer-invites="true"] :is(.streamer-invite, .markdown a[href*="invite="]):not(.revealed),
+:root[data-streamer-invites="true"] .streamer-invite:not(.revealed),
 :root[data-streamer-account="true"] .streamer-account:not(.revealed),
 :root[data-streamer-account="true"] section[aria-labelledby="authsec-email-title"] :is(p, strong, code):not(.revealed),
 :root[data-streamer-notes="true"] :is(.streamer-note, #p-note):not(.revealed),

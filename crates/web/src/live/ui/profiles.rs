@@ -293,7 +293,7 @@ fn card_view(a: &App, c: Card, below: AnyView) -> AnyView {
         {banner_view(c.banner_color, c.banner)}
         <div class="relative z-[1] flex items-end justify-between gap-2 px-4 -mt-10">{decorated(u,"large")}<div data-pv="badges">{badges_row(c.badges)}</div></div>
         <div class="profile-preview-copy relative z-[1] px-4 pt-3 pb-4 wrap-anywhere">
-            <h2 class="m-0 text-xl leading-tight font-semibold wrap-anywhere" data-pv="name" data-preview-name>{styled(&name(u),u.style.name.as_ref(),own(u.id))}</h2>
+            <h2 class="m-0 text-xl leading-tight font-semibold wrap-anywhere" data-pv="name" data-preview-name>{styled(&name(u),u.style.name.as_ref(),own(u.id))}</h2>{super::identity::tag(a,u)}
             <p class="profile-username mt-1 mb-0 text-sm text-subtle">{format!("@{}",u.username)}<span data-pv="pronouns">{if c.pronouns.is_empty(){String::new()}else{format!(" · {}",c.pronouns)}}</span></p>
             <p class="mt-2 mb-0 text-sm whitespace-pre-wrap empty:hidden" data-preview-status>{c.status.clone().unwrap_or_default()}</p>
             <section class=section data-pv="about-box" hidden=c.about.is_empty()><h3 class="category mb-1">"About Me"</h3><div data-pv="about">{rich_text(a,u.id,&c.about)}</div><p class="m-0 whitespace-pre-wrap" data-pv="about-draft" hidden></p></section>
@@ -347,7 +347,7 @@ pub(super) fn card(a: &App) -> AnyView {
             "s"
         }
     );
-    let below = view! {<p class="mt-3 mb-0 text-[13px] text-subtle">{mutual}</p>{profile_actions(a,&base.user)}{reset_actions(a,guild,&user,server)}}.into_any();
+    let below = view! {{super::identity::role_pills(a,guild,base.user.id)}<p class="mt-3 mb-0 text-[13px] text-subtle">{mutual}</p>{profile_actions(a,&base.user)}{reset_actions(a,guild,&user,server)}}.into_any();
     card_view(
         a,
         Card {
@@ -596,6 +596,7 @@ fn user_tab(a: &App) -> AnyView {
             {look_fields(s.name.as_ref(),l.primary,l.accent,[s.decoration.as_deref(),s.nameplate.as_deref(),l.effect.as_deref(),l.frame.as_deref()],None)}
             {save_bar("profiles-user",a)}
         </form>
+        {super::identity::tag_picker(a)}
     </div>}.into_any()
 }
 fn server_tab(a: &App) -> AnyView {

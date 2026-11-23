@@ -5,11 +5,11 @@
 @import "tailwindcss" source(none);
 @import "./content.css";
 @import "./callextras.css";
-@import "./e2ee.css";
 @import "./expression.css";
 @import "./profiles.css";
 @import "./stage.css";
 @import "./themes.css";
+@import "./identity.css";
 @source "../src/live";
 @source "../index.html";
 @source "../public/*.js";

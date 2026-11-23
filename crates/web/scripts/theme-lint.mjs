@@ -35,7 +35,9 @@ const files = [
   ...(await walk(join(web, "styles"), (n) => n.endsWith(".css"))),
   ...(await walk(join(web, "src/live"), (n) => n.endsWith(".rs"))),
   ...(await walk(join(web, "public"), (n) => n.endsWith(".js") && !/^(mock-|platform\.js)/.test(n)))
-    .filter((p) => !/[\\/](vendor|runtime|cosmetics|stickers|emoji)[\\/]/.test(p)),
+    // Activity frames (public/activities/) are sandboxed content apps, themed
+    // through the tokens the SDK hands them, with their own artwork colors.
+    .filter((p) => !/[\\/](vendor|runtime|cosmetics|stickers|emoji|activities)[\\/]/.test(p)),
   join(web, "index.html"),
 ];
 

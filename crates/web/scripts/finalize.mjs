@@ -212,11 +212,16 @@ const paths = sizes
       !p.includes("gifs.js") &&
       !p.includes("content.js") &&
       // Profiles: the editor script, cosmetic art and name fonts load when shown.
+      // Identity: its script and the tag badge glyphs too.
+      !/\/(identity\.js$|tags\/)/.test(p) &&
       !/\/(profiles\.js$|cosmetics\/|badges\/|fonts\/names\/)/.test(p) &&
       // Call extras and the segmentation model load only when used.
       !/\/(callextras|soundboard|backgrounds|backgrounds-worker|clips)\.js$/.test(p) &&
       // Call encryption loads when a call starts.
-      !/\/e2ee(-core|-qr|-worker)?\.js$/.test(p) &&
+      !/\/e2ee(-core|-qr|-worker)?\.js$|\/e2ee\.css$/.test(p) &&
+      // Activities: the host bridge and every activity load only when used.
+      // (the host script is fingerprinted under /public/runtime/<hash>/).
+      !/\/activities\.(js|css)$|\/public\/activities\//.test(p) &&
       !p.includes("/public/vendor/") &&
       !p.includes("/vendor/") &&
       !p.includes("expression.js") &&
@@ -236,16 +241,37 @@ const paths = sizes
   );
 // The worker never answers /api, the MCP connector (/mcp) or its OAuth pages
 // (/oauth, /.well-known): a cached app shell must not replace the consent page.
-const sw = `const CACHE='sticktalk-shell-${revision}';const SHELL=${JSON.stringify(paths)};const ASSETS=${JSON.stringify(sizes.map(s=>'/'+s.file))};
+// Nor /invite/<code>: the server redirects that link to the join screen.
+// Every asset path, grouped by directory: the worker is part of the first
+// load and the paths share long prefixes (/pkg/<hash>/, the UI SDK's chunks).
+const grouped = (list) => {
+  const groups = {};
+  for (const path of list) {
+    const cut = path.lastIndexOf('/') + 1;
+    (groups[path.slice(0, cut)] ??= []).push(path.slice(cut));
+  }
+  return `Object.entries(${JSON.stringify(groups)}).flatMap(([d,f])=>f.map(n=>d+n))`;
+};
+// An activity's own files load only in its sandboxed frame (an opaque
+// origin, never controlled by this worker): leave them out of its list.
+const served = sizes.map((s) => '/' + s.file).filter((p) => !p.startsWith('/public/activities/'));
+const sw = `const CACHE='sticktalk-shell-${revision}';const SHELL=${grouped(paths)};const ASSETS=${grouped(served)};
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)));});
 self.addEventListener('message',event=>{if(event.data==='activate-update')self.skipWaiting();if(event.data==='purge-private')event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('sticktalk-')).map(async key=>{if(!key.startsWith('sticktalk-shell-'))return caches.delete(key);const cache=await caches.open(key);await Promise.all((await cache.keys()).filter(r=>!ASSETS.includes(new URL(r.url).pathname)).map(r=>cache.delete(r)));}))));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('sticktalk-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
-self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin||['/api/','/oauth/','/.well-known/'].some(p=>url.pathname.startsWith(p))||url.pathname==='/mcp')return;const path=event.request.mode==='navigate'?'/index.html':url.pathname;if(!ASSETS.includes(path))return;event.respondWith(caches.open(CACHE).then(async cache=>{const cached=await cache.match(path);if(cached&&path!=='/index.html')return cached;const refresh=fetch(event.request).then(async response=>{if(response.ok){let compatible=true;if(path==='/index.html'){const html=await response.clone().text();const references=[...html.matchAll(/(?:src|href)=["']([^"']+)["']/g)].map(m=>new URL(m[1],url).pathname).filter(p=>!p.startsWith('/api/'));compatible=references.every(p=>ASSETS.includes(p));}if(compatible)await cache.put(path,response.clone());}return response;});event.waitUntil(refresh.catch(()=>{}));return cached||refresh;}));});`;
+self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin||['/api/','/oauth/','/.well-known/','/invite/'].some(p=>url.pathname.startsWith(p))||url.pathname==='/mcp')return;const path=event.request.mode==='navigate'?'/index.html':url.pathname;if(!ASSETS.includes(path))return;event.respondWith(caches.open(CACHE).then(async cache=>{const cached=await cache.match(path);if(cached&&path!=='/index.html')return cached;const refresh=fetch(event.request).then(async response=>{if(response.ok){let compatible=true;if(path==='/index.html'){const html=await response.clone().text();const references=[...html.matchAll(/(?:src|href)=["']([^"']+)["']/g)].map(m=>new URL(m[1],url).pathname).filter(p=>!p.startsWith('/api/'));compatible=references.every(p=>ASSETS.includes(p));}if(compatible)await cache.put(path,response.clone());}return response;});event.waitUntil(refresh.catch(()=>{}));return cached||refresh;}));});`;
 const pushHandlers = await readFile(
   new URL("../public/push-worker.js", import.meta.url),
   "utf8",
 );
-await writeFile(join(dist, "sw.js"), sw + "\n" + pushHandlers);
+const worker = sw + "\n" + pushHandlers;
+await writeFile(join(dist, "sw.js"), worker);
+// The server sends the precompressed variant like every other script, so
+// that is what the worker costs on the wire.
+const workerBr = brotliCompressSync(Buffer.from(worker), {
+  params: { [constants.BROTLI_PARAM_QUALITY]: 11 },
+});
+await writeFile(join(dist, "sw.js.br"), workerBr);
 const firstLoadBytes =
   sizes
     .filter((s) => paths.includes("/" + s.file))
@@ -256,7 +282,7 @@ const firstLoadBytes =
           ? s.brotli
           : s.bytes),
       0,
-    ) + Buffer.byteLength(sw);
+    ) + workerBr.length;
 await writeFile(
   join(dist, "sizes.json"),
   JSON.stringify(

@@ -30,6 +30,8 @@ pub enum GuildTab {
     Invites,
     Bans,
 }
+// One value in the app state; boxing the profile variant would touch every match on it.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Dialog {
     None,

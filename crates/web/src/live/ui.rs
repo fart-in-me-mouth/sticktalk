@@ -4,12 +4,16 @@
 //! `message` or `live-modal` carry no styles of their own here: they are stable
 //! hooks for `public/*.js` and the browser tests.
 use super::*;
+mod activities;
+pub(in crate::live) mod apps;
 mod authsec;
 mod call_extras;
 mod call_views;
 mod community;
 mod content;
 mod expression;
+mod identity;
+pub(super) use identity::load_invite_view;
 mod moderation;
 mod navui;
 mod privacy;
@@ -340,7 +344,7 @@ fn shell(a: &App) -> AnyView {
             {navui::rail(a)}
             {ib("plus","Add a Server","dialog:create")}
             {community::discover_button(a)}
-        </nav><aside class="channel-sidebar flex min-h-0 min-w-0 flex-1 flex-col"><div class="sidebar-header flex h-12 min-h-12 items-center gap-1 border-b px-3 py-2">{if a.guild.is_some()&&!a.nav.favorites{view!{
+        </nav><aside class=format!("channel-sidebar flex min-h-0 min-w-0 flex-1 flex-col{}",identity::sidebar_class(a))><div class="sidebar-header flex h-12 min-h-12 items-center gap-1 border-b px-3 py-2">{if a.guild.is_some()&&!a.nav.favorites{view!{
                 <ui-menu class="contents"><ui-menu-trigger><button class="server-heading flex h-8 min-w-0 flex-1 items-center gap-1 rounded-md px-1 hover:bg-sidebar-accent" aria-label=format!("{guild_name} menu") title=guild_name.clone()><strong class="min-w-0 flex-1 truncate text-base font-semibold">{guild_name.clone()}</strong>{icon_with("chevron-down","icon size-4 text-muted-foreground")}</button></ui-menu-trigger>
                 <ui-menu-content class="menu" side="bottom" align="start" side-offset="6" hidden=true>
                     <ui-menu-item class="menu-item" value="dialog:invite">{icon("user-plus")}"Invite People"</ui-menu-item>
@@ -353,6 +357,7 @@ fn shell(a: &App) -> AnyView {
                 </ui-menu-content></ui-menu>
                 {if manage_channels{ib("plus","Create Channel","dialog:channel")}else{().into_any()}}{if admin{ib("settings","Server Settings","dialog:server")}else{().into_any()}}}.into_any()}else{view!{<strong class="min-w-0 flex-1 truncate px-1 text-base font-semibold">{guild_name}</strong>{if a.nav.favorites{ib("settings","Manage Favorites","nav-menu:favorites-manage")}else{ib("users","New Group Message","dialog:group")}}}.into_any()}}</div>
             <nav class="channel-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2" aria-label="Channels">
+            {identity::sidebar_banner(a)}
             {navui::sidebar_top(a)}
             {community::sidebar_rows(a)}
             {stage::events_entry(a)}
@@ -369,7 +374,7 @@ fn shell(a: &App) -> AnyView {
                 let count=read.map_or(0,|r|if c.guild_id.is_none()&&!muted{r.unread_count}else{r.mention_count});
                 let voice=c.kind==ChannelKind::Voice;
                 let open=if c.kind==ChannelKind::Stage{format!("stage:open,{}",c.id.0)}else{format!("{}:{}",if voice{"voice"}else{"channel"},c.id.0)};
-                view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()>{profiles::dm_nameplate(a,c)}<button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=open>{icon_with(if voice{"volume-2"}else if let Some(glyph)=stage::kind_icon(c.kind){glyph}else if let Some(glyph)=threads::kind_icon(c.kind){glyph}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{call_views::row_chat(a,c)}{stage::row_chat(a,c)}{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}{navui::row_options(c)}</div>{stage::row_extra(a,c,depth)}{if voice||c.kind==ChannelKind::Stage{voice_occupants(a,c.id,depth)}else{().into_any()}}{threads::rows(a,c,depth)}}.into_any()
+                view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()>{profiles::dm_nameplate(a,c)}<button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=open>{icon_with(if voice{"volume-2"}else if let Some(glyph)=stage::kind_icon(c.kind){glyph}else if let Some(glyph)=threads::kind_icon(c.kind){glyph}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{identity::dm_tag(a,c)}{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{call_views::row_chat(a,c)}{stage::row_chat(a,c)}{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}{navui::row_options(c)}</div>{stage::row_extra(a,c,depth)}{if voice||c.kind==ChannelKind::Stage{voice_occupants(a,c.id,depth)}else{().into_any()}}{threads::rows(a,c,depth)}}.into_any()
             }).collect_view()}
             </nav>
             <section id="live-connected" class="voice-connected border-t p-3 text-sm" hidden><div class="voice-connection-line flex min-w-0 flex-col"><strong class="text-primary">"Voice Connected"</strong><small class="truncate" title=call_name.clone()>{call_name.clone()}</small></div><div class="voice-tiles mt-2 flex gap-2 [&_.icon-button]:flex-1 [&_.icon-button]:bg-accent">{ib("video","Camera","media:camera")}{ib("monitor","Share Screen","media:share")}{ib("phone-off","Disconnect","media:leave")}</div></section>
@@ -433,7 +438,7 @@ fn home(a: &App) -> AnyView {
         };
         let status = privacy::status_line(&r.user)
             .filter(|_| r.kind == RelationshipKind::Friend && !super::privacy::ignored(r.user.id));
-        view!{{heading}<div class="friend-row flex items-center gap-3 border-t py-4 phone:flex-wrap">{avatar_status(a,&r.user)}<button class="friend-info flex min-w-0 flex-1 flex-col gap-1 touch:min-h-11 phone:min-w-[140px] phone:text-base" data-live=format!("profile:{}",r.user.id.0)><strong class="max-w-full truncate font-semibold">{name(&r.user)}</strong><small class="max-w-full truncate">{format!("@{} · {}",r.user.username,status.as_deref().unwrap_or(state))}</small></button>
+        view!{{heading}<div class="friend-row flex items-center gap-3 border-t py-4 phone:flex-wrap">{avatar_status(a,&r.user)}<button class="friend-info flex min-w-0 flex-1 flex-col gap-1 touch:min-h-11 phone:min-w-[140px] phone:text-base" data-live=format!("profile:{}",r.user.id.0)><span class="flex max-w-full min-w-0 items-center gap-1"><strong class="truncate font-semibold">{name(&r.user)}</strong>{identity::tag_static(a,&r.user)}</span><small class="max-w-full truncate">{format!("@{} · {}",r.user.username,status.as_deref().unwrap_or(state))}</small></button>
         {match r.kind{RelationshipKind::IncomingRequest=>view!{{button("Accept",&format!("friend:accept,{}",r.user.id.0),"primary")}{button("Decline",&format!("friend:decline,{}",r.user.id.0),"secondary")}}.into_any(),RelationshipKind::OutgoingRequest=>button("Cancel",&format!("friend:cancel,{}",r.user.id.0),"secondary"),RelationshipKind::Blocked=>button("Unblock",&format!("friend:unblock,{}",r.user.id.0),"secondary"),_=>ib("message-circle","Message",&format!("friend:dm,{}",r.user.id.0))}}
         </div>}
     }).collect_view();
@@ -540,6 +545,7 @@ fn chat(a: &App, title: &str) -> AnyView {
             view!{{if new_day{view!{<div class="day-divider" role="separator"><span>{day_label(m.created_at)}</span></div>}.into_any()}else{().into_any()}}{if unread{view!{<div class="new-divider" role="separator" aria-label="New messages"><span>"New"</span></div>}.into_any()}else{().into_any()}}{message(a,m,!new_day&&!unread&&crate::wire::continues_group(m.author_id.0,m.created_at,previous.map(|p|(p.author_id.0,p.created_at))))}}
         }).collect_view()}
         <div style=format!("height:{}px",bottom*88) aria-hidden="true"></div>
+        {if bottom==0{apps::ephemeral_list(a,c)}else{().into_any()}}
         </div><div class="composer-wrap relative px-4 pb-(--safe-bottom) phone:px-2">
         {if let Some(reply)=a.reply{let target=messages.and_then(|m|m.get(&reply));view!{<div class="reply-preview flex items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11"><span class="min-w-0 flex-1 truncate">{format!("Replying to {}",target.map_or("message".into(),|m|a.model.name(m.author_id)))}{target.map(|m|view!{<span class="text-muted-foreground">{format!(" · {}",preview(a,m))}</span>})}</span>{ib_plain("x","Cancel Reply","cancel-reply")}</div>}.into_any()}else{().into_any()}}
         {content::scheduled_bar(a,c)}
@@ -547,6 +553,7 @@ fn chat(a: &App, title: &str) -> AnyView {
         {a.attachments.iter().enumerate().map(|(i,f)|content::attachment_chip(a,i,f)).collect_view()}
         {expression::suggestions(a)}
         {if a.uploading{view!{<div class="live-upload mb-2 flex items-center justify-between gap-4 rounded-lg bg-muted p-2 text-xs" role="status">{a.upload_progress.clone()}{button("Pause","upload-cancel","secondary")}</div>}.into_any()}else{().into_any()}}
+        {apps::picker_view(a)}
         {if a.completions.is_empty(){().into_any()}else{view!{<div id="live-completions" class="autocomplete absolute inset-x-4 bottom-full z-40 max-h-[min(320px,50vh)] overflow-y-auto rounded-lg border bg-popover p-2 shadow-lg" role="listbox" aria-label="Suggestions">{a.completions.iter().enumerate().map(|(i,(label,insert,kind))|view!{<button class="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-sm aria-selected:bg-secondary touch:min-h-11" id=format!("completion-{i}") role="option" aria-selected=if i==0{"true"}else{"false"} data-completion=insert.clone()><span class="completion-avatar grid size-6 flex-none place-items-center overflow-hidden rounded-full bg-sidebar text-xs [&_.icon]:size-4">{match kind.as_str() {"Role"=>icon("shield"),"Channel"=>icon("hash"),"Emoji"=>view!{<span>{insert.clone()}</span>}.into_any(),"Custom"=>expression::completion_icon(a,insert),_=>view!{<span>{label.chars().take(1).collect::<String>()}</span>}.into_any()}}</span><span>{label.clone()}</span><small class="ml-auto">{if kind=="User"{insert.clone()}else{kind.clone()}}</small></button>}).collect_view()}</div>}.into_any()}}
         {moderation::composer_notice(a,c)}
         {community::composer_notice(a,c)}
@@ -591,6 +598,21 @@ fn text_links(a: &App, text: &str) -> AnyView {
     parts.push(view! {<span>{plain}</span>}.into_any());
     parts.collect_view().into_any()
 }
+/// An invite link (`?invite=CODE` or `/invite/CODE`, on any server).
+fn invite_url(url: &str) -> bool {
+    url.contains("invite=") || url.contains("/invite/")
+}
+/// An invite code or link as text. Every invite the app shows goes through
+/// this or [`message_link`], so Streamer Mode (`.streamer-invite`,
+/// themes.css) hides all of them, whatever their form.
+pub(super) fn invite_text(text: &str, class: &'static str) -> AnyView {
+    view! {<code class=format!("streamer-invite {class}") data-invite-code="">{text.to_owned()}</code>}
+        .into_any()
+}
+/// A link in a message; an invite link is marked for Streamer Mode.
+fn message_link(url: &str, text: &str) -> AnyView {
+    view!{<a class=if invite_url(url){"streamer-invite"}else{""} href=url.to_owned() target="_blank" rel="noopener noreferrer">{text.to_owned()}</a>}.into_any()
+}
 fn inline(a: &App, v: &Inline, m: &Message) -> AnyView {
     let style = format!(
         "{}{}{}{}",
@@ -613,7 +635,7 @@ fn inline(a: &App, v: &Inline, m: &Message) -> AnyView {
             ""
         }
     );
-    let body=match &v.target{Some(Target::Mention(u))if m.mention_ids.contains(u)=>view!{<button class="mention" data-live=format!("profile:{}",u.0)>{format!("@{}",a.model.name(*u))}</button>}.into_any(),Some(Target::Auto(url)|Target::Masked(url))if url.starts_with("https://")||url.starts_with("http://")=>view!{<a href=url.clone() target="_blank" rel="noopener noreferrer">{v.text.clone()}</a>}.into_any(),_ if v.style.code=>view!{<span>{v.text.clone()}</span>}.into_any(),_=>expression::text(a,&v.text)};
+    let body=match &v.target{Some(Target::Mention(u))if m.mention_ids.contains(u)=>view!{<button class="mention" data-live=format!("profile:{}",u.0)>{format!("@{}",a.model.name(*u))}</button>}.into_any(),Some(Target::Auto(url)|Target::Masked(url))if url.starts_with("https://")||url.starts_with("http://")=>message_link(url,&v.text),_ if v.style.code=>view!{<span>{v.text.clone()}</span>}.into_any(),_=>expression::text(a,&v.text)};
     if v.spoiler.is_some() {
         view!{<button class="live-spoiler" data-spoiler aria-label="Reveal spoiler">{body}</button>}.into_any()
     } else {
@@ -644,6 +666,7 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
     if let Some(x) = m.extra.crosspost() {
         author.display_name = Some(x.source_guild_name.clone());
     }
+    apps::author(m, &mut author);
     let own = a
         .model
         .me
@@ -659,8 +682,11 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
     let rich = m.extra.poll.is_some()
         || m.extra.forwarded.is_some()
         || m.extra.gif.is_some()
+        || m.extra.activity.is_some()
         || m.attachments.iter().any(|f| f.meta.voice());
-    let body = if let Some(p) = &m.extra.poll {
+    let body = if m.extra.activity.is_some() {
+        activities::card(a, m)
+    } else if let Some(p) = &m.extra.poll {
         content::poll(a, m, p)
     } else if let Some(x) = m.extra.crosspost() {
         threads::crosspost(a, m, x)
@@ -670,14 +696,18 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
         content::gif(a, m).unwrap_or_else(|| markdown(a, m, &m.content))
     };
     view!{<article class=format!("message group/message relative flex gap-4 px-4 hover:bg-accent {} {}",if continuation{"continuation mt-0.5"}else{"group-head mt-4 in-data-[density=compact]:mt-2"},if mention{"mentioned border-l-2 border-warning bg-warning/8"}else{""}) data-live-message=m.id.0.to_string() tabindex="0" aria-label=format!("Message from {}",name(&author))>
-        <div class="avatar-gutter flex w-10 flex-none items-start justify-center self-start">{if continuation{view!{<time class="gutter-time invisible text-xs leading-[21px] whitespace-nowrap group-focus-within/message:visible group-hover/message:visible">{short_time(m.created_at)}</time>}.into_any()}else{view!{<button class="touch:grid touch:min-h-11 touch:min-w-11 touch:place-items-center touch:p-0.5" data-live=format!("profile:{}",m.author_id.0) aria-label=format!("{}'s profile",name(&author))>{avatar(&author,"message-avatar")}</button>}.into_any()}}</div>
-        <div class="message-content min-w-0 flex-1 wrap-anywhere">{if continuation{().into_any()}else{view!{<div class="message-meta flex min-h-[21px] items-baseline gap-2 phone:flex-wrap phone:gap-x-2 phone:gap-y-1"><button class="author role-color max-w-[min(60%,360px)] truncate p-0 font-semibold" style=themes::role_style(&color(a,m.author_id)) title=name(&author) data-live=format!("profile:{}",m.author_id.0)>{profiles::name_for(a,m.author_id,&name(&author))}</button><time class="text-xs">{timestamp(m.created_at)}</time></div>}.into_any()}}
+        <div class="avatar-gutter flex w-10 flex-none items-start justify-center self-start">{if continuation{view!{<time class="gutter-time invisible text-xs leading-[21px] whitespace-nowrap group-focus-within/message:visible group-hover/message:visible">{short_time(m.created_at)}</time>}.into_any()}else{view!{<button class="touch:grid touch:min-h-11 touch:min-w-11 touch:place-items-center touch:p-0.5" data-live=format!("profile:{}",m.author_id.0) aria-label=format!("{}'s profile",name(&author))>{apps::avatar_override(m).unwrap_or_else(||avatar(&author,"message-avatar"))}</button>}.into_any()}}</div>
+        <div class="message-content min-w-0 flex-1 wrap-anywhere">{if continuation{().into_any()}else{view!{<div class="message-meta flex min-h-[21px] items-baseline gap-2 phone:flex-wrap phone:gap-x-2 phone:gap-y-1"><button class="author role-color max-w-[min(60%,360px)] truncate p-0 font-semibold" style=themes::role_style(&color(a,m.author_id)) title=name(&author) data-live=format!("profile:{}",m.author_id.0)>{identity::role_name(a,m.author_id,&name(&author),profiles::name_for(a,m.author_id,&name(&author)))}</button>{identity::after_name(a,&author)}<time class="text-xs">{timestamp(m.created_at)}</time></div>}.into_any()}}
         {if let Some(reply)=m.reply_to{view!{<button class="reply-preview flex max-w-full items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11" data-live=format!("seek-message:{}",reply.0)>{icon_with("reply","icon size-4")}<span class="min-w-0 truncate">{a.model.messages.get(&m.channel_id).and_then(|ms|ms.get(&reply)).map_or("Original message".into(),|m|format!("{}: {}",a.model.name(m.author_id),preview(a,m)))}</span></button>}.into_any()}else{().into_any()}}
-        {body}
-        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{expression::stickers(m)}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}{threads::extras(a,m)}{stage::message_extra(a,m)}
+        {apps::interaction_line(a,m)}{body}
+        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{expression::stickers(m)}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}{feature_extras(a,m)}{threads::extras(a,m)}{stage::message_extra(a,m)}
         {expression::reactions(a,m)}</div>
-        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{expression::message_actions(m)}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{threads::message_actions(a,m)}{privacy::message_actions(a,m)}{themes::message_actions(m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
+        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{expression::message_actions(m)}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{apps::message_actions(a,m)}{threads::message_actions(a,m)}{privacy::message_actions(a,m)}{themes::message_actions(m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
     </article>}.into_any()
+}
+/// Under a message's text: an app's embeds and components, invite cards.
+fn feature_extras(a: &App, m: &Message) -> AnyView {
+    view! {{apps::extra(a,m)}{identity::invite_cards(a,m)}}.into_any()
 }
 /// A message as its author typed it: mentions are "@username" again.
 fn editable(a: &App, m: &Message) -> String {
@@ -731,7 +761,7 @@ fn voice(a: &App) -> AnyView {
     people.extend(call_views::people(a));
     people.sort();
     people.dedup();
-    view!{<div class="voice-view flex min-h-0 flex-1 flex-col bg-rail p-4 phone:p-2 phone:pb-[max(8px,var(--safe-bottom))]" data-call-channel=a.voice_channel.map_or(String::new(),|id|id.0.to_string())><ul id="live-call-people" hidden>{people.into_iter().map(|u|view!{<li data-user=u.0.to_string() data-name=a.model.name(u) data-avatar=a.model.users.get(&u).and_then(|u|u.avatar_id).map_or(String::new(),|id|format!("/api/v1/files/{}/thumbnail",id.0))></li>}).collect_view()}</ul><button class="call-minimize flex min-h-11 flex-none items-center gap-2 px-2 text-[13px] text-subtle" data-live="media:minimize" aria-label="Minimize call">{icon("chevron-down")}<span>"Minimize call"</span></button>{call_views::ring_list(a)}<div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls flex flex-none justify-center gap-3 p-3 phone:gap-2 phone:px-0 [&_.icon-button]:size-12 [&_.icon-button]:rounded-full [&_.icon-button]:bg-muted [&_[data-live='media:leave']]:w-20 [&_[data-live='media:leave']]:rounded-[32px] [&_[data-live='media:leave']]:bg-destructive [&_[data-live='media:leave']]:text-primary-foreground">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share contents">{ib("monitor","Share Screen","media:share")}</span><span class="contents phone:hidden">{ib("volume-2","Audio Devices","media:output")}</span>{call_views::controls(a)}{call_extras::controls(a)}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection m-0 min-h-4 text-center text-[13px] text-subtle" role="status">"Connecting…"</p></div>}.into_any()
+    view!{<div class="voice-view flex min-h-0 flex-1 flex-col bg-rail p-4 phone:p-2 phone:pb-[max(8px,var(--safe-bottom))]" data-call-channel=a.voice_channel.map_or(String::new(),|id|id.0.to_string())><ul id="live-call-people" hidden>{people.into_iter().map(|u|view!{<li data-user=u.0.to_string() data-name=a.model.name(u) data-tag=identity::tag_text(a,u) data-avatar=a.model.users.get(&u).and_then(|u|u.avatar_id).map_or(String::new(),|id|format!("/api/v1/files/{}/thumbnail",id.0))></li>}).collect_view()}</ul><button class="call-minimize flex min-h-11 flex-none items-center gap-2 px-2 text-[13px] text-subtle" data-live="media:minimize" aria-label="Minimize call">{icon("chevron-down")}<span>"Minimize call"</span></button>{call_views::ring_list(a)}{activities::banner(a)}{activities::slot(a)}<div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls flex flex-none justify-center gap-3 p-3 phone:gap-2 phone:px-0 [&_.icon-button]:size-12 [&_.icon-button]:rounded-full [&_.icon-button]:bg-muted [&_[data-live='media:leave']]:w-20 [&_[data-live='media:leave']]:rounded-[32px] [&_[data-live='media:leave']]:bg-destructive [&_[data-live='media:leave']]:text-primary-foreground">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share contents">{ib("monitor","Share Screen","media:share")}</span><span class="contents phone:hidden">{ib("volume-2","Audio Devices","media:output")}</span>{call_views::controls(a)}{activities::controls(a)}{call_extras::controls(a)}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection m-0 min-h-4 text-center text-[13px] text-subtle" role="status">"Connecting…"</p></div>}.into_any()
 }
 fn form(title: &str, kind: &str, fields: AnyView) -> AnyView {
     form_with(title, kind, fields, "", true)
@@ -796,7 +826,7 @@ fn profile_actions(a: &App, u: &UserSummary) -> AnyView {
             "secondary",
         ),
     };
-    view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{if blocked{().into_any()}else{button("Message",&format!("friend:dm,{id}"),"primary")}}{friendship}{if blocked{button("Unblock",&format!("friend:unblock,{id}"),"secondary")}else{button("Block",&format!("friend:block,{id}"),"danger-text")}}</div>{moderation::member_actions(a,u)}{privacy::profile_extras(a,u)}}.into_any()
+    view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{if blocked{().into_any()}else{button("Message",&format!("friend:dm,{id}"),"primary")}}{friendship}{if blocked{button("Unblock",&format!("friend:unblock,{id}"),"secondary")}else{button("Block",&format!("friend:block,{id}"),"danger-text")}}</div>{moderation::member_actions(a,u)}{apps::member_actions(a,u)}{privacy::profile_extras(a,u)}}.into_any()
 }
 /// What a dialog is called for assistive technology.
 fn dialog_label(dialog: &str) -> &'static str {
@@ -851,9 +881,13 @@ fn dialog(a: &App) -> AnyView {
     if let Some(view) = expression::dialog(a) {
         return view;
     }
+    if let Some(view) = identity::dialog(a) {
+        return view;
+    }
     let body=match a.dialog.as_str(){
         "settings"|"account"=>account(a),
         "server"|"server-overview"=>settings::server_overview(a),
+        "server-activities"=>activities::settings_page(a),
         value if value.starts_with("nav-")=>navui::dialog(a,value),
         "server-channels"=>settings::channels(a),
         "server-bans"=>settings::bans(a),
@@ -868,7 +902,7 @@ fn dialog(a: &App) -> AnyView {
         "group"=>form("New Group Message","group",view!{{field("f-name","Group Name (optional)","","text")}<fieldset class="group-recipients my-4"><legend class="text-[13px] font-medium text-subtle">"Friends"</legend>{a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend).map(|r|view!{<label class="live-checkbox">{avatar(&r.user,"small")}<span class="mr-auto">{name(&r.user)}</span><input type="checkbox" data-group-user=r.user.id.0.to_string()/></label>}).collect_view()}</fieldset><input id="f-value" type="hidden"/><p class="muted-copy">"Choose 2 to 15 friends."</p>}.into_any()),
         "friend"=>form("Add Friend","friend",view!{{field("f-name","Username","","text")}<p class="muted-copy">"Enter their username exactly, for example alex_m."</p>}.into_any()),
         "create"=>view!{{form("Create a Server","create",field("f-name","Server Name","","text"))}<div class="-mx-4 mt-2">{button("Join a Server","dialog:join","link-button")}</div>{community::create_extra(a)}}.into_any(),
-        "join"=>form("Join a Server","join",view!{{field("f-name","Invite Link or Code","","text")}{match &a.invite_preview{Some((_,Ok(p)))=>view!{<p class="invite-preview" role="status"><strong>{p.name.clone()}</strong>{format!(" · {} member{}{}",p.member_count,if p.member_count==1{""}else{"s"},if p.joined{" · You’re already a member"}else{""})}</p>}.into_any(),Some((_,Err(e)))=>view!{<p class="invite-preview muted-copy" role="status">{e.clone()}</p>}.into_any(),None=>().into_any()}}{community::join_note(a)}{stage::invite_event(a)}}.into_any()),
+        "join"=>form("Join a Server","join",view!{{field("f-name","Invite Link or Code","","text")}{match &a.invite_preview{Some((_,Ok(p)))=>view!{<p class="invite-preview" role="status"><strong>{p.name.clone()}</strong>{format!(" · {} member{}{}",p.member_count,if p.member_count==1{""}else{"s"},if p.joined{" · You’re already a member"}else{""})}</p>}.into_any(),Some((_,Err(e)))=>view!{<p class="invite-preview muted-copy" role="status">{e.clone()}</p>}.into_any(),None=>().into_any()}}{identity::join_card(a)}{community::join_note(a)}{stage::invite_event(a)}}.into_any()),
         "kaomoji"=>view!{<h2>"Kaomoji"</h2><div class="picker-tabs mb-3 flex gap-2">{button("Emoji","dialog:emoji","link-button")}<button class="button secondary" aria-pressed="true">"Kaomoji"</button></div>{crate::kaomoji::GROUPS.iter().map(|(group,faces)|view!{<h3 class="category mt-4 mb-2">{*group}</h3><div class="kaomoji-grid">{faces.iter().map(|face|view!{<button class="kaomoji" data-live=format!("emoji:{face}")>{*face}</button>}).collect_view()}</div>}).collect_view()}}.into_any(),
         "channel"=>channel_form(a,"text",None),
         "category"=>channel_form(a,"category",None),
@@ -892,11 +926,12 @@ fn dialog(a: &App) -> AnyView {
         "gif" if matches!(a.gif_capability,GifCapability::Disabled)=>view!{<h2>"GIFs"</h2><p class="muted-copy">"GIF search is not enabled on this server. You can still upload an image or use emoji."</p><div class="empty-actions mt-6 flex flex-wrap gap-3 phone:[&>.button]:flex-1">{button("Upload an Image","pick-image","primary")}{button("Choose Emoji","dialog:emoji","secondary")}</div>}.into_any(),
         "gif"=>view!{<h2>"GIFs"</h2><form data-gif-search><label class="field"><span>"Search GIFs"</span><input id="gif-query" type="search"/></label><button class="button secondary" type="submit">"Search"</button></form><div class="live-gif-results mt-4 grid grid-cols-2 gap-3 [&_video]:max-w-full">{a.gifs.iter().map(|g|view!{<button data-live=format!("gif-send:{}",g.id)><video src=g.preview.url.clone() preload="none" muted loop playsinline controls width=g.preview.width height=g.preview.height aria-label=g.title.clone()></video><span>{g.title.clone()}</span></button>}).collect_view()}</div>}.into_any(),
         "profile"=>profiles::card(a),
-        value if value.starts_with("role:")=>{let r=id(value.trim_start_matches("role:")).and_then(|id|a.roles.get(&id));if let Some(r)=r{form_with("Edit Role","role-save",view!{<fieldset disabled=!settings::can(a,Permissions::MANAGE_ROLES)>{field("f-name","Role Name",&r.name,"text")}{field("f-value","Color",&format!("#{:06x}",r.color),"color")}<input id="f-permissions" type="hidden" value=r.permissions.bits().to_string()/><div class="live-permissions my-4">{role_permissions(r)}</div><label class="live-checkbox"><input id="f-hoist" type="checkbox" checked=r.hoist/>"Display role members separately"</label><label class="live-checkbox"><input id="f-mentionable" type="checkbox" checked=r.mentionable/>"Allow anyone to mention this role"</label><input id="f-extra" type="hidden" value=r.id.0.to_string()/>{if r.id!=r.guild_id{button("Delete Role",&format!("role-delete:{}",r.id.0),"danger-text")}else{().into_any()}}</fieldset>}.into_any(),"dialog:roles",settings::can(a,Permissions::MANAGE_ROLES))}else{().into_any()}},
+        value if value.starts_with("role:")=>{let r=id(value.trim_start_matches("role:")).and_then(|id|a.roles.get(&id));if let Some(r)=r{view!{{form_with("Edit Role","role-save",view!{<fieldset disabled=!settings::can(a,Permissions::MANAGE_ROLES)>{field("f-name","Role Name",&r.name,"text")}{field("f-value","Color",&format!("#{:06x}",r.color),"color")}<input id="f-permissions" type="hidden" value=r.permissions.bits().to_string()/><div class="live-permissions my-4">{role_permissions(r)}</div><label class="live-checkbox"><input id="f-hoist" type="checkbox" checked=r.hoist/>"Display role members separately"</label><label class="live-checkbox"><input id="f-mentionable" type="checkbox" checked=r.mentionable/>"Allow anyone to mention this role"</label><input id="f-extra" type="hidden" value=r.id.0.to_string()/>{if r.id!=r.guild_id{button("Delete Role",&format!("role-delete:{}",r.id.0),"danger-text")}else{().into_any()}}</fieldset>}.into_any(),"dialog:roles",settings::can(a,Permissions::MANAGE_ROLES))}{identity::role_editor(a,r)}}.into_any()}else{().into_any()}},
         value if value.starts_with("channel-edit:")=>settings::channel_editor(a,value),
         value if value.starts_with("channel-delete:")=>settings::channel_delete(a,value),
         value if value.starts_with("channel-move:")=>settings::channel_move(a,value),
         value if moderation::owns(value)=>moderation::page(a,value),
+        value if super::apps::owns_page(value)=>apps::page_view(a,value),
         value if privacy::owns(value)=>privacy::page(a,value),
         value if value.starts_with("invite-revoke:")=>form_with("Revoke Invite","invite-revoke",view!{<p>"This invite link will stop working immediately."</p><input id="f-name" type="hidden" value=value.trim_start_matches("invite-revoke:").to_owned()/>}.into_any(),"dialog:invite",true),
         value if value.starts_with("unban:")=>form_with("Revoke Ban","unban",view!{<p>"This person will be able to join again with an invite."</p><input id="f-name" type="hidden" value=value.trim_start_matches("unban:").to_owned()/>}.into_any(),"dialog:server-bans",true),
@@ -1006,6 +1041,7 @@ fn role_permissions(role: &Role) -> AnyView {
                 ("Voice Activity", Permissions::USE_VOICE_ACTIVITY),
                 ("Use Soundboard", Permissions::USE_SOUNDBOARD),
                 ("Manage Soundboard", Permissions::MANAGE_SOUNDBOARD),
+                ("Use Activities", Permissions::USE_ACTIVITIES),
                 ("Request to Speak", Permissions::REQUEST_TO_SPEAK),
             ],
         ),
@@ -1060,6 +1096,9 @@ pub(super) struct LazyViews {
     pub community: LazyView<fn(&App) -> Option<AnyView>>,
     pub stage: LazyView<StageDialog>,
     pub themes: LazyView<fn(&App, &str) -> Option<AnyView>>,
+    pub identity: LazyView<identity::Views>,
+    pub activity_card: LazyView<fn(&App, &Message) -> AnyView>,
+    pub apps_picker: LazyView<fn(&App) -> AnyView>,
 }
 type StageDialog = fn(&App) -> Option<(AnyView, &'static str, &'static str)>;
 #[lazy]
@@ -1073,6 +1112,11 @@ pub(super) fn load_stage_dialog() -> StageDialog {
 #[lazy]
 pub(super) fn load_themes_page() -> fn(&App, &str) -> Option<AnyView> {
     themes::page
+}
+/// Server identity's settings pages, tag card and role editor controls.
+#[lazy]
+pub(super) fn load_identity_dialog() -> identity::Views {
+    identity::table()
 }
 /// The dialogs whose views are in a feature's view module (`LazyViews`),
 /// with a placeholder while that module downloads.
@@ -1155,7 +1199,7 @@ fn member_groups(a: &App) -> AnyView {
     const NAME: &str = "role-color min-w-0 truncate text-[15px] font-medium [&_.icon]:ml-1 [&_.icon]:inline [&_.icon]:size-3.5 [&_.icon]:text-warning";
     if a.guild.is_none() {
         if let Some(c) = a.channel.and_then(|id| a.model.channels.get(&id)) {
-            return view!{<h2 class="category mx-4 mt-6 mb-2">{format!("Members — {}",c.recipient_ids.len())}</h2>{c.recipient_ids.iter().filter_map(|id|a.model.users.get(id)).map(|u|view!{<button class=ROW title=name(u) data-live=format!("profile:{}",u.id.0)>{profiles::nameplate(u)}{avatar_status(a,u)}<span class=NAME data-member-name=u.id.0.to_string()>{profiles::name_for(a,u.id,&name(u))}</span></button>}).collect_view()}{if c.kind==ChannelKind::GroupDm {view!{<button class="nav-row mx-2 mt-2 flex w-[calc(100%-16px)] items-center rounded-md p-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent touch:min-h-11" data-live="dialog:group-members">"Manage Group"</button>}.into_any()}else{().into_any()}}}.into_any();
+            return view!{<h2 class="category mx-4 mt-6 mb-2">{format!("Members — {}",c.recipient_ids.len())}</h2>{c.recipient_ids.iter().filter_map(|id|a.model.users.get(id)).map(|u|view!{<button class=ROW title=name(u) data-live=format!("profile:{}",u.id.0)>{profiles::nameplate(u)}{avatar_status(a,u)}<span class=NAME data-member-name=u.id.0.to_string()>{profiles::name_for(a,u.id,&name(u))}</span>{identity::tag_static(a,u)}</button>}).collect_view()}{if c.kind==ChannelKind::GroupDm {view!{<button class="nav-row mx-2 mt-2 flex w-[calc(100%-16px)] items-center rounded-md p-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent touch:min-h-11" data-live="dialog:group-members">"Manage Group"</button>}.into_any()}else{().into_any()}}}.into_any();
         }
     }
     let mut groups: BTreeMap<(i64, String), Vec<&Member>> = BTreeMap::new();
@@ -1185,7 +1229,7 @@ fn member_groups(a: &App) -> AnyView {
         let offline=label=="Offline";
         view!{<section class=if offline{"member-group offline"}else{"member-group"}>
             <h2 class="category mx-4 mt-6 mb-2">{format!("{} — {}",label,members.len())}</h2>
-            {members.into_iter().map(|m|{let shown=super::privacy::nickname(m.user.id).or_else(||m.nickname.clone()).unwrap_or_else(||name(&m.user));let look=profiles::member_user(m);view!{<button class=if offline{"member-row flex min-h-[42px] w-full items-center gap-3 px-4 py-1 opacity-60 hover:bg-sidebar-accent hover:opacity-100 touch:min-h-11"}else{ROW} title=shown.clone() data-live=format!("profile:{}",m.user.id.0)>{profiles::nameplate(&look)}{avatar_status(a,&look)}<span class=NAME data-member-name=m.user.id.0.to_string() style=themes::role_style(&color(a,m.user.id))>{profiles::styled_name(&shown,look.style.name.as_ref())}{if m.role==MemberRole::Owner {icon("crown")} else {().into_any()}}</span></button>}}).collect_view()}
+            {members.into_iter().map(|m|{let shown=super::privacy::nickname(m.user.id).or_else(||m.nickname.clone()).unwrap_or_else(||name(&m.user));let look=profiles::member_user(m);view!{<button class=if offline{"member-row flex min-h-[42px] w-full items-center gap-3 px-4 py-1 opacity-60 hover:bg-sidebar-accent hover:opacity-100 touch:min-h-11"}else{ROW} title=shown.clone() data-live=format!("profile:{}",m.user.id.0)>{profiles::nameplate(&look)}{avatar_status(a,&look)}<span class=NAME data-member-name=m.user.id.0.to_string() style=themes::role_style(&color(a,m.user.id))>{identity::role_name(a,m.user.id,&shown,profiles::styled_name(&shown,look.style.name.as_ref()))}{if m.role==MemberRole::Owner {icon("crown")} else {().into_any()}}{apps::tag(&m.user)}</span>{identity::row_after(a,&m.user)}</button>}}).collect_view()}
         </section>}
     }).collect_view()}}.into_any()
 }
@@ -1208,6 +1252,7 @@ fn user_settings(page: &str) -> bool {
     ) || page.starts_with("target-notifications:")
         || expression::is_user_page(page)
         || themes::is_user_page(page)
+        || super::apps::is_user_page(page)
 }
 fn settings_nav(a: &App) -> AnyView {
     let u = &a.model.me.as_ref().unwrap().user;
@@ -1220,6 +1265,7 @@ fn settings_nav(a: &App) -> AnyView {
         {settings_nav_row("monitor","Appearance","dialog:appearance",a.dialog=="appearance")}
         {themes::settings_nav(a)}
         {expression::settings_nav(a)}
+        {apps::settings_nav(a)}
         <div class="settings-divider my-6 phone:mb-4"></div><button class="settings-nav-row danger-text flex min-h-9 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium text-destructive hover:bg-destructive/10 touch:min-h-12 touch:text-[15px] phone:mt-0.5 phone:min-h-[52px] phone:bg-accent phone:p-3" data-live="logout">{icon("log-out")}<span class="flex-1">"Log Out"</span></button><small class="muted-copy px-3 pt-4">{concat!("StickTalk ",env!("CARGO_PKG_VERSION"))}</small>
     }.into_any()
 }
@@ -1237,6 +1283,9 @@ fn settings_layout(a: &App, body: AnyView) -> AnyView {
         "media-settings" => "Voice & Video",
         "expression-settings" => "Expression",
         value if themes::title(value).is_some() => themes::title(value).unwrap_or("Settings"),
+        value if super::apps::title(value).is_some() => {
+            super::apps::title(value).unwrap_or("Settings")
+        }
         "notifications" | "channel-notifications" => "Notifications",
         value if value.starts_with("target-notifications:") => "Notifications",
         _ => "Settings",

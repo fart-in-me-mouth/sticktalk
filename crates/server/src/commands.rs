@@ -301,7 +301,8 @@ async fn validate_message(
         require(!blocked(c, u, peer).await?, ErrorCode::Blocked)?;
     }
     require(
-        content.chars().count() <= 4000 && (!content.trim().is_empty() || attachments > 0),
+        content.chars().count() <= 4000
+            && (!content.trim().is_empty() || attachments > 0 || crate::apps::rich()),
         ErrorCode::InvalidRequest,
     )?;
     if attachments > 0 {
@@ -345,7 +346,7 @@ async fn command_message(
         result => result,
     }
 }
-async fn remove_member(
+pub(crate) async fn remove_member(
     c: &mut SqliteConnection,
     out: &mut Deliveries,
     g: Id,
@@ -419,7 +420,7 @@ pub(crate) async fn execute(
         Command::Typing { .. }
             | Command::SubscribeGuild { .. }
             | Command::Launch(LaunchCommand::LogoutSession { .. } | LaunchCommand::LogoutAllOthers)
-    );
+    ) && !crate::apps::transient(&req.command);
     let mut c = app.0.pool.acquire().await?;
     let valid: Option<i64> =
         sqlx::query_scalar("SELECT expires_at FROM sessions WHERE token_hash=?")
@@ -469,6 +470,8 @@ pub(crate) async fn execute(
     let mut replayed = false;
     let outcome: Result<CommandResult>=async {
         require(req.nonce>0&&req.nonce<=i64::MAX as u64,ErrorCode::InvalidRequest)?;
+        // Bots and webhooks may send only their own commands (`apps.rs`).
+        crate::apps::gate(core, &mut c, key, u, &req.command).await?;
         let request_hash=hash(&rmp_serde::to_vec_named(&req.command).map_err(|_|Error::new(ErrorCode::Internal))?);
         if durable {
             if let Some(r)=sqlx::query("SELECT request_hash,result_msgpack FROM command_receipts WHERE session_hash=? AND nonce=? AND expires_at>?").bind(key).bind(req.nonce as i64).bind(now() as i64).fetch_optional(&mut *c).await? {
@@ -524,6 +527,8 @@ pub(crate) async fn execute(
             }
         }
         if durable {let result_bytes=rmp_serde::to_vec_named(&result).map_err(|_|Error::new(ErrorCode::Internal))?;sqlx::query("INSERT INTO command_receipts(session_hash,nonce,request_hash,result_msgpack,created_at,expires_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_hash,nonce) DO UPDATE SET request_hash=excluded.request_hash,result_msgpack=excluded.result_msgpack,created_at=excluded.created_at,expires_at=excluded.expires_at") .bind(key).bind(req.nonce as i64).bind(request_hash).bind(result_bytes).bind(now() as i64).bind((now()+600_000) as i64).execute(&mut *tx).await?;}
+        crate::apps::settle(&mut tx, core, u, &mut out).await?;
+        crate::identity::settle(&mut tx, core, &mut out).await?;
         let changed=!out.is_empty();
         let orphaned=gc_uploads(&mut tx).await?;
         core.persist_id(&mut tx).await?;
@@ -770,6 +775,8 @@ pub(crate) async fn mutate(
         Schedule(cmd) => Box::pin(crate::schedule::mutate(c, core, key, u, cmd, out)).await,
         // Built and boxed in a frame of its own (`themes::boxed`).
         Appearance(cmd) => crate::themes::boxed(c, core, key, u, cmd, out).await,
+        Apps(cmd) => Box::pin(crate::apps::mutate(c, core, key, u, cmd, out)).await,
+        Identity(cmd) => Box::pin(crate::identity::mutate(c, core, u, cmd, out)).await,
         cmd => Box::pin(core_mutate(c, core, key, u, cmd, out)).await,
     }
 }
@@ -786,7 +793,9 @@ async fn core_mutate(
     let adding_reaction = matches!(cmd, Command::AddReaction { .. });
     match cmd {
         Launch(_) | Content(_) | Threads(_) | Expression(_) | Privacy(_) | Community(_)
-        | Schedule(_) | Appearance(_) => Err(Error::new(ErrorCode::Internal)),
+        | Schedule(_) | Appearance(_) | Apps(_) | Identity(_) => {
+            Err(Error::new(ErrorCode::Internal))
+        }
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
@@ -1324,11 +1333,8 @@ async fn core_mutate(
             Ok(CommandResult::Ack)
         }
         JoinGuild { invite_code: code } => {
-            require(code.len() == 22, ErrorCode::InvalidInvite)?;
-            let iid: Option<i64> = sqlx::query_scalar("SELECT id FROM invites WHERE code_hash=?")
-                .bind(hash(code.as_bytes()))
-                .fetch_optional(&mut *c)
-                .await?;
+            // Invite codes and vanity codes (identity.rs).
+            let iid = crate::identity::find_invite(c, &code).await?;
             let i = invite(
                 c,
                 Id(iid.ok_or_else(|| Error::new(ErrorCode::InvalidInvite))? as u64),
@@ -1595,6 +1601,7 @@ async fn core_mutate(
                     .fetch_optional(&mut *c)
                     .await?;
             if let Some(iid) = iid {
+                crate::identity::not_vanity(c, iid).await?;
                 let i = invite(c, Id(iid as u64)).await?;
                 require(
                     i.creator_id == u

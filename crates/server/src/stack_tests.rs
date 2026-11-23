@@ -21,7 +21,9 @@ const BUDGET: usize = if cfg!(debug_assertions) {
 };
 // The integration branch' features: a `/tts` message, sharing an event (a
 // message through the send path), an event starting (the schedule timer) and
-// a server built from a template.
+// a server built from a template. Task `lazy2`: a bot answering a command
+// with a message with embeds and components, an activity launched and its
+// invite card posted, a server tag edit told to hundreds of wearers.
 const PATHS: &[&str] = &[
     "forum_post",
     "publish",
@@ -32,7 +34,15 @@ const PATHS: &[&str] = &[
     "event_share",
     "event_start",
     "template",
+    "bot_reply",
+    "activity_card",
+    "tag_fanout",
 ];
+/// A bot's session key and the interaction it answers (`bot_reply`), set by
+/// `prepare` in the child process.
+static BOT: std::sync::Mutex<Option<(Vec<u8>, Id, InteractionAnswer)>> =
+    std::sync::Mutex::new(None);
+const WEARERS: std::ops::Range<u64> = 1000..1400;
 const PROBE: &str = "STICKTALK_STACK_PROBE";
 
 async fn run(app: &App, u: u64, nonce: u64, command: Command) -> CommandResult {
@@ -52,6 +62,33 @@ async fn run(app: &App, u: u64, nonce: u64, command: Command) -> CommandResult {
         CommandOutcome::Ok(r) => r,
         CommandOutcome::Err(e) => panic!("{e:?}"),
     }
+}
+async fn run_key(app: &App, key: &[u8], u: Id, nonce: u64, command: Command) -> CommandResult {
+    let mut core = app.0.core.lock().await;
+    core.limits.clear();
+    match commands::execute(app, &mut core, key, u, CommandRequest { nonce, command })
+        .await
+        .unwrap()
+        .outcome
+    {
+        CommandOutcome::Ok(r) => r,
+        CommandOutcome::Err(e) => panic!("{e:?}"),
+    }
+}
+/// A live connection for `key`, so its stream counts as online.
+fn connect(core: &mut crate::state::Core, key: &[u8]) {
+    let (tx, rx) = tokio::sync::mpsc::channel(4096);
+    let (close, _) = tokio::sync::watch::channel(None);
+    core.streams.get_mut(key).unwrap().connection = Some(crate::state::Connection {
+        id: crate::state::stream_id(),
+        focused: false,
+        alive: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+        tx,
+        budget: std::sync::Arc::new(tokio::sync::Semaphore::new(64 << 20)),
+        close,
+    });
+    // The child process ends after this path: keep the receiver open.
+    std::mem::forget(rx);
 }
 async fn sql(app: &App, q: &str) {
     sqlx::raw_sql(sqlx::AssertSqlSafe(q.to_owned()))
@@ -201,6 +238,159 @@ async fn prepare(app: &App, path: &str) -> Option<(Id, Id)> {
             }
             Some((e, Id(0)))
         }
+        "bot_reply" => {
+            let token = match run(
+                app,
+                1,
+                70,
+                Command::Apps(AppCommand::CreateApp(AppDraft {
+                    name: "Probe Bot".into(),
+                    permissions: Permissions::VIEW_CHANNEL
+                        | Permissions::SEND_MESSAGES
+                        | Permissions::READ_HISTORY
+                        | Permissions::EMBED_LINKS,
+                    ..Default::default()
+                })),
+            )
+            .await
+            {
+                CommandResult::Apps(AppResult::Token { token, .. }) => token,
+                other => panic!("{other:?}"),
+            };
+            let app_id: i64 = sqlx::query_scalar("SELECT id FROM apps")
+                .fetch_one(&app.0.pool)
+                .await
+                .unwrap();
+            let app_id = Id(app_id as u64);
+            let basic = Permissions::VIEW_CHANNEL
+                | Permissions::SEND_MESSAGES
+                | Permissions::READ_HISTORY
+                | Permissions::EMBED_LINKS;
+            run(
+                app,
+                1,
+                72,
+                Command::Apps(AppCommand::Install(InstallRequest {
+                    app_id,
+                    guild_id: Id(10),
+                    permissions: basic,
+                    message_content: false,
+                    confirm_administrator: false,
+                })),
+            )
+            .await;
+            let (key, bot) = {
+                let mut core = app.0.core.lock().await;
+                let mut c = app.0.pool.acquire().await.unwrap();
+                let (key, bot) = crate::apps::authenticate(&mut core, &mut c, &token)
+                    .await
+                    .unwrap();
+                connect(&mut core, &key);
+                (key, bot)
+            };
+            let command = match run_key(
+                app,
+                &key,
+                bot,
+                73,
+                Command::Apps(AppCommand::SetCommands {
+                    guild_id: None,
+                    commands: vec![CommandDraft {
+                        kind: CommandKind::ChatInput,
+                        name: "forecast".into(),
+                        description: "Weather".into(),
+                        options: vec![],
+                        default_member_permissions: None,
+                    }],
+                }),
+            )
+            .await
+            {
+                CommandResult::Apps(AppResult::Commands(c)) => c[0].id,
+                other => panic!("{other:?}"),
+            };
+            run(
+                app,
+                2,
+                74,
+                Command::Apps(AppCommand::Invoke(Invocation {
+                    channel_id: Id(11),
+                    command_id: command,
+                    options: vec![],
+                    target_id: None,
+                })),
+            )
+            .await;
+            let answer = {
+                let core = app.0.core.lock().await;
+                core.streams[&key]
+                    .ring
+                    .iter()
+                    .find_map(
+                        |(_, _, b)| match rmp_serde::from_slice::<ServerMsg>(b).unwrap() {
+                            ServerMsg::Event(e) => match e.event {
+                                Event::Apps(AppEvent::Interaction(i)) => Some(InteractionAnswer {
+                                    interaction_id: i.id,
+                                    token: i.token,
+                                }),
+                                _ => None,
+                            },
+                            _ => None,
+                        },
+                    )
+                    .unwrap()
+            };
+            *BOT.lock().unwrap() = Some((key, bot, answer));
+            None
+        }
+        "activity_card" => {
+            crate::activities::tests::world(app).await;
+            let mut core = app.0.core.lock().await;
+            for u in [1, 2] {
+                std::mem::forget(crate::activities::tests::attach(&mut core, u));
+                crate::activities::tests::join(app, &mut core, u, crate::activities::tests::VOICE)
+                    .await;
+            }
+            None
+        }
+        "tag_fanout" => {
+            run(
+                app,
+                1,
+                80,
+                Command::Identity(IdentityCommand::SetTag {
+                    guild_id: Id(10),
+                    tag: Some(TagEdit {
+                        text: "GG".into(),
+                        glyph: "leaf".into(),
+                        color: 0x1C3A2E,
+                        color2: 0x3DDC97,
+                        invite_code: None,
+                    }),
+                }),
+            )
+            .await;
+            run(
+                app,
+                2,
+                81,
+                Command::Identity(IdentityCommand::WearTag {
+                    guild_id: Some(Id(10)),
+                }),
+            )
+            .await;
+            let mut q = String::new();
+            for u in WEARERS {
+                q.push_str(&format!("INSERT INTO users(id,username,password_hash,desired_presence,created_at) VALUES({u},'wearer{u}','x','online',0); INSERT INTO guild_members VALUES(10,{u},'member',0);"));
+            }
+            sql(app, &q).await;
+            sql(app, "UPDATE users SET tag=(SELECT tag FROM users WHERE id=2),tag_guild=10 WHERE id>=1000").await;
+            let mut core = app.0.core.lock().await;
+            for u in WEARERS {
+                core.cursor(&u.to_be_bytes().repeat(4), Id(u));
+            }
+            None
+        }
         _ => None,
     }
 }
@@ -283,6 +473,76 @@ async fn exercise(app: App, path: &'static str, prepared: Option<(Id, Id)>) {
                 }),
             )
             .await;
+        }
+        "bot_reply" => {
+            let (key, bot, answer) = BOT.lock().unwrap().take().unwrap();
+            let button = |id: &str| {
+                Component::Button(Button {
+                    style: ButtonStyle::Primary,
+                    label: Some(id.into()),
+                    emoji: None,
+                    custom_id: Some(id.into()),
+                    url: None,
+                    disabled: false,
+                })
+            };
+            run_key(
+                &app,
+                &key,
+                bot,
+                90,
+                Command::Apps(AppCommand::Respond {
+                    answer,
+                    response: InteractionResponse::Message(AppMessageDraft {
+                        content: "Sunny <@2>".into(),
+                        embeds: vec![EmbedDraft {
+                            title: Some("Oslo".into()),
+                            description: Some("**21°** and clear".into()),
+                            ..Default::default()
+                        }],
+                        components: vec![ActionRow {
+                            components: vec![button("more"), button("less")],
+                        }],
+                        ..Default::default()
+                    }),
+                }),
+            )
+            .await;
+        }
+        "activity_card" => {
+            use crate::activities::tests::*;
+            let mut core = app.0.core.lock().await;
+            act(&app, &mut core, 1, launch(VOICE, "whiteboard")).await;
+            let session_id = sid(&core, VOICE);
+            act(
+                &app,
+                &mut core,
+                1,
+                ActivitySignal::Invite {
+                    session_id,
+                    channel_id: Id(11),
+                },
+            )
+            .await;
+        }
+        "tag_fanout" => {
+            run(
+                &app,
+                1,
+                91,
+                Command::Identity(IdentityCommand::SetTag {
+                    guild_id: Id(10),
+                    tag: Some(TagEdit {
+                        text: "GGWP".into(),
+                        glyph: "star".into(),
+                        color: 0x1C3A2E,
+                        color2: 0x3DDC97,
+                        invite_code: None,
+                    }),
+                }),
+            )
+            .await;
+            crate::identity::fanout(&app).await.unwrap();
         }
         // Opening the server (migrations, timers) runs on a runtime thread too.
         "open" => drop(fixture().await),

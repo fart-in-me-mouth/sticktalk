@@ -1,4 +1,6 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
+mod activities;
+mod apps;
 mod authsec;
 mod calls;
 mod community;
@@ -7,6 +9,7 @@ mod e2ee;
 mod expression;
 mod features;
 mod history_cache;
+mod identity;
 mod moderation;
 mod nav;
 mod operations;
@@ -177,6 +180,12 @@ struct App {
     stage: stage::State,
     /// Custom and server themes, the theme editor, shared themes.
     themes: themes::State,
+    /// Shared activities in the call (`activities.rs`).
+    activities: activities::State,
+    /// Apps, bots, commands, interactions and webhooks.
+    apps: apps::State,
+    /// Server tags, role styles and icons, server images, invite cards.
+    identity: identity::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -249,6 +258,9 @@ impl App {
         self.community = Default::default();
         self.stage = Default::default();
         self.themes = Default::default();
+        self.activities = Default::default();
+        self.apps = Default::default();
+        self.identity = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -426,6 +438,9 @@ pub fn mount() {
             community: Default::default(),
             stage: Default::default(),
             themes: Default::default(),
+            activities: Default::default(),
+            apps: Default::default(),
+            identity: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -760,6 +775,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 moderation::connected(app.clone());
                                 privacy::connected(app.clone());
                                 themes::connected(app.clone());
+                                apps::ready(app.clone());
                                 let channel = app.borrow().channel;
                                 if let Some(c) = channel {
                                     operations::load_channel(app.clone(), c, None);
@@ -1068,28 +1084,33 @@ async fn socket(app: Shared, epoch: u64) {
                                 // is the stage feature's, not the media host's: it goes,
                                 // undecoded, to that feature's state module. The empty list
                                 // sent after every Ready changes nothing while none is known.
-                                let stage = (payload.version == VOICE_VERSION
+                                // Activity sessions likewise go to the activities feature.
+                                let routed = (payload.version == VOICE_VERSION
                                     && payload.kind == "event")
                                     .then(|| inbound::tagged(&payload.payload).ok())
                                     .flatten()
-                                    .filter(|(tag, _)| *tag == "stage")
-                                    .and_then(|(_, data)| data);
-                                if let Some(data) = stage {
-                                    let idle = payload.payload == crate::wire::EMPTY_STAGE_SNAPSHOT
+                                    .and_then(|(tag, data)| {
+                                        let to = match tag {
+                                            "stage" => (features::Feature::Stage, stage::VOICE_TAG),
+                                            "activities" => (
+                                                features::Feature::Activities,
+                                                activities::VOICE_TAG,
+                                            ),
+                                            _ => return None,
+                                        };
+                                        Some((to, data?))
+                                    });
+                                if let Some(((feature, tag), data)) = routed {
+                                    let idle = feature == features::Feature::Stage
+                                        && payload.payload == crate::wire::EMPTY_STAGE_SNAPSHOT
                                         && app.borrow().stage.live.is_empty();
                                     if !idle {
                                         let raw = inbound::Raw {
-                                            tag: stage::VOICE_TAG,
+                                            tag,
                                             data: data.to_vec(),
                                         };
                                         let call = features::Call::Event(raw);
-                                        match features::run(
-                                            app.clone(),
-                                            features::Feature::Stage,
-                                            call,
-                                        )
-                                        .await
-                                        {
+                                        match features::run(app.clone(), feature, call).await {
                                             Ok(true) => {}
                                             Ok(false) => {
                                                 app.borrow_mut().error =
@@ -1230,6 +1251,15 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
     if let Ok(event) = inbound::de::<VoiceEvent>(&payload.payload) {
         // Stage state goes to the stage feature before this (`socket`).
         if matches!(event, VoiceEvent::Stage(_)) {
+            return;
+        }
+        // Activity events go to the activities feature before this (`socket`).
+        if matches!(event, VoiceEvent::Activities(_)) {
+            return;
+        }
+        if matches!(event, VoiceEvent::Ack | VoiceEvent::Error { .. })
+            && activities::answer(&app, payload.nonce, &event)
+        {
             return;
         }
         if matches!(

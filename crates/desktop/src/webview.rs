@@ -105,8 +105,10 @@ pub fn build(window: &Window, context: &mut WebContext, config: Config) -> Resul
             let (shared, proxy) = (shared.clone(), proxy.clone());
             let overrun = std::sync::atomic::AtomicBool::new(false);
             move |request: Request<String>| {
-                // Only the chosen server's own pages are listened to.
-                if !lock(&shared).policy.is_server(&request.uri().to_string()) {
+                // Only the chosen server's app document is listened to: not
+                // its other pages, and never a frame (an activity), which
+                // WebView2 may give the host's script too.
+                if !lock(&shared).policy.is_app_page(&request.uri().to_string()) {
                     return;
                 }
                 // The title bar and window icon follow the app (see `appearance`).

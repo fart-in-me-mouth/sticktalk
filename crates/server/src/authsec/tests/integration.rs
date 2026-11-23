@@ -20,7 +20,11 @@ async fn data_export_includes_threads_votes_scheduled_sounds_and_backgrounds() {
          INSERT INTO uploads(id,owner_id,purpose,channel_id,filename,content_type,byte_size,storage_key,created_at) VALUES(41,1,'message',11,'plan.txt','text/plain',4,'k41',0);\
          INSERT INTO scheduled_attachments VALUES(40,41,0);\
          INSERT INTO soundboard_sounds(id,guild_id,name,emoji,volume,duration_ms,format,data,created_by,created_at) VALUES(50,10,'Tada',NULL,80,400,'wav',X'5249464600',1,9),(51,10,'Bobs horn',NULL,80,400,'wav',X'5249464601',2,9);\
-         INSERT INTO camera_backgrounds(id,user_id,kind,mime,data,created_at) VALUES(60,1,'image','image/png',X'89504E47',10),(61,2,'image','image/png',X'89504E48',10);",
+         INSERT INTO camera_backgrounds(id,user_id,kind,mime,data,created_at) VALUES(60,1,'image','image/png',X'89504E47',10),(61,2,'image','image/png',X'89504E48',10);\
+         INSERT INTO users(id,username,password_hash,desired_presence,created_at) VALUES(70,'weather-bot','','online',0),(71,'hook-71','','online',0);\
+         INSERT INTO apps(id,owner_id,bot_id,name,description,created_at) VALUES(72,1,70,'Weather','Forecasts',11);\
+         INSERT INTO app_installs(app_id,guild_id,permissions,installed_by,installed_at) VALUES(72,10,0,1,12);\
+         INSERT INTO webhooks(id,guild_id,channel_id,user_id,name,token_hash,session_hash,creator_id,created_at) VALUES(73,10,11,71,'CI',X'01',X'02',1,13);",
     )
     .execute(&app.0.pool)
     .await
@@ -68,6 +72,13 @@ async fn data_export_includes_threads_votes_scheduled_sounds_and_backgrounds() {
     // Her poll vote and thread membership, not Bob's vote.
     let settings: Value = serde_json::from_slice(&files["settings.json"]).unwrap();
     assert_eq!(settings["poll_votes"].as_array().unwrap().len(), 1);
+    // Her apps, the apps she added to servers and the webhooks she made
+    // (docs/features/apps.md), never their credentials.
+    let apps: Value = serde_json::from_slice(&files["apps.json"]).unwrap();
+    assert_eq!(apps["apps"][0]["name"], "Weather");
+    assert_eq!(apps["installed"][0]["app"], "Weather");
+    assert_eq!(apps["webhooks"][0]["name"], "CI");
+    assert!(!text("apps.json").contains("token"));
     assert_eq!(settings["thread_members"].as_array().unwrap().len(), 1);
     // Scheduled messages with their held files.
     let scheduled = text("scheduled.json");

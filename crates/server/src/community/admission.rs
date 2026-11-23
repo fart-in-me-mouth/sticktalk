@@ -235,11 +235,8 @@ pub(super) async fn join_gate(c: &mut SqliteConnection, u: Id, g: Id) -> Result<
 }
 /// The server an invite code leads to, if the invite can still be used.
 pub(super) async fn invite_guild(c: &mut SqliteConnection, code: &str) -> Result<Id> {
-    require(code.len() == 22, ErrorCode::InvalidInvite)?;
-    let found: Option<i64> = sqlx::query_scalar("SELECT id FROM invites WHERE code_hash=?")
-        .bind(crate::state::hash(code.as_bytes()))
-        .fetch_optional(&mut *c)
-        .await?;
+    // Invite codes and vanity codes (identity.rs).
+    let found = crate::identity::find_invite(c, code).await?;
     let i = invite(
         c,
         Id(found.ok_or_else(|| Error::new(ErrorCode::InvalidInvite))? as u64),

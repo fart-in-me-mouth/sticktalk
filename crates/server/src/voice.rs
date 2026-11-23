@@ -499,6 +499,15 @@ pub(crate) async fn remove(
         // ACL denial above is synchronous even if the actor has stopped.
         let _ = app.0.voice.cleanup.try_send(session);
         send(core, &entry.key, 0, &VoiceEvent::Left { session })?;
+        // Never fails the removal: the activity is the call's guest.
+        let _ = Box::pin(crate::activities::voice_left(
+            app,
+            core,
+            c,
+            session,
+            entry.state.channel_id,
+        ))
+        .await;
         if entry.stage {
             Box::pin(crate::stage::left(
                 app,
@@ -611,6 +620,7 @@ pub(crate) async fn reconcile(app: &App, core: &mut Core, c: &mut SqliteConnecti
             }
         }
     }
+    let _ = Box::pin(crate::activities::reconcile(app, core, c)).await;
     Box::pin(crate::stage::reconcile(core, c)).await
 }
 /// A Stage session moves between the audience (`listener`) and the speakers:
@@ -939,6 +949,19 @@ async fn signal_inner(
             }
             return Ok(());
         }
+        VoiceSignal::Activities(activity) => {
+            let session = core
+                .voice
+                .iter()
+                .find(|(_, v)| v.key == key && v.connection == connection)
+                .map(|(s, _)| *s);
+            let activity = activity.clone();
+            Box::pin(crate::activities::signal(
+                app, core, &mut c, key, user, session, activity,
+            ))
+            .await?;
+            return send(core, key, nonce, &VoiceEvent::Ack);
+        }
         _ => {}
     }
     let existing = core
@@ -1185,6 +1208,7 @@ async fn output(
     )?;
     if matches!(event, VoiceEvent::Joined { .. }) {
         crate::callextras::joined(core, c, signal.session).await;
+        crate::activities::joined(core, signal.session);
         crate::community::voice_joined(core, signal.session);
     }
     // queue() can detach a slow consumer; revoke its synchronous media ACL now.

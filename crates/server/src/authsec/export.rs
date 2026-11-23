@@ -679,6 +679,13 @@ pub(super) fn build(
             Value::Array(rows.iter().map(row_json).collect()),
         );
     }
+    // The server tag the account wears (identity.rs).
+    let worn = a.rows(sqlx::query("SELECT tag FROM users WHERE id=?").bind(u))?;
+    settings.insert(
+        "worn_tag".into(),
+        worn.first()
+            .map_or(Value::Null, crate::identity::export_row),
+    );
     a.json("settings.json", &Value::Object(settings))?;
 
     let servers = a.rows(sqlx::query("SELECT g.id,g.name,g.owner_id=gm.user_id AS owner,gm.role,gm.joined_at FROM guild_members gm JOIN guilds g ON g.id=gm.guild_id WHERE gm.user_id=? ORDER BY gm.joined_at").bind(u))?;
@@ -687,6 +694,28 @@ pub(super) fn build(
         .map(|r| json!({"id": big(r.get("id")), "name": r.get::<String,_>("name"), "owner": r.get::<bool,_>("owner"), "role": r.get::<String,_>("role"), "joined_at": r.get::<i64,_>("joined_at")}))
         .collect();
     a.json("servers.json", &Value::Array(servers_json))?;
+
+    // Apps the account owns (never their tokens), the apps it added to
+    // servers, and the webhooks it created (never their secret URLs).
+    let owned: Vec<Value> = a
+        .rows(sqlx::query("SELECT id,name,description,public,intents,permissions,disabled,created_at FROM apps WHERE owner_id=? ORDER BY id LIMIT 1000").bind(u))?
+        .iter()
+        .map(|r| json!({"id": big(r.get("id")), "name": r.get::<String,_>("name"), "description": r.get::<String,_>("description"), "public": r.get::<bool,_>("public"), "intents": r.get::<i64,_>("intents"), "permissions": r.get::<i64,_>("permissions").to_string(), "disabled": r.get::<bool,_>("disabled"), "created_at": r.get::<i64,_>("created_at")}))
+        .collect();
+    let installs: Vec<Value> = a
+        .rows(sqlx::query("SELECT i.app_id,a.name,i.guild_id,i.permissions,i.message_content,i.installed_at FROM app_installs i JOIN apps a ON a.id=i.app_id WHERE i.installed_by=? ORDER BY i.installed_at LIMIT 10000").bind(u))?
+        .iter()
+        .map(|r| json!({"app_id": big(r.get("app_id")), "app": r.get::<String,_>("name"), "server_id": big(r.get("guild_id")), "permissions": r.get::<i64,_>("permissions").to_string(), "message_content": r.get::<bool,_>("message_content"), "installed_at": r.get::<i64,_>("installed_at")}))
+        .collect();
+    let webhooks: Vec<Value> = a
+        .rows(sqlx::query("SELECT id,guild_id,channel_id,name,created_at,last_used_at FROM webhooks WHERE creator_id=? ORDER BY id LIMIT 10000").bind(u))?
+        .iter()
+        .map(|r| json!({"id": big(r.get("id")), "server_id": big(r.get("guild_id")), "channel_id": big(r.get("channel_id")), "name": r.get::<String,_>("name"), "created_at": r.get::<i64,_>("created_at"), "last_used_at": r.get::<Option<i64>,_>("last_used_at")}))
+        .collect();
+    a.json(
+        "apps.json",
+        &json!({"apps": owned, "installed": installs, "webhooks": webhooks}),
+    )?;
 
     let relationships: Vec<Value> = a
         .rows(sqlx::query("SELECT r.kind,r.since,u.id,u.username,u.display_name FROM relationships r JOIN users u ON u.id=r.other_id WHERE r.user_id=? ORDER BY r.since").bind(u))?
