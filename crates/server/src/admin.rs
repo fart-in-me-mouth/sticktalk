@@ -95,6 +95,11 @@ pub enum AdminCommand {
     EnableUser {
         username: String,
     },
+    /// Profile badges: create, award and revoke (docs/features/profiles.md).
+    Badge {
+        #[command(subcommand)]
+        command: crate::profiles::badges::BadgeCommand,
+    },
 }
 pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     if matches!(command, AdminCommand::Backup) {
@@ -152,6 +157,9 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     )
     .await?;
     crate::db::migrate(&mut c).await?;
+    if let AdminCommand::Badge { command } = command {
+        return crate::profiles::badges::run(&mut c, command).await;
+    }
     if matches!(command, AdminCommand::ListUsers) {
         let mut after = 0;
         loop {

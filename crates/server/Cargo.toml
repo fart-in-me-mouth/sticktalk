@@ -52,3 +52,5 @@ tempfile = "3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 rsa = "0.9"
 tokio-tungstenite = "0.29"
+# Already in the tree through `image`; the profile tests write an APNG with it.
+png = "0.18"

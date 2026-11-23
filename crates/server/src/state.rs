@@ -773,6 +773,7 @@ mod tests {
             display_name: None,
             avatar_id: None,
             status_text: None,
+            style: Default::default(),
         });
         for _ in 0..8 {
             c.emit(&users, e.clone()).unwrap();
@@ -789,6 +790,7 @@ mod tests {
             display_name: Some("n".repeat(64)),
             avatar_id: Some(Id(2)),
             status_text: Some("s".repeat(128)),
+            style: Default::default(),
         };
         let mut ready = Ready {
             roles: vec![],

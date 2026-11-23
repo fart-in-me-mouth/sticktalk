@@ -22,6 +22,8 @@ pub use nav::*;
 mod moderation;
 pub use moderation::*;
 mod permissions;
+mod profiles;
+pub use profiles::*;
 mod rest;
 mod ws;
 

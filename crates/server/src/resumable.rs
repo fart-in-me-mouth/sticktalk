@@ -273,7 +273,7 @@ pub async fn finish(
         .map_err(|_| Error::new(ErrorCode::Unavailable))?;
     let media = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        crate::files::prepare(&path, &claimed, purpose != UploadPurpose::Message)
+        crate::profiles::media::prepare(&path, &claimed, purpose)
     })
     .await
     .map_err(|_| Error::new(ErrorCode::Internal))??;

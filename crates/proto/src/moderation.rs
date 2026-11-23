@@ -93,6 +93,8 @@ pub enum AuditAction {
     AutomodBlock,
     AutomodAlert,
     AutomodTimeout,
+    /// A moderator removed a member's server avatar or banner (`profiles.rs`).
+    MemberProfileReset,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -132,6 +134,7 @@ impl AuditAction {
         Self::AutomodBlock,
         Self::AutomodAlert,
         Self::AutomodTimeout,
+        Self::MemberProfileReset,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -172,6 +175,7 @@ impl AuditAction {
             Self::AutomodBlock => "automod_block",
             Self::AutomodAlert => "automod_alert",
             Self::AutomodTimeout => "automod_timeout",
+            Self::MemberProfileReset => "member_profile_reset",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -216,6 +220,7 @@ impl AuditAction {
             Self::AutomodBlock => "AutoMod blocked a message",
             Self::AutomodAlert => "AutoMod sent an alert",
             Self::AutomodTimeout => "AutoMod timed out a member",
+            Self::MemberProfileReset => "Reset a server profile",
         }
     }
 }

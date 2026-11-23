@@ -100,6 +100,7 @@ pub async fn erase(c: &mut SqliteConnection, user: Id) -> Result<Vec<String>> {
     }
     sqlx::query("UPDATE users SET username=?,display_name='Deleted User',password_hash='',avatar_id=NULL,status_text=NULL,desired_presence='invisible' WHERE id=?")
         .bind(format!("!deleted:{u}")).bind(u).execute(&mut *c).await?;
+    crate::profiles::erase(&mut *c, user).await?;
     // Remove references before file metadata; no dangling attachment can be served.
     for sql in [
         "UPDATE users SET avatar_id=NULL WHERE avatar_id IN(SELECT id FROM uploads WHERE owner_id=?)",

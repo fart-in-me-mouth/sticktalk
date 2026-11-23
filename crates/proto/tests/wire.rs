@@ -17,6 +17,7 @@ fn user() -> UserSummary {
         display_name: Some("Alice 🦀".into()),
         avatar_id: None,
         status_text: Some("low memory, high spirits".into()),
+        style: Default::default(),
     }
 }
 
@@ -77,6 +78,7 @@ fn member() -> Member {
         role_ids: vec![],
         nickname: None,
         timeout_until: None,
+        server_style: Default::default(),
     }
 }
 
@@ -708,6 +710,7 @@ fn maximum_bootstrap_metadata_fits_the_frame_budget() {
             role_ids,
             nickname: Some("🦀".repeat(32)),
             timeout_until: Some(i64::MAX as u64),
+            server_style: Default::default(),
         });
         ready.notification_settings.push(NotificationSettings {
             guild_id: Some(guild_id),
