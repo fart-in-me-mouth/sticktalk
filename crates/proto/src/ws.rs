@@ -286,6 +286,8 @@ pub enum Command {
     },
     /// Polls, forwarding, scheduled messages and rich attachments (`content.rs`).
     Content(ContentCommand),
+    /// Status, nicknames, notes, ignore, requests, notifications, reports (`privacy.rs`).
+    Privacy(PrivacyCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -324,6 +326,7 @@ pub enum CommandResult {
     Subscription { presences: Vec<Presence> },
     Content(ContentResult),
     Moderation(ModerationResult),
+    Privacy(PrivacyResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -435,6 +438,8 @@ pub enum Event {
     Content(ContentEvent),
     /// Only sent to streams that sent `ModerationCommand::Subscribe`.
     Moderation(ModerationEvent),
+    /// Only sent to streams that sent `PrivacyCommand::Subscribe`.
+    Privacy(PrivacyEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

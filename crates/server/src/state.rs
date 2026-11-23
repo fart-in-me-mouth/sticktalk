@@ -119,6 +119,7 @@ pub(crate) struct Core {
     pub calls: crate::calls::Calls,
     pub limits: HashMap<String, Bucket>,
     pub moderation: crate::moderation::Runtime,
+    pub privacy: crate::privacy::Runtime,
     last_id: u64,
     worker: u16,
 }
@@ -315,6 +316,9 @@ impl Core {
             {
                 continue;
             }
+            if matches!(&event, Event::Privacy(_)) && !self.privacy.subscribed.contains(&s.id) {
+                continue;
+            }
             if !s.text_features
                 && matches!(
                     &event,
@@ -483,6 +487,7 @@ impl App {
                 calls: Default::default(),
                 limits: HashMap::new(),
                 moderation: Default::default(),
+                privacy: Default::default(),
                 last_id,
                 worker,
             }),
@@ -707,6 +712,7 @@ mod tests {
             calls: Default::default(),
             limits: HashMap::new(),
             moderation: Default::default(),
+            privacy: Default::default(),
             last_id: 0,
             worker: 0,
         }
@@ -770,6 +776,7 @@ mod tests {
             display_name: None,
             avatar_id: None,
             status_text: None,
+            status_emoji: None,
         });
         for _ in 0..8 {
             c.emit(&users, e.clone()).unwrap();
@@ -786,6 +793,7 @@ mod tests {
             display_name: Some("n".repeat(64)),
             avatar_id: Some(Id(2)),
             status_text: Some("s".repeat(128)),
+            status_emoji: Some("e".repeat(64)),
         };
         let mut ready = Ready {
             roles: vec![],

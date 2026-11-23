@@ -30,6 +30,9 @@ pub struct UserSummary {
     pub display_name: Option<String>,
     pub avatar_id: Option<AttachmentId>,
     pub status_text: Option<String>,
+    /// The custom status emoji beside `status_text` (`privacy.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status_emoji: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

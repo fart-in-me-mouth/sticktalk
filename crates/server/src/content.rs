@@ -452,8 +452,12 @@ pub(crate) async fn deliver(
             crate::mentions::notify(app, core, c, message).await?;
         }
         observe(app, &e);
+        let alert = matches!(e, Event::MessageCreated { .. }).then(|| e.clone());
         for (users, e) in crate::launch::filter_event(c, users, e).await? {
             core.emit(&users, e)?;
+        }
+        if let Some(e) = alert {
+            crate::privacy::observe(app, core, c, &e).await;
         }
     }
     Ok(())

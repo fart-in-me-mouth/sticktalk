@@ -27,6 +27,7 @@ mod mcp;
 mod mentions;
 mod moderation;
 mod nav;
+mod privacy;
 mod reauth;
 mod search;
 mod slowmode;
@@ -54,6 +55,7 @@ pub fn router(app: App) -> axum::Router {
     nav::spawn(&app);
     content::spawn(&app);
     moderation::spawn(&app);
+    privacy::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]

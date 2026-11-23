@@ -17,6 +17,7 @@ fn user() -> UserSummary {
         display_name: Some("Alice 🦀".into()),
         avatar_id: None,
         status_text: Some("low memory, high spirits".into()),
+        status_emoji: None,
     }
 }
 

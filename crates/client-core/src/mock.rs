@@ -12,6 +12,7 @@ pub fn user(id: u64, name: &str, display: &str) -> UserSummary {
         display_name: Some(display.into()),
         avatar_id: None,
         status_text: None,
+        status_emoji: None,
     }
 }
 

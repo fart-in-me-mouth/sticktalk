@@ -19,6 +19,8 @@ mod nav;
 pub use nav::*;
 mod moderation;
 pub use moderation::*;
+mod privacy;
+pub use privacy::*;
 mod permissions;
 mod rest;
 mod ws;

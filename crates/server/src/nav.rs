@@ -676,7 +676,9 @@ pub(crate) async fn mention_feed(
         .push_bind(id(u)?)
         .push(" AND m.author_id NOT IN (SELECT other_id FROM relationships WHERE user_id=")
         .push_bind(id(u)?)
-        .push(" AND kind='blocked') AND m.channel_id IN (");
+        .push(" AND kind='blocked') AND m.author_id NOT IN (SELECT ignored_id FROM user_ignores WHERE user_id=")
+        .push_bind(id(u)?)
+        .push(") AND NOT EXISTS(SELECT 1 FROM suppressed_mentions s WHERE s.message_id=m.id AND s.user_id=mm.user_id) AND m.channel_id IN (");
     {
         let mut seq = q.separated(",");
         for ch in channels {
@@ -752,6 +754,10 @@ pub(crate) async fn unread_feed(c: &mut SqliteConnection, u: Id) -> Result<Inbox
     let mut users = BTreeMap::new();
     for read in states {
         let ch = read.channel_id;
+        // Muted and unconfirmed age-restricted conversations are left out.
+        if crate::privacy::notify::inbox_hidden(c, u, ch).await? {
+            continue;
+        }
         let mut messages = vec![];
         if text(
             c,

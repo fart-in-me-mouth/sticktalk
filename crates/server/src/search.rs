@@ -252,6 +252,7 @@ pub(crate) async fn search(
         )
         .await
         .is_ok()
+            && !crate::privacy::gate::age_blocked(c, u, ch.id).await?
         {
             readable.push(ch.id);
         }

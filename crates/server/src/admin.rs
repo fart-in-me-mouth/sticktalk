@@ -95,6 +95,27 @@ pub enum AdminCommand {
     EnableUser {
         username: String,
     },
+    /// In-app reports for the instance administrator (`privacy.rs`).
+    Reports {
+        #[command(subcommand)]
+        command: ReportAdmin,
+    },
+}
+/// `sticktalk-server admin reports ...`: the instance administrator's queue
+/// (direct messages, people, servers, and reports left by deleted servers).
+#[derive(Subcommand, Clone, Debug)]
+pub enum ReportAdmin {
+    /// Open reports (with --all, every report), newest first.
+    List {
+        #[arg(long)]
+        all: bool,
+    },
+    /// One report, with its evidence.
+    Show { id: u64 },
+    /// Close a report without action.
+    Dismiss { id: u64 },
+    /// Disable the reported account (signs it out everywhere) and close the report.
+    DisableUser { id: u64 },
 }
 pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     if matches!(command, AdminCommand::Backup) {
@@ -152,6 +173,9 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     )
     .await?;
     crate::db::migrate(&mut c).await?;
+    if let AdminCommand::Reports { command } = command {
+        return crate::privacy::reports::admin(&mut c, command).await;
+    }
     if matches!(command, AdminCommand::ListUsers) {
         let mut after = 0;
         loop {
