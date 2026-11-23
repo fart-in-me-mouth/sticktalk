@@ -296,6 +296,7 @@ async fn verification_error(c: &mut SqliteConnection, g: Id, until: UnixMillis) 
 pub(crate) struct Hook {
     audit: Option<audit::Pending>,
     join: Option<Id>,
+    slowmode: Option<Id>,
 }
 /// Before a command's transaction: refuse what moderation forbids, apply
 /// AutoMod, and read the state the audit log will compare.
@@ -309,6 +310,7 @@ pub(crate) async fn precheck(
     let mut hook = Hook {
         audit: audit::prepare(c, cmd).await,
         join: None,
+        slowmode: None,
     };
     match cmd {
         Command::SendMessage(d) => {
@@ -355,6 +357,9 @@ pub(crate) async fn precheck(
                 }
             }
         }
+        Command::Launch(LaunchCommand::SetSlowmode { channel_id, .. }) => {
+            hook.slowmode = Some(*channel_id);
+        }
         _ => {}
     }
     Ok(hook)
@@ -380,6 +385,22 @@ pub(crate) async fn after(
         if role(c, u, g).await.is_ok() {
             raid_check(core, c, g).await?;
         }
+    }
+    if let Some(ch) = hook.slowmode {
+        let seconds: i64 = sqlx::query_scalar(
+            "SELECT COALESCE((SELECT seconds FROM channel_slowmode WHERE channel_id=?),0)",
+        )
+        .bind(id(ch)?)
+        .fetch_one(&mut *c)
+        .await?;
+        let users = audience(c, ch).await?;
+        core.emit(
+            &users,
+            Event::Moderation(ModerationEvent::SlowmodeUpdated {
+                channel_id: ch,
+                seconds: seconds as u32,
+            }),
+        )?;
     }
     if std::mem::take(&mut core.moderation.reconcile_voice) {
         crate::voice::reconcile(app, core, c).await?;
@@ -574,16 +595,18 @@ async fn enforce(
                     .map(|c| if c == '\n' { ' ' } else { c })
                     .take(300)
                     .collect();
-                let text =
-                    format!(
-                    "**AutoMod** {} a message from <@{}> in #{}.\nRule: {}, because {}.{}\n> {}",
+                let text = format!(
+                    "**AutoMod** {} a message from @{} in #{}.\nRule: {}, because {}.{}\n> {}",
                     if a.block { "blocked" } else { "flagged" },
-                    u.0,
+                    author.username,
                     channel_name,
                     h.rule.name,
                     h.why,
                     if a.timeout_seconds > 0 {
-                        format!(" They were timed out for {}.", span(u64::from(a.timeout_seconds)))
+                        format!(
+                            " They were timed out for {}.",
+                            span(u64::from(a.timeout_seconds))
+                        )
                     } else {
                         String::new()
                     },
@@ -956,8 +979,8 @@ pub(crate) async fn mutate(
                     )
                     .change(
                         "verification level",
-                        Some(enum_str(before)),
-                        Some(enum_str(level)),
+                        Some(level_label(before)),
+                        Some(level_label(level)),
                     ),
                 )
                 .await?;
@@ -1198,6 +1221,14 @@ async fn save_rule(
         Event::Moderation(ModerationEvent::AutoModUpdated { guild_id: g }),
     ));
     Ok(CommandResult::Moderation(ModerationResult::AutoModRule(r)))
+}
+fn level_label(l: VerificationLevel) -> String {
+    match l {
+        VerificationLevel::None => "None",
+        VerificationLevel::AccountAge => "Low (account older than 5 minutes)",
+        VerificationLevel::MemberAge => "Medium (member for 10 minutes)",
+    }
+    .into()
 }
 fn yes(b: bool) -> String {
     if b { "yes" } else { "no" }.into()

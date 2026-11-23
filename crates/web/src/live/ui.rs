@@ -4,6 +4,7 @@
 //! `message` or `live-modal` carry no styles of their own here: they are stable
 //! hooks for `public/*.js` and the browser tests.
 use super::*;
+mod moderation;
 mod settings;
 use sticktalk_client_core::markdown::{Block, Inline, Target};
 
@@ -444,6 +445,9 @@ fn preview(a: &App, m: &Message) -> String {
 }
 fn chat(a: &App, title: &str) -> AnyView {
     let c = a.channel.unwrap();
+    if let Some(gate) = moderation::age_gate(a, c) {
+        return view! {<div class="chat-body flex min-h-0 flex-1 flex-col">{moderation::raid_banner(a)}{gate}</div>}.into_any();
+    }
     let kind = a
         .model
         .channels
@@ -475,7 +479,7 @@ fn chat(a: &App, title: &str) -> AnyView {
         ),
     };
     let invite = a.guild.is_some() && settings::can(a, Permissions::CREATE_INVITES);
-    view!{<div class="chat-body flex min-h-0 flex-1 flex-col"><div id="live-messages" class="message-list min-h-0 flex-1 touch-pan-y overflow-auto overscroll-contain pb-4 [overflow-anchor:none]" role="log" aria-label="Messages" tabindex="0" data-channel=c.0.to_string() data-history-generation=a.history_generation.to_string() data-window-start=a.window_rank.to_string() data-window-end=(a.window_rank+shown.len()as u64).to_string() data-total=count.to_string()>
+    view!{<div class="chat-body flex min-h-0 flex-1 flex-col">{moderation::raid_banner(a)}<div id="live-messages" class="message-list min-h-0 flex-1 touch-pan-y overflow-auto overscroll-contain pb-4 [overflow-anchor:none]" role="log" aria-label="Messages" tabindex="0" data-channel=c.0.to_string() data-history-generation=a.history_generation.to_string() data-window-start=a.window_rank.to_string() data-window-end=(a.window_rank+shown.len()as u64).to_string() data-total=count.to_string()>
         <div style=format!("height:{}px",a.window_rank*88) aria-hidden="true"></div>
         {if shown.is_empty(){view!{<div class="conversation-intro px-4 py-8"><span class="intro-icon inline-flex rounded-full bg-muted p-4">{icon(intro_icon)}</span><h2 class="mt-4 mb-2">{intro_title}</h2><p class="text-subtle">{if a.history_busy{"Loading messages…"}else{"This is the beginning of this conversation."}}</p>{if invite&&!a.history_busy{view!{<div class="mt-4">{button("Invite People","dialog:invite","primary")}</div>}.into_any()}else{().into_any()}}</div>}.into_any()}else{().into_any()}}
         {shown.iter().enumerate().map(|(i,m)|{
@@ -490,6 +494,7 @@ fn chat(a: &App, title: &str) -> AnyView {
         {a.attachments.iter().enumerate().map(|(i,f)|view!{<div class="live-upload mb-2 flex items-center gap-3 rounded-lg bg-muted p-2 text-xs"><span class="min-w-0 flex-1 truncate" title=f.filename.clone()>{f.filename.clone()}</span><small class="flex-none text-xs">{crate::wire::file_size(f.byte_size)}</small>{ib_plain("x","Remove Attachment",&format!("remove-attachment:{i}"))}</div>}).collect_view()}
         {if a.uploading{view!{<div class="live-upload mb-2 flex items-center justify-between gap-4 rounded-lg bg-muted p-2 text-xs" role="status">{a.upload_progress.clone()}{button("Pause","upload-cancel","secondary")}</div>}.into_any()}else{().into_any()}}
         {if a.completions.is_empty(){().into_any()}else{view!{<div id="live-completions" class="autocomplete absolute inset-x-4 bottom-full z-40 max-h-[min(320px,50vh)] overflow-y-auto rounded-lg border bg-popover p-2 shadow-lg" role="listbox" aria-label="Suggestions">{a.completions.iter().enumerate().map(|(i,(label,insert,kind))|view!{<button class="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-sm aria-selected:bg-secondary touch:min-h-11" id=format!("completion-{i}") role="option" aria-selected=if i==0{"true"}else{"false"} data-completion=insert.clone()><span class="completion-avatar grid size-6 flex-none place-items-center overflow-hidden rounded-full bg-sidebar text-xs [&_.icon]:size-4">{match kind.as_str() {"Role"=>icon("shield"),"Channel"=>icon("hash"),"Emoji"=>view!{<span>{insert.clone()}</span>}.into_any(),_=>view!{<span>{label.chars().take(1).collect::<String>()}</span>}.into_any()}}</span><span>{label.clone()}</span><small class="ml-auto">{if kind=="User"{insert.clone()}else{kind.clone()}}</small></button>}).collect_view()}</div>}.into_any()}}
+        {moderation::composer_notice(a,c)}
         <div class="composer flex items-end gap-2 rounded-lg bg-muted px-3 py-2 phone:gap-1 phone:px-2 phone:py-1"><button type="button" class="icon-button" title="Add Attachment" aria-label="Add Attachment" data-live="pick-file">{icon("plus-circle")}</button><input type="file" id="live-file" multiple hidden/><label class="composer-input flex min-w-0 flex-1"><span class="sr-only">"Message"</span><textarea class="max-h-[40vh] min-h-8 flex-1 resize-none rounded-none border-0 bg-transparent px-0 py-1 text-[15px] leading-6 shadow-none focus-visible:ring-0 touch:min-h-11 touch:py-2.5 phone:text-base" id="live-input" rows="1" placeholder=placeholder aria-label="Message" role="combobox" aria-autocomplete="list" aria-controls="live-completions" aria-expanded=(!a.completions.is_empty()).to_string()></textarea></label><span id="live-count" class="composer-count" hidden></span><button class="composer-gif inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent touch:min-h-11 touch:min-w-11" data-live="dialog:gif">"GIF"</button>{ib_plain("smile","Emoji Picker","dialog:emoji")}<button class="composer-kaomoji inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent phone:hidden" aria-label="Kaomoji" title="Kaomoji" data-live="dialog:kaomoji">"(^▽^)"</button><button class="icon-button" aria-label="Send Message" title="Send Message" data-live="send-input" disabled={a.uploading||a.preparing_send||!a.ready}>{icon("send")}</button></div>
         <div class="typing-indicator h-6 text-xs leading-6 text-subtle">{crate::wire::typing_label(&a.model.typing.iter().filter(|((channel,_),expiry)|*channel==c&&**expiry>Browser.unix_ms()).map(|((_,u),_)|a.model.name(*u)).take(3).collect::<Vec<_>>())}</div>
         </div></div>}.into_any()
@@ -703,12 +708,15 @@ fn profile_actions(a: &App, u: &UserSummary) -> AnyView {
             "secondary",
         ),
     };
-    view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{if blocked{().into_any()}else{button("Message",&format!("friend:dm,{id}"),"primary")}}{friendship}{if blocked{button("Unblock",&format!("friend:unblock,{id}"),"secondary")}else{button("Block",&format!("friend:block,{id}"),"danger-text")}}</div>}.into_any()
+    view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{if blocked{().into_any()}else{button("Message",&format!("friend:dm,{id}"),"primary")}}{friendship}{if blocked{button("Unblock",&format!("friend:unblock,{id}"),"secondary")}else{button("Block",&format!("friend:block,{id}"),"danger-text")}}</div>{moderation::member_actions(a,u)}}.into_any()
 }
 /// What a dialog is called for assistive technology.
 fn dialog_label(dialog: &str) -> &'static str {
     match dialog.split(':').next().unwrap_or_default() {
         "profile" => "Profile",
+        "mod-timeout" => "Time Out Member",
+        "mod-kick" => "Kick Member",
+        "mod-ban" => "Ban Member",
         "pins" => "Pinned Messages",
         "edit" => "Edit Message",
         "emoji" => "Emoji",
@@ -780,6 +788,7 @@ fn dialog(a: &App) -> AnyView {
         value if value.starts_with("channel-edit:")=>settings::channel_editor(a,value),
         value if value.starts_with("channel-delete:")=>settings::channel_delete(a,value),
         value if value.starts_with("channel-move:")=>settings::channel_move(a,value),
+        value if moderation::owns(value)=>moderation::page(a,value),
         value if value.starts_with("invite-revoke:")=>form_with("Revoke Invite","invite-revoke",view!{<p>"This invite link will stop working immediately."</p><input id="f-name" type="hidden" value=value.trim_start_matches("invite-revoke:").to_owned()/>}.into_any(),"dialog:invite",true),
         value if value.starts_with("unban:")=>form_with("Revoke Ban","unban",view!{<p>"This person will be able to join again with an invite."</p><input id="f-name" type="hidden" value=value.trim_start_matches("unban:").to_owned()/>}.into_any(),"dialog:server-bans",true),
         "guild-delete"=>form_with("Delete Server","guild-delete",view!{<p>"This permanently deletes the server, its channels and every message in them, for everyone. It cannot be undone."</p>{field("f-name","Type the server’s name to confirm","","text")}}.into_any(),"dialog:server-overview",true),
@@ -870,6 +879,8 @@ fn role_permissions(role: &Role) -> AnyView {
             vec![
                 ("Kick Members", Permissions::KICK_MEMBERS),
                 ("Ban Members", Permissions::BAN_MEMBERS),
+                ("Time Out Members", Permissions::MODERATE_MEMBERS),
+                ("View Audit Log", Permissions::VIEW_AUDIT_LOG),
                 ("Administrator", Permissions::ADMINISTRATOR),
             ],
         ),

@@ -761,7 +761,7 @@ async fn automod_blocks_on_send_and_edit_alerts_times_out_and_respects_exemption
     )
     .await;
     assert!(
-        alert.contains("<@3>") && alert.contains("No swearing"),
+        alert.contains("@user3") && alert.contains("No swearing"),
         "{alert}"
     );
     assert_eq!(

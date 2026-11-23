@@ -339,6 +339,8 @@ pub(super) fn action(app: Shared, raw: &str) {
                 None => action(app, "home"),
             }
         }
+        "mod" => super::moderation::action(app, arg),
+        "submit" if arg.starts_with("mod-") => super::moderation::submit(app, arg),
         "pins-refresh" => {
             let (epoch, generation) = {
                 let a = app.borrow();
@@ -1024,6 +1026,12 @@ fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, targe
             }
         });
     }
+    super::moderation::channel_opened(app.clone(), c);
+    if super::moderation::gated(&app.borrow(), c) {
+        // Age-restricted: nothing is fetched until the viewer confirms.
+        app.borrow_mut().history_busy = false;
+        return;
+    }
     let request = async move {
         let path = format!(
             "/channels/{c}/messages?limit=50{}",
@@ -1185,6 +1193,7 @@ fn open_dialog(app: Shared, name: &str) {
     }
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
+    super::moderation::opened(app.clone(), name);
     let name = name.to_owned();
     spawn_local(async move {
         dialog_data(app, name, epoch, generation).await;
@@ -1837,6 +1846,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                 }
             }
             let operation = pending.as_ref().map(|(c, _)| c);
+            super::moderation::failed(operation);
             // A refused save is no longer waiting for its answer.
             if let Some(form) = operation.and_then(saved_form) {
                 media_action(&format!("form-failed:{form}"));
@@ -1849,6 +1859,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                         | Command::MarkRead { .. }
                         | Command::Typing { .. }
                         | Command::Launch(LaunchCommand::UpdateDevice { .. })
+                        | Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe))
                 )
             ) {
                 return;
@@ -1874,6 +1885,14 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
         }
         CommandOutcome::Ok(result) => {
             let operation = pending.map(|(c, _)| c);
+            if let Some(op) = operation
+                .clone()
+                .filter(|op| super::moderation::owns(op, &a.dialog))
+            {
+                drop(a);
+                super::moderation::answered(app, op, result);
+                return;
+            }
             a.error.clear();
             a.notice.clear();
             // Saving a name or status makes the profile form clean; a new avatar,

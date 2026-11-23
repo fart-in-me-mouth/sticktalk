@@ -447,6 +447,11 @@ pub enum ModerationEvent {
         guild_id: GuildId,
         timeout: Option<TimeoutInfo>,
     },
+    /// A channel's slowmode changed; viewers refetch their own cooldown.
+    SlowmodeUpdated {
+        channel_id: ChannelId,
+        seconds: u32,
+    },
 }
 
 /// Slowmode intervals offered by the channel editor, in seconds.
