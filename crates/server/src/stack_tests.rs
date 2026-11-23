@@ -19,7 +19,20 @@ const BUDGET: usize = if cfg!(debug_assertions) {
 } else {
     1 << 20
 };
-const PATHS: &[&str] = &["forum_post", "publish", "send", "scheduled", "open"];
+// The integration branch' features: a `/tts` message, sharing an event (a
+// message through the send path), an event starting (the schedule timer) and
+// a server built from a template.
+const PATHS: &[&str] = &[
+    "forum_post",
+    "publish",
+    "send",
+    "scheduled",
+    "open",
+    "tts",
+    "event_share",
+    "event_start",
+    "template",
+];
 const PROBE: &str = "STICKTALK_STACK_PROBE";
 
 async fn run(app: &App, u: u64, nonce: u64, command: Command) -> CommandResult {
@@ -91,6 +104,21 @@ async fn prepare(app: &App, path: &str) -> Option<(Id, Id)> {
             Command::Expression(ExpressionCommand::Subscribe),
         )
         .await;
+        run(
+            app,
+            u,
+            n + 4,
+            Command::Community(CommunityCommand::Subscribe),
+        )
+        .await;
+        run(app, u, n + 5, Command::Schedule(ScheduleCommand::Subscribe)).await;
+        run(
+            app,
+            u,
+            n + 6,
+            Command::Appearance(AppearanceCommand::Subscribe),
+        )
+        .await;
     }
     match path {
         "forum_post" => Some((channel(app, 1, ChannelKind::Forum).await, Id(0))),
@@ -130,6 +158,48 @@ async fn prepare(app: &App, path: &str) -> Option<(Id, Id)> {
             .await;
             sql(app, "UPDATE scheduled_messages SET send_at=0").await;
             None
+        }
+        "event_share" | "event_start" => {
+            let at = crate::state::now() + 3_600_000;
+            let e = match run(
+                app,
+                1,
+                5,
+                Command::Schedule(ScheduleCommand::Create(NewEvent {
+                    guild_id: Id(10),
+                    name: "Launch party".into(),
+                    description: String::new(),
+                    start_at: at,
+                    end_at: Some(at + 3_600_000),
+                    location: EventLocation::External {
+                        place: "The park".into(),
+                    },
+                    recurrence: EventRecurrence::None,
+                    time_zone: "UTC".into(),
+                })),
+            )
+            .await
+            {
+                CommandResult::Schedule(ScheduleResult::Event(e)) => e.id,
+                other => panic!("{other:?}"),
+            };
+            for u in [2u64, 3] {
+                run(
+                    app,
+                    u,
+                    60 + u,
+                    Command::Schedule(ScheduleCommand::SetInterested {
+                        event_id: e,
+                        interested: true,
+                    }),
+                )
+                .await;
+            }
+            if path == "event_start" {
+                // Due now: the timer starts it and tells the interested members.
+                sql(app, "UPDATE scheduled_events SET next_at=0").await;
+            }
+            Some((e, Id(0)))
         }
         _ => None,
     }
@@ -180,6 +250,40 @@ async fn exercise(app: App, path: &'static str, prepared: Option<(Id, Id)>) {
             .await;
         }
         "scheduled" => crate::content::deliver_scheduled(&app).await.unwrap(),
+        "tts" => {
+            run(
+                &app,
+                2,
+                53,
+                Command::Appearance(AppearanceCommand::SendTts(draft(Id(11), "hello <@1>"))),
+            )
+            .await;
+        }
+        "event_share" => {
+            run(
+                &app,
+                1,
+                54,
+                Command::Schedule(ScheduleCommand::Share {
+                    event_id: prepared.unwrap().0,
+                    channel_id: Id(11),
+                }),
+            )
+            .await;
+        }
+        "event_start" => crate::schedule::tick(&app).await.unwrap(),
+        "template" => {
+            run(
+                &app,
+                2,
+                55,
+                Command::Community(CommunityCommand::CreateFromTemplate {
+                    template: TemplateRef::Builtin("gaming".into()),
+                    name: "Probe".into(),
+                }),
+            )
+            .await;
+        }
         // Opening the server (migrations, timers) runs on a runtime thread too.
         "open" => drop(fixture().await),
         other => panic!("unknown path {other}"),
