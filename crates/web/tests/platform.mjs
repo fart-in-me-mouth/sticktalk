@@ -108,6 +108,15 @@ assert.deepEqual(normalizeVolumes({length:1}),[]);
 assert.equal(normalizeVolumes(Array.from({length:200},(_,i)=>[`${i}:voice`,{volume:0}])).length,64);
 assert.deepEqual(displayAudio({restrictOwnAudio:true}),{echoCancellation:false,noiseSuppression:false,autoGainControl:false,restrictOwnAudio:true});
 assert.deepEqual(displayAudio(undefined),{echoCancellation:false,noiseSuppression:false,autoGainControl:false});
+// A shared screen: 30 fps at the source's own size, giving up size before frames.
+const {displayVideo,streamEncoding,STREAM_FPS}=await import('../public/media.js');
+assert.equal(STREAM_FPS,30);
+assert.deepEqual(displayVideo(),{frameRate:{ideal:30,max:30},width:{max:3840},height:{max:2160}});
+assert.deepEqual(streamEncoding({transactionId:'t',encodings:[{active:true,maxBitrate:1}]}),
+  {transactionId:'t',degradationPreference:'maintain-framerate',encodings:[{active:true,maxBitrate:1,maxFramerate:30}]});
+assert.deepEqual(streamEncoding({encodings:[{active:true}]},6_000_000).encodings,[{active:true,maxFramerate:30,maxBitrate:6_000_000}]);
+assert.deepEqual(streamEncoding({}),{degradationPreference:'maintain-framerate'});
+console.log('Stream quality: 30 fps at source size, resolution adapts before frame rate: passed');
 // Remote control messages: the exact MessagePack the server's rmp-serde reads and writes.
 const {packControl,unpackControl,KEY_USAGE,controlPoint}=await import('../public/media.js');
 const moved={type:'input',data:{sharer:{user_id:249941506784231424n,connection_id:7n},grant:18446744073709551615n,sequence:300,input:{type:'move',data:{x:65535,y:0}}}};

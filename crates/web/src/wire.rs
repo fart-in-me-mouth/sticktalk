@@ -12,6 +12,57 @@ pub fn video_hint(content_type: &str, filename: &str) -> bool {
                 )
             }))
 }
+/// How an image attachment is drawn in a message.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ImageBox {
+    /// CSS pixels. The row reserves exactly this box before the picture loads.
+    pub width: u32,
+    pub height: u32,
+    /// Draw the file itself, not its 256-pixel thumbnail.
+    pub original: bool,
+}
+/// The box an image attachment gets, or `None` when it has no thumbnail (so is
+/// not a picture the server could read).
+///
+/// A picture is shown at its own size, fitted into 550x350. One that would end
+/// up a thin strip (a wide screenshot) may run wider than 550 until it is 200
+/// tall; the message column still limits it. Nothing is drawn above its own
+/// size. Only a file light enough to decode in a message list is drawn itself:
+/// a heavier one stays at its thumbnail's size, which is all a thumbnail can
+/// fill without blurring.
+pub fn image_box(f: &Attachment) -> Option<ImageBox> {
+    const MAX_W: f64 = 550.;
+    const MAX_H: f64 = 350.;
+    const STRIP_H: f64 = 200.;
+    const LIGHT_BYTES: u64 = 4 * 1024 * 1024;
+    // A thumbnail is one still frame. A modest GIF is shown itself, so it moves.
+    const LIGHT_GIF_BYTES: u64 = 8 * 1024 * 1024;
+    const LIGHT_PIXELS: u64 = 3840 * 2160;
+    let t = f.thumbnail.as_ref()?;
+    let small = ImageBox {
+        width: t.width.max(1).into(),
+        height: t.height.max(1).into(),
+        original: false,
+    };
+    let (Some(w), Some(h)) = (f.width, f.height) else {
+        return Some(small);
+    };
+    let budget = if f.content_type == "image/gif" {
+        LIGHT_GIF_BYTES
+    } else {
+        LIGHT_BYTES
+    };
+    if w == 0 || h == 0 || f.byte_size > budget || u64::from(w) * u64::from(h) > LIGHT_PIXELS {
+        return Some(small);
+    }
+    let (w, h) = (f64::from(w), f64::from(h));
+    let scale = (MAX_W / w).max(STRIP_H / h).min(MAX_H / h).min(1.);
+    Some(ImageBox {
+        width: ((w * scale).round() as u32).max(1),
+        height: ((h * scale).round() as u32).max(1),
+        original: true,
+    })
+}
 /// Accept a pasted invite link without navigating to a user-supplied origin.
 /// What this browser is, for the Devices list: ("Chrome on Windows", "Web").
 pub fn device(user_agent: &str) -> (String, String) {
@@ -241,6 +292,78 @@ fn message_group_boundaries() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn picture(content_type: &str, bytes: u64, w: u32, h: u32) -> Attachment {
+        // The server's thumbnail: the picture fitted into 256x256.
+        let scale = (256. / f64::from(w)).min(256. / f64::from(h)).min(1.);
+        Attachment {
+            id: Id(1),
+            filename: "picture".into(),
+            content_type: content_type.into(),
+            byte_size: bytes,
+            width: Some(w),
+            height: Some(h),
+            thumbnail: Some(Thumbnail {
+                width: ((f64::from(w) * scale) as u16).max(1),
+                height: ((f64::from(h) * scale) as u16).max(1),
+                byte_size: 1,
+                content_type: "image/jpeg".into(),
+            }),
+        }
+    }
+    #[test]
+    fn pictures_get_a_box_they_can_fill_sharply() {
+        let shown = |a: &Attachment| {
+            let b = image_box(a).unwrap();
+            (b.width, b.height, b.original)
+        };
+        const MB: u64 = 1024 * 1024;
+        // A wide screenshot strip is shown at its own size, not as a 256x25 sliver.
+        assert_eq!(
+            shown(&picture("image/png", 90_000, 1296, 125)),
+            (1296, 125, true)
+        );
+        // A wider one grows only until it is 200 tall.
+        assert_eq!(
+            shown(&picture("image/png", MB, 3840, 400)),
+            (1920, 200, true)
+        );
+        // Ordinary pictures fit 550x350.
+        assert_eq!(
+            shown(&picture("image/png", MB, 1920, 1080)),
+            (550, 309, true)
+        );
+        assert_eq!(
+            shown(&picture("image/jpeg", MB, 1200, 1600)),
+            (263, 350, true)
+        );
+        // Never above its own size.
+        assert_eq!(shown(&picture("image/png", 900, 48, 48)), (48, 48, true));
+        // Too heavy to decode in a list: the thumbnail, at the size it can fill.
+        assert_eq!(
+            shown(&picture("image/jpeg", 6 * MB, 4000, 3000)),
+            (256, 192, false)
+        );
+        assert_eq!(
+            shown(&picture("image/png", MB, 6000, 3000)),
+            (256, 128, false)
+        );
+        // A GIF moves, so it is allowed to be heavier.
+        assert_eq!(
+            shown(&picture("image/gif", 6 * MB, 480, 270)),
+            (480, 270, true)
+        );
+        assert_eq!(
+            shown(&picture("image/gif", 9 * MB, 480, 270)),
+            (256, 144, false)
+        );
+        // No dimensions from an older server: the thumbnail's.
+        let mut old = picture("image/png", 900, 800, 600);
+        (old.width, old.height) = (None, None);
+        assert_eq!(shown(&old), (256, 192, false));
+        // Not a picture the server could read.
+        old.thumbnail = None;
+        assert_eq!(image_box(&old), None);
+    }
     #[test]
     fn invite_links_are_parsed_as_data_not_navigation() {
         let code = "AbC_def-0123456789abcd";

@@ -63,7 +63,7 @@ Emoji: bundle a compact color emoji font or render twemoji-style images (CC-BY, 
 - Reply: small 12px line above body: curved connector + 16px avatar + name + truncated quoted text, clickable.
 - "(edited)" suffix 12 muted. Mentions: chip with accent @ 15% bg, accent text; message mentioning me gets mention.bg + 2px warning left bar.
 - Reactions: chips below the body, radius 8, bg.elevated, 4/8 padding, emoji + count; my reaction = accent @ 15% bg + 1px accent border. "+" add chip on hover.
-- Attachments: image thumbnail max 400×300, radius 8, preserved aspect, placeholder box of exact final size while loading (no layout jump). Files: card with icon, name, size, download button.
+- Attachments: image at its own size, fitted into 550×350 and never enlarged; one that would end up a thin strip (a wide screenshot) may run wider, up to the message column, until it is 200 tall. A file too heavy to draw in the list (over 4 MB, or over 3840×2160 pixels) shows its 256-pixel thumbnail at thumbnail size. Radius 8, preserved aspect, placeholder box of exact final size while loading (no layout jump). Files: card with icon, name, size, download button.
 - Date separator: centered 12 muted text with divider lines either side. "NEW" divider: 1px danger line with small "NEW" badge right.
 - Typing indicator: 24px strip under the composer: "Name is typing…" / "A and B are typing…" / "Several people are typing…". Static three dots — no animation loop.
 - "Jump to present" pill appears bottom-center when scrolled up > 1 screen.

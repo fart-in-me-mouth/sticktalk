@@ -405,6 +405,19 @@ try {
   assert.equal(constraints.asked, constraints.supported, "own call audio is left out of the stream wherever the browser can");
   assert.equal(constraints.processing, false);
   checks.push(`screen share asks the browser to leave out this page's own audio (supported here: ${constraints.supported})`);
+  // Nothing to choose: 30 fps at the source's own size, and when the picture
+  // cannot be carried, the browser sends it smaller instead of dropping frames.
+  assert.equal(await bob.locator(".live-share-options select").count(), 0);
+  assert.deepEqual(await bob.evaluate(() => window.__displayConstraints.video),
+    { frameRate: { ideal: 30, max: 30 }, width: { max: 3840 }, height: { max: 2160 } });
+  const sent = (await diagnostic(bob)).sending.find((p) => p.kind === "screen");
+  assert.equal(sent.hint, "motion");
+  assert.equal(sent.degradation, "maintain-framerate");
+  assert.deepEqual(sent.encodings.map((e) => e.maxFramerate), [30]);
+  assert(sent.encodings[0].maxBitrate > 0, "the SFU's bitrate ceiling keeps the stream's own settings");
+  const microphone = (await diagnostic(bob)).sending.find((p) => p.kind === "audio");
+  assert.equal(microphone.encodings[0].maxFramerate, undefined, "only the stream is tuned");
+  checks.push("a stream is 30 fps at the source's size and gives up resolution before frame rate");
 
   const tiles = await alice.locator(".participant-tile:not([hidden])").evaluateAll((nodes) =>
     nodes.map((n) => ({ kind: n.dataset.kind, own: !!n.dataset.self, control: !!n.querySelector(".tile-volume:not([hidden])") })));

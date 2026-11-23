@@ -4,11 +4,13 @@ use crate::{
     links::{self, Launch},
     policy::{Decision, Policy},
     shell_page::{self, lock, Form, Shared, SharedState},
+    stream_window::{self, StreamWindow},
     webview, window_state,
 };
 use std::{
     io::Write,
     path::{Path, PathBuf},
+    rc::Rc,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -72,11 +74,26 @@ pub enum UserEvent {
     },
     /// Esc on the real keyboard during remote control.
     ControlEscape,
+    /// The server's page, about a stream's own window.
+    StreamWindow(stream_window::Request),
+    /// The page's `window.open` took the window made for it.
+    StreamOpened,
+    StreamTitle(String),
+    /// The stream's page entered or left full screen.
+    StreamFullscreen(bool),
 }
 
 /// Tells the page what became of a remote-control request.
 fn tell(webview: &wry::WebView, control: &str, reason: &str) {
     let detail = serde_json::json!({ "control": control, "reason": reason });
+    let _ = webview.evaluate_script(&format!(
+        "window.dispatchEvent(new CustomEvent('sticktalk-host',{{detail:{detail}}}))"
+    ));
+}
+
+/// Tells the page what became of the stream window it asked for.
+fn tell_window(webview: &wry::WebView, state: &str) {
+    let detail = serde_json::json!({ "window": state });
     let _ = webview.evaluate_script(&format!(
         "window.dispatchEvent(new CustomEvent('sticktalk-host',{{detail:{detail}}}))"
     ));
@@ -396,6 +413,7 @@ pub fn run(launch: Launch) -> i32 {
 
     // The WebView2 user-data folder: under the data root, never beside the exe.
     let mut context = WebContext::new(Some(root.join("WebView")));
+    let stream_slot = Rc::new(stream_window::Slot::default());
     let webview = webview::build(
         &window,
         &mut context,
@@ -406,6 +424,7 @@ pub fn run(launch: Launch) -> i32 {
             root: root.clone(),
             token: random_token(),
             focused: !is_smoke && !background,
+            stream: stream_slot.clone(),
         },
     );
     let webview = match webview {
@@ -453,7 +472,9 @@ pub fn run(launch: Launch) -> i32 {
         let wanted = wanted.clone();
         move || wanted.store(0, std::sync::atomic::Ordering::SeqCst)
     };
-    let code = event_loop.run_return(|event, _, flow| {
+    // A stream popped out of a call: at most one window, made when asked for.
+    let mut stream: Option<StreamWindow> = None;
+    let code = event_loop.run_return(|event, target, flow| {
         let now = Instant::now();
         match event {
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
@@ -479,6 +500,61 @@ pub fn run(launch: Launch) -> i32 {
                         *flow = ControlFlow::ExitWithCode(2);
                         return;
                     }
+                }
+            }
+            // The stream's window: closing it leaves the app running.
+            Event::WindowEvent {
+                event, window_id, ..
+            } if stream
+                .as_ref()
+                .is_some_and(|stream| stream.id() == window_id) =>
+            {
+                if matches!(event, WindowEvent::CloseRequested) {
+                    stream = None;
+                    tell_window(&webview, "closed");
+                }
+            }
+            Event::UserEvent(UserEvent::StreamWindow(request)) => {
+                stream_slot.taken();
+                // The one before, if any, goes first: there is only ever one.
+                stream = None;
+                if request == stream_window::Request::Stream {
+                    match StreamWindow::offer(
+                        target,
+                        &window,
+                        &webview,
+                        &stream_slot,
+                        proxy.clone(),
+                        is_smoke,
+                    ) {
+                        Ok(made) => {
+                            stream = Some(made);
+                            tell_window(&webview, "ready");
+                        }
+                        Err(error) => {
+                            if is_smoke {
+                                eprintln!("stream window: {error}");
+                            }
+                            tell_window(&webview, "failed");
+                        }
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::StreamOpened) => {
+                if is_smoke {
+                    eprintln!("stream window: opened");
+                } else if let Some(stream) = &stream {
+                    stream.show();
+                }
+            }
+            Event::UserEvent(UserEvent::StreamTitle(title)) => {
+                if let Some(stream) = &stream {
+                    stream.set_title(&title);
+                }
+            }
+            Event::UserEvent(UserEvent::StreamFullscreen(on)) => {
+                if let Some(stream) = &stream {
+                    stream.set_fullscreen(on);
                 }
             }
             Event::WindowEvent {
@@ -602,6 +678,8 @@ pub fn run(launch: Launch) -> i32 {
                 asking = None;
                 withdraw();
                 lock(&shared).sharing = false;
+                // Nor can its stream window show anything any more.
+                stream = None;
                 if load.ok && !started {
                     started = true;
                     // An installed 0.1.x client that updates itself to this
@@ -726,6 +804,7 @@ pub fn run(launch: Launch) -> i32 {
             .map_or(ControlFlow::Wait, ControlFlow::WaitUntil);
     });
 
+    drop(stream);
     drop(webview);
     drop(context);
     stop.notify_one();

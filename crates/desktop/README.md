@@ -17,7 +17,8 @@ Needs the WebView2 Runtime, which ships with Windows 11 and current Windows 10.
 - **Change server.** Ctrl+Shift+S, or "Change server…" in the title bar menu
   (right-click the title bar, or Alt+Space).
 - **Navigation.** Only the server's origin loads in the window. Other links,
-  `target=_blank` and `window.open` go to the default browser. Google sign-in
+  `target=_blank` and `window.open` go to the default browser (the one
+  exception is a stream's own window, below). Google sign-in
   started by the server (`/api/v1/browser/google/start`) may visit Google's
   sign-in hosts until it returns to the server. See `src/policy.rs`.
 - **Calls.** Microphone and camera are granted to the server's pages only,
@@ -31,6 +32,14 @@ Needs the WebView2 Runtime, which ships with Windows 11 and current Windows 10.
   ordinary browser can't be controlled. The app cannot check the call itself:
   it trusts the server it was pointed at to say who is asking, which is why the
   question is asked every time and never remembered.
+- **Stream window.** "Pop Out" on a stream opens it in a second window, on
+  the screen the main window is on, that can be moved to another monitor,
+  resized and made full screen. The server's page asks for it; the app makes
+  the window with a blank WebView and hands that to the page's next
+  `window.open("")`, so the page can put its video there. The window can't
+  leave its blank page, open windows of its own or be granted any permission,
+  there is only ever one, and it closes with the page that opened it. See
+  `src/stream_window.rs`.
 - **Window.** Size, position and maximized state are kept in
   `%LOCALAPPDATA%\StickTalk\window.json` and clamped to a visible monitor. The
   WebView profile is `%LOCALAPPDATA%\StickTalk\WebView`.

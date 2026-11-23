@@ -645,6 +645,46 @@
   .call-mini-bar [data-live="media:leave"] {
     @apply text-destructive;
   }
+  .call-mini-bar.has-stream {
+    @apply w-[min(400px,calc(100vw-32px))];
+  }
+  .call-mini-bar .call-mini-popout {
+    @apply phone:hidden;
+  }
+  /* A video waiting here plays in the picture-in-picture window, not on the page. */
+  .call-park {
+    @apply pointer-events-none fixed top-0 left-0 size-px overflow-hidden opacity-0;
+  }
+  .tile-popout {
+    @apply absolute top-2 right-2 z-[1] bg-rail/80 phone:hidden;
+  }
+  .tile-fullscreen ~ .tile-popout {
+    @apply right-12 touch:right-14;
+  }
+  /* A stream in its own window (media.js builds it): the video, with its name
+     and the full screen button while the pointer moves. */
+  .stream-window {
+    @apply m-0 h-screen cursor-none overflow-hidden bg-black text-foreground;
+  }
+  .stream-window.is-active {
+    @apply cursor-auto;
+  }
+  .stream-window video {
+    @apply size-full object-contain;
+  }
+  .stream-window-bar {
+    @apply absolute inset-x-0 bottom-0 flex items-center gap-3 bg-linear-to-t from-black/80 to-transparent px-4 pt-10 pb-3 text-sm opacity-0 transition-opacity;
+  }
+  .stream-window.is-active .stream-window-bar,
+  .stream-window-bar:focus-within {
+    @apply opacity-100;
+  }
+  .stream-window-bar > span {
+    @apply min-w-0 flex-1 truncate;
+  }
+  .stream-window-bar .icon-button {
+    @apply size-10 text-foreground;
+  }
   .live-share-options {
     @apply m-auto w-[min(420px,calc(100vw-32px))] rounded-xl border bg-popover p-6 text-popover-foreground shadow-lg backdrop:bg-black/60;
   }

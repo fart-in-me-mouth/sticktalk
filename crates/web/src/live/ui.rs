@@ -148,6 +148,7 @@ fn auth(a: &App) -> AnyView {
         <p class="auth-status my-3 text-[13px] text-muted-foreground empty:hidden" role="status">{a.status.clone()}</p>
         {if a.google&&!signup {view!{<a class="button secondary google-button mt-4 flex h-12 w-full border bg-muted text-[15px]" href="/api/v1/browser/google/start"><img src="/public/google-g.svg" alt="" width="20" height="20"/>"Continue with Google"</a>}.into_any()}else{().into_any()}}
         {if signup{().into_any()}else{view!{<p class="auth-switch mt-6 text-[15px] text-subtle phone:text-center">{if register{"Already have an account? "}else{"Need an account? "}}<button class="inline-flex min-h-11 items-center px-1 font-semibold text-primary hover:underline" type="button" data-live="register">{if register{"Log in"}else{"Register"}}</button></p>}.into_any()}}
+        <p class="auth-legal mt-4 text-[13px] text-muted-foreground phone:text-center">"By continuing, you agree to the "<a href="/public/terms.html">"Terms of Service"</a>"."</p>
     </form></main>}.into_any()
 }
 /// Channels in display order, each with how deeply it is nested. In a server, at
@@ -604,16 +605,14 @@ fn editable(a: &App, m: &Message) -> String {
 }
 fn attachment(f: &Attachment) -> AnyView {
     let original = format!("/api/v1/files/{}", f.id.0);
-    let thumb = format!("{original}/thumbnail");
-    // A thumbnail is one still frame. Show a modest GIF itself, so it moves.
-    let thumb = if f.content_type == "image/gif" && f.byte_size <= 8 * 1024 * 1024 {
-        original.clone()
-    } else {
-        thumb
-    };
     if f.content_type.starts_with("image/") {
-        if let Some(t) = &f.thumbnail {
-            view!{<button class="attachment-image mt-2 block max-w-full overflow-hidden rounded-lg p-0" data-view-image=original data-filename=f.filename.clone() data-bytes=f.byte_size.to_string() aria-label=format!("Open {}",f.filename)><img class="block h-auto max-h-[350px] max-w-full object-contain" src=thumb.clone() srcset=format!("{thumb} 1x") loading="lazy" width=t.width height=t.height alt=f.filename.clone()/></button>}.into_any()
+        if let Some(b) = crate::wire::image_box(f) {
+            let src = if b.original {
+                original.clone()
+            } else {
+                format!("{original}/thumbnail")
+            };
+            view!{<button class="attachment-image mt-2 block max-w-full overflow-hidden rounded-lg p-0" data-view-image=original data-filename=f.filename.clone() data-bytes=f.byte_size.to_string() aria-label=format!("Open {}",f.filename)><img class="block h-auto max-w-full" src=src.clone() srcset=format!("{src} 1x") loading="lazy" width=b.width height=b.height alt=f.filename.clone()/></button>}.into_any()
         } else {
             view!{<button class="button secondary" data-view-image=original data-filename=f.filename.clone()>{format!("View {}",f.filename)}</button>}.into_any()
         }

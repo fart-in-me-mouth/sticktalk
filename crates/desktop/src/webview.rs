@@ -8,8 +8,9 @@ use crate::{
     menu,
     policy::{Decision, Grant, Permission},
     shell_page::{self, lock, Form, Route, SharedState},
+    stream_window,
 };
-use std::{borrow::Cow, path::PathBuf};
+use std::{borrow::Cow, path::PathBuf, rc::Rc};
 use tao::{event_loop::EventLoopProxy, window::Window};
 use webview2_com::{
     take_pwstr, AcceleratorKeyPressedEventHandler, CapturePreviewCompletedHandler,
@@ -45,6 +46,8 @@ pub struct Config {
     /// This run's secret for the built-in page's `connect` call.
     pub token: String,
     pub focused: bool,
+    /// Where a stream's own window waits for the page to open into it.
+    pub stream: Rc<stream_window::Slot>,
 }
 
 /// Fails when the WebView2 Runtime is missing or cannot start. The text is for
@@ -57,6 +60,7 @@ pub fn build(window: &Window, context: &mut WebContext, config: Config) -> Resul
         root,
         token,
         focused,
+        stream,
     } = config;
     let builder = WebViewBuilder::new_with_web_context(context)
         .with_url(start)
@@ -87,25 +91,45 @@ pub fn build(window: &Window, context: &mut WebContext, config: Config) -> Resul
             }
         })
         .with_new_window_req_handler({
-            let (shared, proxy) = (shared.clone(), proxy.clone());
-            move |url, _features| {
+            let (shared, proxy, stream) = (shared.clone(), proxy.clone(), stream.clone());
+            move |url, features| {
+                // A stream's own window, which the server's page asked for a
+                // moment ago (see `stream_window`). Nothing else opens in-app.
+                let mut opener = PWSTR::null();
+                let from_server = unsafe { features.opener.webview.Source(&mut opener) }.is_ok()
+                    && lock(&shared).policy.is_server(&take_pwstr(opener));
+                let response = stream.claim(&url, from_server);
+                if matches!(response, NewWindowResponse::Create { .. }) {
+                    let _ = proxy.send_event(UserEvent::StreamOpened);
+                    return response;
+                }
                 if let Decision::External(url) = lock(&shared).policy.new_window(&url) {
                     let _ = proxy.send_event(UserEvent::OpenExternal(url));
                 }
                 NewWindowResponse::Deny
             }
         })
-        // Remote control of a shared screen (see `control`). The page can only
-        // ask; the person at this PC is asked by Windows before anything happens.
+        // What this app can do for the page: remote control of a shared screen
+        // (see `control`; the page can only ask, and the person at this PC is
+        // asked by Windows before anything happens) and a stream's own window
+        // (see `stream_window`).
         .with_initialization_script(
-            "Object.defineProperty(window,'__sticktalkHost',{value:Object.freeze({control:1})});",
+            "Object.defineProperty(window,'__sticktalkHost',{value:Object.freeze({control:1,windows:1})});",
         )
         .with_ipc_handler({
             let (shared, proxy) = (shared.clone(), proxy.clone());
+            let stream = stream.clone();
             let overrun = std::sync::atomic::AtomicBool::new(false);
             move |request: Request<String>| {
                 // Only the chosen server's own pages are listened to.
                 if !lock(&shared).policy.is_server(&request.uri().to_string()) {
+                    return;
+                }
+                if let Some(request) = stream_window::parse(request.body()) {
+                    if stream.admit() && proxy.send_event(UserEvent::StreamWindow(request)).is_err()
+                    {
+                        stream.taken();
+                    }
                     return;
                 }
                 let Some(message) = control::parse(request.body()) else {
@@ -388,6 +412,12 @@ unsafe fn hook(
         &mut token,
     )?;
 
+    tidy_context_menu(&core)
+}
+
+/// The right-click menu without the entries only a browser needs (see `menu`).
+pub unsafe fn tidy_context_menu(core: &ICoreWebView2) -> windows::core::Result<()> {
+    let mut token = 0i64;
     if let Ok(core) = core.cast::<ICoreWebView2_11>() {
         core.add_ContextMenuRequested(
             &ContextMenuRequestedEventHandler::create(Box::new(|_, args| {

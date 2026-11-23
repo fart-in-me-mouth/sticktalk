@@ -4,7 +4,8 @@
 - **Capture**: Windows Graphics Capture API (window or monitor), frames stay on the GPU (D3D11 textures) — no CPU copies / readback.
 - **Encode**: hardware encoder only by default — NVENC (NVIDIA), AMF (AMD), Quick Sync (Intel), reached via Media Foundation (or vendor SDKs if MF can't hit 60 fps). Zero-copy texture → encoder. CPU software encoding (openh264) is a fallback only, and drops to 720p30 automatically with a notice.
 - **Codec**: H.264 High as the baseline (every GPU can decode it in hardware); negotiate AV1 or HEVC when all viewers support hardware decode. Viewers use hardware decode (D3D11VA / Media Foundation) and render the decoded texture directly.
-- **User-selectable quality (independent pickers, all free, no paywall)** shown in the share popup like a settings menu with radio rows:
+- **Automatic quality (owner decision, 2026-11-22; replaces the pickers below).** A stream is always **30 FPS** at the highest resolution the connection and encoder can carry at that rate: captured at the source's own size (up to 3840×2160), sent smaller when it cannot be carried in full, and back at full size when there is room. The frame rate is kept; resolution is what gives. There is nothing to choose in the share popup.
+- *Superseded:* user-selectable quality (independent pickers, all free, no paywall) shown in the share popup like a settings menu with radio rows:
   - Frame rate: **15 / 30 / 60 FPS**
   - Resolution: **480p / 720p / 1080p / 1440p / Source**
   - Every combination is allowed. **Default: 1080p + 60 FPS.** Remember the last choice. The user can change it mid-stream without restarting the share.
