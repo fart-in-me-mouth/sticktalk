@@ -427,6 +427,8 @@ pub enum Event {
     SavedUpdated(SavedSummary),
     /// A reminder's time has come. `message` is None when it may no longer be read.
     ReminderDue(SavedMessage),
+    /// Sent only to streams that fetched GET /api/v1/users/@me/data-export (docs/features/authsec.md).
+    DataExportUpdated(DataExport),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

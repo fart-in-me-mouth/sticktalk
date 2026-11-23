@@ -38,6 +38,13 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 
 tower-http = { version = "0.6", features = ["fs"] }
 tower = { version = "0.5", features = ["util"] }
+# Account security (docs/features/authsec.md): audited pure-Rust WebAuthn RP,
+# rustls SMTP for optional email reset, QR matrices, streamed export archives.
+webauthn-rs = { version = "0.6.2", default-features = false, features = ["conditional-ui"] }
+webauthn-rs-proto = "=0.6.2"
+lettre = { version = "0.11.24", default-features = false, features = ["smtp-transport", "builder", "tokio1-rustls-tls"] }
+qrcodegen = "1.8"
+zip = { version = "6", default-features = false, features = ["deflate-flate2"] }
 
 [dev-dependencies]
 str0m = { version = "=0.25.0", default-features = false, features = ["rust-crypto"] }

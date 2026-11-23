@@ -3,6 +3,7 @@ mod account;
 pub mod admin;
 #[cfg(test)]
 mod audit_tests;
+mod authsec;
 pub mod backup;
 pub mod blob;
 pub mod browser;
@@ -48,6 +49,7 @@ pub fn router(app: App) -> axum::Router {
     voice::spawn(&app);
     push::spawn(&app);
     nav::spawn(&app);
+    authsec::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]
