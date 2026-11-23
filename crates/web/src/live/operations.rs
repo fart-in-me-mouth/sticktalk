@@ -2325,8 +2325,15 @@ fn respond(
                     // The authorized InviteUpsert event owns the current code.
                 }
                 CommandResult::Role(r) => {
-                    let _ = r; // RolesUpdated owns the projection.
-                    a.dialog = "roles".into();
+                    // RolesUpdated owns the projection. A saved role's editor
+                    // goes back to the list; a created role leaves the dialog
+                    // as it is (the person may already have opened it: the
+                    // RolesUpdated event can arrive before this answer).
+                    if matches!(operation, Some(Command::Launch(LaunchCommand::UpdateRole { .. })))
+                        && a.dialog == format!("role:{}", r.id.0)
+                    {
+                        a.dialog = "roles".into();
+                    }
                 }
                 CommandResult::Subscription { presences } => {
                     for p in presences {
