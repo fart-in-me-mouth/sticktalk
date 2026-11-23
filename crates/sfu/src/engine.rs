@@ -51,6 +51,13 @@ pub trait Authorizer: Send + Sync {
     fn audio_bitrate(&self, _session: VoiceSession) -> Option<u64> {
         None
     }
+    /// A Stage audience member: receives only. It never appears in another
+    /// session's `Joined` or `Participant`, counts against the listener caps
+    /// instead of the room cap, and anything it sends is dropped. Re-read on
+    /// every `Refresh`, so a session moves between audience and speakers.
+    fn listener(&self, _session: VoiceSession) -> bool {
+        false
+    }
 }
 impl<F: Fn(VoiceSession, ChannelId) -> bool + Send + Sync> Authorizer for F {
     fn can_join(&self, session: VoiceSession, channel: ChannelId) -> bool {
@@ -76,7 +83,17 @@ pub struct Config {
     pub room_video_egress_bps: u64,
     pub max_room_ice_candidates: usize,
     pub max_room_renegotiations_per_minute: usize,
+    /// Listener (Stage audience) sessions in all rooms, apart from `max_sessions`.
+    pub max_listeners: usize,
+    /// Listener sessions in one room, apart from `max_channel_sessions`.
+    pub max_room_listeners: usize,
 }
+/// What one listener's video subscription must be able to get. Listener video
+/// subscriptions are refused (`Limit`) beyond `video_egress_bps` / this, so a
+/// large audience cannot dilute everyone's picture to nothing.
+pub const LISTENER_VIDEO_BPS: u64 = 500_000;
+/// Source addresses remembered per peer for packet demultiplexing.
+const PEER_ADDRESSES: usize = 4;
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -93,6 +110,8 @@ impl Default for Config {
             room_video_egress_bps: 64_000_000,
             max_room_ice_candidates: 1024,
             max_room_renegotiations_per_minute: 120,
+            max_listeners: 1000,
+            max_room_listeners: 1000,
         }
     }
 }
@@ -232,6 +251,10 @@ struct Peer {
     demands: BTreeMap<String, u64>,
     /// The call's microphone bitrate ceiling, when the host sets one.
     audio_policer: Option<crate::quality::AudioPolicer>,
+    /// A Stage audience member (`Authorizer::listener`), as last applied.
+    listener: bool,
+    /// Source addresses this peer's packets were accepted from (newest last).
+    addresses: VecDeque<SocketAddr>,
 }
 impl Peer {
     fn participant(&self, session: VoiceSession) -> VoiceParticipant {
@@ -260,12 +283,20 @@ pub struct Sfu {
     budget: Budget,
     room_budgets: BTreeMap<ChannelId, Budget>,
     room_negotiations: BTreeMap<ChannelId, VecDeque<Instant>>,
+    /// Listeners' offers have their own room budget: a large audience
+    /// joining at an event's start must not lock its speakers out.
+    listener_negotiations: BTreeMap<ChannelId, VecDeque<Instant>>,
     now: Instant,
     // Used to reject abusive signaling independently of the chat command rate.
     signals: BTreeMap<VoiceSession, (Instant, u16)>,
     failure_epoch: u64,
     video_trace: bool,
     overloaded_sessions: BTreeSet<VoiceSession>,
+    /// Which peer last sent from each address: one `accepts` check per
+    /// datagram instead of one per peer (a Stage has a thousand peers).
+    sources: std::collections::HashMap<SocketAddr, VoiceSession>,
+    /// The policy generation `synchronize` last looked at.
+    synced: Option<u64>,
 }
 
 pub fn rtc_config() -> str0m::RtcConfig {
@@ -328,6 +359,8 @@ impl Sfu {
             || !(96_000..=1_000_000_000).contains(&config.room_video_egress_bps)
             || !(1..=4096).contains(&config.max_room_ice_candidates)
             || !(1..=960).contains(&config.max_room_renegotiations_per_minute)
+            || config.max_listeners > 10_000
+            || config.max_room_listeners > config.max_listeners
         {
             return Err(Error::Config);
         }
@@ -371,6 +404,9 @@ impl Sfu {
             overloaded_sessions: BTreeSet::new(),
             room_budgets: BTreeMap::new(),
             room_negotiations: BTreeMap::new(),
+            listener_negotiations: BTreeMap::new(),
+            sources: std::collections::HashMap::new(),
+            synced: None,
         })
     }
     pub fn local_addr(&self) -> SocketAddr {
@@ -495,6 +531,13 @@ impl Sfu {
     /// The host passes the authenticated login/WS connection identity, NEVER a
     /// user ID copied from client input. Errors are also emitted to that session.
     fn synchronize(&mut self) -> Result<(), Error> {
+        // Moves come with a policy change; between changes there is nothing
+        // to look for (and asking about every peer on every packet is what a
+        // large Stage cannot afford).
+        let generation = self.acl.generation();
+        if self.synced == Some(generation) {
+            return Ok(());
+        }
         let moves: Vec<_> = self
             .peers
             .iter()
@@ -521,6 +564,7 @@ impl Sfu {
                 self.disconnect(s)?;
             }
         }
+        self.synced = Some(generation);
         Ok(())
     }
     pub fn handle_signal(
@@ -636,11 +680,14 @@ impl Sfu {
                 p.muted = muted;
                 p.deafened = deafened;
                 let channel = p.channel;
+                let listener = p.listener;
                 let participant = p.participant(key);
                 if muted || deafened {
                     self.stop_speaking(key)?;
                 }
-                self.broadcast(channel, VoiceEvent::Participant(participant))?;
+                if !listener {
+                    self.broadcast(channel, VoiceEvent::Participant(participant))?;
+                }
             }
             VoiceSignal::Subscribe {
                 publisher,
@@ -705,7 +752,8 @@ impl Sfu {
             | VoiceSignal::DeclineCall { .. }
             | VoiceSignal::PlaySound { .. }
             | VoiceSignal::SetClipping { .. }
-            | VoiceSignal::ClipTaken => return Err(Error::Forbidden),
+            | VoiceSignal::ClipTaken
+            | VoiceSignal::Stage(_) => return Err(Error::Forbidden),
             VoiceSignal::TrackQuality { mid, max_bps } => {
                 let p = self.peers.get_mut(&key).unwrap();
                 let published = p.tracks.iter().any(|t| t.mid == mid && is_video(t.kind));
@@ -743,10 +791,8 @@ impl Sfu {
         if self.peers.contains_key(&key) {
             return Err(Error::Invalid);
         }
-        if self.peers.len() >= self.config.max_sessions
-            || self.peers.values().filter(|p| p.channel == channel).count()
-                >= self.config.max_channel_sessions
-        {
+        let listener = self.acl.listener(key);
+        if !self.room_has_space(channel, listener, true) {
             return Err(Error::Limit);
         }
         if !capabilities.video.contains(&VideoCodec::H264)
@@ -762,7 +808,7 @@ impl Sfu {
         let participants = self
             .peers
             .iter()
-            .filter(|(_, p)| p.channel == channel)
+            .filter(|(_, p)| p.channel == channel && !p.listener)
             .map(|(s, p)| p.participant(*s))
             .collect();
         let rtc = self
@@ -832,6 +878,8 @@ impl Sfu {
             limits: BTreeMap::new(),
             demands: BTreeMap::new(),
             audio_policer: None,
+            listener,
+            addresses: VecDeque::new(),
         };
         self.peers.insert(key, p);
         self.room_budgets.entry(channel).or_insert_with(|| {
@@ -857,11 +905,83 @@ impl Sfu {
                 max_rtp_bytes: self.config.max_datagram_bytes,
             },
         )?;
-        self.broadcast(
-            channel,
-            VoiceEvent::Participant(self.peers[&key].participant(key)),
-        )?;
+        if !listener {
+            self.broadcast(
+                channel,
+                VoiceEvent::Participant(self.peers[&key].participant(key)),
+            )?;
+        }
         self.enforce_codecs(channel)
+    }
+    /// Whether one more session (a listener or not) fits the room cap and,
+    /// for a new session, the global cap.
+    fn room_has_space(&self, channel: ChannelId, listener: bool, global: bool) -> bool {
+        let (all, room) = self
+            .peers
+            .values()
+            .filter(|p| p.listener == listener)
+            .fold((0, 0), |(all, room), p| {
+                (all + 1, room + usize::from(p.channel == channel))
+            });
+        let (max_all, max_room) = if listener {
+            (self.config.max_listeners, self.config.max_room_listeners)
+        } else {
+            (self.config.max_sessions, self.config.max_channel_sessions)
+        };
+        (!global || all < max_all) && room < max_room
+    }
+    /// Sends to everyone in the room except `key` itself.
+    fn broadcast_others(
+        &mut self,
+        channel: ChannelId,
+        key: VoiceSession,
+        event: VoiceEvent,
+    ) -> Result<(), Error> {
+        let keys: Vec<_> = self
+            .peers
+            .iter()
+            .filter(|(s, p)| **s != key && p.channel == channel && self.acl.can_join(**s, channel))
+            .map(|(s, _)| *s)
+            .collect();
+        for to in keys {
+            self.send(to, 0, event.clone())?;
+        }
+        Ok(())
+    }
+    fn accepts(&mut self, candidate: VoiceSession, input: &Input) -> Result<bool, Error> {
+        match self.peer_operation(candidate, 0, |s| {
+            Ok(s.peers
+                .get(&candidate)
+                .is_some_and(|p| p.rtc.accepts(input)))
+        }) {
+            Ok(accepted) => Ok(accepted),
+            Err(Error::Backpressure) => Err(Error::Backpressure),
+            Err(_) => Ok(false),
+        }
+    }
+    /// Remembers that `key` sends from `from`, at most `PEER_ADDRESSES` each.
+    fn remember_source(&mut self, key: VoiceSession, from: SocketAddr) {
+        if self.sources.get(&from) == Some(&key) {
+            return;
+        }
+        if let Some(old) = self.sources.insert(from, key) {
+            if let Some(p) = self.peers.get_mut(&old) {
+                p.addresses.retain(|a| *a != from);
+            }
+        }
+        let Some(p) = self.peers.get_mut(&key) else {
+            return;
+        };
+        p.addresses.push_back(from);
+        let mut evicted = vec![];
+        while p.addresses.len() > PEER_ADDRESSES {
+            evicted.extend(p.addresses.pop_front());
+        }
+        for a in evicted {
+            if self.sources.get(&a) == Some(&key) {
+                self.sources.remove(&a);
+            }
+        }
     }
     fn codec_allowed(&self, channel: ChannelId, codec: VideoCodec) -> bool {
         codec == VideoCodec::H264
@@ -920,14 +1040,24 @@ impl Sfu {
         // Count attempts, including malformed offers; don't allow parse-CPU abuse.
         peer.negotiation_times.push_back(self.now);
         let channel = peer.channel;
-        let room_times = self.room_negotiations.entry(channel).or_default();
+        let (room_times, room_limit) = if peer.listener {
+            (
+                self.listener_negotiations.entry(channel).or_default(),
+                self.config.max_room_listeners + self.config.max_room_renegotiations_per_minute,
+            )
+        } else {
+            (
+                self.room_negotiations.entry(channel).or_default(),
+                self.config.max_room_renegotiations_per_minute,
+            )
+        };
         while room_times
             .front()
             .is_some_and(|t| self.now.saturating_duration_since(*t) >= Duration::from_secs(60))
         {
             room_times.pop_front();
         }
-        if room_times.len() >= self.config.max_room_renegotiations_per_minute {
+        if room_times.len() >= room_limit {
             return Err(Error::Limit);
         }
         room_times.push_back(self.now);
@@ -941,6 +1071,10 @@ impl Sfu {
             || room_tracks + tracks.len() > self.config.max_room_tracks
         {
             return Err(Error::Limit);
+        }
+        // The audience publishes nothing, whatever its permissions say.
+        if self.peers[&key].listener && !tracks.is_empty() {
+            return Err(Error::Forbidden);
         }
         let mut mids = BTreeSet::new();
         let mut kinds = BTreeSet::new();
@@ -1095,10 +1229,12 @@ impl Sfu {
         let sdp = answer.to_sdp_string();
         validation::answer(&sdp).map_err(|_| Error::PeerFailed)?;
         self.send(key, nonce, VoiceEvent::Answer { sdp })?;
-        self.broadcast(
-            self.peers[&key].channel,
-            VoiceEvent::Participant(self.peers[&key].participant(key)),
-        )?;
+        if !self.peers[&key].listener {
+            self.broadcast(
+                self.peers[&key].channel,
+                VoiceEvent::Participant(self.peers[&key].participant(key)),
+            )?;
+        }
         self.allocate()
     }
     fn subscribe(
@@ -1137,6 +1273,23 @@ impl Sfu {
         validation::layer(&source_mid, &receiver_mid, &track.layers, rid.as_deref())?;
         if target.routes.len() >= 32 && !target.routes.contains_key(&receiver_mid) {
             return Err(Error::Limit);
+        }
+        // Video to an audience is bounded by the server's video capacity: a
+        // new seat only while every listener video route can get its minimum.
+        if target.listener
+            && is_video(track.kind)
+            && !target.routes.get(&receiver_mid).is_some_and(|r| r.video)
+        {
+            let seats = (self.config.video_egress_bps / LISTENER_VIDEO_BPS).max(1) as usize;
+            let used: usize = self
+                .peers
+                .values()
+                .filter(|p| p.listener)
+                .map(|p| p.routes.values().filter(|r| r.video).count())
+                .sum();
+            if used >= seats {
+                return Err(Error::Limit);
+            }
         }
         let source_mid: Mid = source_mid.as_str().into();
         let target_mid: Mid = receiver_mid.as_str().into();
@@ -1343,11 +1496,15 @@ impl Sfu {
         // Max-min fair shares of the global and of each room's video budget.
         let global = crate::quality::waterfill(self.config.video_egress_bps, &need);
         let mut room = vec![0; routes.len()];
-        let rooms: BTreeSet<ChannelId> = routes.iter().map(|r| r.4).collect();
-        for channel in rooms {
-            let members: Vec<usize> = (0..routes.len())
-                .filter(|&i| routes[i].4 == channel)
-                .collect();
+        // Routes grouped by room and by viewer in one pass each: a Stage can
+        // hold many viewers, so nothing here may be routes x peers.
+        let mut rooms: BTreeMap<ChannelId, Vec<usize>> = BTreeMap::new();
+        let mut viewers: BTreeMap<VoiceSession, Vec<usize>> = BTreeMap::new();
+        for (i, r) in routes.iter().enumerate() {
+            rooms.entry(r.4).or_default().push(i);
+            viewers.entry(r.0).or_default().push(i);
+        }
+        for members in rooms.into_values() {
             let caps: Vec<u64> = members.iter().map(|&i| need[i]).collect();
             for (k, share) in crate::quality::waterfill(self.config.room_video_egress_bps, &caps)
                 .into_iter()
@@ -1364,9 +1521,9 @@ impl Sfu {
             .peers
             .keys()
             .map(|key| {
-                let sum = (0..routes.len())
-                    .filter(|&i| routes[i].0 == *key)
-                    .fold(0u64, |a, i| a.saturating_add(cap[i]));
+                let sum = viewers.get(key).map_or(0, |mine| {
+                    mine.iter().fold(0u64, |a, &i| a.saturating_add(cap[i]))
+                });
                 (*key, sum.min(self.config.peer_video_egress_bps))
             })
             .collect();
@@ -1399,11 +1556,10 @@ impl Sfu {
             }
         }
         let mut limits: BTreeMap<(VoiceSession, String), u64> = BTreeMap::new();
-        for (key, p) in &self.peers {
-            let mine: Vec<usize> = (0..routes.len()).filter(|&i| routes[i].0 == *key).collect();
-            if mine.is_empty() {
+        for (key, mine) in &viewers {
+            let Some(p) = self.peers.get(key) else {
                 continue;
-            }
+            };
             // Each viewer's estimate, split fairly among what it watches. Two
             // 1440p60 viewers receive 12 Mbps payload each within the unchanged
             // 32 Mbps wire cap; a 2.5 Mbps camera leaves the rest to a 4K share.
@@ -1486,20 +1642,28 @@ impl Sfu {
         };
         let input = Input::Receive(self.now, receive);
         let mut key = None;
-        for candidate in self.sessions() {
-            let result = self.peer_operation(candidate, 0, |s| {
-                Ok(s.peers[&candidate].rtc.accepts(&input))
-            });
-            match result {
-                Ok(true) => {
+        // The peer that last sent from this address first: with a thousand
+        // listeners, asking every peer about every packet would dominate.
+        let hint = self
+            .sources
+            .get(&from)
+            .copied()
+            .filter(|s| self.peers.contains_key(s));
+        if let Some(hint) = hint {
+            if self.accepts(hint, &input)? {
+                key = Some(hint);
+            }
+        }
+        if key.is_none() {
+            for candidate in self.sessions() {
+                if Some(candidate) != hint && self.accepts(candidate, &input)? {
                     key = Some(candidate);
                     break;
                 }
-                Err(Error::Backpressure) => return Err(Error::Backpressure),
-                _ => {}
             }
         }
         if let Some(key) = key {
+            self.remember_source(key, from);
             if self.authorized(key).is_err() {
                 self.disconnect(key)?;
                 return Ok(());
@@ -1529,11 +1693,20 @@ impl Sfu {
         self.synchronize()?;
         let keys: Vec<_> = self.peers.keys().copied().collect();
         for key in keys {
-            if self.authorized(key).is_err()
-                || (!self.peers[&key].connected
-                    && self.now.saturating_duration_since(self.peers[&key].created)
-                        >= Duration::from_secs(30))
+            let Some(p) = self.peers.get(&key) else {
+                continue;
+            };
+            let stale = !p.connected
+                && self.now.saturating_duration_since(p.created) >= Duration::from_secs(30);
+            // Only peers with something due: an idle listener costs nothing here.
+            if !stale
+                && p.deadline > self.now
+                && p.request.is_none_or(|r| r.1 > self.now)
+                && p.speaking_until.is_none_or(|t| t > self.now)
             {
+                continue;
+            }
+            if stale || self.authorized(key).is_err() {
                 self.disconnect(key)?;
                 continue;
             }
@@ -1752,8 +1925,12 @@ impl Sfu {
                 else {
                     return Ok(());
                 };
-                self.peers.get_mut(&key).unwrap().bwe = estimate.as_u64();
-                self.allocate()?;
+                let p = self.peers.get_mut(&key).unwrap();
+                p.bwe = estimate.as_u64();
+                // An estimate only changes the split of what this peer watches.
+                if p.routes.values().any(|r| r.video) {
+                    self.allocate()?;
+                }
             }
             Event::PeerStats(stats) => self.stats(key, stats)?,
             // Refresh REMB after a newly started stream becomes known.
@@ -1816,10 +1993,11 @@ impl Sfu {
             self.peers.get_mut(&key).unwrap().idr_starts += 1;
         }
         let p = &self.peers[&key];
-        if !self
-            .acl
-            .permissions(key, p.channel)
-            .contains(track_permission(track.kind))
+        if p.listener
+            || !self
+                .acl
+                .permissions(key, p.channel)
+                .contains(track_permission(track.kind))
             || (!video && !self.acl.send_audio(key))
             || (!video && (p.muted || p.deafened))
             || track
@@ -2320,17 +2498,33 @@ impl Sfu {
         let Some(peer) = self.peers.get(&key) else {
             return Ok(());
         };
-        let permissions = self.acl.permissions(key, peer.channel);
-        if !self.acl.can_join(key, peer.channel) {
+        let channel = peer.channel;
+        let permissions = self.acl.permissions(key, channel);
+        if !self.acl.can_join(key, channel) {
             return self.disconnect(key);
         }
+        let was_listener = peer.listener;
+        let mut listener = self.acl.listener(key);
+        if was_listener && !listener && !self.room_has_space(channel, false, false) {
+            // The host checks room before promoting; this is the hard cap.
+            listener = true;
+            self.send(
+                key,
+                0,
+                VoiceEvent::Error {
+                    code: ErrorCode::LimitExceeded,
+                    message: "There is no room left to speak.".into(),
+                },
+            )?;
+        }
+        let peer = &self.peers[&key];
         let removed: Vec<_> = peer
             .tracks
             .iter()
-            .filter(|t| !permissions.contains(track_permission(t.kind)))
+            .filter(|t| listener || !permissions.contains(track_permission(t.kind)))
             .map(|t| t.mid.clone())
             .collect();
-        if !permissions.contains(Permissions::STREAM) {
+        if listener || !permissions.contains(Permissions::STREAM) {
             self.revoke(key)?;
             self.cancel_request(key)?;
         }
@@ -2354,10 +2548,18 @@ impl Sfu {
             self.remove_route(s, &mid)?;
         }
         self.stop_speaking(key)?;
-        self.broadcast(
-            self.peers[&key].channel,
-            VoiceEvent::Participant(self.peers[&key].participant(key)),
-        )?;
+        self.peers.get_mut(&key).unwrap().listener = listener;
+        if listener {
+            // Back to the audience: everyone else forgets this session.
+            if !was_listener {
+                self.broadcast_others(channel, key, VoiceEvent::Left { session: key })?;
+            }
+        } else {
+            self.broadcast(
+                channel,
+                VoiceEvent::Participant(self.peers[&key].participant(key)),
+            )?;
+        }
         self.allocate()
     }
     /// Move the established transport; discard all old-room subscriptions and grants.
@@ -2372,9 +2574,7 @@ impl Sfu {
         if !self.acl.can_join(key, channel) {
             return Err(Error::Forbidden);
         }
-        if self.peers.values().filter(|p| p.channel == channel).count()
-            >= self.config.max_channel_sessions
-        {
+        if !self.room_has_space(channel, self.acl.listener(key), false) {
             return Err(Error::Limit);
         }
         let tracks: usize = self
@@ -2440,12 +2640,16 @@ impl Sfu {
             .retain(|ch, _| self.peers.values().any(|p| p.channel == *ch));
         self.room_negotiations
             .retain(|ch, _| self.peers.values().any(|p| p.channel == *ch));
-        self.broadcast(old, VoiceEvent::Left { session: key })?;
+        self.listener_negotiations
+            .retain(|ch, _| self.peers.values().any(|p| p.channel == *ch));
+        if !self.peers[&key].listener {
+            self.broadcast(old, VoiceEvent::Left { session: key })?;
+        }
         self.refresh_policy(key)?;
         let participants = self
             .peers
             .iter()
-            .filter(|(s, p)| **s != key && p.channel == channel)
+            .filter(|(s, p)| **s != key && p.channel == channel && !p.listener)
             .map(|(s, p)| p.participant(*s))
             .collect();
         self.send(
@@ -2508,13 +2712,22 @@ impl Sfu {
             self.collect(key)?;
         }
         let p = self.peers.remove(&key).unwrap();
+        for a in &p.addresses {
+            if self.sources.get(a) == Some(&key) {
+                self.sources.remove(a);
+            }
+        }
         if !self.peers.values().any(|peer| peer.channel == p.channel) {
             self.room_budgets.remove(&p.channel);
             self.room_negotiations.remove(&p.channel);
+            self.listener_negotiations.remove(&p.channel);
         }
         self.signals.remove(&key);
         self.events.retain(|(s, _)| *s != key);
-        self.broadcast(p.channel, VoiceEvent::Left { session: key })?;
+        // Nobody else knew a listener was there.
+        if !p.listener {
+            self.broadcast(p.channel, VoiceEvent::Left { session: key })?;
+        }
         self.send(key, 0, VoiceEvent::Left { session: key })?;
         self.allocate()
     }

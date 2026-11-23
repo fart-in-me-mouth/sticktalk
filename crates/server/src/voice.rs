@@ -59,6 +59,8 @@ struct Lease {
     alive: Arc<std::sync::atomic::AtomicBool>,
     /// The call's Opus bitrate; the SFU drops microphone audio far above it.
     audio_bps: u32,
+    /// A Stage audience member: an SFU listener (receive only).
+    listener: bool,
 }
 #[derive(Default)]
 struct Policy {
@@ -117,7 +119,15 @@ impl sticktalk_sfu::Authorizer for ProjectedAcl {
             .ok()
             .and_then(|p| p.leases.get(&session).map(|l| u64::from(l.audio_bps)))
     }
+    fn listener(&self, session: VoiceSession) -> bool {
+        self.0
+            .read()
+            .ok()
+            .is_some_and(|p| p.leases.get(&session).is_some_and(|l| l.listener))
+    }
 }
+/// Publishing sessions in one room (the SFU's `max_channel_sessions`).
+pub(crate) const MAX_ROOM_SESSIONS: usize = 16;
 fn advertised_ip(explicit: Option<IpAddr>, http: IpAddr, interfaces: Vec<IpAddr>) -> IpAddr {
     explicit
         .or_else(|| interfaces.into_iter().find(|ip| tailscale(*ip)))
@@ -146,6 +156,10 @@ pub(crate) struct Entry {
     self_deafened: bool,
     /// This session keeps a rolling clip buffer; everyone in the call is told.
     pub clipping: bool,
+    /// In a Stage channel (`stage.rs`).
+    pub stage: bool,
+    /// A Stage audience member: never in `GuildState`, publishes nothing.
+    pub listener: bool,
 }
 impl Entry {
     /// A direct or group call: its room is a DM channel, not a guild voice channel.
@@ -163,6 +177,10 @@ impl Entry {
     pub fn server_mute_for_test(&mut self, muted: bool) {
         self.server_muted = muted;
     }
+}
+#[cfg(test)]
+pub(crate) fn acl_for_test(app: &App) -> impl sticktalk_sfu::Authorizer {
+    ProjectedAcl(app.0.voice.acl.clone())
 }
 #[cfg(test)]
 pub(crate) fn acl_bitrate_for_test(app: &App, session: VoiceSession) -> Option<u64> {
@@ -211,8 +229,12 @@ async fn rights(c: &mut SqliteConnection, user: Id, guild: Id, channel: Id) -> R
         crate::permissions::evaluate(c, user, guild, Some(channel)).await
     }
 }
-/// Sends a session's current state to whoever can see that room.
+/// Sends a session's current state to whoever can see that room. The Stage
+/// audience is not shown: the channel list counts it instead.
 async fn publish(core: &mut Core, c: &mut SqliteConnection, session: VoiceSession) -> Result<()> {
+    if core.voice[&session].listener {
+        return Ok(());
+    }
     let state = core.voice[&session].state.clone();
     if state.guild_id.0 == 0 {
         crate::calls::publish(core, c, state.channel_id).await
@@ -243,6 +265,9 @@ impl Voice {
                 ports: options.voice_udp_port_start..=options.voice_udp_port_end,
                 video_egress_bps: options.voice_egress_bps,
                 max_datagram_bytes: options.voice_max_datagram_bytes,
+                max_channel_sessions: MAX_ROOM_SESSIONS,
+                max_listeners: crate::stage::MAX_LISTENERS,
+                max_room_listeners: crate::stage::MAX_LISTENERS,
                 ..Default::default()
             },
             Arc::new(ProjectedAcl(acl.clone())),
@@ -351,6 +376,17 @@ pub(crate) fn send(core: &mut Core, key: &[u8], nonce: u64, event: &VoiceEvent) 
         event,
         VoiceEvent::Left { .. } | VoiceEvent::ControlRevoked { .. }
     );
+    let envelope =
+        sticktalk_sfu::encode_event(nonce, event).map_err(|_| Error::new(ErrorCode::Internal))?;
+    send_payload(core, key, envelope, critical)
+}
+/// An already encoded event (one encoding for many recipients, `stage.rs`).
+pub(crate) fn send_payload(
+    core: &mut Core,
+    key: &[u8],
+    envelope: VoicePayload,
+    critical: bool,
+) -> Result<()> {
     if let Some(connection) = core.streams.get(key).and_then(|s| s.connection.as_ref()) {
         require(
             connection.tx.capacity() >= if critical { 1 } else { 32 },
@@ -362,8 +398,6 @@ pub(crate) fn send(core: &mut Core, key: &[u8], nonce: u64, event: &VoiceEvent) 
             ErrorCode::Unavailable,
         )?;
     }
-    let envelope =
-        sticktalk_sfu::encode_event(nonce, event).map_err(|_| Error::new(ErrorCode::Internal))?;
     core.send(key, &ServerMsg::Voice(envelope))
 }
 async fn broadcast(
@@ -372,10 +406,22 @@ async fn broadcast(
     guild: Id,
     event: &VoiceEvent,
 ) -> Result<()> {
+    broadcast_except(core, c, guild, event, None).await
+}
+/// `broadcast`, leaving out one connection (a Stage speaker moving to the
+/// audience stays in the call: its own `GuildLeft` would end it).
+async fn broadcast_except(
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    guild: Id,
+    event: &VoiceEvent,
+    except: Option<&[u8]>,
+) -> Result<()> {
     let users = db::guild_users(c, guild).await?;
     let keys: Vec<_> = core
         .streams
         .iter()
+        .filter(|(k, _)| Some(k.as_slice()) != except)
         .filter(|(_, s)| s.connection.is_some() && users.contains(&s.user))
         .map(|(k, _)| k.clone())
         .collect();
@@ -411,7 +457,7 @@ pub(crate) async fn allowed(c: &mut SqliteConnection, user: Id, channel: Id) -> 
         return Ok(Id(0));
     }
     require(
-        ch.summary.kind == ChannelKind::Voice,
+        matches!(ch.summary.kind, ChannelKind::Voice | ChannelKind::Stage),
         ErrorCode::InvalidRequest,
     )?;
     let guild_id = ch
@@ -439,9 +485,26 @@ pub(crate) async fn remove(
         // ACL denial above is synchronous even if the actor has stopped.
         let _ = app.0.voice.cleanup.try_send(session);
         send(core, &entry.key, 0, &VoiceEvent::Left { session })?;
+        if entry.stage {
+            Box::pin(crate::stage::left(
+                app,
+                core,
+                c,
+                entry.state.channel_id,
+                session.user_id,
+            ))
+            .await?;
+        }
+        let channel = entry.state.channel_id;
+        if !entry.dm()
+            && !entry.stage
+            && !core.voice.values().any(|e| e.state.channel_id == channel)
+        {
+            Box::pin(crate::schedule::voice_emptied(core, c, channel)).await?;
+        }
         if entry.dm() {
             crate::calls::left(app, core, c, &entry.key, entry.state.channel_id).await?;
-        } else if entry.joined {
+        } else if entry.joined && !entry.listener {
             broadcast(
                 core,
                 c,
@@ -452,6 +515,17 @@ pub(crate) async fn remove(
                 },
             )
             .await?;
+        } else if entry.listener {
+            // Nobody else knew; the listener's own devices still need to.
+            let _ = send(
+                core,
+                &entry.key,
+                0,
+                &VoiceEvent::GuildLeft {
+                    guild_id: entry.state.guild_id,
+                    session,
+                },
+            );
         }
     }
     Ok(())
@@ -494,13 +568,17 @@ pub(crate) async fn reconcile(app: &App, core: &mut Core, c: &mut SqliteConnecti
             remove(app, core, c, session).await?;
         } else {
             let entry = &core.voice[&session];
-            let rights = rights(
-                c,
-                session.user_id,
-                entry.state.guild_id,
-                entry.state.channel_id,
-            )
-            .await?;
+            let listener = entry.listener;
+            let rights = crate::stage::scope(
+                rights(
+                    c,
+                    session.user_id,
+                    entry.state.guild_id,
+                    entry.state.channel_id,
+                )
+                .await?,
+                listener,
+            );
             let changed = {
                 let mut p = app.0.voice.acl.write().unwrap_or_else(|e| e.into_inner());
                 let lease = p
@@ -519,7 +597,49 @@ pub(crate) async fn reconcile(app: &App, core: &mut Core, c: &mut SqliteConnecti
             }
         }
     }
-    Ok(())
+    Box::pin(crate::stage::reconcile(core, c)).await
+}
+/// A Stage session moves between the audience (`listener`) and the speakers:
+/// new rights for its lease, the SFU told, and the channel list updated.
+pub(crate) async fn restage(
+    app: &App,
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    session: VoiceSession,
+    listener: bool,
+) -> Result<()> {
+    let Some(entry) = core.voice.get_mut(&session) else {
+        return Ok(());
+    };
+    let was = std::mem::replace(&mut entry.listener, listener);
+    let (guild, channel, joined) = (entry.state.guild_id, entry.state.channel_id, entry.joined);
+    if listener {
+        entry.state.participant.tracks.clear();
+    }
+    let rights = crate::stage::scope(rights(c, session.user_id, guild, channel).await?, listener);
+    {
+        let mut p = app.0.voice.acl.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(lease) = p.leases.get_mut(&session) {
+            lease.listener = listener;
+            lease.permissions = rights;
+        }
+        p.generation += 1;
+    }
+    if listener && !was && joined {
+        let key = core.voice[&session].key.clone();
+        broadcast_except(
+            core,
+            c,
+            guild,
+            &VoiceEvent::GuildLeft {
+                guild_id: guild,
+                session,
+            },
+            Some(&key),
+        )
+        .await?;
+    }
+    refresh(app, core, c, session).await
 }
 async fn refresh(
     app: &App,
@@ -570,6 +690,11 @@ async fn moderate(
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
     // Nobody moderates anybody in a direct or group call.
     require(!target.dm(), ErrorCode::Forbidden)?;
+    // A Stage has its own way on and off (`stage.rs`); moves skip it.
+    require(
+        !(target.stage && matches!(action, VoiceModeration::Move { .. })),
+        ErrorCode::InvalidRequest,
+    )?;
     let guild = target.state.guild_id;
     let channel = target.state.channel_id;
     let required = match action {
@@ -585,6 +710,10 @@ async fn moderate(
     if let VoiceModeration::Move { channel_id } = action {
         require(
             allowed(c, session.user_id, channel_id).await? == guild,
+            ErrorCode::InvalidRequest,
+        )?;
+        require(
+            db::channel(c, channel_id).await?.summary.kind == ChannelKind::Voice,
             ErrorCode::InvalidRequest,
         )?;
         db::access(
@@ -780,6 +909,10 @@ async fn signal_inner(
             crate::callextras::signal(core, &mut c, session, &signal).await?;
             return send(core, key, nonce, &VoiceEvent::Ack);
         }
+        VoiceSignal::Stage(stage) => {
+            Box::pin(crate::stage::signal(app, core, &mut c, user, stage.clone())).await?;
+            return send(core, key, nonce, &VoiceEvent::Ack);
+        }
         _ => {}
     }
     let existing = core
@@ -791,23 +924,34 @@ async fn signal_inner(
         core.rate(format!("voice-join:{}", user.0), 30., 5.)?;
         require(existing.is_none(), ErrorCode::Conflict)?;
         let guild_id = allowed(&mut c, user, channel_id).await?;
-        require(
-            core.voice.len() < 64
-                && core
-                    .voice
-                    .values()
-                    .filter(|v| v.state.channel_id == channel_id)
-                    .count()
-                    < 16,
-            ErrorCode::LimitExceeded,
-        )?;
+        let stage = guild_id.0 != 0
+            && db::channel(&mut c, channel_id).await?.summary.kind == ChannelKind::Stage;
+        let listener =
+            stage && Box::pin(crate::stage::admit(core, &mut c, user, channel_id)).await?;
+        // The audience has its own caps: a Stage holds a whole server.
+        let (all, room) = core.voice.values().filter(|v| v.listener == listener).fold(
+            (0, 0),
+            |(all, room), v| {
+                (
+                    all + 1,
+                    room + usize::from(v.state.channel_id == channel_id),
+                )
+            },
+        );
+        let (max_all, max_room) = if listener {
+            (crate::stage::MAX_LISTENERS, crate::stage::MAX_LISTENERS)
+        } else {
+            (64, MAX_ROOM_SESSIONS)
+        };
+        require(all < max_all && room < max_room, ErrorCode::LimitExceeded)?;
         // Fresh even on leave/rejoin in the same WS. Delayed old events and
         // grants can never bind to a new call lifetime.
         let session = VoiceSession {
             user_id: user,
             connection_id: core.id().await?,
         };
-        let rights = rights(&mut c, user, guild_id, channel_id).await?;
+        let rights =
+            crate::stage::scope(rights(&mut c, user, guild_id, channel_id).await?, listener);
         let audio_bps = crate::callextras::bitrate(&mut c, guild_id, channel_id).await?;
         let (server_muted, server_deafened) = if guild_id.0 == 0 {
             (false, false)
@@ -838,6 +982,7 @@ async fn signal_inner(
                     self_deafened: false,
                     expires: expiry.unwrap() as u64,
                     audio_bps,
+                    listener,
                     alive: core.streams[key]
                         .connection
                         .as_ref()
@@ -857,6 +1002,8 @@ async fn signal_inner(
                 self_muted: false,
                 self_deafened: false,
                 clipping: false,
+                stage,
+                listener,
                 state: GuildVoiceState {
                     guild_id,
                     channel_id,
@@ -879,6 +1026,10 @@ async fn signal_inner(
         }
         if guild_id.0 == 0 {
             crate::calls::joining(app, core, &mut c, user, channel_id).await?;
+        } else if stage {
+            Box::pin(crate::stage::joined(core, &mut c, session)).await?;
+        } else {
+            Box::pin(crate::schedule::voice_joined(core, &mut c, channel_id)).await?;
         }
     } else {
         let session = existing.ok_or_else(|| Error::new(ErrorCode::Forbidden))?;
@@ -981,13 +1132,16 @@ async fn output(
         if let Some(entry) = core.voice.get(&p.session) {
             p.muted = entry.server_muted || entry.self_muted;
             p.deafened = entry.server_deafened || entry.self_deafened;
-            let rights = rights(
-                c,
-                p.session.user_id,
-                entry.state.guild_id,
-                entry.state.channel_id,
-            )
-            .await?;
+            let rights = crate::stage::scope(
+                rights(
+                    c,
+                    p.session.user_id,
+                    entry.state.guild_id,
+                    entry.state.channel_id,
+                )
+                .await?,
+                entry.listener,
+            );
             p.tracks
                 .retain(|t| rights.contains(track_permission(t.kind)));
         }
@@ -1004,9 +1158,11 @@ async fn output(
         crate::community::voice_joined(core, signal.session);
     }
     // queue() can detach a slow consumer; revoke its synchronous media ACL now.
+    // Only this send's recipient can have been detached by it.
     let detached: Vec<_> = core
         .voice
         .iter()
+        .filter(|(_, entry)| entry.key == key)
         .filter(|(_, entry)| {
             !core
                 .streams
@@ -1028,7 +1184,11 @@ pub(crate) async fn snapshot(
     user: Id,
 ) -> Result<()> {
     let mut states = vec![];
-    for entry in core.voice.values().filter(|v| v.joined && !v.dm()) {
+    for entry in core
+        .voice
+        .values()
+        .filter(|v| v.joined && !v.dm() && !v.listener)
+    {
         if db::access(c, user, entry.state.channel_id, Permissions::VIEW_CHANNEL)
             .await
             .is_ok()

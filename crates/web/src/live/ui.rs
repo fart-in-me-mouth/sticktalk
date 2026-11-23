@@ -15,6 +15,7 @@ mod navui;
 mod privacy;
 mod profiles;
 mod settings;
+mod stage;
 mod threads;
 use sticktalk_client_core::markdown::{Block, Inline, Target};
 
@@ -352,6 +353,7 @@ fn shell(a: &App) -> AnyView {
             <nav class="channel-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2" aria-label="Channels">
             {navui::sidebar_top(a)}
             {community::sidebar_rows(a)}
+            {stage::events_entry(a)}
             {if a.nav.favorites{().into_any()}else{view!{<button class="nav-row flex w-full items-center justify-start gap-2 rounded-md p-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground touch:min-h-11 phone:text-base" data-live="home">{icon_with("users","icon text-muted-foreground")}"Friends"{request_badge("live-unread")}</button>{privacy::requests_row(a)}}.into_any()}}
             {community::shown(a,channel_tree(a)).into_iter().filter(|(c,_)|!a.nav.favorites&&!super::privacy::hidden(a,c)).map(|(c,depth)|{
                 let label=a.model.channel_name(c);
@@ -364,7 +366,8 @@ fn shell(a: &App) -> AnyView {
                 // A direct message is always for you; in a server only mentions are counted.
                 let count=read.map_or(0,|r|if c.guild_id.is_none()&&!muted{r.unread_count}else{r.mention_count});
                 let voice=c.kind==ChannelKind::Voice;
-                view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()>{profiles::dm_nameplate(a,c)}<button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=format!("{}:{}",if voice{"voice"}else{"channel"},c.id.0)>{icon_with(if voice{"volume-2"}else if let Some(glyph)=threads::kind_icon(c.kind){glyph}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{call_views::row_chat(a,c)}{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}{navui::row_options(c)}</div>{if voice{voice_occupants(a,c.id,depth)}else{().into_any()}}{threads::rows(a,c,depth)}}.into_any()
+                let open=if c.kind==ChannelKind::Stage{format!("stage:open,{}",c.id.0)}else{format!("{}:{}",if voice{"voice"}else{"channel"},c.id.0)};
+                view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()>{profiles::dm_nameplate(a,c)}<button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=open>{icon_with(if voice{"volume-2"}else if let Some(glyph)=stage::kind_icon(c.kind){glyph}else if let Some(glyph)=threads::kind_icon(c.kind){glyph}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{call_views::row_chat(a,c)}{stage::row_chat(a,c)}{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}{navui::row_options(c)}</div>{stage::row_extra(a,c,depth)}{if voice||c.kind==ChannelKind::Stage{voice_occupants(a,c.id,depth)}else{().into_any()}}{threads::rows(a,c,depth)}}.into_any()
             }).collect_view()}
             </nav>
             <section id="live-connected" class="voice-connected border-t p-3 text-sm" hidden><div class="voice-connection-line flex min-w-0 flex-col"><strong class="text-primary">"Voice Connected"</strong><small class="truncate" title=call_name.clone()>{call_name.clone()}</small></div><div class="voice-tiles mt-2 flex gap-2 [&_.icon-button]:flex-1 [&_.icon-button]:bg-accent">{ib("video","Camera","media:camera")}{ib("monitor","Share Screen","media:share")}{ib("phone-off","Disconnect","media:leave")}</div></section>
@@ -669,7 +672,7 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
         <div class="message-content min-w-0 flex-1 wrap-anywhere">{if continuation{().into_any()}else{view!{<div class="message-meta flex min-h-[21px] items-baseline gap-2 phone:flex-wrap phone:gap-x-2 phone:gap-y-1"><button class="author max-w-[min(60%,360px)] truncate p-0 font-semibold" style=format!("color:{}",color(a,m.author_id)) title=name(&author) data-live=format!("profile:{}",m.author_id.0)>{profiles::name_for(a,m.author_id,&name(&author))}</button><time class="text-xs">{timestamp(m.created_at)}</time></div>}.into_any()}}
         {if let Some(reply)=m.reply_to{view!{<button class="reply-preview flex max-w-full items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11" data-live=format!("seek-message:{}",reply.0)>{icon_with("reply","icon size-4")}<span class="min-w-0 truncate">{a.model.messages.get(&m.channel_id).and_then(|ms|ms.get(&reply)).map_or("Original message".into(),|m|format!("{}: {}",a.model.name(m.author_id),preview(a,m)))}</span></button>}.into_any()}else{().into_any()}}
         {body}
-        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{expression::stickers(m)}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}{threads::extras(a,m)}
+        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{expression::stickers(m)}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}{threads::extras(a,m)}{stage::message_extra(a,m)}
         {expression::reactions(a,m)}</div>
         <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{expression::message_actions(m)}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{threads::message_actions(a,m)}{privacy::message_actions(a,m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
     </article>}.into_any()
@@ -707,6 +710,11 @@ fn attachment(f: &Attachment) -> AnyView {
     }
 }
 fn voice(a: &App) -> AnyView {
+    if a.voice_channel
+        .is_some_and(|c| crate::live::stage::is_stage(a, c))
+    {
+        return stage::view(a);
+    }
     // Who is in this call: the media host builds its tiles from these names and pictures.
     let mut people = a.voice_channel.map_or(vec![], |c| {
         a.model
@@ -822,7 +830,7 @@ fn channel_form(a: &App, kind: &str, parent: Option<Id>) -> AnyView {
     } else {
         "Create Channel"
     };
-    form(title,"channel",view!{{field("f-name","Name","","text")}<label class="field">"Type"<select id="f-extra"><option value="text" selected=kind=="text">"Text"</option><option value="voice" selected=kind=="voice">"Voice"</option><option value="category" selected=kind=="category">"Category"</option><option value="announcement" selected=kind=="announcement">"Announcement"</option><option value="forum" selected=kind=="forum">"Forum"</option></select></label><label class="field">"Inside"<select id="f-value" aria-describedby="channel-inside-help">{inside_options(a,parent,None)}</select><small id="channel-inside-help">"Channels and categories can go inside any other channel or category, as deep as you like."</small></label>}.into_any())
+    form(title,"channel",view!{{field("f-name","Name","","text")}<label class="field">"Type"<select id="f-extra"><option value="text" selected=kind=="text">"Text"</option><option value="voice" selected=kind=="voice">"Voice"</option><option value="category" selected=kind=="category">"Category"</option><option value="announcement" selected=kind=="announcement">"Announcement"</option><option value="forum" selected=kind=="forum">"Forum"</option><option value="stage" selected=kind=="stage">"Stage"</option></select></label><label class="field">"Inside"<select id="f-value" aria-describedby="channel-inside-help">{inside_options(a,parent,None)}</select><small id="channel-inside-help">"Channels and categories can go inside any other channel or category, as deep as you like."</small></label>}.into_any())
 }
 const DEVICE_ROW: &str =
     "device-row my-4 flex items-center justify-between gap-4 phone:items-start";
@@ -832,6 +840,9 @@ fn dialog(a: &App) -> AnyView {
         return modal(a, class, label, body);
     }
     if let Some((body, label, class)) = threads::dialog(a) {
+        return modal(a, class, label, body);
+    }
+    if let Some((body, label, class)) = stage::dialog(a) {
         return modal(a, class, label, body);
     }
     if let Some(view) = expression::dialog(a) {
@@ -856,7 +867,7 @@ fn dialog(a: &App) -> AnyView {
         "group"=>form("New Group Message","group",view!{{field("f-name","Group Name (optional)","","text")}<fieldset class="group-recipients my-4"><legend class="text-[13px] font-medium text-subtle">"Friends"</legend>{a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend).map(|r|view!{<label class="live-checkbox">{avatar(&r.user,"small")}<span class="mr-auto">{name(&r.user)}</span><input type="checkbox" data-group-user=r.user.id.0.to_string()/></label>}).collect_view()}</fieldset><input id="f-value" type="hidden"/><p class="muted-copy">"Choose 2 to 15 friends."</p>}.into_any()),
         "friend"=>form("Add Friend","friend",view!{{field("f-name","Username","","text")}<p class="muted-copy">"Enter their username exactly, for example alex_m."</p>}.into_any()),
         "create"=>view!{{form("Create a Server","create",field("f-name","Server Name","","text"))}<div class="-mx-4 mt-2">{button("Join a Server","dialog:join","link-button")}</div>{community::create_extra(a)}}.into_any(),
-        "join"=>form("Join a Server","join",view!{{field("f-name","Invite Link or Code","","text")}{match &a.invite_preview{Some((_,Ok(p)))=>view!{<p class="invite-preview" role="status"><strong>{p.name.clone()}</strong>{format!(" · {} member{}{}",p.member_count,if p.member_count==1{""}else{"s"},if p.joined{" · You’re already a member"}else{""})}</p>}.into_any(),Some((_,Err(e)))=>view!{<p class="invite-preview muted-copy" role="status">{e.clone()}</p>}.into_any(),None=>().into_any()}}{community::join_note(a)}}.into_any()),
+        "join"=>form("Join a Server","join",view!{{field("f-name","Invite Link or Code","","text")}{match &a.invite_preview{Some((_,Ok(p)))=>view!{<p class="invite-preview" role="status"><strong>{p.name.clone()}</strong>{format!(" · {} member{}{}",p.member_count,if p.member_count==1{""}else{"s"},if p.joined{" · You’re already a member"}else{""})}</p>}.into_any(),Some((_,Err(e)))=>view!{<p class="invite-preview muted-copy" role="status">{e.clone()}</p>}.into_any(),None=>().into_any()}}{community::join_note(a)}{stage::invite_event(a)}}.into_any()),
         "kaomoji"=>view!{<h2>"Kaomoji"</h2><div class="picker-tabs mb-3 flex gap-2">{button("Emoji","dialog:emoji","link-button")}<button class="button secondary" aria-pressed="true">"Kaomoji"</button></div>{crate::kaomoji::GROUPS.iter().map(|(group,faces)|view!{<h3 class="category mt-4 mb-2">{*group}</h3><div class="kaomoji-grid">{faces.iter().map(|face|view!{<button class="kaomoji" data-live=format!("emoji:{face}")>{*face}</button>}).collect_view()}</div>}).collect_view()}}.into_any(),
         "channel"=>channel_form(a,"text",None),
         "category"=>channel_form(a,"category",None),
@@ -990,6 +1001,14 @@ fn role_permissions(role: &Role) -> AnyView {
                 ("Voice Activity", Permissions::USE_VOICE_ACTIVITY),
                 ("Use Soundboard", Permissions::USE_SOUNDBOARD),
                 ("Manage Soundboard", Permissions::MANAGE_SOUNDBOARD),
+                ("Request to Speak", Permissions::REQUEST_TO_SPEAK),
+            ],
+        ),
+        (
+            "Events",
+            vec![
+                ("Create Events", Permissions::CREATE_EVENTS),
+                ("Manage Events", Permissions::MANAGE_EVENTS),
             ],
         ),
         (

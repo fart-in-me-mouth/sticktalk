@@ -282,6 +282,7 @@ pub(super) fn action(app: Shared, raw: &str) {
                 return;
             }
             super::community::invite_gate(app.clone(), code.clone());
+            super::stage::invite_preview(app.clone(), code.clone());
             spawn_local(async move {
                 let found = http
                     .json::<Snapshot<InvitePreview>>(&format!("/invites/{code}/preview"))
@@ -343,6 +344,8 @@ pub(super) fn action(app: Shared, raw: &str) {
         }
         "mod" => super::moderation::action(app, arg),
         "profiles" => super::profiles::action(app, arg),
+        "stage" => super::stage::action(app, arg),
+        "submit" if super::stage::FORMS.contains(&arg) => super::stage::submit(app, arg),
         "submit" if super::profiles::FORMS.contains(&arg) => super::profiles::submit(app, arg),
         "privacy" => super::privacy::action(app, arg),
         "submit" if arg.starts_with("privacy-") => super::privacy::submit(app, arg),
@@ -1645,6 +1648,8 @@ fn submit(app: Shared, form: String, submission: Submission) {
                 ChannelKind::Announcement
             } else if extra == "forum" {
                 ChannelKind::Forum
+            } else if extra == "stage" {
+                ChannelKind::Stage
             } else {
                 ChannelKind::Text
             },
@@ -1982,6 +1987,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     || sticktalk_client_core::http::error_text(&error),
                     str::to_owned,
                 ),
+                (Some(Command::Schedule(c)), code) => super::stage::refused(c, code).map_or_else(
+                    || sticktalk_client_core::http::error_text(&error),
+                    str::to_owned,
+                ),
                 _ => sticktalk_client_core::http::error_text(&error),
             };
             a.touch();
@@ -2086,6 +2095,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             if let CommandResult::Threads(result) = result {
                 drop(a);
                 super::threads::answered(app, operation.as_ref(), result);
+                return;
+            }
+            if let CommandResult::Schedule(result) = result {
+                drop(a);
+                super::stage::answered(app, operation.as_ref(), result);
                 return;
             }
             match result {

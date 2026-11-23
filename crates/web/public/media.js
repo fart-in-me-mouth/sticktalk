@@ -3,6 +3,7 @@
 import * as ptt from './ptt.js';
 import { ringtoneEnabled, setRingtoneEnabled } from './calls.js';
 import * as extras from './callextras.js';
+import * as stageList from './stage.js';
 const emit = (action) =>
   window.dispatchEvent(new CustomEvent("sticktalk-live", { detail: action }));
 const signal = (type, data) =>
@@ -55,6 +56,11 @@ const trace = [];
 let wantCall=false;
 // A video call, or a call answered with video: the camera starts once connected.
 let wantCamera=false;
+// A Stage's audience opens no microphone and runs no input processing: it
+// only listens, through receive slots negotiated up front, so a new speaker
+// never makes the whole audience renegotiate (stage.md).
+let listenOnly = false, pendingListen = false;
+const LISTEN_SLOTS = 4;
 let callChannel = '', focusedTile = null;
 const requests=new Map();
 let nextRequest=crypto.getRandomValues(new Uint32Array(1))[0]||1;
@@ -375,6 +381,74 @@ async function publish(track, kind, stream) {
   publications.set(kind, { kind, track, stream, transceiver });
   return transceiver;
 }
+// The microphone: capture (with echo cancellation, noise suppression and
+// gain control), publication, push to talk and your own tile.
+async function microphone(generation) {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      ...(input ? { deviceId: { ideal: input } } : {}),
+    },
+    video: false,
+  });
+  if (generation !== epoch) {
+    stream.getTracks().forEach((t) => t.stop());
+    return false;
+  }
+  local = stream;
+  await publish(stream.getAudioTracks()[0], "audio", stream);
+  ptt.attach(() => { gateAudio(); }, KEY_USAGE);
+  await gateAudio();
+  elements.set(
+    "self-audio",
+    createTile(
+      "self-audio",
+      { session: { user_id: self(), connection_id: "self" } },
+      "audio",
+    ),
+  );
+  applyState();
+  return true;
+}
+// On a Stage: from the audience onto the Stage. Only now is the microphone opened.
+async function speak() {
+  if (!pc || !joined || !listenOnly) { listenOnly = false; return; }
+  listenOnly = false;
+  try {
+    if (!(await microphone(epoch))) return;
+  } catch (e) {
+    listenOnly = true;
+    if (e.name === 'NotAllowedError') throw new Error('Microphone access was denied. Allow it in your browser’s site settings to speak.');
+    throw e;
+  }
+  await negotiate();
+  if (!levelsTimer) levelsTimer = setTimeout(levels, 200);
+  mount();
+}
+// On a Stage: back to the audience. Every capture stops and nothing is sent.
+async function quiet() {
+  if (listenOnly) return;
+  listenOnly = true;
+  if (!pc || !joined) return;
+  ptt.detach();
+  clearTimeout(levelsTimer);
+  levelsTimer = null;
+  for (const [kind, p] of [...publications]) {
+    p.stream?.getTracks().forEach((t) => t.stop());
+    p.track.stop();
+    await p.transceiver.sender.replaceTrack(null).catch(() => {});
+    p.transceiver.direction = "inactive";
+    publications.delete(kind);
+    if (kind === "camera") extras.cameraStopped();
+  }
+  local?.getTracks().forEach((t) => t.stop());
+  local = null;
+  for (const id of [...elements.keys()]) if (id.startsWith("self-")) discard(id);
+  await negotiate();
+  mount();
+}
 async function start(data) {
   stop(false);
   if (!globalThis.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) {
@@ -428,37 +502,20 @@ async function start(data) {
       entry.media.setSinkId(output).catch(() => {});
     mount();
   };
+  pendingListen = false;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        ...(input ? { deviceId: { ideal: input } } : {}),
-      },
-      video: false,
-    });
-    if (generation !== epoch) {
-      stream.getTracks().forEach((t) => t.stop());
-      return;
-    }
-    local = stream;
-    await publish(stream.getAudioTracks()[0], "audio", stream);
-    ptt.attach(() => { gateAudio(); }, KEY_USAGE);
-    await gateAudio();
-    elements.set(
-      "self-audio",
-      createTile(
-        "self-audio",
-        { session: { user_id: self(), connection_id: "self" } },
-        "audio",
-      ),
-    );
-    applyState();
+    if (listenOnly) {
+      for (let i = 0; i < LISTEN_SLOTS; i++) {
+        const slot = current.addTransceiver("audio", { direction: "recvonly" });
+        preferOpus(slot);
+        idleReceivers.push(slot);
+      }
+      applyState();
+    } else if (!(await microphone(generation))) return;
     await negotiate();
     for (const participant of participants.values())
       await updateParticipant(participant);
-    levelsTimer = setTimeout(levels, 200);
+    if (!listenOnly) levelsTimer = setTimeout(levels, 200);
     if (wantCamera) {
       wantCamera = false;
       if (!publications.has("camera")) enqueue(toggleCamera);
@@ -671,7 +728,7 @@ async function updateParticipant(participant) {
       !active.has(id)
     ) {
       signal("unsubscribe", { receiver_mid: s.transceiver.mid });
-      s.transceiver.direction = "inactive";
+      if (!listenOnly) s.transceiver.direction = "inactive";
       idleReceivers.push(s.transceiver);
       subscriptions.delete(id);
       discard(id);
@@ -693,6 +750,9 @@ async function updateParticipant(participant) {
       reusable < 0
         ? pc.addTransceiver(kind, { direction: "recvonly" })
         : idleReceivers.splice(reusable, 1)[0];
+    // A slot already negotiated as recvonly needs no new offer (a Stage's audience).
+    const ready = listenOnly && reusable >= 0 && transceiver.mid !== null &&
+      transceiver.currentDirection === "recvonly";
     transceiver.direction = "recvonly";
     if (track.codec) preferH264(transceiver);
     else preferOpus(transceiver);
@@ -702,6 +762,7 @@ async function updateParticipant(participant) {
       kind: track.kind,
       transceiver,
       source_mid: track.mid,
+      ready,
     };
     subscriptions.set(id, subscription);
     added.push(subscription);
@@ -716,12 +777,16 @@ async function updateParticipant(participant) {
     }
   }
   if (added.length) {
-    await negotiate(()=>Promise.all(added.map(s=>requestSignal("subscribe", {
+    const subscribe = () => Promise.all(added.map(s=>requestSignal("subscribe", {
         publisher: participant.session,
         source_mid: s.source_mid,
         receiver_mid: s.transceiver.mid,
         rid: null,
-      }))));
+      })));
+    if (added.every((s) => s.ready)) {
+      await subscribe();
+      bindRemote();
+    } else await negotiate(subscribe);
   }
   mount();
 }
@@ -751,7 +816,7 @@ export function event(event) {
       for (const [id, s] of subscriptions)
         if (key(s.participant.session) === prefix) {
           signal("unsubscribe", { receiver_mid: s.transceiver.mid });
-          s.transceiver.direction = "inactive";
+          if (!listenOnly) s.transceiver.direction = "inactive";
           idleReceivers.push(s.transceiver);
           subscriptions.delete(id);
           discard(id);
@@ -1311,7 +1376,7 @@ function receiveControl(data) {
     tellHost({ control: "input", input: message.data.input });
 }
 function stop(notify) {
-  if(notify){wantCall=false;wantCamera=false;}
+  if(notify){wantCall=false;wantCamera=false;listenOnly=false;pendingListen=false;stageList.stop();}
   ptt.detach();
   ++epoch;
   for(const request of [...requests.values()])request.reject(new Error('Call ended.'));
@@ -1483,6 +1548,7 @@ export function mount() {
   for (const e of document.querySelectorAll('[data-live="media:share"]'))
     e.setAttribute("aria-pressed", String(publications.has("screen")));
   extras.mount();
+  stageList.mount();
   const settings = $("#live-device-settings");
   if (settings && !settings.dataset.initialized) {
     settings.dataset.initialized = "true";
@@ -1743,7 +1809,21 @@ export function action(action) {
       break;
     case "joining":
       wantCall=true;
+      listenOnly = pendingListen;
+      pendingListen = false;
       status = "Connecting…";
+      break;
+    case "stage-listener":
+      if (joined) enqueue(quiet);
+      else listenOnly = pendingListen = true;
+      break;
+    case "stage-speaker":
+    case "stage-speaker-muted":
+      pendingListen = false;
+      // Invited and accepted speakers start muted; they unmute when ready.
+      if (action === "stage-speaker-muted") muted = true;
+      if (joined) enqueue(speak);
+      else listenOnly = false;
       break;
     case "mute":
       muted = !muted;
@@ -1770,6 +1850,9 @@ export function action(action) {
     case "transport-lost":
       wantCall=false;
       wantCamera=false;
+      listenOnly=false;
+      pendingListen=false;
+      stageList.stop();
       stop(false);
       break;
     case "reconnected":
@@ -1782,7 +1865,10 @@ export function action(action) {
       showDevices();
       break;
     default:
-      extras.action(action);
+      if (action.startsWith("stage-roster:")) {
+        try { stageList.roster(JSON.parse(action.slice(13))); } catch {}
+        mount();
+      } else extras.action(action);
       break;
   }
 }
@@ -1802,6 +1888,8 @@ export async function diagnostics() {
     subscriptions: subscriptions.size,
     transmitting: ptt.transmitting(),
     microphoneSending: !!publications.get("audio")?.transceiver.sender.track,
+    listenOnly,
+    stage: stageList.diagnostics(),
     extras: extras.diagnostics(),
     tracks: [...elements.values()].map((e) => ({
       kind: e.tile.dataset.kind,

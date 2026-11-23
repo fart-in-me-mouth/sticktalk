@@ -122,6 +122,14 @@ pub enum AuditAction {
     TemplateCreate,
     TemplateUpdate,
     TemplateDelete,
+    // Scheduled events and Stages (`schedule.rs`, `stage.rs`).
+    EventCreate,
+    EventUpdate,
+    EventCancel,
+    EventDelete,
+    StageStart,
+    StageUpdate,
+    StageEnd,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -186,6 +194,13 @@ impl AuditAction {
         Self::TemplateCreate,
         Self::TemplateUpdate,
         Self::TemplateDelete,
+        Self::EventCreate,
+        Self::EventUpdate,
+        Self::EventCancel,
+        Self::EventDelete,
+        Self::StageStart,
+        Self::StageUpdate,
+        Self::StageEnd,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -251,6 +266,13 @@ impl AuditAction {
             Self::TemplateCreate => "template_create",
             Self::TemplateUpdate => "template_update",
             Self::TemplateDelete => "template_delete",
+            Self::EventCreate => "event_create",
+            Self::EventUpdate => "event_update",
+            Self::EventCancel => "event_cancel",
+            Self::EventDelete => "event_delete",
+            Self::StageStart => "stage_start",
+            Self::StageUpdate => "stage_update",
+            Self::StageEnd => "stage_end",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -320,6 +342,13 @@ impl AuditAction {
             Self::TemplateCreate => "Created a server template",
             Self::TemplateUpdate => "Synced a server template",
             Self::TemplateDelete => "Deleted a server template",
+            Self::EventCreate => "Created an event",
+            Self::EventUpdate => "Updated an event",
+            Self::EventCancel => "Cancelled an event",
+            Self::EventDelete => "Deleted an event",
+            Self::StageStart => "Started a Stage",
+            Self::StageUpdate => "Updated a Stage",
+            Self::StageEnd => "Ended a Stage",
         }
     }
 }
@@ -338,6 +367,8 @@ pub enum AuditTarget {
     Sticker,
     /// A soundboard sound (appended).
     Sound,
+    /// A scheduled event (`schedule.rs`).
+    Event,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

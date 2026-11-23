@@ -613,8 +613,12 @@ async fn playable(
         .voice
         .get(&session)
         .ok_or_else(|| Error::new(ErrorCode::Forbidden))?;
-    // A moderator's mute is not bypassed by the soundboard.
-    require(!entry.server_silenced(), ErrorCode::Forbidden)?;
+    // A moderator's mute is not bypassed by the soundboard, and on a Stage
+    // only speakers play sounds.
+    require(
+        !entry.server_silenced() && !entry.listener,
+        ErrorCode::Forbidden,
+    )?;
     let (guild, channel) = (entry.state.guild_id, entry.state.channel_id);
     let found = sound(c, s).await?;
     // A sound of a server the player is not in does not exist for them.
@@ -742,7 +746,8 @@ async fn joined_inner(
         )?;
     }
     let settings = entrance_settings(c, session.user_id).await?;
-    if !settings.enabled {
+    // No entrance sounds on a Stage: hundreds of listeners arrive at once.
+    if !settings.enabled || core.voice.get(&session).is_some_and(|e| e.stage) {
         return Ok(());
     }
     let chosen = settings
@@ -792,7 +797,10 @@ pub(crate) async fn bitrate(c: &mut SqliteConnection, guild: Id, channel: Id) ->
 async fn voice_channel(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Result<Id> {
     let channel = db::access(c, u, ch, Permissions::VIEW_CHANNEL | p).await?;
     require(
-        channel.summary.kind == ChannelKind::Voice,
+        matches!(
+            channel.summary.kind,
+            ChannelKind::Voice | ChannelKind::Stage
+        ),
         ErrorCode::InvalidRequest,
     )?;
     channel

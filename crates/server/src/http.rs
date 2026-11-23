@@ -30,6 +30,7 @@ pub fn router(app: App) -> axum::Router {
         .merge(crate::moderation::routes())
         .merge(crate::authsec::routes())
         .merge(crate::threads::routes())
+        .merge(crate::schedule::routes())
         .merge(crate::profiles::routes())
         .merge(crate::privacy::routes())
         .merge(crate::community::routes())

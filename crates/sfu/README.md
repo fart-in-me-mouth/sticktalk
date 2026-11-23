@@ -217,6 +217,30 @@ SVC extraction or automatic RID ladder algorithm: receiver policy picks a RID.
 - `PlaySound`, `SetClipping` and `ClipTaken` are host-handled; the SFU rejects
   them like `Ring`.
 
+### Stage audiences: listener sessions
+
+- `Authorizer::listener(session)` (default `false`) marks a Stage audience
+  member. A listener receives only: an offer that publishes any track is
+  `Forbidden`, anything it sends is dropped, and it never appears in another
+  session's `Joined` or `Participant` (its own `Left` goes to it alone). It is
+  re-read on every `Refresh`: leaving the audience broadcasts the session's
+  `Participant`; joining it removes its tracks and routes and sends `Left` to
+  the others (never to itself).
+- Listeners have their own caps, `Config::max_listeners` and
+  `max_room_listeners` (default 1000 each), apart from `max_sessions` and
+  `max_channel_sessions`; their offers use a separate room budget of
+  `max_room_listeners + max_room_renegotiations_per_minute` a minute.
+- A listener's video subscriptions are limited to
+  `video_egress_bps / LISTENER_VIDEO_BPS` (500 kbps) seats in all; beyond that
+  `Subscribe` is `Limit`. Audio is not limited by it.
+- Cost: datagrams are matched through a per-source-address index (4 addresses
+  per peer), `synchronize()` runs only after a policy generation change,
+  `allocate()` is linear in routes, and timers touch only due peers. With 1000
+  synthetic str0m receivers and one Opus speaker the SFU used 19% of one core
+  and about 105 KB of heap per listener (`tests/stage.rs`,
+  `stage_audience_capacity`; set `STICKTALK_STAGE_LISTENERS` and run with
+  `--profile server`). See `docs/features/stage.md`.
+
 ### Remote control: fail closed
 
 Only the sharer can approve a pending 30-second request, while a monitor/window

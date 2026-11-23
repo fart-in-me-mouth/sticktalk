@@ -50,6 +50,9 @@ pub struct MessageExtra {
     /// never see them (`expression.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub super_reactions: Option<Box<Vec<ReactionSummary>>>,
+    /// A finished Stage's record, or a shared event's card (`stage.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stage: Option<Box<crate::StageMessage>>,
 }
 impl MessageExtra {
     pub fn is_empty(&self) -> bool {
@@ -60,6 +63,7 @@ impl MessageExtra {
             && self.threads.is_none()
             && self.stickers.is_none()
             && self.super_reactions.is_none()
+            && self.stage.is_none()
     }
     pub fn stickers(&self) -> &[crate::StickerItem] {
         self.stickers.as_deref().map_or(&[], Vec::as_slice)

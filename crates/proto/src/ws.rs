@@ -294,6 +294,8 @@ pub enum Command {
     Privacy(PrivacyCommand),
     /// Admission, onboarding, discovery, templates (`community.rs`).
     Community(CommunityCommand),
+    /// Scheduled server events (`schedule.rs`).
+    Schedule(crate::ScheduleCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -338,6 +340,7 @@ pub enum CommandResult {
     Expression(ExpressionResult),
     Privacy(PrivacyResult),
     Community(CommunityResult),
+    Schedule(crate::ScheduleResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -459,6 +462,8 @@ pub enum Event {
     Privacy(PrivacyEvent),
     /// Only sent to streams that sent `CommunityCommand::Subscribe`.
     Community(CommunityEvent),
+    /// Sent only to connections that sent a `ScheduleCommand`.
+    Schedule(crate::ScheduleUpdate),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:
@@ -607,6 +612,8 @@ pub enum VoiceSignal {
         mid: String,
         max_bps: u64,
     },
+    /// Stage roles and lifecycle (`stage.rs`). Host-handled.
+    Stage(crate::StageSignal),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -748,6 +755,8 @@ pub enum VoiceEvent {
         channel_id: ChannelId,
         bitrate: u32,
     },
+    /// Stage state (`stage.rs`).
+    Stage(crate::StageEvent),
 }
 
 /// ONLY sent as binary named MessagePack on CONTROL_CHANNEL_LABEL, never WS.

@@ -123,6 +123,10 @@ pub(crate) struct Core {
     pub moderation: crate::moderation::Runtime,
     pub privacy: crate::privacy::Runtime,
     pub(crate) community: crate::community::Runtime,
+    /// Live Stages and their roles (`stage.rs`).
+    pub stage: crate::stage::Stages,
+    /// The scheduled-event timer (`schedule.rs`).
+    pub schedule: crate::schedule::Schedule,
     last_id: u64,
     worker: u16,
 }
@@ -162,6 +166,8 @@ pub(crate) struct Stream {
     pub thread_features: bool,
     /// Sent `ExpressionCommand::Subscribe`: receives `Event::Expression`.
     pub expression_features: bool,
+    /// Sent a `ScheduleCommand`: receives `Event::Schedule`.
+    pub schedule_features: bool,
 }
 impl Drop for Connection {
     fn drop(&mut self) {
@@ -188,6 +194,7 @@ impl Stream {
             content_features: false,
             thread_features: false,
             expression_features: false,
+            schedule_features: false,
         }
     }
     pub fn cursor(&self) -> ResumeCursor {
@@ -350,6 +357,9 @@ impl Core {
             if matches!(&event, Event::Community(_)) && !self.community.subscribed.contains(&s.id) {
                 continue;
             }
+            if !s.schedule_features && matches!(&event, Event::Schedule(_)) {
+                continue;
+            }
             if !s.launch_features
                 && matches!(
                     &event,
@@ -508,6 +518,8 @@ impl App {
                 moderation: Default::default(),
                 privacy: Default::default(),
                 community: Default::default(),
+                stage: Default::default(),
+                schedule: Default::default(),
                 last_id,
                 worker,
             }),
@@ -736,6 +748,8 @@ mod tests {
             moderation: Default::default(),
             privacy: Default::default(),
             community: Default::default(),
+            stage: Default::default(),
+            schedule: Default::default(),
             last_id: 0,
             worker: 0,
         }

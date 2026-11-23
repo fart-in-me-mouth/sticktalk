@@ -533,6 +533,7 @@ fn kind(k: ChannelKind) -> &'static str {
         ChannelKind::Announcement => "announcement",
         ChannelKind::Forum => "forum",
         ChannelKind::Thread => "thread",
+        ChannelKind::Stage => "stage",
     }
 }
 fn user_json(u: &UserSummary) -> Value {

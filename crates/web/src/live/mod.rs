@@ -10,6 +10,7 @@ mod nav;
 mod operations;
 mod privacy;
 mod profiles;
+mod stage;
 mod threads;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
@@ -167,6 +168,8 @@ struct App {
     privacy: privacy::State,
     /// Rules screening, applications, onboarding, Discover, templates, insights.
     community: community::State,
+    /// Stage channels and scheduled events.
+    stage: stage::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -237,6 +240,7 @@ impl App {
         self.privacy = Default::default();
         privacy::reset();
         self.community = Default::default();
+        self.stage = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -403,6 +407,7 @@ pub fn mount() {
             profiles: Default::default(),
             privacy: Default::default(),
             community: Default::default(),
+            stage: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -681,6 +686,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 }
                                 operations::ready(app.clone());
                                 nav::ready(app.clone());
+                                stage::ready(app.clone());
                                 moderation::connected(app.clone());
                                 privacy::connected(app.clone());
                                 let channel = app.borrow().channel;
@@ -794,6 +800,9 @@ async fn socket(app: Shared, epoch: u64) {
                                         Event::Content(e) => content::event(&mut a, e.clone()),
                                         Event::DataExportUpdated(_) => authsec::event(&event.event),
                                         Event::Threads(e) => threads::event(&mut a, e.clone()),
+                                        Event::Schedule(e) => {
+                                            stage::schedule_event(&mut a, e.clone())
+                                        }
                                         Event::Expression(e) => {
                                             expression::event(&mut a, e.clone())
                                         }
@@ -1090,6 +1099,11 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
         return;
     }
     if let Ok(event) = rmp_serde::from_slice::<VoiceEvent>(&payload.payload) {
+        // Stage state is for the channel list and the Stage view, not the media host.
+        if let VoiceEvent::Stage(e) = event {
+            stage::voice_event(&app, e);
+            return;
+        }
         if matches!(
             event,
             VoiceEvent::CallState(_)

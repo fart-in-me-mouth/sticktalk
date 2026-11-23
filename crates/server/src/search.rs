@@ -244,7 +244,11 @@ pub(crate) async fn search(
     for ch in channels(c, u, Some(g)).await? {
         if !matches!(
             ch.kind,
-            ChannelKind::Text | ChannelKind::Voice | ChannelKind::Announcement | ChannelKind::Forum
+            ChannelKind::Text
+                | ChannelKind::Voice
+                | ChannelKind::Announcement
+                | ChannelKind::Forum
+                | ChannelKind::Stage
         ) {
             continue;
         }
