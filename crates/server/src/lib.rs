@@ -38,6 +38,7 @@ pub mod storage_node;
 #[cfg(test)]
 mod storage_tests;
 mod threads;
+mod themes;
 mod tier;
 pub use mentions::Notification;
 #[cfg(test)]

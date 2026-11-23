@@ -752,6 +752,7 @@ pub(crate) async fn mutate(
         Threads(cmd) => crate::threads::mutate(c, core, key, u, cmd, out).await,
         Expression(cmd) => crate::expression::mutate(c, core, key, u, cmd, out).await,
         Privacy(cmd) => crate::privacy::mutate(c, core, key, u, cmd, out).await,
+        Appearance(cmd) => crate::themes::mutate(c, core, key, u, cmd, out).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
