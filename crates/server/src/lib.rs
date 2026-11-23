@@ -21,6 +21,7 @@ mod launch;
 mod legacy;
 mod mcp;
 mod mentions;
+mod nav;
 mod reauth;
 mod search;
 mod slowmode;
@@ -45,6 +46,7 @@ pub use state::{App, Config};
 pub fn router(app: App) -> axum::Router {
     voice::spawn(&app);
     push::spawn(&app);
+    nav::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]

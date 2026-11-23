@@ -110,6 +110,7 @@ pub(crate) struct Inner {
     pub google: crate::google::Verifier,
     pub gifs: crate::gifs::GifService,
     pub shutdown: tokio_util::sync::CancellationToken,
+    pub nav: crate::nav::Nav,
 }
 pub(crate) struct Core {
     pub streams: HashMap<Vec<u8>, Stream>,
@@ -482,6 +483,7 @@ impl App {
             google,
             gifs,
             shutdown: tokio_util::sync::CancellationToken::new(),
+            nav: Default::default(),
         }));
         app.housekeeping().await?;
         sqlx::query("DELETE FROM upload_reservations")

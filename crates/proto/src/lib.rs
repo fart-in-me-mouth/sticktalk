@@ -9,6 +9,8 @@ pub use features3::*;
 mod launch;
 pub use launch::*;
 mod models;
+mod nav;
+pub use nav::*;
 mod permissions;
 mod rest;
 mod ws;
