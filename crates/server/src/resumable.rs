@@ -66,7 +66,7 @@ async fn access(app: &App, headers: &HeaderMap, key: &str) -> Result<(Id, Sqlite
         .await?
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
     if let Some(ch) = r.get::<Option<i64>, _>("channel_id") {
-        text(&mut c, u, Id(ch as u64), Permissions::ATTACH_FILES).await?;
+        crate::threads::upload_target(&mut c, u, Id(ch as u64), Permissions::ATTACH_FILES).await?;
     }
     Ok((u, r))
 }
@@ -124,7 +124,7 @@ pub async fn create(State(app): State<App>, r: Request<Body>) -> Result<Response
     let (_, current) = auth(&mut c, bearer(&headers)?).await?;
     require(current == u, ErrorCode::Unauthenticated)?;
     if let Some(ch) = req.channel_id {
-        text(&mut c, u, ch, Permissions::ATTACH_FILES).await?;
+        crate::threads::upload_target(&mut c, u, ch, Permissions::ATTACH_FILES).await?;
     }
     crate::upload_accounting::admit(&mut c, u).await?;
     crate::upload_accounting::quota(&app, &mut c, u, req.byte_size + 65536).await?;

@@ -221,6 +221,7 @@ pub(crate) async fn notification_preference(
         muted = setting.muted && setting.mute_until.is_none_or(|t| t > now());
         suppress = setting.suppress_everyone;
     }
+    crate::threads::notify_level(c, user, channel, &settings, &mut level, &mut muted).await?;
     if suppress && mentioned {
         let broadcast:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM message_broadcast_mentions WHERE message_id=? AND user_id=? AND kind IN('everyone','here')) AND NOT EXISTS(SELECT 1 FROM message_broadcast_mentions WHERE message_id=? AND user_id=? AND kind='role')").bind(db::id(message.id)?).bind(db::id(user)?).bind(db::id(message.id)?).bind(db::id(user)?).fetch_one(&mut *c).await?;
         mentioned &= !broadcast;

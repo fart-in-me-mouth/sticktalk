@@ -17,6 +17,8 @@ mod nav;
 pub use nav::*;
 mod permissions;
 mod rest;
+mod threads;
+pub use threads::*;
 mod ws;
 
 pub use browser::*;

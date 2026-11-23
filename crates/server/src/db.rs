@@ -298,7 +298,12 @@ pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Re
     require(
         matches!(
             channel.summary.kind,
-            ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm | ChannelKind::Voice
+            ChannelKind::Text
+                | ChannelKind::Direct
+                | ChannelKind::GroupDm
+                | ChannelKind::Voice
+                | ChannelKind::Announcement
+                | ChannelKind::Thread
         ),
         ErrorCode::InvalidRequest,
     )?;
@@ -328,12 +333,14 @@ pub async fn channels(
 ) -> Result<Vec<ChannelSummary>> {
     let ids: Vec<i64> = if let Some(g) = g {
         role(c, u, g).await?;
-        sqlx::query_scalar("SELECT id FROM channels WHERE guild_id=? ORDER BY position,id")
-            .bind(id(g)?)
-            .fetch_all(&mut *c)
-            .await?
+        sqlx::query_scalar(
+            "SELECT id FROM channels WHERE guild_id=? AND kind<>'thread' ORDER BY position,id",
+        )
+        .bind(id(g)?)
+        .fetch_all(&mut *c)
+        .await?
     } else {
-        sqlx::query_scalar("SELECT c.id FROM channels c WHERE c.guild_id IN (SELECT guild_id FROM guild_members WHERE user_id=?) OR c.id IN(SELECT channel_id FROM dm_members WHERE user_id=? AND visible=1) ORDER BY c.position,c.id").bind(id(u)?).bind(id(u)?).fetch_all(&mut *c).await?
+        sqlx::query_scalar("SELECT c.id FROM channels c WHERE (c.guild_id IN (SELECT guild_id FROM guild_members WHERE user_id=?) AND c.kind<>'thread') OR c.id IN(SELECT channel_id FROM dm_members WHERE user_id=? AND visible=1) ORDER BY c.position,c.id").bind(id(u)?).bind(id(u)?).fetch_all(&mut *c).await?
     };
     let mut list = vec![];
     let mut parents: HashMap<Id, Option<Id>> = HashMap::new();
@@ -520,6 +527,7 @@ pub async fn message(
         extra: Default::default(),
     };
     crate::content::decorate(c, u, &mut message).await?;
+    crate::threads::decorate(c, u, &mut message).await?;
     Ok(message)
 }
 pub async fn read(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<ReadState> {
@@ -549,7 +557,10 @@ pub async fn read_states(c: &mut SqliteConnection, u: Id) -> Result<Vec<ReadStat
     for ch in channels(c, u, None).await? {
         if matches!(
             ch.kind,
-            ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm
+            ChannelKind::Text
+                | ChannelKind::Direct
+                | ChannelKind::GroupDm
+                | ChannelKind::Announcement
         ) {
             out.push(read(c, u, ch.id).await?);
         } else if ch.kind == ChannelKind::Voice {
@@ -557,6 +568,7 @@ pub async fn read_states(c: &mut SqliteConnection, u: Id) -> Result<Vec<ReadStat
             out.push(read(c, u, ch.id).await?);
         }
     }
+    out.extend(crate::threads::member_reads(c, u).await?);
     out.sort_by_key(|r| r.channel_id);
     Ok(out)
 }

@@ -137,7 +137,8 @@ pub(crate) async fn reads_event(
     ch: Id,
 ) -> Result<()> {
     recount(c, ch).await?;
-    for u in audience(c, ch).await? {
+    let readers = audience(c, ch).await?;
+    for u in crate::threads::readers(c, ch, readers).await? {
         let visible = if channel(c, ch).await?.summary.guild_id.is_none() {
             sqlx::query_scalar::<_, i64>(
                 "SELECT visible FROM dm_members WHERE channel_id=? AND user_id=?",
@@ -160,7 +161,10 @@ async fn joined(c: &mut SqliteConnection, out: &mut Deliveries, g: Id, u: Id) ->
     let detail = detail(c, u, g).await?;
     let mut reads = vec![];
     for ch in &detail.channels {
-        if matches!(ch.kind, ChannelKind::Text | ChannelKind::Voice) {
+        if matches!(
+            ch.kind,
+            ChannelKind::Text | ChannelKind::Voice | ChannelKind::Announcement
+        ) {
             init_read(c, u, ch.id, true).await?;
             reads.push(read(c, u, ch.id).await?);
         }
@@ -191,17 +195,22 @@ async fn parent(c: &mut SqliteConnection, g: Id, p: Option<Id>) -> Result<()> {
             .await
             .map_err(|_| Error::new(ErrorCode::InvalidRequest))?;
         require(ch.summary.guild_id == Some(g), ErrorCode::InvalidRequest)?;
+        // Threads and forums hold threads (posts), not channels.
+        require(
+            !matches!(ch.summary.kind, ChannelKind::Thread | ChannelKind::Forum),
+            ErrorCode::InvalidRequest,
+        )?;
     }
     Ok(())
 }
 async fn append_position(c: &mut SqliteConnection, g: Id, p: Option<Id>) -> Result<i64> {
-    Ok(
-        sqlx::query_scalar("SELECT COUNT(*) FROM channels WHERE guild_id=? AND parent_id IS ?")
-            .bind(id(g)?)
-            .bind(opt(p)?)
-            .fetch_one(c)
-            .await?,
+    Ok(sqlx::query_scalar(
+        "SELECT COUNT(*) FROM channels WHERE guild_id=? AND parent_id IS ? AND kind<>'thread'",
     )
+    .bind(id(g)?)
+    .bind(opt(p)?)
+    .fetch_one(c)
+    .await?)
 }
 async fn compact(c: &mut SqliteConnection, out: &mut Deliveries, g: Id) -> Result<()> {
     let viewer = Id(
@@ -438,6 +447,11 @@ pub(crate) async fn execute(
             s.content_features = true;
         }
     }
+    if matches!(req.command, Command::Threads(_)) {
+        if let Some(s) = core.streams.get_mut(key) {
+            s.thread_features = true;
+        }
+    }
     let mut replayed = false;
     let outcome: Result<CommandResult>=async {
         require(req.nonce>0&&req.nonce<=i64::MAX as u64,ErrorCode::InvalidRequest)?;
@@ -489,7 +503,7 @@ pub(crate) async fn execute(
                     let newly_visible=!old.iter().any(|o|o.id==ch.id);
                     let mut full=channel(&mut tx,ch.id).await?;full.summary=ch.clone();
                     out.push((vec![*v],Event::ChannelUpsert(full)));
-                    if newly_visible && matches!(ch.kind,ChannelKind::Text|ChannelKind::Voice) {init_read(&mut tx,*v,ch.id,true).await?;out.push((vec![*v],Event::ReadStateUpdated(read(&mut tx,*v,ch.id).await?)));}
+                    if newly_visible && matches!(ch.kind,ChannelKind::Text|ChannelKind::Voice|ChannelKind::Announcement) {init_read(&mut tx,*v,ch.id,true).await?;out.push((vec![*v],Event::ReadStateUpdated(read(&mut tx,*v,ch.id).await?)));}
                 }
             }
         }
@@ -523,6 +537,7 @@ pub(crate) async fn execute(
             if let Event::MessageCreated { ref message, .. } = e { crate::push::message(app, &mut c, &users, message).await; }
             if let Event::MessageCreated{message,..}=&e {crate::mentions::notify(app,core,&mut c,message).await?;}
             crate::content::observe(app, &e);
+            crate::threads::observe(app, &e);
             let deliveries=crate::launch::filter_event(&mut c,users,e).await?;
             for (users,e) in deliveries {
             if let Event::UserUpdated(ref profile) = e {
@@ -723,6 +738,7 @@ pub(crate) async fn mutate(
     match cmd {
         Launch(cmd) => crate::launch::mutate(c, core, key, u, cmd, out).await,
         Content(cmd) => crate::content::mutate(c, core, key, u, cmd, out).await,
+        Threads(cmd) => crate::threads::mutate(c, core, key, u, cmd, out).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
@@ -1556,7 +1572,11 @@ pub(crate) async fn mutate(
             require(
                 matches!(
                     kind,
-                    ChannelKind::Category | ChannelKind::Text | ChannelKind::Voice
+                    ChannelKind::Category
+                        | ChannelKind::Text
+                        | ChannelKind::Voice
+                        | ChannelKind::Announcement
+                        | ChannelKind::Forum
                 ),
                 ErrorCode::InvalidRequest,
             )?;
@@ -1572,23 +1592,30 @@ pub(crate) async fn mutate(
                 access(c, u, p, Permissions::MANAGE_CHANNELS).await?;
             }
             require(
-                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM channels WHERE guild_id=?")
-                    .bind(id(g)?)
-                    .fetch_one(&mut *c)
-                    .await?
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM channels WHERE guild_id=? AND kind<>'thread'",
+                )
+                .bind(id(g)?)
+                .fetch_one(&mut *c)
+                .await?
                     < 32,
                 ErrorCode::LimitExceeded,
             )?;
             let pos = append_position(c, g, p).await?;
             let ch = core.id().await?;
             sqlx::query("INSERT INTO channels(id,kind,guild_id,parent_id,name,topic,position,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id(ch)?).bind(enum_str(kind)).bind(id(g)?).bind(opt(p)?).bind(s).bind(topic).bind(pos).bind(now() as i64).execute(&mut *c).await?;
-            if matches!(kind, ChannelKind::Text | ChannelKind::Voice) {
+            crate::threads::channel_created(c, ch, kind).await?;
+            let messages = matches!(
+                kind,
+                ChannelKind::Text | ChannelKind::Voice | ChannelKind::Announcement
+            );
+            if messages {
                 for v in guild_users(c, g).await? {
                     init_read(c, v, ch, true).await?;
                 }
             }
             let ch = channel_event(c, out, ch).await?;
-            if matches!(kind, ChannelKind::Text | ChannelKind::Voice) {
+            if messages {
                 reads_event(c, out, ch.summary.id).await?;
             }
             Ok(CommandResult::Channel(ch))
@@ -1621,6 +1648,7 @@ pub(crate) async fn mutate(
             patch: p,
         } => {
             let old = access(c, u, ch, Permissions::VIEW_CHANNEL).await?;
+            crate::threads::not_thread(&old)?;
             if old.summary.guild_id.is_some() {
                 access(c, u, ch, Permissions::MANAGE_CHANNELS).await?;
             } else {
@@ -1741,10 +1769,12 @@ pub(crate) async fn mutate(
         }
         DeleteChannel { channel_id: ch } => {
             let old = access(c, u, ch, Permissions::MANAGE_CHANNELS).await?;
+            crate::threads::not_thread(&old)?;
             let g = old
                 .summary
                 .guild_id
                 .ok_or_else(|| Error::new(ErrorCode::InvalidRequest))?;
+            crate::threads::parent_deleted(c, out, ch).await?;
             // Channels nested in the deleted one are kept: they move up one level, to
             // the end of the channel it was nested in (the top when it was not nested).
             let children: Vec<i64> = sqlx::query_scalar(
@@ -1792,6 +1822,7 @@ pub(crate) async fn mutate(
         }
         SendMessage(d) => {
             unique(&d.attachment_ids, MAX_MESSAGE_ATTACHMENTS)?;
+            crate::threads::before_send(c, u, &d, out).await?;
             let channel = validate_message(
                 c,
                 u,
@@ -1865,6 +1896,7 @@ pub(crate) async fn mutate(
                     author: user(c, u).await?,
                 },
             );
+            crate::threads::after_send(c, u, &m, &d.mention_ids, out).await?;
             reads_event(c, out, ch).await?;
             Ok(CommandResult::Message(m))
         }
@@ -1881,6 +1913,8 @@ pub(crate) async fn mutate(
             .await?;
             require(old.author_id == u, ErrorCode::Forbidden)?;
             require(old.call.is_none(), ErrorCode::Forbidden)?;
+            // A crossposted copy changes only with its source.
+            require(old.extra.crosspost().is_none(), ErrorCode::Forbidden)?;
             let channel = channel(c, e.channel_id).await?;
             let expanded =
                 crate::mentions::resolve(c, core, u, &channel, &e.content, &e.mention_ids).await?;
@@ -1904,6 +1938,7 @@ pub(crate) async fn mutate(
                         .await?;
                 }
                 crate::mentions::persist(c, e.message_id, &expanded).await?;
+                crate::threads::source_edited(c, e.message_id).await?;
                 for v in audience(c, e.channel_id).await? {
                     event(
                         out,
@@ -1961,6 +1996,7 @@ pub(crate) async fn mutate(
                 ] {
                     sqlx::query(query).bind(id(m)?).execute(&mut *c).await?;
                 }
+                crate::threads::source_deleted(c, m).await?;
                 event(
                     out,
                     audience(c, ch).await?,
@@ -2085,6 +2121,9 @@ pub(crate) async fn mutate(
         } => {
             text(c, u, ch, Permissions::VIEW_CHANNEL).await?;
             command_message(c, u, ch, m, true).await?;
+            if let Some(r) = crate::threads::untracked(c, u, ch).await? {
+                return Ok(CommandResult::ReadState(r));
+            }
             let old = read(c, u, ch).await?;
             if old.last_read_id.is_none_or(|old| m > old) {
                 sqlx::query(

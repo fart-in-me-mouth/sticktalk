@@ -253,6 +253,8 @@ pub(crate) async fn mutate(
             overwrites: os,
         } => {
             let channel = access(c, u, ch, Permissions::MANAGE_ROLES).await?;
+            // A thread has its parent's rights and no overwrites of its own.
+            crate::threads::not_thread(&channel)?;
             let g = channel
                 .summary
                 .guild_id

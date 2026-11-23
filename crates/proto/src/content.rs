@@ -39,6 +39,9 @@ pub struct MessageExtra {
     /// add the GIF to their favorites. The message text is its media URL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gif: Option<String>,
+    /// Thread preview, crosspost source and published flag (`threads.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threads: Option<Box<MessageThreads>>,
 }
 impl MessageExtra {
     pub fn is_empty(&self) -> bool {
@@ -46,6 +49,7 @@ impl MessageExtra {
             && self.forwarded.is_none()
             && self.embeds.is_empty()
             && self.gif.is_none()
+            && self.threads.is_none()
     }
 }
 

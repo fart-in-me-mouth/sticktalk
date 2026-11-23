@@ -23,6 +23,9 @@ struct Filters {
     file: bool,
     image: bool,
     video: bool,
+    /// Server search only: threads under these readable channels, and the
+    /// ones of them where the searcher has Manage Threads (`threads.rs`).
+    threads: Option<(Vec<i64>, Vec<i64>)>,
 }
 fn parse(q: &str) -> Result<Filters> {
     require(
@@ -233,16 +236,17 @@ pub(crate) async fn search(
     q: &MessageSearchQuery,
 ) -> Result<SearchResult> {
     guild(c, u, g).await?;
-    let f = checked(q)?;
+    let mut f = checked(q)?;
     let mut readable = Vec::new();
+    // Every channel with messages (voice-channel chat and announcements too),
+    // and forums, whose posts are threads.
+    let mut parents = Vec::new();
     for ch in channels(c, u, Some(g)).await? {
-        if ch.kind != ChannelKind::Text {
+        if !matches!(
+            ch.kind,
+            ChannelKind::Text | ChannelKind::Voice | ChannelKind::Announcement | ChannelKind::Forum
+        ) {
             continue;
-        }
-        if let Some(filter) = &f.channel {
-            if ch.name.as_ref() != Some(filter) && filter.parse::<u64>().ok() != Some(ch.id.0) {
-                continue;
-            }
         }
         if access(
             c,
@@ -251,11 +255,22 @@ pub(crate) async fn search(
             Permissions::VIEW_CHANNEL | Permissions::READ_HISTORY,
         )
         .await
-        .is_ok()
+        .is_err()
         {
-            readable.push(ch.id);
+            continue;
         }
+        parents.push(ch.id);
+        if ch.kind == ChannelKind::Forum {
+            continue;
+        }
+        if let Some(filter) = &f.channel {
+            if ch.name.as_ref() != Some(filter) && filter.parse::<u64>().ok() != Some(ch.id.0) {
+                continue;
+            }
+        }
+        readable.push(ch.id);
     }
+    f.threads = Some(crate::threads::search_scope(c, u, g, &parents).await?);
     run(c, u, readable, f, q).await
 }
 /// Parses a query and its paging bounds, with the error message the search box shows.
@@ -324,7 +339,7 @@ async fn run(
     q: &MessageSearchQuery,
 ) -> Result<SearchResult> {
     let limit = q.limit.unwrap_or(25);
-    if readable.is_empty() {
+    if readable.is_empty() && f.threads.as_ref().is_none_or(|(all, _)| all.is_empty()) {
         return Ok((vec![], vec![], None, false, f.words));
     }
     let from = if let Some(s) = &f.from {
@@ -344,25 +359,60 @@ async fn run(
         None
     };
     let mut query = QueryBuilder::<Sqlite>::new("SELECT m.id FROM messages m ");
-    if !f.words.is_empty() {
-        query.push("JOIN message_fts ON message_fts.rowid=m.id ");
+    query.push("WHERE m.deleted_at IS NULL AND (m.channel_id IN (0");
+    for ch in readable {
+        query.push(",").push_bind(id(ch)?);
     }
-    query.push("WHERE m.deleted_at IS NULL AND m.channel_id IN (");
-    {
-        let mut seq = query.separated(",");
-        for ch in readable {
-            seq.push_bind(id(ch)?);
+    query.push(")");
+    // Threads and forum posts: public ones under a readable channel; private
+    // ones for their members and for people with Manage Threads there.
+    if let Some((all, manage)) = f.threads.as_ref().filter(|(all, _)| !all.is_empty()) {
+        query.push(" OR m.channel_id IN (SELECT t.channel_id FROM threads t JOIN channels tc ON tc.id=t.channel_id WHERE t.parent_id IN (0");
+        for p in all {
+            query.push(",").push_bind(*p);
         }
-        seq.push_unseparated(")");
+        query.push(") AND (t.private=0 OR t.parent_id IN (0");
+        for p in manage {
+            query.push(",").push_bind(*p);
+        }
+        query
+            .push(") OR EXISTS(SELECT 1 FROM thread_members tm WHERE tm.thread_id=t.channel_id AND tm.user_id=")
+            .push_bind(id(u)?)
+            .push("))");
+        if let Some(filter) = &f.channel {
+            query
+                .push(" AND (tc.name=")
+                .push_bind(filter.clone())
+                .push(" OR tc.id=")
+                .push_bind(filter.parse::<i64>().unwrap_or(0))
+                .push(")");
+        }
+        query.push(")");
     }
+    query.push(")");
     if !f.words.is_empty() {
-        query.push(" AND message_fts MATCH ").push_bind(
-            f.words
-                .iter()
-                .map(|w| format!("\"{}\"*", w.replace('"', "\"\"")))
-                .collect::<Vec<_>>()
-                .join(" AND "),
-        );
+        query
+            .push(" AND (m.id IN (SELECT rowid FROM message_fts WHERE message_fts MATCH ")
+            .push_bind(
+                f.words
+                    .iter()
+                    .map(|w| format!("\"{}\"*", w.replace('"', "\"\"")))
+                    .collect::<Vec<_>>()
+                    .join(" AND "),
+            )
+            .push(")");
+        // A forum post also matches by its title (on its first message).
+        if f.threads.is_some() {
+            query.push(" OR m.id IN (SELECT t.first_message_id FROM threads t JOIN channels tc ON tc.id=t.channel_id WHERE t.forum_post=1");
+            for w in &f.words {
+                query
+                    .push(" AND instr(lower(tc.name),")
+                    .push_bind(w.to_lowercase())
+                    .push(")>0");
+            }
+            query.push(")");
+        }
+        query.push(")");
     }
     if let Some(v) = q.before {
         query.push(" AND m.id<").push_bind(id(v)?);

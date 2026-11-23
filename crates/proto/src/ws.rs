@@ -286,6 +286,8 @@ pub enum Command {
     },
     /// Polls, forwarding, scheduled messages and rich attachments (`content.rs`).
     Content(ContentCommand),
+    /// Threads, forums and announcements (`threads.rs`).
+    Threads(ThreadCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -323,6 +325,7 @@ pub enum CommandResult {
     ReadState(ReadState),
     Subscription { presences: Vec<Presence> },
     Content(ContentResult),
+    Threads(ThreadResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -432,6 +435,8 @@ pub enum Event {
     ReminderDue(SavedMessage),
     /// Sent only to connections that sent `ContentCommand::Subscribe`.
     Content(ContentEvent),
+    /// Sent only to connections that sent `ThreadCommand::Subscribe`.
+    Threads(ThreadEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

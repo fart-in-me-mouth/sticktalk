@@ -348,6 +348,11 @@ async fn send_gif(
     Ok(CommandResult::Message(message))
 }
 
+/// Message text with `<@id>` mentions written out as "@name" (crossposts).
+pub(crate) async fn plain_text(c: &mut SqliteConnection, content: &str) -> Result<String> {
+    forward::plain_mentions(c, content).await
+}
+
 /// Whether someone may download a stored file because a forwarded copy of it
 /// is in a conversation they can read.
 pub(crate) async fn forwarded_file_access(
