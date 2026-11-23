@@ -61,6 +61,14 @@ impl Content {
             previews: previews::Previews::new(options.link_previews),
         }
     }
+    /// An app embed image or webhook avatar through the hardened preview
+    /// fetcher (`apps.rs`): (bytes, content type, width, height).
+    pub(crate) async fn fetch_image(&self, url: &str) -> Option<(Vec<u8>, &'static str, u16, u16)> {
+        self.previews
+            .image(url)
+            .await
+            .map(|i| (i.bytes, i.content_type, i.width, i.height))
+    }
     /// With the test-only mock host, which needs a loopback-only server.
     pub(crate) fn configured(options: &ContentOptions, bind: std::net::SocketAddr) -> Result<Self> {
         let content = Self::new(options);

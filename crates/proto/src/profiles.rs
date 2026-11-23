@@ -206,6 +206,10 @@ pub struct UserStyle {
     pub decoration: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nameplate: Option<String>,
+    /// A bot or webhook account: shown with an APP tag (`apps.rs`). Set only
+    /// by the server, for the accounts it creates for apps and webhooks.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bot: bool,
 }
 impl UserStyle {
     pub fn is_empty(&self) -> bool {
@@ -269,6 +273,7 @@ impl ServerProfile {
             name: self.name,
             decoration: self.decoration.clone(),
             nameplate: self.nameplate.clone(),
+            bot: false,
         }
     }
 }

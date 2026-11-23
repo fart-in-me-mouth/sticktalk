@@ -386,6 +386,12 @@ pub(crate) async fn precheck(
             }
         }
         Command::Threads(cmd) => coverage::thread_check(app, core, c, u, cmd).await?,
+        // Bots' and webhooks' messages, embeds included (`apps.rs`).
+        Command::Apps(cmd) => {
+            for o in crate::apps::outgoing(core, cmd) {
+                message_check(app, core, c, u, o.channel_id, &o.text, &[], o.send).await?;
+            }
+        }
         _ => {}
     }
     Ok(hook)

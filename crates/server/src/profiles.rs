@@ -349,6 +349,7 @@ pub(crate) async fn mutate(
                 name: style(e.name)?,
                 decoration: item(DECORATIONS, e.decoration)?,
                 nameplate: item(NAMEPLATES, e.nameplate)?,
+                bot: old_style.bot,
             };
             let (old_look, _) = look(c, u).await?;
             let new_look = ProfileLook {

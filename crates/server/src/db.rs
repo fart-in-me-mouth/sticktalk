@@ -77,7 +77,8 @@ pub async fn auth(c: &mut SqliteConnection, token: &str) -> Result<(Vec<u8>, Id)
         ErrorCode::Unauthenticated,
     )?;
     let h = hash(token.as_bytes());
-    let r = sqlx::query("SELECT token_hash,user_id,expires_at FROM sessions WHERE token_hash=? AND NOT EXISTS(SELECT 1 FROM disabled_users WHERE user_id=sessions.user_id)")
+    // Bot and webhook credentials are never a person's session (`apps.rs`).
+    let r = sqlx::query("SELECT token_hash,user_id,expires_at FROM sessions WHERE token_hash=? AND NOT EXISTS(SELECT 1 FROM disabled_users WHERE user_id=sessions.user_id) AND NOT EXISTS(SELECT 1 FROM app_sessions WHERE session_hash=sessions.token_hash)")
         .bind(&h)
         .fetch_optional(&mut *c)
         .await?
@@ -535,6 +536,7 @@ pub async fn message(
     crate::threads::decorate(c, u, &mut message).await?;
     crate::expression::decorate(c, u, &mut message).await?;
     crate::stage::decorate(c, &mut message).await?;
+    crate::apps::decorate(c, &mut message).await?;
     Ok(message)
 }
 pub async fn read(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<ReadState> {

@@ -298,6 +298,8 @@ pub enum Command {
     Schedule(crate::ScheduleCommand),
     /// Custom and server themes, `/tts` messages (`themes.rs`).
     Appearance(AppearanceCommand),
+    /// Apps, bots, application commands and webhooks (`apps.rs`).
+    Apps(crate::AppCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -344,6 +346,7 @@ pub enum CommandResult {
     Community(CommunityResult),
     Schedule(crate::ScheduleResult),
     Appearance(AppearanceResult),
+    Apps(crate::AppResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -469,6 +472,8 @@ pub enum Event {
     Schedule(crate::ScheduleUpdate),
     /// Only sent to streams that sent `AppearanceCommand::Subscribe`.
     Appearance(AppearanceEvent),
+    /// Only sent to streams that sent `AppCommand::Subscribe`, and to bots.
+    Apps(crate::AppEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:
