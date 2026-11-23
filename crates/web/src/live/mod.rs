@@ -68,6 +68,8 @@ struct App {
     dialog: String,
     error: String,
     status: String,
+    /// When the connection was lost (monotonic ms); 0 while there is no outage.
+    outage: u64,
     ready: bool,
     register: bool,
     signup: bool,
@@ -285,6 +287,7 @@ pub fn mount() {
             dialog: String::new(),
             error: String::new(),
             status: "Connecting…".into(),
+            outage: 0,
             ready: false,
             register: false,
             signup: window()
@@ -491,9 +494,33 @@ async fn send(
     }
     socket.send(Frame::Binary(bytes)).await
 }
+/// A connection that is back within this long is not announced: the resume
+/// replays whatever was missed, so the banner would only flash.
+const BANNER_GRACE_MS: u64 = 4_000;
+/// Starts the wait before "Reconnecting…" is shown. Once per outage.
+fn outage_started(app: &Shared, epoch: u64) {
+    let started = Browser.monotonic_ms().max(1);
+    {
+        let mut a = app.borrow_mut();
+        if a.epoch != epoch || a.outage != 0 {
+            return;
+        }
+        a.outage = started;
+    }
+    let app = app.clone();
+    spawn_local(async move {
+        Browser.sleep(BANNER_GRACE_MS).await;
+        let mut a = app.borrow_mut();
+        if a.epoch == epoch && a.outage == started && !a.ready {
+            a.status = "Reconnecting…".into();
+            a.touch();
+        }
+    });
+}
 async fn socket(app: Shared, epoch: u64) {
     let mut backoff = 500;
     let mut first = true;
+    app.borrow_mut().outage = 0;
     loop {
         if app.borrow().epoch != epoch {
             return;
@@ -503,12 +530,10 @@ async fn socket(app: Shared, epoch: u64) {
             let mut a = app.borrow_mut();
             a.ready = false;
             // The first attempt is not a reconnection; nothing has gone wrong yet.
-            a.status = if first {
-                "Connecting…"
-            } else {
-                "Reconnecting…"
+            // Later ones say so only once the outage has lasted (outage_started).
+            if first {
+                a.status = "Connecting…".into();
             }
-            .into();
             a.touch();
         }
         first = false;
@@ -525,6 +550,7 @@ async fn socket(app: Shared, epoch: u64) {
             let mut ack = Browser.monotonic_ms();
             let mut timeout_ms = 75_000;
             let mut identified = false;
+            let mut resync = false;
             loop {
                 if app.borrow().epoch != epoch {
                     let _ = outgoing.send(Frame::Close(None)).await;
@@ -617,10 +643,12 @@ async fn socket(app: Shared, epoch: u64) {
                                     a.notifications = ready.notification_settings.clone();
                                     a.model.ready(*ready);
                                     a.ready = true;
+                                    a.outage = 0;
                                     a.status.clear();
                                     a.history_busy = false;
                                     a.touch();
                                 }
+                                resync = false;
                                 deadline = Browser.monotonic_ms() + heartbeat;
                                 ack = Browser.monotonic_ms();
                                 backoff = 500;
@@ -641,6 +669,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 {
                                     let mut a = app.borrow_mut();
                                     a.ready = true;
+                                    a.outage = 0;
                                     a.status.clear();
                                     a.touch();
                                 }
@@ -656,8 +685,16 @@ async fn socket(app: Shared, epoch: u64) {
                             }
                             ServerMsg::HeartbeatAck(_) => ack = Browser.monotonic_ms(),
                             ServerMsg::ResyncRequired(_) => {
-                                app.borrow_mut().model.cursor = None;
-                                break;
+                                if app.borrow().ready {
+                                    // Mid-stream (this client fell behind): the
+                                    // server closes next. Start from a snapshot.
+                                    app.borrow_mut().model.cursor = None;
+                                    break;
+                                }
+                                // In answer to Identify (a restarted server, an old
+                                // cursor), the full Ready follows on this socket.
+                                // Closing here cost a second connection and wait.
+                                resync = true;
                             }
                             ServerMsg::Event(event) => {
                                 let mut a = app.borrow_mut();
@@ -920,10 +957,15 @@ async fn socket(app: Shared, epoch: u64) {
                     a.extent = None;
                 }
                 a.ready = false;
+                if resync {
+                    // The promised Ready never came: do not offer that cursor again.
+                    a.model.cursor = None;
+                }
                 a.pending
                     .retain(|_, (_, at)| Browser.monotonic_ms().saturating_sub(*at) < 590_000);
             }
         }
+        outage_started(&app, epoch);
         // Browser WebSocket failures hide the HTTP upgrade status. The host
         // probes only on disconnect, and only an authoritative 401 is terminal.
         let revoked = wasm_bindgen_futures::JsFuture::from(session_revoked())

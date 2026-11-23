@@ -795,6 +795,7 @@ mutation is a normal correlated failure and does not close the socket.
 | 1011 | Internal server failure; bounded backoff reconnect |
 | 4001 | Invalid/expired/revoked auth, including REST logout; clear token/show login |
 | 4002 | Protocol version mismatch; client upgrade required |
+| 4003 | Channel access changed; queued packets are dropped. Reconnect with resume |
 | 4008 | Identify or heartbeat timeout; backoff reconnect |
 | 4009 | This token connected elsewhere; stop automatic reconnect to avoid socket duel |
 | 4010 | Slow consumer/resync needed; drop backlog, reconnect under bounded policy |

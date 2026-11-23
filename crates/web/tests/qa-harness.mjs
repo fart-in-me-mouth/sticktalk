@@ -70,24 +70,34 @@ export async function harness(extra = [], {tls=engine === 'webkit',dist,beforeRe
     });
     proxy.listen(publicPort,'127.0.0.1');await once(proxy,'listening');
   }
-  const server = spawn(process.env.STICKTALK_SERVER_EXE ?? join(target, `debug/sticktalk-server${process.platform === 'win32' ? '.exe' : ''}`), [
+  const exe=process.env.STICKTALK_SERVER_EXE ?? join(target, `debug/sticktalk-server${process.platform === 'win32' ? '.exe' : ''}`);
+  const args=[
     '--bind', `127.0.0.1:${port}`, '--public-url', origin, '--data-dir', data,
     '--web-root', webRoot,
     '--min-free-disk-gb', '0', '--voice-bind-ip', '127.0.0.1',
     '--voice-advertised-ip', '127.0.0.1', ...extra,
-  ], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  let log = '';
-  try {
+  ];
+  let server, log = '';
+  // Also used to restart on the same port and data folder, as a deployment does.
+  const start = async () => {
+    const child = server = spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let seen = '';
     await new Promise((done, fail) => {
       const timer = setTimeout(() => fail(Error(log)), 30000);
       const collect = chunk => {
-        log = (log + chunk).slice(-20000);
-        if (log.includes('StickTalk listening')) { clearTimeout(timer); done(); }
+        log = (log + chunk).slice(-20000); seen = (seen + chunk).slice(-20000);
+        if (seen.includes('StickTalk listening')) { clearTimeout(timer); done(); }
       };
-      server.stdout.on('data', collect); server.stderr.on('data', collect);
-      server.once('error', e => { clearTimeout(timer); fail(e); });
-      server.once('exit', code => { clearTimeout(timer); fail(Error(`Server exit ${code}: ${log}`)); });
+      child.stdout.on('data', collect); child.stderr.on('data', collect);
+      child.once('error', e => { clearTimeout(timer); fail(e); });
+      child.once('exit', code => { clearTimeout(timer); fail(Error(`Server exit ${code}: ${log}`)); });
     });
+  };
+  const stop = async () => {
+    if (server.exitCode === null && server.signalCode === null) { const exit = once(server, 'exit'); server.kill(); await exit; }
+  };
+  try {
+    await start();
     // Firefox request interception defeats native service-worker offline reload.
     // Block non-loopback HTTP(S) through a loopback-only rejecting proxy instead.
     let browserOptions=launchOptions;
@@ -98,7 +108,7 @@ export async function harness(extra = [], {tls=engine === 'webkit',dist,beforeRe
     }
     const browser = await engines[engine].browser.launch(browserOptions);
     const contexts = [];
-    return { origin, data, browser, revision, log: () => log,
+    return { origin, data, browser, revision, log: () => log, stop, start,
       async phone(width = device.viewport.width, height = device.viewport.height) {
         const context = await browser.newContext(contextOptions(width, height, tls));
         // Never permit an external request or OS notification during QA.
@@ -135,7 +145,7 @@ export async function harness(extra = [], {tls=engine === 'webkit',dist,beforeRe
         await browser.close();
         if(denyProxy)await new Promise(done=>denyProxy.close(done));
         if(proxy){for(const socket of sockets)socket.destroy();await new Promise(done=>proxy.close(done));}
-        if (server.exitCode === null) { const exit = once(server, 'exit'); server.kill(); await exit; }
+        await stop();
         // Test DBs stay under the one task target and are removed with that dir.
       },
     };

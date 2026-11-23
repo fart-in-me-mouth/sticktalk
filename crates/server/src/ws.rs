@@ -282,7 +282,8 @@ async fn run(app: App, mut socket: WebSocket, cookie_token: Option<String>) {
             }
         }
     });
-    let mut heartbeat = tokio::time::Instant::now() + Duration::from_millis(75000);
+    let connected = tokio::time::Instant::now();
+    let mut heartbeat = connected + Duration::from_millis(75000);
     let mut writer_done = false;
     loop {
         let expiry = Duration::from_millis((expires as u64).saturating_sub(state::now()));
@@ -426,13 +427,36 @@ async fn run(app: App, mut socket: WebSocket, cookie_token: Option<String>) {
             }
         }
     }
-    if close.borrow().is_none() {
+    // The only record of why someone saw "Reconnecting…": one line per connection.
+    let code = *close.borrow();
+    tracing::info!(
+        user = u.0,
+        seconds = connected.elapsed().as_secs(),
+        code,
+        reason = close_reason(code, writer_done),
+        "connection closed"
+    );
+    if code.is_none() {
         let _ = close.send(Some(1000));
     }
     // Revoke media before waiting on a potentially blocked WS close writer.
     disconnect(&app, &key, &connection_id, u).await;
     if !writer_done {
         let _ = writer.await;
+    }
+}
+/// Why a connection ended, for the log. `None`: the server did not close it.
+fn close_reason(code: Option<u16>, send_failed: bool) -> &'static str {
+    match code {
+        None if send_failed => "could not send to the client",
+        None => "the client closed it or went away",
+        Some(1001) => "server stopping",
+        Some(4001) => "session ended",
+        Some(4003) => "channel access changed",
+        Some(4008) => "no heartbeat",
+        Some(4009) => "replaced by a newer connection",
+        Some(4010) => "client too slow",
+        Some(_) => "protocol error",
     }
 }
 fn invalid_command_nonce(bytes: &[u8]) -> Option<u64> {
