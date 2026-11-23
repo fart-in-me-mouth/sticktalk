@@ -94,53 +94,12 @@ pub(super) fn action(app: Shared, raw: &str) {
                     .set_href(&format!("/api/v1/browser/google/start?operation={arg}"));
             }
         }
-        "google-link" | "google-unlink" => {
-            let http = app.borrow().http();
-            let password = value("google-current-password");
-            let linking = kind == "google-link";
-            spawn_local(async move {
-                let proof = if password.is_empty() {
-                    None
-                } else {
-                    match http
-                        .reauthenticate(&ReauthRequest {
-                            operation: if linking {
-                                AccountOperation::Link
-                            } else {
-                                AccountOperation::Unlink
-                            },
-                            current_password: Some(password),
-                            id_token: None,
-                        })
-                        .await
-                    {
-                        Ok(proof) => Some(proof.proof),
-                        Err(e) => {
-                            fail(&app, e);
-                            return;
-                        }
-                    }
-                };
-                if linking {
-                    let _ = window()
-                        .location()
-                        .set_href("/api/v1/browser/google/start?operation=link_identity");
-                } else {
-                    match http
-                        .account_authorized(
-                            sticktalk_client_core::backend::AccountAction::Unlink,
-                            proof.as_deref(),
-                        )
-                        .await
-                    {
-                        Ok(_) => {
-                            app.borrow_mut().error = "Google unlinked.".into();
-                            app.borrow().touch();
-                        }
-                        Err(e) => fail(&app, e),
-                    }
-                }
-            });
+        // Rarely used (signing in from the app's own form, Google linking,
+        // logging out, an invite's preview): their requests' encoders and
+        // decoders are in their own module, not the core (task `headroom`).
+        "google-link" | "google-unlink" | "auth" | "logout" | "invite-preview" => {
+            let (kind, arg) = (kind.to_owned(), arg.to_owned());
+            spawn_local(async move { account_action(app, kind, arg).await });
         }
         "dismiss-error" => {
             let mut a = app.borrow_mut();
@@ -148,81 +107,11 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.notice.clear();
             a.touch();
         }
-        "auth" => {
-            let http = app.borrow().http();
-            let username = value("auth-username");
-            let password = value("auth-password");
-            let register = app.borrow().register;
-            let signup = app.borrow().signup;
-            {
-                let mut a = app.borrow_mut();
-                a.error.clear();
-                a.status = "Signing in…".into();
-                a.touch();
-            }
-            spawn_local(async move {
-                let result = if signup {
-                    http.post::<BrowserSession>(
-                        "/browser/session/google/complete",
-                        &GoogleCompleteRequest {
-                            ticket: String::new(),
-                            username,
-                        },
-                    )
-                    .await
-                } else if register {
-                    http.post(
-                        "/browser/session/register",
-                        &RegisterRequest {
-                            username,
-                            password,
-                            display_name: None,
-                        },
-                    )
-                    .await
-                } else {
-                    http.post(
-                        "/browser/session/login",
-                        &LoginRequest { username, password },
-                    )
-                    .await
-                };
-                match result {
-                    Ok(session) => start_session(app, session),
-                    Err(error) => {
-                        let mut a = app.borrow_mut();
-                        a.error = if error == "A limit has been reached." {
-                            "This account is signed in on 5 devices, the most allowed. Log out on one of them (Settings, Devices), or reset your password to sign out everywhere.".into()
-                        } else {
-                            error
-                        };
-                        a.status.clear();
-                        a.touch();
-                    }
-                }
-            });
-        }
         "register" => {
             let mut a = app.borrow_mut();
             a.register = !a.register;
             a.error.clear();
             a.touch();
-        }
-        "logout" => {
-            let http = app.borrow().http();
-            spawn_local(async move {
-                let result = http
-                    .execute("POST", "/api/v1/auth/logout", Body::Empty, vec![], 30_000)
-                    .await;
-                match result {
-                    Ok(r) if (200..300).contains(&r.status) => {
-                        // The authenticated logout already revoked server media.
-                        // Do not send a late Leave after clearing this session.
-                        end_session(&app, "");
-                    }
-                    _ => fail(&app, "Could not log out. Try again.".into()),
-                }
-            });
         }
         "focus" => {
             let mut a = app.borrow_mut();
@@ -266,55 +155,6 @@ pub(super) fn action(app: Shared, raw: &str) {
             let mut a = app.borrow_mut();
             a.friends_tab = arg.into();
             a.touch();
-        }
-        // The Join dialog shows what an invite leads to before you use it.
-        "invite-preview" => {
-            let code = crate::wire::invite_code(arg);
-            let (http, generation) = {
-                let mut a = app.borrow_mut();
-                if a.invite_wanted == code {
-                    return;
-                }
-                a.invite_wanted = code.clone();
-                a.invite_preview = None;
-                a.touch();
-                (a.http(), a.dialog_generation)
-            };
-            // Invite codes, and vanity codes (identity.rs).
-            if (code.len() != 22 && vanity_code(&code).is_none())
-                || !code
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-            {
-                return;
-            }
-            feature(
-                app.clone(),
-                Feature::Community,
-                Call::Other("gate", code.clone()),
-            );
-            spawn_local(async move {
-                let found = http
-                    .json::<Snapshot<InvitePreview>>(&format!("/invites/{code}/preview"))
-                    .await
-                    .map(|p| p.data);
-                let event = matches!(&found, Ok(p) if p.event);
-                {
-                    let mut a = app.borrow_mut();
-                    if a.dialog != "join"
-                        || a.dialog_generation != generation
-                        || a.invite_wanted != code
-                    {
-                        return;
-                    }
-                    a.invite_preview = Some((code.clone(), found));
-                    a.touch();
-                }
-                // Only an invite to an event has a card to fetch.
-                if event {
-                    feature(app, Feature::Stage, Call::Other("invite", code));
-                }
-            });
         }
         // The Join field changed. No render: the page has hidden the old answer,
         // and one would race with the typing.
@@ -846,6 +686,182 @@ pub(super) fn action(app: Shared, raw: &str) {
         _ => {}
     }
 }
+/// The router's rarely used account actions (`action`), in a module of their own.
+#[lazy]
+fn account_action(app: Shared, kind: String, arg: String) {
+    let (kind, arg) = (kind.as_str(), arg.as_str());
+    match kind {
+        "google-link" | "google-unlink" => {
+            let http = app.borrow().http();
+            let password = value("google-current-password");
+            let linking = kind == "google-link";
+            spawn_local(async move {
+                let proof = if password.is_empty() {
+                    None
+                } else {
+                    match http
+                        .reauthenticate(&ReauthRequest {
+                            operation: if linking {
+                                AccountOperation::Link
+                            } else {
+                                AccountOperation::Unlink
+                            },
+                            current_password: Some(password),
+                            id_token: None,
+                        })
+                        .await
+                    {
+                        Ok(proof) => Some(proof.proof),
+                        Err(e) => {
+                            fail(&app, e);
+                            return;
+                        }
+                    }
+                };
+                if linking {
+                    let _ = window()
+                        .location()
+                        .set_href("/api/v1/browser/google/start?operation=link_identity");
+                } else {
+                    match http
+                        .account_authorized(
+                            sticktalk_client_core::backend::AccountAction::Unlink,
+                            proof.as_deref(),
+                        )
+                        .await
+                    {
+                        Ok(_) => {
+                            app.borrow_mut().error = "Google unlinked.".into();
+                            app.borrow().touch();
+                        }
+                        Err(e) => fail(&app, e),
+                    }
+                }
+            });
+        }
+        "auth" => {
+            let http = app.borrow().http();
+            let username = value("auth-username");
+            let password = value("auth-password");
+            let register = app.borrow().register;
+            let signup = app.borrow().signup;
+            {
+                let mut a = app.borrow_mut();
+                a.error.clear();
+                a.status = "Signing in…".into();
+                a.touch();
+            }
+            spawn_local(async move {
+                let result = if signup {
+                    http.post::<BrowserSession>(
+                        "/browser/session/google/complete",
+                        &GoogleCompleteRequest {
+                            ticket: String::new(),
+                            username,
+                        },
+                    )
+                    .await
+                } else if register {
+                    http.post(
+                        "/browser/session/register",
+                        &RegisterRequest {
+                            username,
+                            password,
+                            display_name: None,
+                        },
+                    )
+                    .await
+                } else {
+                    http.post(
+                        "/browser/session/login",
+                        &LoginRequest { username, password },
+                    )
+                    .await
+                };
+                match result {
+                    Ok(session) => start_session(app, session),
+                    Err(error) => {
+                        let mut a = app.borrow_mut();
+                        a.error = if error == "A limit has been reached." {
+                            "This account is signed in on 5 devices, the most allowed. Log out on one of them (Settings, Devices), or reset your password to sign out everywhere.".into()
+                        } else {
+                            error
+                        };
+                        a.status.clear();
+                        a.touch();
+                    }
+                }
+            });
+        }
+        "logout" => {
+            let http = app.borrow().http();
+            spawn_local(async move {
+                let result = http
+                    .execute("POST", "/api/v1/auth/logout", Body::Empty, vec![], 30_000)
+                    .await;
+                match result {
+                    Ok(r) if (200..300).contains(&r.status) => {
+                        // The authenticated logout already revoked server media.
+                        // Do not send a late Leave after clearing this session.
+                        end_session(&app, "");
+                    }
+                    _ => fail(&app, "Could not log out. Try again.".into()),
+                }
+            });
+        }
+        // The Join dialog shows what an invite leads to before you use it.
+        "invite-preview" => {
+            let code = crate::wire::invite_code(arg);
+            let (http, generation) = {
+                let mut a = app.borrow_mut();
+                if a.invite_wanted == code {
+                    return;
+                }
+                a.invite_wanted = code.clone();
+                a.invite_preview = None;
+                a.touch();
+                (a.http(), a.dialog_generation)
+            };
+            // Invite codes, and vanity codes (identity.rs).
+            if (code.len() != 22 && vanity_code(&code).is_none())
+                || !code
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+            {
+                return;
+            }
+            feature(
+                app.clone(),
+                Feature::Community,
+                Call::Other("gate", code.clone()),
+            );
+            spawn_local(async move {
+                let found = http
+                    .json::<Snapshot<InvitePreview>>(&format!("/invites/{code}/preview"))
+                    .await
+                    .map(|p| p.data);
+                let event = matches!(&found, Ok(p) if p.event);
+                {
+                    let mut a = app.borrow_mut();
+                    if a.dialog != "join"
+                        || a.dialog_generation != generation
+                        || a.invite_wanted != code
+                    {
+                        return;
+                    }
+                    a.invite_preview = Some((code.clone(), found));
+                    a.touch();
+                }
+                // Only an invite to an event has a card to fetch.
+                if event {
+                    feature(app, Feature::Stage, Call::Other("invite", code));
+                }
+            });
+        }
+        _ => {}
+    }
+}
+
 fn fail(app: &Shared, error: String) {
     let mut a = app.borrow_mut();
     a.error = error;
@@ -1069,6 +1085,7 @@ pub(super) fn load_history(
     edge: Option<bool>,
     target: Option<Id>,
 ) {
+    wake(&app);
     if target.is_none()
         && (rank.is_some() || edge.is_some())
         && app.borrow().history_busy
@@ -2072,6 +2089,105 @@ fn saved_form(command: &Command) -> Option<&'static str> {
         _ => None,
     }
 }
+/// The answers to what a session sends by itself (the subscriptions after
+/// Ready, the device's name, read marks, typing), settled in the core exactly
+/// as `respond` settles them: the answer module (`response`) is then not
+/// loaded at sign-in, nor are the state modules of features that have nothing
+/// to show yet (task `headroom`, docs/features/perf.md).
+pub(super) enum Settled {
+    /// Done in the core.
+    Done,
+    /// For a feature's state module, as `respond` would hand it over.
+    Feature(Feature, Option<Command>, Reply),
+    /// Everything else: the `response` module takes it.
+    Response(crate::inbound::Response),
+}
+pub(super) fn settle(app: &Shared, response: crate::inbound::Response) -> Settled {
+    use crate::inbound::Routed;
+    enum Kind {
+        Quiet,
+        // `respond`'s generic handling of an Ack that changes nothing else.
+        Cleared,
+        Events,
+        Threads,
+        Library,
+        Presences,
+        Privacy,
+    }
+    let mut a = app.borrow_mut();
+    let (Ok(result), Some((op, _))) = (&response.outcome, a.pending.get(&response.nonce)) else {
+        return Settled::Response(response);
+    };
+    let ack = |raw: &crate::inbound::Raw| {
+        crate::inbound::tagged(&raw.data).is_ok_and(|(tag, _)| tag == "ack")
+    };
+    let kind = match (op, result) {
+        (Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe)), _)
+        | (Command::Community(CommunityCommand::Subscribe), _) => Kind::Quiet,
+        (op, _) if super::apps::housekeeping(op) => Kind::Quiet,
+        (Command::Schedule(ScheduleCommand::Subscribe), Routed::Feature(_, raw))
+            if raw.data == crate::wire::EMPTY_EVENT_SUMMARY =>
+        {
+            Kind::Events
+        }
+        (Command::Appearance(AppearanceCommand::Subscribe), Routed::Feature(..)) => Kind::Library,
+        // No thread anywhere yet: nothing to load the threads feature for.
+        (Command::Threads(ThreadCommand::Subscribe), Routed::Feature(_, raw))
+            if raw.data == crate::wire::EMPTY_THREAD_SNAPSHOT =>
+        {
+            Kind::Threads
+        }
+        (
+            Command::Typing { .. }
+            | Command::MarkRead { .. }
+            | Command::Launch(LaunchCommand::UpdateDevice { .. }),
+            Routed::Core(CommandResult::Ack),
+        ) => Kind::Cleared,
+        // Content's and expression's subscriptions: their modules load with
+        // their first surface (a conversation), not with this Ack.
+        (
+            Command::Content(ContentCommand::Subscribe)
+            | Command::Expression(ExpressionCommand::Subscribe),
+            Routed::Feature(_, raw),
+        ) if ack(raw) => Kind::Cleared,
+        (Command::SubscribeGuild { .. }, Routed::Core(CommandResult::Subscription { .. })) => {
+            Kind::Presences
+        }
+        (Command::Privacy(PrivacyCommand::Subscribe), Routed::Feature(..)) => Kind::Privacy,
+        _ => return Settled::Response(response),
+    };
+    if let (Kind::Library, Ok(Routed::Feature(_, raw))) = (&kind, &response.outcome) {
+        if !super::themes::subscribed(&mut a, raw) {
+            return Settled::Response(response);
+        }
+    }
+    let operation = a.pending.remove(&response.nonce).map(|(c, _)| c);
+    match (kind, response.outcome) {
+        (Kind::Cleared, _) => {
+            a.error.clear();
+            a.notice.clear();
+            a.touch();
+        }
+        (Kind::Events, _) => a.stage.summaries.clear(),
+        (Kind::Threads, _) => a.threads.joined.clear(),
+        (Kind::Presences, Ok(Routed::Core(CommandResult::Subscription { presences }))) => {
+            a.error.clear();
+            a.notice.clear();
+            for p in presences {
+                a.model.presences.insert(p.user_id, p.status);
+            }
+            a.touch();
+        }
+        (Kind::Privacy, Ok(Routed::Feature(_, raw))) => {
+            a.error.clear();
+            a.notice.clear();
+            a.touch();
+            return Settled::Feature(Feature::Privacy, operation, Reply::Raw(raw));
+        }
+        _ => {}
+    }
+    Settled::Done
+}
 // Loaded with the first command a person sends, not with the login screen.
 // The socket waits for it, so a feature's answer keeps the server's order.
 #[lazy]
@@ -2490,7 +2606,7 @@ fn prefetch_for(action: &str) {
     }
 }
 /// Hand an answer to the feature that handles it, and wait for it.
-async fn answer(app: Shared, f: Feature, operation: Option<Command>, reply: Reply) {
+pub(super) async fn answer(app: Shared, f: Feature, operation: Option<Command>, reply: Reply) {
     let owner = Rc::downgrade(&app);
     if super::features::run(app, f, Call::Answer(operation, reply))
         .await
@@ -2522,9 +2638,34 @@ pub(super) fn ready(app: Shared) {
     }
     drop(a);
     super::threads::ready(app.clone());
-    feature(app.clone(), Feature::Content, Call::Ready);
-    super::community::ready(app.clone());
-    feature(app, Feature::Expression, Call::Ready);
+    // Content and expression subscribe now; what they fetch (the scheduled
+    // list, the emoji and sticker library) waits for their first surface, a
+    // conversation (`wake`), so their modules are not loaded at sign-in.
+    {
+        let mut a = app.borrow_mut();
+        a.command(Command::Content(ContentCommand::Subscribe));
+        a.command(Command::Expression(ExpressionCommand::Subscribe));
+        a.content.stale = true;
+        a.expression.stale = true;
+    }
+    super::community::ready(app);
+}
+/// A conversation opens: content and expression fetch what they wait for
+/// since the last Ready (`ready`).
+fn wake(app: &Shared) {
+    let (content, expression) = {
+        let mut a = app.borrow_mut();
+        (
+            std::mem::take(&mut a.content.stale),
+            std::mem::take(&mut a.expression.stale),
+        )
+    };
+    if content {
+        super::features::defer(app.clone(), Feature::Content, Call::Ready);
+    }
+    if expression {
+        super::features::defer(app.clone(), Feature::Expression, Call::Ready);
+    }
 }
 /// While the server cannot be reached and nobody is signed in, look again.
 pub(super) fn retry_recover(app: Shared) {
@@ -2592,7 +2733,7 @@ pub(super) fn gif_search(app: Shared, query: String, epoch: u64) {
     let q = js_sys::encode_uri_component(&query)
         .as_string()
         .unwrap_or_default();
-    let capability = app.borrow().gif_capability.clone();
+    let capability = app.borrow().gif_capability.capability();
     let raw_query = query.to_owned();
     let privacy = app.borrow().privacy_generation;
     spawn_local(async move {

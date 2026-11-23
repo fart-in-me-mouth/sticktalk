@@ -11,7 +11,8 @@ pub enum Patch<T> {
     Clear,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum PresenceStatus {
     Online,
@@ -21,6 +22,13 @@ pub enum PresenceStatus {
     #[default]
     Offline,
 }
+crate::wire_names::wire_names!(PresenceStatus {
+    Online = "online",
+    Idle = "idle",
+    Dnd = "dnd",
+    Invisible = "invisible",
+    Offline = "offline",
+});
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -66,7 +74,8 @@ pub struct Presence {
     pub status: PresenceStatus,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum RelationshipKind {
     Friend,
@@ -74,6 +83,12 @@ pub enum RelationshipKind {
     OutgoingRequest,
     Blocked,
 }
+crate::wire_names::wire_names!(RelationshipKind {
+    Friend = "friend",
+    IncomingRequest = "incoming_request",
+    OutgoingRequest = "outgoing_request",
+    Blocked = "blocked",
+});
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -97,7 +112,8 @@ pub struct Guild {
     pub look: Option<crate::GuildLookExtra>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum MemberRole {
     Owner,
@@ -105,6 +121,11 @@ pub enum MemberRole {
     #[default]
     Member,
 }
+crate::wire_names::wire_names!(MemberRole {
+    Owner = "owner",
+    Admin = "admin",
+    Member = "member",
+});
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -144,7 +165,8 @@ pub struct GuildPatch {
     pub icon_id: Patch<AttachmentId>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum ChannelKind {
     Category,
@@ -162,6 +184,17 @@ pub enum ChannelKind {
     /// One-to-many audio: speakers and an audience (`stage.rs`).
     Stage,
 }
+crate::wire_names::wire_names!(ChannelKind {
+    Category = "category",
+    Text = "text",
+    Direct = "direct",
+    GroupDm = "group_dm",
+    Voice = "voice",
+    Announcement = "announcement",
+    Forum = "forum",
+    Thread = "thread",
+    Stage = "stage",
+});
 
 /// Topic is deliberately excluded from the initial sidebar snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -306,7 +339,8 @@ pub struct ReadState {
     pub mention_count: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum RemovalReason {
     Left,
@@ -314,3 +348,9 @@ pub enum RemovalReason {
     Banned,
     Deleted,
 }
+crate::wire_names::wire_names!(RemovalReason {
+    Left = "left",
+    Kicked = "kicked",
+    Banned = "banned",
+    Deleted = "deleted",
+});

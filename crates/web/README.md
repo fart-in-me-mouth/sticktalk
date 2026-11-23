@@ -178,6 +178,27 @@ npm run test:mock
 STICKTALK_WEB_MOCK and rebuild without --features mock before deployment. Old
 root screenshots/reports are historical fixture baselines, not live-flow proof.
 
+**Proposed for removal (task `headroom`; not removed, the owner decides).**
+The fixtures are obsolete, not merely broken:
+- `src/views`, `src/model.rs` (`AppVm`), `style.css`, `tests/browser.mjs` and
+  `scripts/serve.mjs` were last changed on 2026-11-12/14, before the UI moved
+  to Tailwind/shadcn/UI SDK and before every Discord-parity feature. They draw
+  the previous design, which `docs/UI_SPEC.md` no longer describes.
+- Nothing in the live app uses them: `views::` and `model::AppVm` are reached
+  only from `main.rs`'s mock mount and the native `main` (a render smoke).
+- Every screen `browser.mjs` captures (login, register, home, DM, chat, user
+  and server settings, roles, role editor, profile, devices, voice, stream,
+  create/join server, invite, notifications) is driven against a real server
+  in the current design by `live.mjs`, `polish.mjs`, `phone.mjs`,
+  `platform.mjs` and the feature suites.
+- Making them start again means a second bootstrap beside the split loader
+  (the packager writes the live app's start-up only), for screenshots of a
+  design that is gone.
+Removing them deletes `src/views`, `src/model.rs`, `src/components.rs` (fixture
+widgets), `style.css`, `public/mock-*`, `tests/browser.mjs`, `scripts/serve.mjs`,
+the `mock` feature and `test:mock`, and turns the native `main` into an empty
+function; `src/nav_logic.rs` stays (the live app uses it).
+
 ## Mobile QA
 
 `npm run test:qa` runs real-server touch/navigation/settings/admin/history tests at

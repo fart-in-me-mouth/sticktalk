@@ -7,6 +7,7 @@ mod apps;
 pub use apps::*;
 #[cfg(target_arch = "wasm32")]
 mod deferred;
+mod wire_names;
 #[cfg(target_arch = "wasm32")]
 pub use deferred::*;
 mod authsec;

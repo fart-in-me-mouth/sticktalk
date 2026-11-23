@@ -8,6 +8,9 @@ use sticktalk_client_core::http::Body;
 /// Everything this module keeps between renders. Every list is bounded.
 #[derive(Default)]
 pub(super) struct State {
+    /// A Ready came and its scheduled list is not fetched yet: that waits
+    /// for the first conversation (`operations::wake`), not sign-in.
+    pub stale: bool,
     /// Descriptions and spoiler flags for files waiting in the composer.
     pub meta: BTreeMap<Id, AttachmentMeta>,
     /// A voice recording on its way up: (file name, its details). It is sent
@@ -238,11 +241,11 @@ fn message_mut(a: &mut App, ch: Id, m: Id) -> Option<&mut Message> {
 fn set_poll(a: &mut App, ch: Id, m: Id, mut poll: Poll, mine: bool) {
     if let Some(message) = message_mut(a, ch, m) {
         if !mine {
-            if let Some(old) = &message.extra.poll {
+            if let Some(old) = message.extra.poll.as_ref().and_then(|p| p.get()) {
                 poll.my_votes = old.my_votes.clone();
             }
         }
-        message.extra.poll = Some(Box::new(poll));
+        message.extra.poll = Some(sticktalk_proto::Deferred::new(&poll));
     }
 }
 
@@ -293,11 +296,10 @@ pub(super) fn event(a: &mut App, e: ContentEvent) {
     }
 }
 
-/// After each fresh snapshot: subscribe to content events and load the
-/// scheduled list.
+/// After a fresh snapshot, with the first conversation (`operations::wake`):
+/// load the scheduled list. The core subscribed at Ready.
 pub(super) fn ready(app: Shared) {
-    app.borrow_mut()
-        .command(Command::Content(ContentCommand::Subscribe));
+    app.borrow_mut().content.stale = false;
     let (http, epoch) = (app.borrow().http(), app.borrow().epoch);
     spawn_local(async move {
         if let Ok(page) = http
@@ -334,7 +336,7 @@ pub(super) fn opened(app: Shared, name: &str) {
 async fn gif_landing(app: Shared, epoch: u64) {
     let (http, capability) = {
         let a = app.borrow();
-        (a.http(), a.gif_capability.clone())
+        (a.http(), a.gif_capability.capability())
     };
     if let Ok(f) = http.json::<GifFavoritesResponse>("/gifs/favorites").await {
         let mut a = app.borrow_mut();
@@ -372,7 +374,7 @@ async fn gif_favorites(app: Shared, epoch: u64) {
         (
             a.http(),
             a.content.gif_favorites.clone(),
-            a.gif_capability.clone(),
+            a.gif_capability.capability(),
         )
     };
     let mut items = vec![];
@@ -551,7 +553,7 @@ pub(super) fn action(app: Shared, kind: &str, arg: &str) {
                 .messages
                 .get(&ch)
                 .and_then(|ms| ms.get(&m))
-                .and_then(|m| m.extra.poll.clone())
+                .and_then(|m| m.extra.poll.as_ref()?.get().cloned())
             else {
                 return;
             };
@@ -986,6 +988,9 @@ pub(super) fn submit(app: Shared, form: &str) {
 )]
 pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
     use features::Call;
+    if app.borrow().content.stale {
+        ready(app.clone());
+    }
     match call {
         Call::Action(kind, arg) => action(app, &kind, &arg),
         Call::Other("voters", arg) => {

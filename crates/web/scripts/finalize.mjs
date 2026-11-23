@@ -108,6 +108,15 @@ html = html.replace(
   "</head>",
   `<link rel="stylesheet" href="/${tokenAsset}"></head>`,
 );
+// The icon sprite (`<use href="#i-…">`) is part of the page, not of the core
+// WASM: as a string it was 20 KB of the core's data, copied into linear memory
+// and parsed again by `inner_html` (docs/features/perf.md, task `headroom`).
+// The mock fixtures keep their own copy (src/views/mod.rs).
+if (process.env.STICKTALK_WEB_MOCK !== "1") {
+  const sprite = (await readFile(new URL("../public/icons/sprite.svg", import.meta.url), "utf8")).trim();
+  if (!html.includes("<body>")) throw new Error("index.html has no plain <body> for the icon sprite");
+  html = html.replace("<body>", `<body><div hidden>${sprite}</div>`);
+}
 if (
   /<style\b/i.test(html) ||
   /<script\b(?![^>]*\bsrc\s*=)[^>]*>\s*\S/i.test(html)

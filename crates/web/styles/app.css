@@ -297,6 +297,12 @@
   img.avatar-face {
     @apply block;
   }
+  /* Before ui-avatar is defined (public/ui.js loads it with the first avatar):
+     the picture out of sight, the initials showing, as the element does while
+     a picture loads. */
+  ui-avatar:not(:defined) > img {
+    @apply pointer-events-none absolute size-px opacity-0;
+  }
   /* Switch, on a native checkbox so forms keep reading .checked */
   .live-checkbox {
     @apply flex min-h-10 cursor-pointer items-center justify-between gap-4 py-2 text-sm touch:min-h-12 touch:py-3 touch:text-[15px] phone:gap-3;

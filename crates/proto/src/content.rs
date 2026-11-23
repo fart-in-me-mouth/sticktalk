@@ -29,7 +29,7 @@ pub const MAX_LINK_EMBEDS: usize = 5;
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct MessageExtra {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub poll: Option<Box<Poll>>,
+    pub poll: Option<PollExtra>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forwarded: Option<Box<ForwardedMessage>>,
     /// Link preview cards, filled in by the server shortly after sending.
@@ -52,7 +52,7 @@ pub struct MessageExtra {
     pub super_reactions: Option<Box<Vec<ReactionSummary>>>,
     /// A finished Stage's record, or a shared event's card (`stage.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stage: Option<Box<crate::StageMessage>>,
+    pub stage: Option<StageExtra>,
     /// An activity invite card (`activities.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub activity: Option<ActivityExtra>,
@@ -66,6 +66,19 @@ pub struct MessageExtra {
 pub type ActivityExtra = Box<crate::ActivityCard>;
 #[cfg(target_arch = "wasm32")]
 pub type ActivityExtra = crate::Deferred<crate::ActivityCard>;
+/// `MessageExtra::poll`, like [`ActivityExtra`]: a poll's decoder and view
+/// load with the first poll on screen (task `headroom`).
+#[cfg(not(target_arch = "wasm32"))]
+pub type PollExtra = Box<Poll>;
+#[cfg(target_arch = "wasm32")]
+pub type PollExtra = crate::Deferred<Poll>;
+/// `MessageExtra::stage`, like [`ActivityExtra`]: a shared event's card
+/// carries its location and recurrence, whose decoders the web app's first
+/// screen does not need (task `headroom`).
+#[cfg(not(target_arch = "wasm32"))]
+pub type StageExtra = Box<crate::StageMessage>;
+#[cfg(target_arch = "wasm32")]
+pub type StageExtra = crate::Deferred<crate::StageMessage>;
 /// `MessageExtra::app`, like [`ActivityExtra`].
 #[cfg(not(target_arch = "wasm32"))]
 pub type AppExtra = Box<crate::AppMessage>;

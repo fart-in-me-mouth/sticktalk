@@ -442,6 +442,11 @@ pub const EMPTY_EVENT_SUMMARY: &[u8] = b"\x82\xa4type\xa7summary\xa4data\x81\xa6
 /// to load the stage feature for while none is known.
 pub const EMPTY_STAGE_SNAPSHOT: &[u8] =
     b"\x82\xa4type\xa5stage\xa4data\x82\xa4type\xa8snapshot\xa4data\x81\xa6stages\x90";
+/// The answer to the threads subscription after Ready when you are in no
+/// thread and none is active anywhere you can see (`ThreadResult::Snapshot`
+/// of empty lists): settled in the core (`operations::settle`).
+pub const EMPTY_THREAD_SNAPSHOT: &[u8] =
+    b"\x82\xa4type\xa8snapshot\xa4data\x83\xa7threads\x90\xabmemberships\x90\xabread_states\x90";
 
 #[cfg(test)]
 mod tests {
@@ -551,6 +556,13 @@ mod tests {
         assert_eq!(encoded, EMPTY_STAGE_SNAPSHOT);
         let encoded = rmp_serde::to_vec_named(&ScheduleResult::Summary { guilds: vec![] }).unwrap();
         assert_eq!(encoded, EMPTY_EVENT_SUMMARY);
+        let encoded = rmp_serde::to_vec_named(&ThreadResult::Snapshot(ThreadSnapshot {
+            threads: vec![],
+            memberships: vec![],
+            read_states: vec![],
+        }))
+        .unwrap();
+        assert_eq!(encoded, EMPTY_THREAD_SNAPSHOT);
     }
     #[test]
     fn invite_links_are_parsed_as_data_not_navigation() {

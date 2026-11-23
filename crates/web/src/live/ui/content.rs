@@ -22,8 +22,27 @@ fn left(ms: u64) -> String {
     }
 }
 
+/// A poll in a message. Its view and its decoder (`extra.poll` is kept
+/// undecoded) are a split module loaded with the first poll on screen (task
+/// `headroom`); until then a placeholder of its size.
+pub(super) fn poll_card(a: &App, m: &Message) -> AnyView {
+    match lazy_view(a, |a| &a.views.poll, || Box::pin(load_poll())) {
+        Some(render) => render(a, m),
+        None => view!{<div class="poll-loading mt-1 min-h-[160px] max-w-[min(100%,440px)] rounded-lg border bg-card" role="status" aria-label="Loading poll"></div>}.into_any(),
+    }
+}
+#[lazy]
+pub(in crate::live) fn load_poll() -> fn(&App, &Message) -> AnyView {
+    poll_view
+}
+fn poll_view(a: &App, m: &Message) -> AnyView {
+    match m.extra.poll.as_ref().and_then(|p| p.get()) {
+        Some(p) => poll(a, m, p),
+        None => ().into_any(),
+    }
+}
 /// The poll in a message: answers with live bars, your choice, the winner.
-pub(super) fn poll(a: &App, m: &Message, p: &Poll) -> AnyView {
+fn poll(a: &App, m: &Message, p: &Poll) -> AnyView {
     let total = p.answers.iter().map(|v| v.votes).sum::<u32>().max(1);
     let winners = p.winners();
     let voted = !p.my_votes.is_empty();
@@ -116,10 +135,7 @@ pub(super) fn gif(a: &App, m: &Message) -> Option<AnyView> {
     let media = url.starts_with("https://static.klipy.com/")
         || url.starts_with("https://static1.klipy.com/")
         || url.starts_with("https://static2.klipy.com/");
-    if !media
-        || url.contains(char::is_whitespace)
-        || matches!(a.gif_capability, GifCapability::Disabled)
-    {
+    if !media || url.contains(char::is_whitespace) || !a.gif_capability.enabled() {
         return None;
     }
     let video = url.ends_with(".mp4") || url.ends_with(".webm");
@@ -314,9 +330,7 @@ pub(super) fn dialog(a: &App) -> Option<(AnyView, &'static str, &'static str)> {
         "poll" => (poll_form(a), "Create Poll", ""),
         "schedule" => (schedule_form(), "Send Later", ""),
         "scheduled" => (scheduled_list(a), "Scheduled Messages", ""),
-        "gif" if !matches!(a.gif_capability, GifCapability::Disabled) => {
-            (gif_picker(a), "GIFs", "gif-picker")
-        }
+        "gif" if a.gif_capability.enabled() => (gif_picker(a), "GIFs", "gif-picker"),
         _ if d.starts_with("scheduled-edit:") => (
             scheduled_edit(a, id(&d[15..])?),
             "Edit Scheduled Message",
@@ -431,7 +445,9 @@ fn voters(a: &App) -> AnyView {
             .and_then(|ms| ms.get(&id(m)?))?
             .extra
             .poll
-            .clone()?;
+            .as_ref()?
+            .get()?
+            .clone();
         Some((p.answers.get(i.parse::<usize>().ok()?)?.text.clone(), p))
     });
     let Some((label, _)) = answer else {

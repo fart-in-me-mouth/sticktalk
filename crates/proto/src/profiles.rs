@@ -75,7 +75,8 @@ pub struct ImageRef {
 }
 
 /// Bundled display-name fonts (OFL, see `crates/web/public/fonts/names/`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum NameFont {
     #[default]
@@ -87,6 +88,15 @@ pub enum NameFont {
     Hand,
     Display,
 }
+crate::wire_names::wire_names!(NameFont {
+    Default = "default",
+    Script = "script",
+    Pixel = "pixel",
+    Future = "future",
+    Serif = "serif",
+    Hand = "hand",
+    Display = "display",
+});
 impl NameFont {
     pub const ALL: [NameFont; 7] = [
         Self::Default,
@@ -123,7 +133,8 @@ impl NameFont {
         Self::ALL.into_iter().find(|f| f.name() == s)
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum NameEffect {
     #[default]
@@ -134,6 +145,13 @@ pub enum NameEffect {
     /// A light sweep across the name, only while it is hovered or focused.
     Shimmer,
 }
+crate::wire_names::wire_names!(NameEffect {
+    Solid = "solid",
+    Gradient = "gradient",
+    Glow = "glow",
+    Outline = "outline",
+    Shimmer = "shimmer",
+});
 impl NameEffect {
     pub const ALL: [NameEffect; 5] = [
         Self::Solid,

@@ -103,8 +103,17 @@ pub(super) fn connected(app: Shared) {
         refresh(app, g);
     }
 }
-/// Fetch the viewer's moderation state for server `g`.
+/// Fetch the viewer's moderation state for server `g`. The fetch and its
+/// decoders are in the small state module (`Call::State("refresh")`), loaded
+/// with the first server channel opened, not in the core.
 pub(super) fn refresh(app: Shared, g: Id) {
+    features::spawn(
+        app,
+        features::Feature::Moderation,
+        features::Call::State("refresh", g.0.to_string()),
+    );
+}
+fn fetch_state(app: Shared, g: Id) {
     let (http, epoch) = {
         let mut a = app.borrow_mut();
         if !a.moderation.loading.insert(g) {
@@ -131,7 +140,7 @@ pub(super) fn refresh(app: Shared, g: Id) {
             drop(a);
             if let Some(c) = open {
                 let app = app.clone();
-                spawn_local(async move { slowmode(app, c).await });
+                spawn_local(async move { fetch_slowmode(app, c).await });
             }
         }
     });
@@ -166,9 +175,13 @@ pub(super) fn channel_opened(app: Shared, c: Id) {
     if !text || !slowed {
         return;
     }
-    spawn_local(async move { slowmode(app, c).await });
+    features::spawn(
+        app,
+        features::Feature::Moderation,
+        features::Call::State("slowmode", c.0.to_string()),
+    );
 }
-async fn slowmode(app: Shared, c: Id) {
+async fn fetch_slowmode(app: Shared, c: Id) {
     let (http, epoch) = {
         let a = app.borrow();
         (a.http(), a.epoch)
@@ -234,7 +247,7 @@ pub(super) fn event(a: &mut App, e: &ModerationEvent) {
                 if level {
                     if let Some(app) = a.owner.upgrade() {
                         let g = s.guild_id;
-                        spawn_local(async move { refresh(app, g) });
+                        spawn_local(async move { fetch_state(app, g) });
                     }
                 }
             }
@@ -276,7 +289,7 @@ pub(super) fn event(a: &mut App, e: &ModerationEvent) {
             } else if a.channel == Some(*channel_id) {
                 if let Some(app) = a.owner.upgrade() {
                     let c = *channel_id;
-                    spawn_local(async move { slowmode(app, c).await });
+                    spawn_local(async move { fetch_slowmode(app, c).await });
                 }
             }
         }
@@ -1213,7 +1226,16 @@ pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
             };
             answered(app, op, result);
         }
-
+        Call::State("refresh", g) => {
+            if let Some(g) = super::id(&g) {
+                fetch_state(app, g);
+            }
+        }
+        Call::State("slowmode", c) => {
+            if let Some(c) = super::id(&c) {
+                spawn_local(fetch_slowmode(app, c));
+            }
+        }
         _ => {}
     }
     Ok(true)

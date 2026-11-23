@@ -8,7 +8,8 @@ pub struct HealthResponse {
     pub protocol_version: u16,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     InvalidRequest,
@@ -43,6 +44,39 @@ pub enum ErrorCode {
     IdentityAlreadyLinked,
     LastLoginMethod,
 }
+crate::wire_names::wire_names!(ErrorCode {
+    InvalidRequest = "invalid_request",
+    InvalidCredentials = "invalid_credentials",
+    Unauthenticated = "unauthenticated",
+    SessionExpired = "session_expired",
+    Forbidden = "forbidden",
+    NotFound = "not_found",
+    Conflict = "conflict",
+    UsernameTaken = "username_taken",
+    AlreadyExists = "already_exists",
+    Blocked = "blocked",
+    InvalidInvite = "invalid_invite",
+    InviteExpired = "invite_expired",
+    InviteExhausted = "invite_exhausted",
+    Banned = "banned",
+    OwnerRequired = "owner_required",
+    HierarchyViolation = "hierarchy_violation",
+    RateLimited = "rate_limited",
+    LimitExceeded = "limit_exceeded",
+    PayloadTooLarge = "payload_too_large",
+    UnsupportedMediaType = "unsupported_media_type",
+    InvalidAttachment = "invalid_attachment",
+    VersionMismatch = "version_mismatch",
+    InvalidSequence = "invalid_sequence",
+    ResyncRequired = "resync_required",
+    UnsupportedFeature = "unsupported_feature",
+    Internal = "internal",
+    Unavailable = "unavailable",
+    FeatureDisabled = "feature_disabled",
+    InvalidSignupTicket = "invalid_signup_ticket",
+    IdentityAlreadyLinked = "identity_already_linked",
+    LastLoginMethod = "last_login_method",
+});
 
 /// Public server capabilities; never contains an OAuth client secret.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

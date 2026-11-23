@@ -75,23 +75,71 @@ fn later(a: &App, f: impl FnOnce(Shared) + 'static) {
     });
 }
 
-/// After every Ready: fetch the account's arrangement and opt in to its events.
+/// After every Ready: fetch the account's arrangement (the rail's folders and
+/// order, pinned conversations, favorites). Called by the core: the first
+/// screen draws it, and the state module would bring 50 KB of shared chunks
+/// to sign-in with it (task `headroom`).
 pub(super) fn ready(app: Shared) {
     let (http, epoch) = {
         let a = app.borrow();
         (a.http(), a.epoch)
     };
     spawn_local(async move {
-        let result = http.json::<Snapshot<NavSettings>>("/users/@me/nav").await;
+        let result = http.json::<Snapshot<ReadyNav>>("/users/@me/nav").await;
         let mut a = app.borrow_mut();
         if a.epoch != epoch {
             return;
         }
         if let Ok(s) = result {
-            a.nav.settings = s.data;
+            a.nav.settings = s.data.into();
             a.touch();
         }
     });
+}
+/// `NavSettings` as the core reads it after Ready: the same fields, the
+/// rail's adjacently tagged items as plain `{type, id}` pairs. serde's derived
+/// decoder for an adjacently tagged enum carries a second, buffered path
+/// (docs/features/perf.md), which the core would otherwise keep for this.
+#[derive(serde::Deserialize)]
+struct ReadyNav {
+    #[serde(default)]
+    pinned: Vec<ChannelId>,
+    #[serde(default)]
+    favorite_categories: Vec<FavoriteCategory>,
+    #[serde(default)]
+    favorites: Vec<FavoriteEntry>,
+    #[serde(default)]
+    folders: Vec<ServerFolder>,
+    #[serde(default)]
+    rail: Vec<RailWire>,
+    #[serde(default)]
+    saved: SavedSummary,
+}
+#[derive(serde::Deserialize)]
+struct RailWire {
+    #[serde(rename = "type")]
+    kind: String,
+    id: u64,
+}
+impl From<ReadyNav> for NavSettings {
+    fn from(n: ReadyNav) -> Self {
+        Self {
+            pinned: n.pinned,
+            favorite_categories: n.favorite_categories,
+            favorites: n.favorites,
+            folders: n.folders,
+            rail: n
+                .rail
+                .into_iter()
+                .filter_map(|r| match r.kind.as_str() {
+                    "guild" => Some(RailItem::Guild(Id(r.id))),
+                    "folder" => u32::try_from(r.id).ok().map(RailItem::Folder),
+                    _ => None,
+                })
+                .collect(),
+            saved: n.saved,
+        }
+    }
 }
 /// Navigation events. Called with the app borrowed; refreshes run after.
 pub(super) fn event(a: &mut App, event: &Event) {
@@ -940,7 +988,6 @@ pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
 pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
     use features::Call;
     match call {
-        Call::Ready => ready(app),
         Call::Event(raw) => {
             let e = match raw.tag {
                 "nav_updated" => inbound::de(&raw.data).map(Event::NavUpdated),

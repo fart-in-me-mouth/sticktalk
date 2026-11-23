@@ -20,6 +20,18 @@ export async function checkBudgets(dist) {
     report.push(`${name}: ${size} B (budget ${budget} B)`);
     if (size > budget) failures.push(`${name} is ${size} B Brotli, over its ${budget} B budget`);
   };
+  // Reserved headroom (task `headroom`, docs/features/perf.md): each allowance
+  // is bytes set aside for one planned change. A budget plus every allowance
+  // must stay within its ceiling, so raising a budget means taking from an
+  // allowance on purpose (and saying so in budgets.json), never silently.
+  for (const key of ['core', 'firstLoad', 'firstScreenJs']) {
+    const reserved = Object.values(budgets.allowances ?? {}).reduce((n, a) => n + (a[key] ?? 0), 0);
+    const ceiling = budgets.ceilings?.[key];
+    if (ceiling === undefined) continue;
+    report.push(`${key}: budget ${budgets[key]} B + allowances ${reserved} B (ceiling ${ceiling} B)`);
+    if (budgets[key] + reserved > ceiling)
+      failures.push(`${key} budget ${budgets[key]} B plus allowances ${reserved} B is over its ${ceiling} B ceiling: take the bytes from an allowance in scripts/budgets.json`);
+  }
   const wasm = inventory.assets.filter((a) => /^pkg\/.*\.wasm$/.test(a.file));
   const core = wasm.find((a) => a.file.endsWith('_bg.wasm'));
   over('core WASM', core.brotli, budgets.core);

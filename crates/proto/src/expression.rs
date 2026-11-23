@@ -86,7 +86,8 @@ pub fn emoji_tokens(text: &str) -> Vec<(std::ops::Range<usize>, &str, Id)> {
     out
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum StickerFormat {
     Png,
@@ -96,6 +97,13 @@ pub enum StickerFormat {
     /// Only the built-in pack. Uploads are never SVG.
     Svg,
 }
+crate::wire_names::wire_names!(StickerFormat {
+    Png = "png",
+    Apng = "apng",
+    Gif = "gif",
+    Webp = "webp",
+    Svg = "svg",
+});
 impl StickerFormat {
     pub fn content_type(self) -> &'static str {
         match self {

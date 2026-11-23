@@ -55,6 +55,28 @@ extern "C" {
     fn session_revoked() -> js_sys::Promise;
 }
 
+/// `/meta`, as far as the app reads it.
+#[derive(serde::Deserialize)]
+struct Meta {
+    #[serde(default)]
+    gifs: Gifs,
+}
+/// The server's GIF capability as it came (`/meta`'s `gifs`: `false`, or a
+/// configuration object). The first screen only asks whether GIFs are on;
+/// the GIF picker and search decode it (`capability`), so its decoder is in
+/// their modules, not the core (docs/features/perf.md, task `headroom`).
+#[derive(Clone, Default, serde::Deserialize)]
+#[serde(transparent)]
+struct Gifs(serde_json::Value);
+impl Gifs {
+    fn enabled(&self) -> bool {
+        self.0.is_object()
+    }
+    fn capability(&self) -> GifCapability {
+        serde_json::from_value(self.0.clone()).unwrap_or_default()
+    }
+}
+
 /// The shared fetch adapter enforces response/chunk bounds and cancellation. The
 /// server's browser header name is deliberately translated at this host boundary.
 #[derive(Clone)]
@@ -149,7 +171,7 @@ struct App {
     completion_query: String,
     completion_busy: bool,
     gifs: Vec<GifItem>,
-    gif_capability: GifCapability,
+    gif_capability: Gifs,
     preparing_send: bool,
     uploading: bool,
     upload_progress: String,
@@ -416,7 +438,7 @@ pub fn mount() {
             completion_query: String::new(),
             completion_busy: false,
             gifs: vec![],
-            gif_capability: GifCapability::Disabled,
+            gif_capability: Gifs::default(),
             preparing_send: false,
             uploading: false,
             upload_progress: String::new(),
@@ -473,7 +495,7 @@ pub fn mount() {
                     a.push = c.web_push;
                     a.touch();
                 }
-                if let Ok(meta) = http.json::<MetaResponse>("/meta").await {
+                if let Ok(meta) = http.json::<Meta>("/meta").await {
                     metadata.borrow_mut().gif_capability = meta.gifs;
                 }
             });
@@ -766,11 +788,9 @@ async fn socket(app: Shared, epoch: u64) {
                                     break;
                                 }
                                 operations::ready(app.clone());
-                                features::spawn(
-                                    app.clone(),
-                                    features::Feature::Nav,
-                                    features::Call::Ready,
-                                );
+                                // The rail's folders and order, pinned conversations,
+                                // favorites: first-screen state, fetched by the core.
+                                nav::ready(app.clone());
                                 stage::ready(app.clone());
                                 moderation::connected(app.clone());
                                 privacy::connected(app.clone());
@@ -1071,7 +1091,15 @@ async fn socket(app: Shared, epoch: u64) {
                                 }
                             }
                             Inbound::Response(response) => {
-                                operations::response(app.clone(), response).await
+                                match operations::settle(&app, response) {
+                                    operations::Settled::Done => {}
+                                    operations::Settled::Feature(f, op, reply) => {
+                                        operations::answer(app.clone(), f, op, reply).await
+                                    }
+                                    operations::Settled::Response(response) => {
+                                        operations::response(app.clone(), response).await
+                                    }
+                                }
                             }
                             Inbound::Voice(payload) => {
                                 // Voice-state broadcasts also reach people who are not in

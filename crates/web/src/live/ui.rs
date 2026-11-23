@@ -140,20 +140,35 @@ pub(super) fn app(a: &App) -> AnyView {
         return view!{<div class="app-shell skeleton-shell pointer-events-none relative top-(--viewport-offset) flex h-(--viewport-height) bg-background" role="status" aria-label="Loading conversations"><div class="left-panel flex w-[312px] flex-none bg-sidebar phone:hidden"><nav class="server-rail flex w-[72px] flex-col items-center gap-2 bg-rail p-3"><img class="rounded-2xl" src=themes::logo() data-app-logo="" width="48" height="48" alt="StickTalk"/></nav><aside class="channel-sidebar flex w-60 flex-col"><div class="sidebar-header flex h-12 items-center border-b px-4 font-semibold">"StickTalk"</div><div class="skeleton-lines grid gap-4 px-4 py-6 [&>span]:h-4 [&>span]:w-4/5 [&>span]:rounded-sm [&>span]:bg-muted"><span></span><span></span><span></span><span></span></div></aside></div><main class="main-pane flex min-w-0 flex-1 flex-col"><header class="channel-header flex h-12 flex-none items-center border-b px-4"><strong>"StickTalk"</strong></header>{if a.status=="Reconnecting…"{view!{<div class="connection-banner bg-warning px-4 py-2 text-sm text-rail" role="status">"Reconnecting…"</div>}.into_any()}else{().into_any()}}<div class="skeleton-messages mt-auto grid gap-6 p-4 [&>div]:h-10 [&>div]:w-[min(80%,480px)] [&>div]:rounded-lg [&>div]:bg-muted"><div></div><div></div><div></div></div><div class="skeleton-composer m-4 h-12 rounded-lg bg-muted"></div></main></div>}.into_any();
     }
     view!{<div id="sticktalk" data-live-app data-screen=a.screen.clone() data-self-id=a.model.me.as_ref().map(|me|me.user.id.0.to_string())>
-        <div hidden inner_html=include_str!("../../public/icons/sprite.svg")></div>
         {if a.model.me.is_none(){auth(a)}else{shell(a)}}
         {if a.model.me.is_some(){call_views::incoming(a)}else{().into_any()}}
         {if a.dialog.is_empty(){error_toast(a)}else{a.dialog_render.map_or_else(||loading_dialog(a), |render|render(a))}}
 
     </div>}.into_any()
 }
+const AUTH_PAGE: &str = "auth-page grid h-(--viewport-height) place-items-center overflow-y-auto p-6 [scroll-padding-block:calc(16px+var(--safe-top))_calc(24px+var(--safe-bottom))] phone:relative phone:top-(--viewport-offset) phone:flex phone:flex-col phone:justify-[safe_center] phone:bg-background phone:px-6 phone:pt-[calc(32px+var(--safe-top))] phone:pb-[calc(32px+var(--safe-bottom))]";
+const AUTH_CARD: &str = "auth-card w-[min(440px,100%)] rounded-xl border bg-background p-8 shadow-sm phone:my-auto phone:w-full phone:max-w-[480px] phone:rounded-none phone:border-0 phone:bg-transparent phone:p-0 phone:shadow-none";
+/// The sign-in form the app draws itself: only after a logout or a session
+/// that ended (the first sign-in is the static form in index.html). Its view
+/// is a split module (task `headroom`); until it arrives, an empty card.
 fn auth(a: &App) -> AnyView {
-    const PAGE: &str = "auth-page grid h-(--viewport-height) place-items-center overflow-y-auto p-6 [scroll-padding-block:calc(16px+var(--safe-top))_calc(24px+var(--safe-bottom))] phone:relative phone:top-(--viewport-offset) phone:flex phone:flex-col phone:justify-[safe_center] phone:bg-background phone:px-6 phone:pt-[calc(32px+var(--safe-top))] phone:pb-[calc(32px+var(--safe-bottom))]";
-    const CARD: &str = "auth-card w-[min(440px,100%)] rounded-xl border bg-background p-8 shadow-sm phone:my-auto phone:w-full phone:max-w-[480px] phone:rounded-none phone:border-0 phone:bg-transparent phone:p-0 phone:shadow-none";
+    const PAGE: &str = AUTH_PAGE;
+    const CARD: &str = AUTH_CARD;
     if a.status == "Reconnecting…" {
         return view!{<main class=PAGE><section class=CARD><h1>"Reconnecting…"</h1><p class="muted-copy my-4">"Your conversations will appear when the server is available."</p>{button("Try Again","recover","primary")}</section></main>}.into_any();
     }
-
+    lazy_view(a, |a| &a.views.auth, || Box::pin(load_auth())).map_or_else(
+        || view!{<main class=PAGE><section class=CARD aria-busy="true"><p class="auth-status my-3 text-[13px] text-muted-foreground empty:hidden" role="status">{a.status.clone()}</p></section></main>}.into_any(),
+        |form| form(a),
+    )
+}
+#[lazy]
+fn load_auth() -> fn(&App) -> AnyView {
+    auth_form
+}
+fn auth_form(a: &App) -> AnyView {
+    const PAGE: &str = AUTH_PAGE;
+    const CARD: &str = AUTH_CARD;
     let signup = a.signup;
     let register = a.register;
     view!{<main class=PAGE><form class=CARD data-live-form="auth"><div class="auth-brand flex items-center gap-3 text-xl font-semibold phone:justify-center"><img class="auth-logo flex-none rounded-xl" src=themes::logo() data-app-logo="" alt="" width="48" height="48"/><span>"StickTalk"</span></div><h1 class="mt-8 mb-2 text-[28px] leading-tight phone:text-center">{if signup{"Choose a username"}else if register{"Create an account"}else{"Welcome back!"}}</h1><p class="auth-subtitle mb-8 text-[15px] text-subtle phone:text-center">{if signup{"Choose how people will find you on StickTalk."}else if register{"Create your StickTalk account."}else{"Log in to catch up with your friends."}}</p>
@@ -696,8 +711,8 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
         || m.attachments.iter().any(|f| f.meta.voice());
     let body = if m.extra.activity.is_some() {
         activities::card(a, m)
-    } else if let Some(p) = &m.extra.poll {
-        content::poll(a, m, p)
+    } else if m.extra.poll.is_some() {
+        content::poll_card(a, m)
     } else if let Some(x) = m.extra.crosspost() {
         threads::crosspost(a, m, x)
     } else if let Some(f) = &m.extra.forwarded {
@@ -933,7 +948,7 @@ fn dialog(a: &App) -> AnyView {
         "pins"=>view!{<h2>"Pinned Messages"</h2>{if a.pins.is_empty(){view!{<div class=SETTINGS_EMPTY>{icon("pin")}<p>"No pinned messages yet."</p><small>"Open a message’s actions and choose Pin Message to keep it here."</small></div>}.into_any()}else{a.pins.iter().map(|m|view!{<div class="pinned-message border-b pb-3">{message(a,m,false)}<div class="mt-2 flex gap-2 pl-14">{button("Jump",&format!("jump:{}",m.id.0),"secondary")}{if a.guild.is_none()||settings::can(a,Permissions::MANAGE_MESSAGES){button("Unpin",&format!("unpin:{}",m.id.0),"danger-text")}else{().into_any()}}</div></div>}).collect_view().into_any()}}}.into_any(),
         "edit"=>{let text=a.channel.and_then(|c|a.model.messages.get(&c)).and_then(|ms|a.editing.and_then(|m|ms.get(&m))).map_or(String::new(),|m|editable(a,m));form("Edit Message","edit",view!{<label class="field"><span>"Message"</span><textarea id="f-name" rows="5" aria-describedby="edit-help">{text}</textarea><small id="edit-help">"Enter saves. Shift+Enter adds a line."</small></label>}.into_any())},
         value if value=="emoji"||value.starts_with("emoji-react:")=>{let react=value.strip_prefix("emoji-react:").map(str::to_owned);let emojis=if a.query.is_empty(){sticktalk_emoji::all().take(240).collect()}else{sticktalk_emoji::search(&a.query,240)};view!{<h2>{if react.is_some(){"Add Reaction"}else{"Emoji"}}</h2>{if react.is_some(){().into_any()}else{view!{<div class="picker-tabs mb-3 flex gap-2"><button class="button secondary" aria-pressed="true">"Emoji"</button>{button("Kaomoji","dialog:kaomoji","link-button")}</div>}.into_any()}}<label class="search flex"><span class="sr-only">"Search Emoji"</span><input class="w-full" id="emoji-query" type="search" value=a.query.clone() placeholder="Search all emoji" data-emoji-query/></label>{if emojis.is_empty(){view!{<p class="muted-copy">"No emoji match that search."</p>}.into_any()}else{().into_any()}}<div class="emoji-grid mt-4 grid grid-cols-8 gap-2 phone:grid-cols-6 touch:grid-cols-[repeat(auto-fit,minmax(44px,1fr))]">{emojis.into_iter().map(|e|view!{<button class="min-h-10 rounded-md text-center text-[28px] hover:bg-accent touch:min-h-11" title=e.name() aria-label=e.name() data-live=match &react{Some(message)=>format!("react-pick:{message},{}",e.emoji()),None=>format!("emoji:{}",e.emoji())}>{e.emoji()}</button>}).collect_view()}</div>}.into_any()},
-        "gif" if matches!(a.gif_capability,GifCapability::Disabled)=>view!{<h2>"GIFs"</h2><p class="muted-copy">"GIF search is not enabled on this server. You can still upload an image or use emoji."</p><div class="empty-actions mt-6 flex flex-wrap gap-3 phone:[&>.button]:flex-1">{button("Upload an Image","pick-image","primary")}{button("Choose Emoji","dialog:emoji","secondary")}</div>}.into_any(),
+        "gif" if !a.gif_capability.enabled()=>view!{<h2>"GIFs"</h2><p class="muted-copy">"GIF search is not enabled on this server. You can still upload an image or use emoji."</p><div class="empty-actions mt-6 flex flex-wrap gap-3 phone:[&>.button]:flex-1">{button("Upload an Image","pick-image","primary")}{button("Choose Emoji","dialog:emoji","secondary")}</div>}.into_any(),
         "gif"=>view!{<h2>"GIFs"</h2><form data-gif-search><label class="field"><span>"Search GIFs"</span><input id="gif-query" type="search"/></label><button class="button secondary" type="submit">"Search"</button></form><div class="live-gif-results mt-4 grid grid-cols-2 gap-3 [&_video]:max-w-full">{a.gifs.iter().map(|g|view!{<button data-live=format!("gif-send:{}",g.id)><video src=g.preview.url.clone() preload="none" muted loop playsinline controls width=g.preview.width height=g.preview.height aria-label=g.title.clone()></video><span>{g.title.clone()}</span></button>}).collect_view()}</div>}.into_any(),
         "profile"=>profiles::card(a),
         value if value.starts_with("role:")=>{let r=id(value.trim_start_matches("role:")).and_then(|id|a.roles.get(&id));if let Some(r)=r{view!{{form_with("Edit Role","role-save",view!{<fieldset disabled=!settings::can(a,Permissions::MANAGE_ROLES)>{field("f-name","Role Name",&r.name,"text")}{field("f-value","Color",&format!("#{:06x}",r.color),"color")}<input id="f-permissions" type="hidden" value=r.permissions.bits().to_string()/><div class="live-permissions my-4">{role_permissions(r)}</div><label class="live-checkbox"><input id="f-hoist" type="checkbox" checked=r.hoist/>"Display role members separately"</label><label class="live-checkbox"><input id="f-mentionable" type="checkbox" checked=r.mentionable/>"Allow anyone to mention this role"</label><input id="f-extra" type="hidden" value=r.id.0.to_string()/>{if r.id!=r.guild_id{button("Delete Role",&format!("role-delete:{}",r.id.0),"danger-text")}else{().into_any()}}</fieldset>}.into_any(),"dialog:roles",settings::can(a,Permissions::MANAGE_ROLES))}{identity::role_editor(a,r)}}.into_any()}else{().into_any()}},
@@ -1033,6 +1048,9 @@ pub(super) struct LazyViews {
     pub themes: LazyView<fn(&App, &str) -> Option<AnyView>>,
     pub identity: LazyView<identity::Views>,
     pub activity_card: LazyView<fn(&App, &Message) -> AnyView>,
+    pub stage_card: LazyView<fn(&App, &Message) -> AnyView>,
+    pub auth: LazyView<fn(&App) -> AnyView>,
+    pub poll: LazyView<fn(&App, &Message) -> AnyView>,
     pub apps_picker: LazyView<fn(&App) -> AnyView>,
 }
 type StageDialog = fn(&App) -> Option<(AnyView, &'static str, &'static str)>;

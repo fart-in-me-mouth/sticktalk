@@ -87,7 +87,8 @@ pub struct Resumed {
     pub replayed: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum ResyncReason {
     StreamExpired,
@@ -95,6 +96,12 @@ pub enum ResyncReason {
     CursorAhead,
     SlowConsumer,
 }
+crate::wire_names::wire_names!(ResyncReason {
+    StreamExpired = "stream_expired",
+    CursorTooOld = "cursor_too_old",
+    CursorAhead = "cursor_ahead",
+    SlowConsumer = "slow_consumer",
+});
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -503,15 +510,22 @@ pub struct VoiceSession {
     pub connection_id: Id,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum VideoCodec {
     H264,
     Hevc,
     Av1,
 }
+crate::wire_names::wire_names!(VideoCodec {
+    H264 = "h264",
+    Hevc = "hevc",
+    Av1 = "av1",
+});
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum TrackKind {
     Audio,
@@ -519,13 +533,24 @@ pub enum TrackKind {
     Screen,
     SystemAudio,
 }
+crate::wire_names::wire_names!(TrackKind {
+    Audio = "audio",
+    Camera = "camera",
+    Screen = "screen",
+    SystemAudio = "system_audio",
+});
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum ShareSurface {
     Monitor,
     Window,
 }
+crate::wire_names::wire_names!(ShareSurface {
+    Monitor = "monitor",
+    Window = "window",
+});
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VoiceCapabilities {

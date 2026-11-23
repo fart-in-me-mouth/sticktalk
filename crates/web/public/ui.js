@@ -2,14 +2,20 @@
 // dialogs (top layer, focus trap, dismissal), tooltips, dropdown menus and
 // avatar image fallbacks. The elements are unstyled; styles/app.css styles them.
 // The packager copies the SDK's browser modules next to this file.
-import '/public/ui-sdk/web/avatar.js';
 
 // Dialogs, menus and tooltips are defined when first needed (docs/features/perf.md):
 // most of the SDK's code is theirs, and the first screen does not use them until
 // a person points at, focuses or presses one. Until then their content stays
 // hidden (it is rendered with `hidden`), and the triggers are ordinary buttons
 // with their own labels.
+// Avatars too, though they are on the first screen: the element only swaps the
+// initials for the picture once it has loaded, so it is defined as soon as an
+// avatar is in the page (not idle), outside the module graph the app waits for
+// before it starts (task `headroom`). Until then styles/app.css keeps the
+// picture out of sight and the initials show, as the element itself does
+// while a picture loads.
 const modules = {
+  'ui-avatar': () => import('/public/ui-sdk/web/avatar.js'),
   'ui-dialog': () => import('/public/ui-sdk/web/dialog.js'),
   'ui-menu': () => import('/public/ui-sdk/web/menu.js'),
   'ui-tooltip': () => import('/public/ui-sdk/web/tooltip.js'),
@@ -29,18 +35,20 @@ export function define(tag) {
 // and their behavior is small: once one is in the page, it is defined when
 // the browser is next idle, so a press with no hover first does not wait for
 // a download. Not with Data Saver on (it is fetched on intent then).
+const avatars = document.getElementsByTagName('ui-avatar');
 const dialogs = document.getElementsByTagName('ui-dialog');
 const menus = document.getElementsByTagName('ui-menu');
 const whenIdle = globalThis.requestIdleCallback ?? ((f) => setTimeout(f, 200));
 const saveData = () => navigator.connection?.saveData === true;
 let menuQueued = false;
 const watch = new MutationObserver(() => {
+  if (avatars.length && !loading.has('ui-avatar')) void define('ui-avatar');
   if (dialogs.length && !loading.has('ui-dialog')) void define('ui-dialog');
   if (menus.length && !menuQueued && !saveData()) {
     menuQueued = true;
     whenIdle(() => void define('ui-menu'), { timeout: 2000 });
   }
-  if (loading.has('ui-dialog') && (menuQueued || saveData())) watch.disconnect();
+  if (loading.has('ui-avatar') && loading.has('ui-dialog') && (menuQueued || saveData())) watch.disconnect();
 });
 watch.observe(document.documentElement, { childList: true, subtree: true });
 // Intent. Tooltips: the first pointer movement or focus anywhere (a person is

@@ -81,13 +81,19 @@ pub struct ProfileDetail {
     pub mutual_servers: Vec<MutualServer>,
     pub mutual_friends: Vec<UserSummary>,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Deserialize))]
 #[serde(rename_all = "snake_case")]
 pub enum NotificationLevel {
     All,
     Mentions,
     Nothing,
 }
+crate::wire_names::wire_names!(NotificationLevel {
+    All = "all",
+    Mentions = "mentions",
+    Nothing = "nothing",
+});
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NotificationSettings {
     pub guild_id: Option<GuildId>,

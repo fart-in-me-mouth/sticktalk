@@ -21,6 +21,9 @@ pub(super) const BURST_MS: u64 = 900;
 
 #[derive(Default)]
 pub(super) struct State {
+    /// A Ready came and the library is not loaded yet: that waits for the
+    /// first conversation (`operations::wake`), not sign-in.
+    pub stale: bool,
     /// Stickers by server (None is the built-in pack), from the library and events.
     pub stickers: BTreeMap<Option<Id>, Vec<Sticker>>,
     pub settings: ExpressionSettings,
@@ -102,10 +105,10 @@ fn storage_set(key: &str, value: &str) {
     }
 }
 
-/// After every Ready: opt in to expression events and load the library.
+/// After a Ready, with the first conversation (`operations::wake`): load
+/// the library. The core subscribed at Ready.
 pub(super) fn ready(app: Shared) {
-    app.borrow_mut()
-        .command(Command::Expression(ExpressionCommand::Subscribe));
+    app.borrow_mut().expression.stale = false;
     let (http, epoch) = (app.borrow().http(), app.borrow().epoch);
     {
         let mut a = app.borrow_mut();
@@ -1137,6 +1140,9 @@ fn pictographic(v: u32) -> bool {
 )]
 pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
     use features::Call;
+    if app.borrow().expression.stale {
+        ready(app.clone());
+    }
     match call {
         Call::Action(kind, arg) => action(app, &kind, &arg),
         Call::Other("admin", g) => {

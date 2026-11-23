@@ -487,9 +487,24 @@ fn duration(ms: u64) -> String {
     }
 }
 
-/// A finished Stage's record, or a shared event's card, in a message.
+/// A finished Stage's record, or a shared event's card, in a message. The
+/// card's renderer and decoder (`extra.stage` is kept undecoded) are a split
+/// module loaded with the first card on screen; until then a placeholder.
 pub(super) fn message_extra(a: &App, m: &Message) -> AnyView {
-    let Some(s) = m.extra.stage.as_deref() else {
+    if m.extra.stage.is_none() {
+        return ().into_any();
+    }
+    match lazy_view(a, |a| &a.views.stage_card, || Box::pin(load_stage_card())) {
+        Some(render) => render(a, m),
+        None => view!{<div class="mt-1 min-h-[66px] max-w-[min(100%,440px)] rounded-lg border bg-card" role="status" aria-label="Loading event"></div>}.into_any(),
+    }
+}
+#[lazy]
+pub(in crate::live) fn load_stage_card() -> fn(&App, &Message) -> AnyView {
+    card_view
+}
+fn card_view(a: &App, m: &Message) -> AnyView {
+    let Some(s) = m.extra.stage.as_ref().and_then(|s| s.get()) else {
         return ().into_any();
     };
     if let Some(r) = &s.record {
