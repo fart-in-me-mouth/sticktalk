@@ -511,6 +511,7 @@ async fn slow_initial_replay_has_one_deadline() {
                         attachments: vec![],
                         mention_ids: vec![],
                         reactions: vec![],
+                        extra: Default::default(),
                     },
                     author: UserSummary {
                         id: Id(2),

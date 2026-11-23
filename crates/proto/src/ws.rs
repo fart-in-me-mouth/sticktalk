@@ -284,6 +284,8 @@ pub enum Command {
         guild_id: Option<GuildId>,
         presence_user_ids: Vec<UserId>,
     },
+    /// Polls, forwarding, scheduled messages and rich attachments (`content.rs`).
+    Content(ContentCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -320,6 +322,7 @@ pub enum CommandResult {
     Reaction(ReactionUpdate),
     ReadState(ReadState),
     Subscription { presences: Vec<Presence> },
+    Content(ContentResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -421,6 +424,8 @@ pub enum Event {
         expires_at: UnixMillis,
     },
     ReadStateUpdated(ReadState),
+    /// Sent only to connections that sent `ContentCommand::Subscribe`.
+    Content(ContentEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

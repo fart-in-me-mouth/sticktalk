@@ -2,6 +2,8 @@
 //! Encode WebSocket messages using `rmp_serde::to_vec_named`, never `to_vec`.
 
 mod browser;
+mod content;
+pub use content::*;
 mod features3;
 mod gifs;
 mod ids;
@@ -29,7 +31,7 @@ pub const MAX_WS_FRAME_BYTES: u32 = 512 * 1024;
 pub const DEFAULT_PAGE_SIZE: u16 = 50;
 pub const MAX_PAGE_SIZE: u16 = 50;
 pub const MAX_MESSAGE_CHARS: usize = 4_000;
-pub const MAX_MESSAGE_ATTACHMENTS: usize = 4;
+pub const MAX_MESSAGE_ATTACHMENTS: usize = 10;
 pub const MAX_MESSAGE_MENTIONS: usize = 100;
 pub const MAX_GUILDS_PER_USER: usize = 10;
 pub const MAX_CHANNELS_PER_GUILD: usize = 32;

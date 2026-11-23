@@ -131,7 +131,7 @@ async fn channel_event(c: &mut SqliteConnection, out: &mut Deliveries, ch: Id) -
     event(out, users, Event::ChannelUpsert(ch.clone()));
     Ok(ch)
 }
-async fn reads_event(c: &mut SqliteConnection, out: &mut Deliveries, ch: Id) -> Result<()> {
+pub(crate) async fn reads_event(c: &mut SqliteConnection, out: &mut Deliveries, ch: Id) -> Result<()> {
     recount(c, ch).await?;
     for u in audience(c, ch).await? {
         let visible = if channel(c, ch).await?.summary.guild_id.is_none() {
@@ -429,6 +429,11 @@ pub(crate) async fn execute(
             s.launch_features = true;
         }
     }
+    if matches!(req.command, Command::Content(_)) {
+        if let Some(s) = core.streams.get_mut(key) {
+            s.content_features = true;
+        }
+    }
     let mut replayed = false;
     let outcome: Result<CommandResult>=async {
         require(req.nonce>0&&req.nonce<=i64::MAX as u64,ErrorCode::InvalidRequest)?;
@@ -511,6 +516,7 @@ pub(crate) async fn execute(
         for (users,e) in out {
             if let Event::MessageCreated { ref message, .. } = e { crate::push::message(app, &mut c, &users, message).await; }
             if let Event::MessageCreated{message,..}=&e {crate::mentions::notify(app,core,&mut c,message).await?;}
+            crate::content::observe(app, &e);
             let deliveries=crate::launch::filter_event(&mut c,users,e).await?;
             for (users,e) in deliveries {
             if let Event::UserUpdated(ref profile) = e {
@@ -698,7 +704,7 @@ async fn result_access(c: &mut SqliteConnection, u: Id, r: &CommandResult) -> Re
     }
     Ok(())
 }
-async fn mutate(
+pub(crate) async fn mutate(
     c: &mut SqliteConnection,
     core: &mut Core,
     key: &[u8],
@@ -710,6 +716,7 @@ async fn mutate(
     let adding_reaction = matches!(cmd, Command::AddReaction { .. });
     match cmd {
         Launch(cmd) => crate::launch::mutate(c, core, key, u, cmd, out).await,
+        Content(cmd) => crate::content::mutate(c, core, key, u, cmd, out).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
@@ -1778,7 +1785,7 @@ async fn mutate(
             Ok(CommandResult::Ack)
         }
         SendMessage(d) => {
-            unique(&d.attachment_ids, 4)?;
+            unique(&d.attachment_ids, MAX_MESSAGE_ATTACHMENTS)?;
             let channel = validate_message(
                 c,
                 u,
@@ -1941,6 +1948,9 @@ async fn mutate(
                     "DELETE FROM message_broadcast_mentions WHERE message_id=?",
                     "DELETE FROM reactions WHERE message_id=?",
                     "DELETE FROM message_attachments WHERE message_id=?",
+                    "DELETE FROM forwarded_messages WHERE message_id=?",
+                    "DELETE FROM polls WHERE message_id=?",
+                    "DELETE FROM link_embeds WHERE message_id=?",
                 ] {
                     sqlx::query(query).bind(id(m)?).execute(&mut *c).await?;
                 }

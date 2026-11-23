@@ -666,6 +666,7 @@ mod tests {
             attachments: vec![],
             mention_ids: vec![],
             reactions: vec![],
+            extra: Default::default(),
         }
     }
     #[test]

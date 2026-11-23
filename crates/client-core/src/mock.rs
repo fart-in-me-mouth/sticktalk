@@ -249,6 +249,7 @@ impl Mock {
                     } else {
                         vec![]
                     },
+                    extra: Default::default(),
                 });
             }
         }
@@ -299,6 +300,7 @@ impl Mock {
                                 byte_size: IMAGE.len() as u32,
                                 content_type: "image/jpeg".into(),
                             }),
+                            meta: Default::default(),
                         }];
                     }
                 }
@@ -871,6 +873,7 @@ impl Mock {
                     attachments,
                     mention_ids: v.mention_ids,
                     reactions: vec![],
+                    extra: Default::default(),
                 };
                 events.push(Event::MessageCreated {
                     message: m.clone(),

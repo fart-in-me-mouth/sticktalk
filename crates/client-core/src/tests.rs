@@ -457,6 +457,7 @@ fn http_upload_hashes_and_uses_durable_offset_then_finishes() {
             width: None,
             height: None,
             thumbnail: None,
+            meta: Default::default(),
         },
         expires_at: 0,
     };

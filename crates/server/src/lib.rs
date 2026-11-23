@@ -7,6 +7,7 @@ pub mod backup;
 pub mod blob;
 pub mod browser;
 mod commands;
+mod content;
 mod custom_emoji;
 mod db;
 mod error;
@@ -45,6 +46,7 @@ pub use state::{App, Config};
 pub fn router(app: App) -> axum::Router {
     voice::spawn(&app);
     push::spawn(&app);
+    content::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]
