@@ -245,10 +245,11 @@ pub(super) async fn card(
         }
     }
     let look = guild_look(c, g).await?;
-    let vanity: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM vanity_codes WHERE invite_id=?)")
-        .bind(i)
-        .fetch_one(&mut *c)
-        .await?;
+    let vanity: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM vanity_codes WHERE invite_id=?)")
+            .bind(i)
+            .fetch_one(&mut *c)
+            .await?;
     Ok(InviteCard {
         code: code.to_owned(),
         guild_id: g,

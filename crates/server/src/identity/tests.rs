@@ -181,7 +181,10 @@ async fn tags_are_validated_unique_reserved_and_screened() {
     let (_d, app) = fixture().await;
     second(&app).await;
     // Manage Server only.
-    assert_eq!(err(&run(&app, 2, set_tag("GG")).await).code, ErrorCode::Forbidden);
+    assert_eq!(
+        err(&run(&app, 2, set_tag("GG")).await).code,
+        ErrorCode::Forbidden
+    );
     for bad in ["", "TOOLONG", "a b", "<i>", "!!", "é"] {
         assert_eq!(
             err(&run(&app, 1, set_tag(bad)).await).field.as_deref(),
@@ -195,16 +198,40 @@ async fn tags_are_validated_unique_reserved_and_screened() {
     }
     let mut bad_glyph = tag("GG");
     bad_glyph.glyph = "nope".into();
-    let e = err(&run(&app, 1, IdentityCommand::SetTag { guild_id: Id(10), tag: Some(bad_glyph) }).await);
+    let e = err(&run(
+        &app,
+        1,
+        IdentityCommand::SetTag {
+            guild_id: Id(10),
+            tag: Some(bad_glyph),
+        },
+    )
+    .await);
     assert_eq!(e.field.as_deref(), Some("glyph"));
     let mut faint = tag("GG");
     faint.color2 = 0x1D3B2F;
-    let e = err(&run(&app, 1, IdentityCommand::SetTag { guild_id: Id(10), tag: Some(faint) }).await);
+    let e = err(&run(
+        &app,
+        1,
+        IdentityCommand::SetTag {
+            guild_id: Id(10),
+            tag: Some(faint),
+        },
+    )
+    .await);
     assert_eq!(e.field.as_deref(), Some("color"));
     // An invite offered on the tag must be one of this server's.
     let mut stray = tag("GG");
     stray.invite_code = Some("abcdefghijklmnopqrstuv".into());
-    let e = err(&run(&app, 1, IdentityCommand::SetTag { guild_id: Id(10), tag: Some(stray) }).await);
+    let e = err(&run(
+        &app,
+        1,
+        IdentityCommand::SetTag {
+            guild_id: Id(10),
+            tag: Some(stray),
+        },
+    )
+    .await);
     assert_eq!(e.field.as_deref(), Some("invite"));
 
     ok(&run(&app, 1, set_tag("Gg")).await);
@@ -223,22 +250,24 @@ async fn tags_are_validated_unique_reserved_and_screened() {
     ok(&raw(
         &app,
         3,
-        Command::Launch(LaunchCommand::Moderation(ModerationCommand::CreateAutoModRule(AutoModRule {
-            id: Id(0),
-            guild_id: Id(20),
-            name: "Words".into(),
-            enabled: true,
-            trigger: AutoModTrigger::Keyword {
-                keywords: vec!["boo*".into()],
-                allow: vec![],
-            },
-            actions: AutoModActions {
-                block: true,
-                ..Default::default()
-            },
-            exempt_roles: vec![],
-            exempt_channels: vec![],
-        }))),
+        Command::Launch(LaunchCommand::Moderation(
+            ModerationCommand::CreateAutoModRule(AutoModRule {
+                id: Id(0),
+                guild_id: Id(20),
+                name: "Words".into(),
+                enabled: true,
+                trigger: AutoModTrigger::Keyword {
+                    keywords: vec!["boo*".into()],
+                    allow: vec![],
+                },
+                actions: AutoModActions {
+                    block: true,
+                    ..Default::default()
+                },
+                exempt_roles: vec![],
+                exempt_channels: vec![],
+            }),
+        )),
     )
     .await);
     let e = err(&run(
@@ -251,15 +280,43 @@ async fn tags_are_validated_unique_reserved_and_screened() {
     )
     .await);
     assert_eq!(e.field.as_deref(), Some("automod"));
-    ok(&run(&app, 3, IdentityCommand::SetTag { guild_id: Id(20), tag: Some(tag("CATS")) }).await);
+    ok(&run(
+        &app,
+        3,
+        IdentityCommand::SetTag {
+            guild_id: Id(20),
+            tag: Some(tag("CATS")),
+        },
+    )
+    .await);
     // Every change is in the audit log.
     assert_eq!(
-        scalar(&app, "SELECT COUNT(*) FROM audit_log WHERE action='server_tag_update'").await,
+        scalar(
+            &app,
+            "SELECT COUNT(*) FROM audit_log WHERE action='server_tag_update'"
+        )
+        .await,
         2
     );
     // Removing frees the text.
-    ok(&run(&app, 1, IdentityCommand::SetTag { guild_id: Id(10), tag: None }).await);
-    ok(&run(&app, 3, IdentityCommand::SetTag { guild_id: Id(20), tag: Some(tag("GG")) }).await);
+    ok(&run(
+        &app,
+        1,
+        IdentityCommand::SetTag {
+            guild_id: Id(10),
+            tag: None,
+        },
+    )
+    .await);
+    ok(&run(
+        &app,
+        3,
+        IdentityCommand::SetTag {
+            guild_id: Id(20),
+            tag: Some(tag("GG")),
+        },
+    )
+    .await);
 }
 
 #[tokio::test]
@@ -270,14 +327,38 @@ async fn members_wear_one_tag_everywhere_and_lose_it_when_they_leave() {
     ok(&run(&app, 1, set_tag("GG")).await);
     // Only members, and only servers with a tag.
     assert_eq!(
-        err(&run(&app, 3, IdentityCommand::WearTag { guild_id: Some(Id(10)) }).await).code,
+        err(&run(
+            &app,
+            3,
+            IdentityCommand::WearTag {
+                guild_id: Some(Id(10))
+            }
+        )
+        .await)
+        .code,
         ErrorCode::NotFound
     );
     assert_eq!(
-        err(&run(&app, 4, IdentityCommand::WearTag { guild_id: Some(Id(20)) }).await).field.as_deref(),
+        err(&run(
+            &app,
+            4,
+            IdentityCommand::WearTag {
+                guild_id: Some(Id(20))
+            }
+        )
+        .await)
+        .field
+        .as_deref(),
         Some("tag")
     );
-    ok(&run(&app, 2, IdentityCommand::WearTag { guild_id: Some(Id(10)) }).await);
+    ok(&run(
+        &app,
+        2,
+        IdentityCommand::WearTag {
+            guild_id: Some(Id(10)),
+        },
+    )
+    .await);
     let worn = summary(&app, 2).await.style.tag.unwrap();
     assert_eq!((worn.guild_id, worn.text.as_str()), (Id(10), "GG"));
     {
@@ -297,7 +378,15 @@ async fn members_wear_one_tag_everywhere_and_lose_it_when_they_leave() {
     // A changed tag reaches the copy every wearer carries.
     let mut new = tag("GGWP");
     new.glyph = "star".into();
-    ok(&run(&app, 1, IdentityCommand::SetTag { guild_id: Id(10), tag: Some(new) }).await);
+    ok(&run(
+        &app,
+        1,
+        IdentityCommand::SetTag {
+            guild_id: Id(10),
+            tag: Some(new),
+        },
+    )
+    .await);
     let worn = summary(&app, 2).await.style.tag.unwrap();
     assert_eq!((worn.text.as_str(), worn.glyph.as_str()), ("GGWP", "star"));
     // The account export includes it.
@@ -318,12 +407,34 @@ async fn members_wear_one_tag_everywhere_and_lose_it_when_they_leave() {
     }
     // Removing the tag takes it off everyone.
     sql(&app, "INSERT INTO guild_members VALUES(10,2,'member',0)").await;
-    ok(&run(&app, 2, IdentityCommand::WearTag { guild_id: Some(Id(10)) }).await);
-    ok(&run(&app, 1, IdentityCommand::SetTag { guild_id: Id(10), tag: None }).await);
+    ok(&run(
+        &app,
+        2,
+        IdentityCommand::WearTag {
+            guild_id: Some(Id(10)),
+        },
+    )
+    .await);
+    ok(&run(
+        &app,
+        1,
+        IdentityCommand::SetTag {
+            guild_id: Id(10),
+            tag: None,
+        },
+    )
+    .await);
     assert!(summary(&app, 2).await.style.tag.is_none());
     // Kicked members lose it too.
     ok(&run(&app, 1, set_tag("GG")).await);
-    ok(&run(&app, 2, IdentityCommand::WearTag { guild_id: Some(Id(10)) }).await);
+    ok(&run(
+        &app,
+        2,
+        IdentityCommand::WearTag {
+            guild_id: Some(Id(10)),
+        },
+    )
+    .await);
     ok(&raw(
         &app,
         1,
@@ -337,7 +448,14 @@ async fn members_wear_one_tag_everywhere_and_lose_it_when_they_leave() {
     assert!(summary(&app, 2).await.style.tag.is_none());
     // Wearing none.
     sql(&app, "INSERT INTO guild_members VALUES(10,2,'member',0)").await;
-    ok(&run(&app, 2, IdentityCommand::WearTag { guild_id: Some(Id(10)) }).await);
+    ok(&run(
+        &app,
+        2,
+        IdentityCommand::WearTag {
+            guild_id: Some(Id(10)),
+        },
+    )
+    .await);
     ok(&run(&app, 2, IdentityCommand::WearTag { guild_id: None }).await);
     assert!(summary(&app, 2).await.style.tag.is_none());
 }
@@ -358,15 +476,37 @@ async fn tag_cards_publish_only_the_public_face_and_offer_a_way_in() {
     let code = invite(&app).await;
     let mut t = tag("GG");
     t.invite_code = Some(code.clone());
-    ok(&run(&app, 1, IdentityCommand::SetTag { guild_id: Id(10), tag: Some(t) }).await);
+    ok(&run(
+        &app,
+        1,
+        IdentityCommand::SetTag {
+            guild_id: Id(10),
+            tag: Some(t),
+        },
+    )
+    .await);
     let card: TagCard = serde_json::from_slice(&get(&app, 3, "/api/v1/tags/10").await.1).unwrap();
-    assert_eq!(card.join, TagJoin::Invite { code: code.clone(), apply: false });
+    assert_eq!(
+        card.join,
+        TagJoin::Invite {
+            code: code.clone(),
+            apply: false
+        }
+    );
     // Not to someone banned.
     sql(&app, "INSERT INTO guild_bans VALUES(10,4,1,NULL,0)").await;
     let card: TagCard = serde_json::from_slice(&get(&app, 4, "/api/v1/tags/10").await.1).unwrap();
     assert_eq!(card.join, TagJoin::None);
     // A revoked invite is no longer offered.
-    ok(&raw(&app, 1, Command::RevokeInvite { guild_id: Id(10), code }).await);
+    ok(&raw(
+        &app,
+        1,
+        Command::RevokeInvite {
+            guild_id: Id(10),
+            code,
+        },
+    )
+    .await);
     let card: TagCard = serde_json::from_slice(&get(&app, 3, "/api/v1/tags/10").await.1).unwrap();
     assert_eq!(card.join, TagJoin::None);
     // The tagged server's icon is visible to the people who see its tag.
@@ -381,18 +521,35 @@ async fn servers_can_hide_other_servers_tags() {
     let (_d, app) = fixture().await;
     open(&app, &[1, 2]).await;
     assert_eq!(
-        err(&run(&app, 2, IdentityCommand::SetHideTags { guild_id: Id(10), hide: true }).await).code,
+        err(&run(
+            &app,
+            2,
+            IdentityCommand::SetHideTags {
+                guild_id: Id(10),
+                hide: true
+            }
+        )
+        .await)
+        .code,
         ErrorCode::Forbidden
     );
-    ok(&run(&app, 1, IdentityCommand::SetHideTags { guild_id: Id(10), hide: true }).await);
+    ok(&run(
+        &app,
+        1,
+        IdentityCommand::SetHideTags {
+            guild_id: Id(10),
+            hide: true,
+        },
+    )
+    .await);
     let g = guild(&mut app.0.pool.acquire().await.unwrap(), Id(2), Id(10))
         .await
         .unwrap();
     assert!(g.guild.look.unwrap().hide_tags);
     let core = app.0.core.lock().await;
-    assert!(ring(&core, 2)
-        .iter()
-        .any(|e| matches!(e, Event::GuildUpsert(g) if g.guild.look.as_ref().is_some_and(|l| l.hide_tags))));
+    assert!(ring(&core, 2).iter().any(
+        |e| matches!(e, Event::GuildUpsert(g) if g.guild.look.as_ref().is_some_and(|l| l.hide_tags))
+    ));
 }
 
 async fn make_role(app: &App, name: &str, color: u32) -> Id {
@@ -438,10 +595,23 @@ async fn role_styles_need_manage_roles_rank_and_readable_colors() {
         role_id,
         style,
     };
-    assert_eq!(err(&run(&app, 2, style(blue, gradient(0xFFC0E0))).await).code, ErrorCode::Forbidden);
+    assert_eq!(
+        err(&run(&app, 2, style(blue, gradient(0xFFC0E0))).await).code,
+        ErrorCode::Forbidden
+    );
     // A gradient starts at the role color.
-    assert_eq!(err(&run(&app, 1, style(plain, gradient(0xFFC0E0))).await).field.as_deref(), Some("style"));
-    assert_eq!(err(&run(&app, 1, style(blue, gradient(0x101010))).await).field.as_deref(), Some("style"));
+    assert_eq!(
+        err(&run(&app, 1, style(plain, gradient(0xFFC0E0))).await)
+            .field
+            .as_deref(),
+        Some("style")
+    );
+    assert_eq!(
+        err(&run(&app, 1, style(blue, gradient(0x101010))).await)
+            .field
+            .as_deref(),
+        Some("style")
+    );
     // @everyone has no style.
     assert_eq!(
         err(&run(&app, 1, style(Id(10), gradient(0xFFC0E0))).await).code,
@@ -477,19 +647,35 @@ async fn role_styles_need_manage_roles_rank_and_readable_colors() {
         .await
         .unwrap();
     let b = roles.iter().find(|r| r.id == blue).unwrap();
-    assert_eq!(b.look.as_ref().unwrap().style.unwrap().color3, Some(0xF2B84B));
+    assert_eq!(
+        b.look.as_ref().unwrap().style.unwrap().color3,
+        Some(0xF2B84B)
+    );
     assert_eq!(
         scalar(&app, "SELECT COUNT(*) FROM audit_log WHERE action='role_update' AND changes LIKE '%\"style\"%'").await,
         2
     );
     // Members receive it with the roles; UpdateRole leaves it alone.
-    ok(&raw(&app, 1, Command::Launch(LaunchCommand::UpdateRole { role: Role { name: "Bluer".into(), look: None, ..b.clone() } })).await);
+    ok(&raw(
+        &app,
+        1,
+        Command::Launch(LaunchCommand::UpdateRole {
+            role: Role {
+                name: "Bluer".into(),
+                look: None,
+                ..b.clone()
+            },
+        }),
+    )
+    .await);
     let roles = crate::permissions::roles(&mut app.0.pool.acquire().await.unwrap(), Id(10))
         .await
         .unwrap();
     assert!(roles.iter().find(|r| r.id == blue).unwrap().look.is_some());
     let core = app.0.core.lock().await;
-    assert!(ring(&core, 2).iter().any(|e| matches!(e, Event::RolesUpdated { roles, .. } if roles.iter().any(|r| r.look.is_some()))));
+    assert!(ring(&core, 2).iter().any(
+        |e| matches!(e, Event::RolesUpdated { roles, .. } if roles.iter().any(|r| r.look.is_some()))
+    ));
 }
 
 #[tokio::test]
@@ -503,25 +689,62 @@ async fn role_icons_are_emoji_server_emoji_or_validated_pictures_for_members() {
         icon,
     };
     assert_eq!(
-        err(&run(&app, 1, icon(Some(RoleIconRef::Emoji { emoji: "abc".into() }))).await).code,
+        err(&run(
+            &app,
+            1,
+            icon(Some(RoleIconRef::Emoji {
+                emoji: "abc".into()
+            }))
+        )
+        .await)
+        .code,
         ErrorCode::InvalidRequest
     );
-    ok(&run(&app, 1, icon(Some(RoleIconRef::Emoji { emoji: "⭐".into() }))).await);
+    ok(&run(
+        &app,
+        1,
+        icon(Some(RoleIconRef::Emoji {
+            emoji: "⭐".into()
+        })),
+    )
+    .await);
     // A custom emoji must be this server's.
     sql(&app, "INSERT INTO guild_emoji(id,guild_id,name,animated,content_type,data,preview) VALUES(900,20,'theirs',0,'image/png',x'00',x'00'),(901,10,'ours',0,'image/png',x'00',x'00')").await;
     assert_eq!(
-        err(&run(&app, 1, icon(Some(RoleIconRef::Custom { emoji_id: Id(900) }))).await).field.as_deref(),
+        err(&run(
+            &app,
+            1,
+            icon(Some(RoleIconRef::Custom { emoji_id: Id(900) }))
+        )
+        .await)
+        .field
+        .as_deref(),
         Some("icon")
     );
-    ok(&run(&app, 1, icon(Some(RoleIconRef::Custom { emoji_id: Id(901) }))).await);
+    ok(&run(
+        &app,
+        1,
+        icon(Some(RoleIconRef::Custom { emoji_id: Id(901) })),
+    )
+    .await);
     // An uploaded picture is decoded and fitted into 64x64.
     let mut png = std::io::Cursor::new(vec![]);
     image::RgbaImage::from_pixel(200, 100, image::Rgba([10, 200, 30, 255]))
         .write_to(&mut png, image::ImageFormat::Png)
         .unwrap();
     let path = format!("/api/v1/guilds/10/roles/{}/icon", r.0);
-    assert_eq!(request(&app, 2, "POST", &path, png.get_ref().clone()).await.0, 403);
-    assert_eq!(request(&app, 1, "POST", &path, b"GIF89a nope".to_vec()).await.0, 415);
+    assert_eq!(
+        request(&app, 2, "POST", &path, png.get_ref().clone())
+            .await
+            .0,
+        403
+    );
+    assert_eq!(
+        request(&app, 1, "POST", &path, b"GIF89a nope".to_vec())
+            .await
+            .0,
+        415
+    );
     let (s, body) = request(&app, 1, "POST", &path, png.get_ref().clone()).await;
     assert_eq!(s, 200, "{}", String::from_utf8_lossy(&body));
     let look: RoleLook = serde_json::from_slice(&body).unwrap();
@@ -555,14 +778,31 @@ async fn server_images_are_owned_uploads_kept_and_shown_to_members() {
         slot,
         image,
     };
-    let r = |id| Some(ImageRef { id: Id(id), crop: Some(Crop { zoom: 150, x: 20, y: 80 }) });
-    assert_eq!(err(&run(&app, 2, set(GuildImageSlot::Banner, r(601))).await).code, ErrorCode::Forbidden);
+    let r = |id| {
+        Some(ImageRef {
+            id: Id(id),
+            crop: Some(Crop {
+                zoom: 150,
+                x: 20,
+                y: 80,
+            }),
+        })
+    };
+    assert_eq!(
+        err(&run(&app, 2, set(GuildImageSlot::Banner, r(601))).await).code,
+        ErrorCode::Forbidden
+    );
     // Someone else's upload cannot be used.
-    assert_eq!(err(&run(&app, 1, set(GuildImageSlot::Banner, r(601))).await).code, ErrorCode::InvalidAttachment);
+    assert_eq!(
+        err(&run(&app, 1, set(GuildImageSlot::Banner, r(601))).await).code,
+        ErrorCode::InvalidAttachment
+    );
     ok(&run(&app, 1, set(GuildImageSlot::Banner, r(600))).await);
     ok(&run(&app, 1, set(GuildImageSlot::Icon, r(600))).await);
     ok(&run(&app, 1, set(GuildImageSlot::InviteBackground, r(602))).await);
-    let g = guild(&mut app.0.pool.acquire().await.unwrap(), Id(2), Id(10)).await.unwrap();
+    let g = guild(&mut app.0.pool.acquire().await.unwrap(), Id(2), Id(10))
+        .await
+        .unwrap();
     let look = g.guild.look.unwrap();
     assert_eq!(g.guild.icon_id, Some(Id(600)));
     // A GIF counts as moving when this process did not see it uploaded.
@@ -571,7 +811,14 @@ async fn server_images_are_owned_uploads_kept_and_shown_to_members() {
     // Upload collection keeps them.
     let mut c = app.0.pool.acquire().await.unwrap();
     assert!(gc_uploads(&mut c).await.unwrap().is_empty());
-    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM uploads WHERE id IN(600,602) AND expires_at IS NULL").await, 2);
+    assert_eq!(
+        scalar(
+            &app,
+            "SELECT COUNT(*) FROM uploads WHERE id IN(600,602) AND expires_at IS NULL"
+        )
+        .await,
+        2
+    );
     // Members may download them; others may not, and the invite background
     // stays with the invite.
     assert!(file_access(&mut c, Id(2), Id(602)).await.unwrap());
@@ -586,11 +833,24 @@ async fn server_images_are_owned_uploads_kept_and_shown_to_members() {
     assert!(card.banner.is_some() && card.background.is_some() && card.icon.is_some());
     assert!(!card.joined && !card.vanity);
     // Nothing for a code that does not work.
-    assert_eq!(get(&app, 3, "/api/v1/invites/abcdefghijklmnopqrstuv/card").await.0, 404);
-    assert_eq!(get(&app, 3, "/api/v1/invites/abcdefghijklmnopqrstuv/art/banner").await.0, 404);
+    assert_eq!(
+        get(&app, 3, "/api/v1/invites/abcdefghijklmnopqrstuv/card")
+            .await
+            .0,
+        404
+    );
+    assert_eq!(
+        get(&app, 3, "/api/v1/invites/abcdefghijklmnopqrstuv/art/banner")
+            .await
+            .0,
+        404
+    );
     // Removing an image frees it.
     ok(&run(&app, 1, set(GuildImageSlot::InviteBackground, None)).await);
-    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM guild_uploads WHERE guild_id=10").await, 2);
+    assert_eq!(
+        scalar(&app, "SELECT COUNT(*) FROM guild_uploads WHERE guild_id=10").await,
+        2
+    );
 }
 
 #[tokio::test]
@@ -601,65 +861,169 @@ async fn vanity_links_are_unique_held_rate_limited_and_join_like_invites() {
         guild_id: Id(g),
         code: code.map(str::to_owned),
     };
-    assert_eq!(err(&run(&app, 2, set(10, Some("sticks"))).await).code, ErrorCode::Forbidden);
+    assert_eq!(
+        err(&run(&app, 2, set(10, Some("sticks"))).await).code,
+        ErrorCode::Forbidden
+    );
     for bad in ["ab", "-ab", "a b", "a--b", "admin"] {
-        assert!(matches!(err(&run(&app, 1, set(10, Some(bad))).await).field.as_deref(), Some("vanity")), "{bad}");
+        assert!(
+            matches!(
+                err(&run(&app, 1, set(10, Some(bad))).await)
+                    .field
+                    .as_deref(),
+                Some("vanity")
+            ),
+            "{bad}"
+        );
     }
     match ok(&run(&app, 1, set(10, Some("Sticks"))).await) {
         CommandResult::Identity(IdentityResult::Vanity(Some(v))) => assert_eq!(v.code, "sticks"),
         r => panic!("{r:?}"),
     }
-    assert_eq!(err(&run(&app, 3, set(20, Some("STICKS"))).await).code, ErrorCode::AlreadyExists);
+    assert_eq!(
+        err(&run(&app, 3, set(20, Some("STICKS"))).await).code,
+        ErrorCode::AlreadyExists
+    );
     // It works as an invite, in any case, through every invite path.
     let preview: Snapshot<InvitePreview> =
         serde_json::from_slice(&get(&app, 3, "/api/v1/invites/STICKS/preview").await.1).unwrap();
     assert_eq!(preview.data.name, "guild");
-    let card: InviteCard = serde_json::from_slice(&get(&app, 3, "/api/v1/invites/sticks/card").await.1).unwrap();
+    let card: InviteCard =
+        serde_json::from_slice(&get(&app, 3, "/api/v1/invites/sticks/card").await.1).unwrap();
     assert!(card.vanity);
-    ok(&raw(&app, 3, Command::JoinGuild { invite_code: "Sticks".into() }).await);
-    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM guild_members WHERE guild_id=10 AND user_id=3").await, 1);
+    ok(&raw(
+        &app,
+        3,
+        Command::JoinGuild {
+            invite_code: "Sticks".into(),
+        },
+    )
+    .await);
+    assert_eq!(
+        scalar(
+            &app,
+            "SELECT COUNT(*) FROM guild_members WHERE guild_id=10 AND user_id=3"
+        )
+        .await,
+        1
+    );
     // Raid pauses apply to it.
-    ok(&raw(&app, 1, Command::Launch(LaunchCommand::Moderation(ModerationCommand::PauseInvites { guild_id: Id(10), seconds: 3600 }))).await);
-    let e = err(&raw(&app, 4, Command::JoinGuild { invite_code: "sticks".into() }).await);
+    ok(&raw(
+        &app,
+        1,
+        Command::Launch(LaunchCommand::Moderation(ModerationCommand::PauseInvites {
+            guild_id: Id(10),
+            seconds: 3600,
+        })),
+    )
+    .await);
+    let e = err(&raw(
+        &app,
+        4,
+        Command::JoinGuild {
+            invite_code: "sticks".into(),
+        },
+    )
+    .await);
     assert_eq!(e.field.as_deref(), Some("invites_paused"));
-    ok(&raw(&app, 1, Command::Launch(LaunchCommand::Moderation(ModerationCommand::PauseInvites { guild_id: Id(10), seconds: 0 }))).await);
+    ok(&raw(
+        &app,
+        1,
+        Command::Launch(LaunchCommand::Moderation(ModerationCommand::PauseInvites {
+            guild_id: Id(10),
+            seconds: 0,
+        })),
+    )
+    .await);
     // The invite list cannot revoke it.
-    let e = err(&raw(&app, 1, Command::RevokeInvite { guild_id: Id(10), code: "sticks".into() }).await);
+    let e = err(&raw(
+        &app,
+        1,
+        Command::RevokeInvite {
+            guild_id: Id(10),
+            code: "sticks".into(),
+        },
+    )
+    .await);
     assert_eq!(e.field.as_deref(), Some("vanity"));
     // Admins see the use count; it keeps counting past the invite table's cap.
     sql(&app, "UPDATE invites SET uses=950 WHERE code='sticks'").await;
-    ok(&raw(&app, 4, Command::JoinGuild { invite_code: "sticks".into() }).await);
-    let admin: IdentityAdmin = serde_json::from_slice(&get(&app, 1, "/api/v1/guilds/10/identity").await.1).unwrap();
+    ok(&raw(
+        &app,
+        4,
+        Command::JoinGuild {
+            invite_code: "sticks".into(),
+        },
+    )
+    .await);
+    let admin: IdentityAdmin =
+        serde_json::from_slice(&get(&app, 1, "/api/v1/guilds/10/identity").await.1).unwrap();
     assert_eq!(admin.vanity.as_ref().unwrap().uses, 951);
     assert_eq!(get(&app, 2, "/api/v1/guilds/10/identity").await.0, 403);
     // Released: held 30 days for everyone else, and the shareable link redirects.
     ok(&run(&app, 1, set(10, None)).await);
     assert_eq!(get(&app, 3, "/api/v1/invites/sticks/preview").await.0, 404);
-    assert_eq!(err(&run(&app, 3, set(20, Some("sticks"))).await).code, ErrorCode::Conflict);
+    assert_eq!(
+        err(&run(&app, 3, set(20, Some("sticks"))).await).code,
+        ErrorCode::Conflict
+    );
     // The server that released it may take it back; three changes an hour.
     ok(&run(&app, 1, set(10, Some("sticks"))).await);
     let e = err(&run(&app, 1, set(10, None)).await);
     assert_eq!(e.code, ErrorCode::RateLimited);
-    let admin: IdentityAdmin = serde_json::from_slice(&get(&app, 1, "/api/v1/guilds/10/identity").await.1).unwrap();
+    let admin: IdentityAdmin =
+        serde_json::from_slice(&get(&app, 1, "/api/v1/guilds/10/identity").await.1).unwrap();
     assert!(admin.vanity_wait_ms > 0);
-    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM audit_log WHERE action='vanity_update'").await, 3);
-    sql(&app, "UPDATE audit_log SET created_at=0 WHERE action='vanity_update'").await;
+    assert_eq!(
+        scalar(
+            &app,
+            "SELECT COUNT(*) FROM audit_log WHERE action='vanity_update'"
+        )
+        .await,
+        3
+    );
+    sql(
+        &app,
+        "UPDATE audit_log SET created_at=0 WHERE action='vanity_update'",
+    )
+    .await;
     // After the hold, another server may claim a released code.
     ok(&run(&app, 1, set(10, Some("sticks-two"))).await);
-    sql(&app, "UPDATE vanity_codes SET held_until=0 WHERE code='sticks'").await;
+    sql(
+        &app,
+        "UPDATE vanity_codes SET held_until=0 WHERE code='sticks'",
+    )
+    .await;
     ok(&run(&app, 3, set(20, Some("sticks"))).await);
     // A deleted server's code is held too.
     ok(&raw(&app, 1, Command::DeleteGuild { guild_id: Id(10) }).await);
-    assert!(scalar(&app, "SELECT held_until FROM vanity_codes WHERE code='sticks-two'").await > now() as i64);
+    assert!(
+        scalar(
+            &app,
+            "SELECT held_until FROM vanity_codes WHERE code='sticks-two'"
+        )
+        .await
+            > now() as i64
+    );
     let (s, location) = get(&app, 3, "/invite/sticks").await;
-    assert_eq!((s, String::from_utf8(location).unwrap().as_str()), (303, "/?invite=sticks"));
+    assert_eq!(
+        (s, String::from_utf8(location).unwrap().as_str()),
+        (303, "/?invite=sticks")
+    );
 }
 
 #[tokio::test]
 async fn the_worn_tag_is_exported_and_erased_with_the_account() {
     let (_d, app) = fixture().await;
     ok(&run(&app, 1, set_tag("GG")).await);
-    ok(&run(&app, 2, IdentityCommand::WearTag { guild_id: Some(Id(10)) }).await);
+    ok(&run(
+        &app,
+        2,
+        IdentityCommand::WearTag {
+            guild_id: Some(Id(10)),
+        },
+    )
+    .await);
     let r = sqlx::query("SELECT tag FROM users WHERE id=2")
         .fetch_one(&app.0.pool)
         .await

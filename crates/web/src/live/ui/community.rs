@@ -894,7 +894,7 @@ fn preview(a: &App) -> AnyView {
             "primary",
         )
     };
-    view!{<div class="-mx-4 -mt-4 h-24 rounded-t-lg" style=banner(e.banner_color)></div>
+    view!{<div class="relative -mx-4 -mt-4 h-24 rounded-t-lg" style=banner(e.banner_color)>{super::identity::directory_banner(a,e.guild_id)}</div>
         <div class="-mt-8 flex items-end gap-3">{entry_icon(e,"size-16 border-4 border-popover")}<div class="min-w-0 pb-1"><h2 class="wrap-anywhere">{e.name.clone()}</h2><p class="text-xs text-subtle">{format!("{} · {} · {}",counts(e),e.category.label(),e.language)}</p></div></div>
         <p class="mt-3 wrap-anywhere">{e.description.clone()}</p>
         <div class="mt-2 flex flex-wrap gap-1">{e.tags.iter().map(|t|view!{<span class="rounded-full bg-muted px-2 py-0.5 text-xs">{t.clone()}</span>}).collect_view()}</div>

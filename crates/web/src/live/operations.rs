@@ -274,7 +274,8 @@ pub(super) fn action(app: Shared, raw: &str) {
                 a.touch();
                 (a.http(), a.dialog_generation)
             };
-            if code.len() != 22
+            // Invite codes, and vanity codes (identity.rs).
+            if (code.len() != 22 && vanity_code(&code).is_none())
                 || !code
                     .bytes()
                     .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
@@ -347,6 +348,8 @@ pub(super) fn action(app: Shared, raw: &str) {
         "privacy" => super::privacy::action(app, arg),
         "submit" if arg.starts_with("privacy-") => super::privacy::submit(app, arg),
         "cm" => super::community::action(app, arg),
+        "id" => super::identity::action(app, arg),
+        "submit" if arg.starts_with("id-") => super::identity::submit(app, arg),
         "submit" if arg.starts_with("cm-") => super::community::submit(app, arg),
         "submit" if arg.starts_with("mod-") => super::moderation::submit(app, arg),
         "pins-refresh" => {
@@ -1257,6 +1260,7 @@ fn open_dialog(app: Shared, name: &str) {
     super::content::opened(app.clone(), name);
     super::expression::opened(app.clone(), name);
     super::community::opened(app.clone(), name);
+    super::identity::opened(app.clone(), name);
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
     super::moderation::opened(app.clone(), name);
@@ -1937,6 +1941,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             super::moderation::failed(operation);
             super::profiles::failed(operation);
             super::community::failed(operation);
+            super::identity::failed(operation);
             // A refused save is no longer waiting for its answer.
             if let Some(form) = operation.and_then(saved_form) {
                 media_action(&format!("form-failed:{form}"));
@@ -2000,6 +2005,15 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                 drop(a);
                 super::community::answered(app, op, result);
                 return;
+            }
+            if let Some(op) = operation.clone().filter(super::identity::owns) {
+                drop(a);
+                super::identity::answered(app, op, result);
+                return;
+            }
+            // Invite cards say whether you are in their server.
+            if matches!(operation, Some(Command::JoinGuild { .. })) {
+                super::identity::forget_invites(&a);
             }
             if let Some(op) = operation.clone().filter(super::expression::owns) {
                 drop(a);
@@ -2487,6 +2501,7 @@ pub(super) fn upload(
         match result {
             Ok(file) => {
                 if super::profiles::uploaded(&mut a, purpose, &file) {
+                } else if super::identity::uploaded(&mut a, purpose, &file) {
                 } else if purpose == UploadPurpose::Avatar {
                     a.command(Command::UpdateProfile(ProfilePatch {
                         avatar_id: Patch::Set(file.id),

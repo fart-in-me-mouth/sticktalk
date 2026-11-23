@@ -27,7 +27,9 @@ fn badge(count: u32, class: &'static str) -> AnyView {
     view!{<span class=class aria-label=format!("{count} mentions")>{if count>99{"99+".to_string()}else{count.to_string()}}</span>}.into_any()
 }
 fn guild_face(g: &GuildSummary, class: &'static str) -> AnyView {
-    if let Some(id) = g.guild.icon_id {
+    if let Some(face) = super::identity::rail_face(g, class) {
+        face
+    } else if let Some(id) = g.guild.icon_id {
         view!{<img class=class src=format!("/api/v1/files/{}/thumbnail",id.0) alt="" loading="lazy"/>}.into_any()
     } else {
         view! {<span class="truncate">{g.guild.name.chars().take(2).collect::<String>()}</span>}

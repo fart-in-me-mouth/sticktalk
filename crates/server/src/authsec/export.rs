@@ -682,7 +682,8 @@ pub(super) fn build(
     let worn = a.rows(sqlx::query("SELECT tag FROM users WHERE id=?").bind(u))?;
     settings.insert(
         "worn_tag".into(),
-        worn.first().map_or(Value::Null, crate::identity::export_row),
+        worn.first()
+            .map_or(Value::Null, crate::identity::export_row),
     );
     a.json("settings.json", &Value::Object(settings))?;
 

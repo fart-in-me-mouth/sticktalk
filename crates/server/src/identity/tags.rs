@@ -40,21 +40,17 @@ pub(super) async fn usable_invite(c: &mut SqliteConnection, g: Id, code: &str) -
     .await?)
 }
 
-async fn validate(
-    c: &mut SqliteConnection,
-    core: &mut Core,
-    g: Id,
-    e: TagEdit,
-) -> Result<TagEdit> {
+async fn validate(c: &mut SqliteConnection, core: &mut Core, g: Id, e: TagEdit) -> Result<TagEdit> {
     let text = e.text.trim().to_owned();
     if let Some(problem) = tag_problem(&text) {
         return Err(invalid("tag", problem));
     }
     let key = tag_key(&text);
-    let blocked: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM blocked_tags WHERE tag_key=?)")
-        .bind(&key)
-        .fetch_one(&mut *c)
-        .await?;
+    let blocked: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM blocked_tags WHERE tag_key=?)")
+            .bind(&key)
+            .fetch_one(&mut *c)
+            .await?;
     if reserved_tag(&text) || blocked {
         return Err(invalid("tag", "That tag is reserved. Choose another one."));
     }
@@ -83,12 +79,20 @@ async fn validate(
             "The badge’s two colors are too close. Make one lighter or darker.",
         ));
     }
-    let invite_code = match e.invite_code.map(|v| v.trim().to_owned()).filter(|v| !v.is_empty()) {
+    let invite_code = match e
+        .invite_code
+        .map(|v| v.trim().to_owned())
+        .filter(|v| !v.is_empty())
+    {
         Some(code) => {
             if !usable_invite(c, g, &code).await? {
                 return Err(invalid("invite", "Choose one of this server’s invites."));
             }
-            Some(vanity_code(&code).filter(|_| code.len() != 22).unwrap_or(code))
+            Some(
+                vanity_code(&code)
+                    .filter(|_| code.len() != 22)
+                    .unwrap_or(code),
+            )
         }
         None => None,
     };
@@ -188,8 +192,16 @@ pub(super) async fn set(
     }
     let describe = |t: &Option<TagEdit>, f: fn(&TagEdit) -> String| t.as_ref().map(f);
     let entry = audit::Entry::new(g, AuditAction::ServerTagUpdate, AuditTarget::Guild, Some(g))
-        .change("tag", describe(&old, |t| t.text.clone()), describe(&new, |t| t.text.clone()))
-        .change("badge", describe(&old, |t| t.glyph.clone()), describe(&new, |t| t.glyph.clone()))
+        .change(
+            "tag",
+            describe(&old, |t| t.text.clone()),
+            describe(&new, |t| t.text.clone()),
+        )
+        .change(
+            "badge",
+            describe(&old, |t| t.glyph.clone()),
+            describe(&new, |t| t.glyph.clone()),
+        )
         .change(
             "colors",
             describe(&old, |t| format!("#{:06x} #{:06x}", t.color, t.color2)),
@@ -197,8 +209,10 @@ pub(super) async fn set(
         )
         .change(
             "join_invite",
-            old.as_ref().and_then(|t| t.invite_code.as_ref().map(|_| "set".to_owned())),
-            new.as_ref().and_then(|t| t.invite_code.as_ref().map(|_| "set".to_owned())),
+            old.as_ref()
+                .and_then(|t| t.invite_code.as_ref().map(|_| "set".to_owned())),
+            new.as_ref()
+                .and_then(|t| t.invite_code.as_ref().map(|_| "set".to_owned())),
         );
     audit::write(c, u, entry).await?;
     Ok(CommandResult::Ack)

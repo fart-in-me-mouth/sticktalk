@@ -5,6 +5,7 @@ mod community;
 mod content;
 mod expression;
 mod history_cache;
+mod identity;
 mod moderation;
 mod nav;
 mod operations;
@@ -167,6 +168,8 @@ struct App {
     privacy: privacy::State,
     /// Rules screening, applications, onboarding, Discover, templates, insights.
     community: community::State,
+    /// Server tags, role styles and icons, server images, invite cards.
+    identity: identity::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -237,6 +240,7 @@ impl App {
         self.privacy = Default::default();
         privacy::reset();
         self.community = Default::default();
+        self.identity = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -403,6 +407,7 @@ pub fn mount() {
             profiles: Default::default(),
             privacy: Default::default(),
             community: Default::default(),
+            identity: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();

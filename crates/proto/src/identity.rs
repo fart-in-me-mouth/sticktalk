@@ -16,10 +16,9 @@ pub const TAG_SYMBOLS: &str = "!#$%&*+-=?@^_~";
 /// Tag texts nobody may claim (compared after `tag_key` and look-alike
 /// folding, see `reserved_tag`): staff and system words and the app's name.
 pub const RESERVED_TAGS: &[&str] = &[
-    "STAFF", "ADMN", "ADM", "ADMIN", "MOD", "MODS", "SYS", "SYST", "ROOT", "OWNR", "OP",
-    "OPS", "DEV", "DEVS", "TEAM", "HELP", "SUPP", "SUP", "BOT", "BOTS", "APP", "AUTO",
-    "OFFI", "OFC", "ST", "STK", "STIK", "STCK", "TALK", "STTK", "NULL", "NONE", "EVRY",
-    "HERE", "ALL",
+    "STAFF", "ADMN", "ADM", "ADMIN", "MOD", "MODS", "SYS", "SYST", "ROOT", "OWNR", "OP", "OPS",
+    "DEV", "DEVS", "TEAM", "HELP", "SUPP", "SUP", "BOT", "BOTS", "APP", "AUTO", "OFFI", "OFC",
+    "ST", "STK", "STIK", "STCK", "TALK", "STTK", "NULL", "NONE", "EVRY", "HERE", "ALL",
 ];
 /// Vanity invite codes are 3 to 32 letters, digits and hyphens.
 pub const MIN_VANITY_CHARS: usize = 3;
@@ -27,11 +26,38 @@ pub const MAX_VANITY_CHARS: usize = 32;
 /// Codes nobody may claim as a vanity link (they read like the app's own
 /// pages or staff).
 pub const RESERVED_VANITY: &[&str] = &[
-    "admin", "administrator", "api", "app", "apps", "help", "support", "staff",
-    "sticktalk", "stick-talk", "official", "invite", "invites", "login", "logout",
-    "register", "settings", "discover", "directory", "public", "static", "mod",
-    "moderator", "security", "status", "system", "root", "team", "about", "terms",
-    "privacy", "download",
+    "admin",
+    "administrator",
+    "api",
+    "app",
+    "apps",
+    "help",
+    "support",
+    "staff",
+    "sticktalk",
+    "stick-talk",
+    "official",
+    "invite",
+    "invites",
+    "login",
+    "logout",
+    "register",
+    "settings",
+    "discover",
+    "directory",
+    "public",
+    "static",
+    "mod",
+    "moderator",
+    "security",
+    "status",
+    "system",
+    "root",
+    "team",
+    "about",
+    "terms",
+    "privacy",
+    "download",
 ];
 /// A released or lost vanity code is held this long before anyone else may
 /// claim it; the server that held it may take it back sooner.
@@ -409,7 +435,15 @@ mod tests {
     fn vanity_codes_are_lowercase_words_with_hyphens() {
         assert_eq!(vanity_code(" Sticks ").as_deref(), Some("sticks"));
         assert_eq!(vanity_code("a-b-c").as_deref(), Some("a-b-c"));
-        for bad in ["ab", "-abc", "abc-", "a--b", "has space", "ünï", &"x".repeat(33)] {
+        for bad in [
+            "ab",
+            "-abc",
+            "abc-",
+            "a--b",
+            "has space",
+            "ünï",
+            &"x".repeat(33),
+        ] {
             assert!(vanity_code(bad).is_none(), "{bad}");
         }
         assert!(reserved_vanity("admin"));
@@ -421,7 +455,9 @@ mod tests {
         ids.sort();
         ids.dedup();
         assert_eq!(ids.len(), TAG_GLYPHS.len());
-        assert!(ids.iter().all(|id| id.bytes().all(|b| b.is_ascii_lowercase())));
+        assert!(ids
+            .iter()
+            .all(|id| id.bytes().all(|b| b.is_ascii_lowercase())));
     }
     #[test]
     fn empty_looks_are_omitted() {
@@ -429,7 +465,9 @@ mod tests {
         let text = String::from_utf8_lossy(&rmp_serde::to_vec_named(&look).unwrap()).into_owned();
         assert!(!text.contains("hide_tags"));
         let r = RoleLook {
-            icon: Some(RoleIcon::Emoji { emoji: "⭐".into() }),
+            icon: Some(RoleIcon::Emoji {
+                emoji: "⭐".into()
+            }),
             ..Default::default()
         };
         let back: RoleLook = rmp_serde::from_slice(&rmp_serde::to_vec_named(&r).unwrap()).unwrap();

@@ -177,7 +177,9 @@ pub(crate) async fn mutate(
 ) -> Result<CommandResult> {
     core.rate(format!("identity:{}", u.0), 30., 10.)?;
     match cmd {
-        IdentityCommand::SetTag { guild_id, tag } => tags::set(c, core, u, guild_id, tag, out).await,
+        IdentityCommand::SetTag { guild_id, tag } => {
+            tags::set(c, core, u, guild_id, tag, out).await
+        }
         IdentityCommand::WearTag { guild_id } => tags::wear(c, core, u, guild_id, out).await,
         IdentityCommand::SetHideTags { guild_id, hide } => {
             guild_perm(c, u, guild_id, Permissions::MANAGE_GUILD).await?;
@@ -244,7 +246,11 @@ async fn roles_changed(c: &mut SqliteConnection, g: Id, out: &mut Deliveries) ->
 /// Inside every command's transaction, after it ran: people who left or were
 /// removed from a server whose tag they wore lost it (the trigger cleared it);
 /// tell them and everyone who sees them.
-pub(crate) async fn settle(c: &mut SqliteConnection, core: &Core, out: &mut Deliveries) -> Result<()> {
+pub(crate) async fn settle(
+    c: &mut SqliteConnection,
+    core: &Core,
+    out: &mut Deliveries,
+) -> Result<()> {
     if !out
         .iter()
         .any(|(_, e)| matches!(e, Event::MemberRemoved { .. } | Event::GuildRemoved { .. }))
@@ -299,13 +305,24 @@ pub(crate) async fn admin_cli(
                 let tag: Option<TagEdit> = parse(Some(r.get("tag")));
                 println!("tag\t{}\t{}\t{}\t{} wearing", r.get::<i64, _>("guild_id"), tag.map(|t| t.text).unwrap_or_default(), r.get::<String, _>("name"), r.get::<i64, _>("n"));
             }
-            for r in sqlx::query("SELECT code,guild_id,held_until FROM vanity_codes ORDER BY code").fetch_all(&mut *c).await? {
+            for r in sqlx::query("SELECT code,guild_id,held_until FROM vanity_codes ORDER BY code")
+                .fetch_all(&mut *c)
+                .await?
+            {
                 match r.get::<Option<i64>, _>("guild_id") {
                     Some(g) => println!("vanity\t{}\t{g}", r.get::<String, _>("code")),
-                    None => println!("vanity\t{}\theld until {}", r.get::<String, _>("code"), r.get::<Option<i64>, _>("held_until").unwrap_or(0)),
+                    None => println!(
+                        "vanity\t{}\theld until {}",
+                        r.get::<String, _>("code"),
+                        r.get::<Option<i64>, _>("held_until").unwrap_or(0)
+                    ),
                 }
             }
-            for k in sqlx::query_scalar::<_, String>("SELECT tag_key FROM blocked_tags ORDER BY tag_key").fetch_all(&mut *c).await? {
+            for k in
+                sqlx::query_scalar::<_, String>("SELECT tag_key FROM blocked_tags ORDER BY tag_key")
+                    .fetch_all(&mut *c)
+                    .await?
+            {
                 println!("blocked\t{k}");
             }
             Ok(())

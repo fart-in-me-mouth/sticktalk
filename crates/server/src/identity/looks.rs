@@ -86,7 +86,10 @@ async fn track(
     }
     Ok(())
 }
-pub(super) async fn invite_background(c: &mut SqliteConnection, g: Id) -> Result<Option<ImageMeta>> {
+pub(super) async fn invite_background(
+    c: &mut SqliteConnection,
+    g: Id,
+) -> Result<Option<ImageMeta>> {
     let s: Option<Option<String>> =
         sqlx::query_scalar("SELECT invite_background FROM guild_looks WHERE guild_id=?")
             .bind(id(g)?)
@@ -105,17 +108,23 @@ pub(super) async fn icon(c: &mut SqliteConnection, g: Id) -> Result<Option<Image
         return Ok(None);
     };
     let look = guild_look(c, g).await?;
-    Ok(Some(look.icon.filter(|m| m.id == icon).unwrap_or(ImageMeta {
-        id: icon,
-        animated: false,
-        crop: None,
-    })))
+    Ok(Some(look.icon.filter(|m| m.id == icon).unwrap_or(
+        ImageMeta {
+            id: icon,
+            animated: false,
+            crop: None,
+        },
+    )))
 }
 fn described(m: &Option<ImageMeta>) -> Option<String> {
     m.as_ref().map(|m| {
         format!(
             "{}{}",
-            if m.animated { "animated picture" } else { "picture" },
+            if m.animated {
+                "animated picture"
+            } else {
+                "picture"
+            },
             if m.crop.is_some() { ", cropped" } else { "" }
         )
     })
@@ -241,9 +250,14 @@ async fn role_audit(
     audit::write(
         c,
         u,
-        audit::Entry::new(role.guild_id, AuditAction::RoleUpdate, AuditTarget::Role, Some(role.id))
-            .named(role.name.clone())
-            .change(field, before, after),
+        audit::Entry::new(
+            role.guild_id,
+            AuditAction::RoleUpdate,
+            AuditTarget::Role,
+            Some(role.id),
+        )
+        .named(role.name.clone())
+        .change(field, before, after),
     )
     .await
 }
@@ -283,10 +297,16 @@ pub(super) async fn set_role_style(
                 }
             }
             RolePaint::Holographic => {
-                require(s.color2.is_none() && s.color3.is_none(), ErrorCode::InvalidRequest)?;
+                require(
+                    s.color2.is_none() && s.color3.is_none(),
+                    ErrorCode::InvalidRequest,
+                )?;
             }
         }
-        require(s.color2.is_some() || s.color3.is_none(), ErrorCode::InvalidRequest)?;
+        require(
+            s.color2.is_some() || s.color3.is_none(),
+            ErrorCode::InvalidRequest,
+        )?;
     }
     let mut look = role.look.as_deref().cloned().unwrap_or_default();
     if look.style == style {
@@ -382,7 +402,10 @@ pub(crate) fn role_icon_rendition(bytes: &[u8]) -> Result<(Vec<u8>, &'static str
     let img = r
         .decode()
         .map_err(|_| Error::new(ErrorCode::UnsupportedMediaType))?;
-    require(img.width() > 0 && img.height() > 0, ErrorCode::UnsupportedMediaType)?;
+    require(
+        img.width() > 0 && img.height() > 0,
+        ErrorCode::UnsupportedMediaType,
+    )?;
     let side = ROLE_ICON_RENDITION;
     let fitted = img.resize(side, side, image::imageops::FilterType::Lanczos3);
     let mut canvas = image::RgbaImage::new(side, side);
