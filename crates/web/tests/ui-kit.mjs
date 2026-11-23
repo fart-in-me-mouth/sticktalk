@@ -40,11 +40,12 @@ try {
   await page.waitForFunction(() => !document.querySelector('.live-modal'));
   await page.locator('.server-rail [data-live^="guild:"]').click();
   await page.waitForSelector('.server-heading');
-  // Avatars are defined at startup, a dialog once one has opened; menus and
-  // tooltips only when first pointed at, focused or pressed (docs/features/perf.md).
-  await page.waitForFunction(() => customElements.get('ui-dialog') && customElements.get('ui-avatar'));
+  // Avatars are defined at startup, a dialog once one has opened, menus when
+  // the browser is idle after one is on the page (the server menu: a press
+  // must not wait for a download); tooltips when first pointed at or focused
+  // (docs/features/perf.md).
+  await page.waitForFunction(() => customElements.get('ui-dialog') && customElements.get('ui-avatar') && customElements.get('ui-menu'));
   check('UI SDK elements are registered', true);
-  check('the menu behavior is not loaded before a menu is used', await page.evaluate(() => !customElements.get('ui-menu')));
 
   // ---- DropdownMenu (ui-menu): server menu -> Create Category ---------------
   await page.locator('.server-heading').click();

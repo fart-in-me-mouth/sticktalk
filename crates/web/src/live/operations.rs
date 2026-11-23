@@ -1367,6 +1367,9 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
     let channel = app.borrow().channel;
     let after = app.borrow().admin_after;
     spawn_local(async move {
+        // Whether anything was fetched: a dialog with nothing to fetch (the
+        // emoji picker) is not drawn a second time for nothing.
+        let mut fetched = true;
         let result: Result<(), String> = async {
             match name.as_str() {
                 "server" | "server-overview" => {
@@ -1544,7 +1547,7 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
                         data: sticktalk_client_core::settings::SnapshotData::Notifications(p.data),
                     });
                 }
-                _ => {}
+                _ => fetched = false,
             }
             Ok(())
         }
@@ -1552,10 +1555,10 @@ fn dialog_data(app: Shared, name: String, epoch: u64, generation: u64) {
         if app.borrow().epoch != epoch || app.borrow().dialog_generation != generation {
             return;
         }
-        app.borrow_mut().admin_busy = false;
+        let busy = std::mem::replace(&mut app.borrow_mut().admin_busy, false);
         if let Err(e) = result {
             fail(&app, e)
-        } else {
+        } else if fetched || busy {
             app.borrow().touch();
         }
     });
@@ -2338,6 +2341,7 @@ fn prefetch_for(action: &str) {
     let owner = match kind {
         "dialog" => {
             spawn_local(super::ui::__preload_load_dialog());
+            spawn_local(__preload_dialog_data());
             // A feature's pages are in its own view module.
             if super::community::owns_dialog(arg) && arg != "create" {
                 spawn_local(super::ui::__preload_load_community_dialog());

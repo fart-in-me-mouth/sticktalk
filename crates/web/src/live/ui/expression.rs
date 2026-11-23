@@ -6,6 +6,11 @@ use super::*;
 use crate::live::expression::{self as ex, Look};
 
 const GRID: &str = "emoji-grid mt-2 grid grid-cols-8 gap-1 phone:grid-cols-6 touch:grid-cols-[repeat(auto-fill,minmax(44px,1fr))]";
+/// Emoji drawn when the picker opens: sixteen rows of eight (the picker shows
+/// about fourteen at 1440x900, and fewer, of six, on a phone), then
+/// `PICKER_STEP` more each time the end comes within two rows of view.
+pub(super) const PICKER_WINDOW: usize = 128;
+const PICKER_STEP: usize = 64;
 const CELL: &str = "grid min-h-10 place-items-center rounded-md text-center text-[28px] hover:bg-accent focus-visible:bg-accent touch:min-h-11";
 
 /// A custom emoji image. Animated ones carry a still first frame too: with
@@ -338,6 +343,17 @@ fn emoji_picker(a: &App, react: Option<String>) -> AnyView {
         vec![]
     };
     let nothing = by_guild.is_empty() && bundled.is_empty();
+    let nothing_bundled = bundled.is_empty();
+    // Only the first rows are drawn (a category has up to 400 emoji); more
+    // follow as the grid scrolls (`data-emoji-more`, public/live.js).
+    let w = &a.expression.window;
+    let limit = if w.0 == a.expression.category && w.1 == a.query {
+        w.2.max(PICKER_WINDOW)
+    } else {
+        PICKER_WINDOW
+    };
+    let more = (bundled.len() > limit).then(|| format!("expr-more:{}", limit + PICKER_STEP));
+    let bundled = bundled.into_iter().take(limit);
     view!{
         <h2>{if react.is_some(){"Add Reaction"}else{"Emoji"}}</h2>
         {match &react{
@@ -349,7 +365,7 @@ fn emoji_picker(a: &App, react: Option<String>) -> AnyView {
         {by_guild.into_iter().map(|(g,list)|section(a,Some(g),&guild_name(a,g),view!{<div class=GRID>{list.into_iter().map(|e|custom_cell(e,&react)).collect_view()}</div>}.into_any())).collect_view()}
         {if recent.is_empty(){().into_any()}else{section(a,None,"Recently Used",view!{<div class=GRID>{recent}</div>}.into_any())}}
         {if query.is_empty(){view!{<nav class="emoji-categories mt-4 flex gap-1 overflow-x-auto" aria-label="Emoji categories">{categories.iter().map(|c|view!{<button class=if *c==category{"button secondary flex-none text-xs"}else{"link-button flex-none text-xs"} aria-pressed=(*c==category).to_string() data-live=format!("expr-category:{c}")>{*c}</button>}).collect_view()}</nav>}.into_any()}else{().into_any()}}
-        {if bundled.is_empty(){().into_any()}else{view!{<section class="picker-section mt-2" aria-label=if query.is_empty(){category.to_owned()}else{"Search results".to_owned()}><div class=GRID>{bundled.into_iter().map(|e|unicode_cell(e.emoji(),e.name(),&react)).collect_view()}</div></section>}.into_any()}}
+        {if nothing_bundled{().into_any()}else{view!{<section class="picker-section mt-2" aria-label=if query.is_empty(){category.to_owned()}else{"Search results".to_owned()}><div class=GRID>{bundled.map(|e|unicode_cell(e.emoji(),e.name(),&react)).collect_view()}</div>{more.map(|m|view!{<div class="h-px" data-emoji-more=m aria-hidden="true"></div>})}</section>}.into_any()}}
     }.into_any()
 }
 

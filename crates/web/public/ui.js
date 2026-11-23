@@ -25,11 +25,22 @@ export function define(tag) {
   return done;
 }
 // A dialog is opened by the app: define it as soon as one is in the page.
+// Menus (the server menu, channel and message options) are used constantly
+// and their behavior is small: once one is in the page, it is defined when
+// the browser is next idle, so a press with no hover first does not wait for
+// a download. Not with Data Saver on (it is fetched on intent then).
 const dialogs = document.getElementsByTagName('ui-dialog');
+const menus = document.getElementsByTagName('ui-menu');
+const whenIdle = globalThis.requestIdleCallback ?? ((f) => setTimeout(f, 200));
+const saveData = () => navigator.connection?.saveData === true;
+let menuQueued = false;
 const watch = new MutationObserver(() => {
-  if (!dialogs.length) return;
-  watch.disconnect();
-  void define('ui-dialog');
+  if (dialogs.length && !loading.has('ui-dialog')) void define('ui-dialog');
+  if (menus.length && !menuQueued && !saveData()) {
+    menuQueued = true;
+    whenIdle(() => void define('ui-menu'), { timeout: 2000 });
+  }
+  if (loading.has('ui-dialog') && (menuQueued || saveData())) watch.disconnect();
 });
 watch.observe(document.documentElement, { childList: true, subtree: true });
 // Intent. Tooltips: the first pointer movement or focus anywhere (a person is

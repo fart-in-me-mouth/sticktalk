@@ -174,7 +174,7 @@ fn favorites_list(a: &App) -> AnyView {
 /// Above the channel list: the switcher entry (the phone's way in), then
 /// Favorites (when chosen on the rail) or this list's pinned conversations.
 pub(super) fn sidebar_top(a: &App) -> AnyView {
-    let finder = view! {<button class="nav-find mb-2 flex h-8 w-full items-center gap-2 rounded-md bg-rail px-2 text-left text-[13px] text-muted-foreground hover:text-foreground touch:min-h-11" data-live="nav-switcher" aria-keyshortcuts="Control+K Meta+K">{icon_with("search","icon size-4")}<span class="min-w-0 flex-1 truncate">"Find or start a conversation"</span><kbd class="text-[11px] phone:hidden">"Ctrl K"</kbd></button>};
+    let finder = view! {<button class="nav-find mb-2 flex h-8 w-full items-center gap-2 rounded-md bg-rail px-2 text-left text-[13px] text-muted-foreground hover:text-foreground touch:min-h-11" data-live="nav-switcher" aria-keyshortcuts="Control+K Meta+K">{icon_with("search","icon size-4")}<span class="min-w-0 flex-1 truncate">"Find or start a conversation"</span><kbd class="font-sans text-[11px] phone:hidden">"Ctrl K"</kbd></button>};
     if a.nav.favorites {
         return view! {{finder}{favorites_list(a)}}.into_any();
     }
