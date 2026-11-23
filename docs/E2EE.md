@@ -417,5 +417,8 @@ Notes, stated plainly:
   audio across the join and the leave.
 - A user not in a call: no module, worker, key or timer (checked: no `e2ee`
   resource is loaded before the first call; the worker is terminated on
-  leave). The web app's first-load bytes are unchanged (1,505,477 after,
-  1,505,764 before; the modules are lazy and outside the app-shell cache).
+  leave). On the merged tree (after `perf.md`'s restructuring) the core WASM
+  is 470,201 B and the first load 637,413 B against 637,224 B without this
+  work: +189 B, the stylesheet. The four modules are lazy and outside the
+  app-shell cache; the two call-only WASM modules grew (see the budgets
+  commit).
