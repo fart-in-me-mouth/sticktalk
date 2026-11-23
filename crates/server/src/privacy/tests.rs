@@ -754,8 +754,10 @@ async fn alerts_follow_the_decision_and_reaction_preferences() {
     };
     ok(&run(&app, 2, react).await);
     assert!(alerts(events(&app, 1).await).is_empty());
-    let mut g = GlobalNotifications::default();
-    g.reactions = ReactionAlerts::All;
+    let g = GlobalNotifications {
+        reactions: ReactionAlerts::All,
+        ..Default::default()
+    };
     ok(&run(&app, 1, p(PrivacyCommand::SetGlobalNotifications(g))).await);
     assert_eq!(
         settings_of(&app, 1).await.global.reactions,

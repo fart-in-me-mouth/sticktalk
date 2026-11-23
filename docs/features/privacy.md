@@ -24,7 +24,7 @@ Code: `crates/proto/src/privacy.rs` (wire), `crates/server/src/privacy.rs` and
 
 | Command | Notes |
 |---|---|
-| `Subscribe` | opts this stream in to `Event::Privacy` |
+| `Subscribe` | opts this stream in to `Event::Privacy`; answers with `Settings` (the web app needs no separate request) |
 | `SetStatus { status, until }` | Online, Idle, Dnd, Invisible; `until` (not for Online) at most 24 h ahead; then back to Online |
 | `SetCustomStatus { text, emoji, clear_at }` | text ≤ 128 chars; emoji is one Unicode emoji grapheme or `<:name:id>`/`<a:name:id>`; `clear_at` ≤ 366 days ahead; all empty clears |
 | `SetFriendNickname { user_id, nickname }` | friends only, ≤ 32 chars, empty removes; shown only to you |
@@ -165,6 +165,13 @@ on the profile. A former friend's nickname is not shown.
 - `SetPresence` clears a timed status's end.
 - `Model::name` (client-core) prefers a friend nickname; `UserUpdated` now also
   refreshes the friends list's copy of that user (status and name were stale).
+
+## Known issue (not from this task)
+
+`tests/live.mjs` fails at its history checks (after reload, "cookie recovery +
+persisted history", or the "anchor seek" step). The same failure happens with
+the unchanged base commit `c9988b9` (its own server and web build), so it
+predates this work.
 
 ## Not included
 
