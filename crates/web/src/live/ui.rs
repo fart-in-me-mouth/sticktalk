@@ -4,6 +4,7 @@
 //! `message` or `live-modal` carry no styles of their own here: they are stable
 //! hooks for `public/*.js` and the browser tests.
 use super::*;
+pub(in crate::live) mod apps;
 mod authsec;
 mod call_extras;
 mod call_views;
@@ -540,6 +541,7 @@ fn chat(a: &App, title: &str) -> AnyView {
             view!{{if new_day{view!{<div class="day-divider" role="separator"><span>{day_label(m.created_at)}</span></div>}.into_any()}else{().into_any()}}{if unread{view!{<div class="new-divider" role="separator" aria-label="New messages"><span>"New"</span></div>}.into_any()}else{().into_any()}}{message(a,m,!new_day&&!unread&&crate::wire::continues_group(m.author_id.0,m.created_at,previous.map(|p|(p.author_id.0,p.created_at))))}}
         }).collect_view()}
         <div style=format!("height:{}px",bottom*88) aria-hidden="true"></div>
+        {if bottom==0{apps::ephemeral_list(a,c)}else{().into_any()}}
         </div><div class="composer-wrap relative px-4 pb-(--safe-bottom) phone:px-2">
         {if let Some(reply)=a.reply{let target=messages.and_then(|m|m.get(&reply));view!{<div class="reply-preview flex items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11"><span class="min-w-0 flex-1 truncate">{format!("Replying to {}",target.map_or("message".into(),|m|a.model.name(m.author_id)))}{target.map(|m|view!{<span class="text-muted-foreground">{format!(" · {}",preview(a,m))}</span>})}</span>{ib_plain("x","Cancel Reply","cancel-reply")}</div>}.into_any()}else{().into_any()}}
         {content::scheduled_bar(a,c)}
@@ -547,6 +549,7 @@ fn chat(a: &App, title: &str) -> AnyView {
         {a.attachments.iter().enumerate().map(|(i,f)|content::attachment_chip(a,i,f)).collect_view()}
         {expression::suggestions(a)}
         {if a.uploading{view!{<div class="live-upload mb-2 flex items-center justify-between gap-4 rounded-lg bg-muted p-2 text-xs" role="status">{a.upload_progress.clone()}{button("Pause","upload-cancel","secondary")}</div>}.into_any()}else{().into_any()}}
+        {apps::picker_view(a)}
         {if a.completions.is_empty(){().into_any()}else{view!{<div id="live-completions" class="autocomplete absolute inset-x-4 bottom-full z-40 max-h-[min(320px,50vh)] overflow-y-auto rounded-lg border bg-popover p-2 shadow-lg" role="listbox" aria-label="Suggestions">{a.completions.iter().enumerate().map(|(i,(label,insert,kind))|view!{<button class="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-sm aria-selected:bg-secondary touch:min-h-11" id=format!("completion-{i}") role="option" aria-selected=if i==0{"true"}else{"false"} data-completion=insert.clone()><span class="completion-avatar grid size-6 flex-none place-items-center overflow-hidden rounded-full bg-sidebar text-xs [&_.icon]:size-4">{match kind.as_str() {"Role"=>icon("shield"),"Channel"=>icon("hash"),"Emoji"=>view!{<span>{insert.clone()}</span>}.into_any(),"Custom"=>expression::completion_icon(a,insert),_=>view!{<span>{label.chars().take(1).collect::<String>()}</span>}.into_any()}}</span><span>{label.clone()}</span><small class="ml-auto">{if kind=="User"{insert.clone()}else{kind.clone()}}</small></button>}).collect_view()}</div>}.into_any()}}
         {moderation::composer_notice(a,c)}
         {community::composer_notice(a,c)}
@@ -644,6 +647,7 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
     if let Some(x) = m.extra.crosspost() {
         author.display_name = Some(x.source_guild_name.clone());
     }
+    apps::author(m, &mut author);
     let own = a
         .model
         .me
@@ -670,13 +674,13 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
         content::gif(a, m).unwrap_or_else(|| markdown(a, m, &m.content))
     };
     view!{<article class=format!("message group/message relative flex gap-4 px-4 hover:bg-accent {} {}",if continuation{"continuation mt-0.5"}else{"group-head mt-4 in-data-[density=compact]:mt-2"},if mention{"mentioned border-l-2 border-warning bg-warning/8"}else{""}) data-live-message=m.id.0.to_string() tabindex="0" aria-label=format!("Message from {}",name(&author))>
-        <div class="avatar-gutter flex w-10 flex-none items-start justify-center self-start">{if continuation{view!{<time class="gutter-time invisible text-xs leading-[21px] whitespace-nowrap group-focus-within/message:visible group-hover/message:visible">{short_time(m.created_at)}</time>}.into_any()}else{view!{<button class="touch:grid touch:min-h-11 touch:min-w-11 touch:place-items-center touch:p-0.5" data-live=format!("profile:{}",m.author_id.0) aria-label=format!("{}'s profile",name(&author))>{avatar(&author,"message-avatar")}</button>}.into_any()}}</div>
-        <div class="message-content min-w-0 flex-1 wrap-anywhere">{if continuation{().into_any()}else{view!{<div class="message-meta flex min-h-[21px] items-baseline gap-2 phone:flex-wrap phone:gap-x-2 phone:gap-y-1"><button class="author role-color max-w-[min(60%,360px)] truncate p-0 font-semibold" style=themes::role_style(&color(a,m.author_id)) title=name(&author) data-live=format!("profile:{}",m.author_id.0)>{profiles::name_for(a,m.author_id,&name(&author))}</button><time class="text-xs">{timestamp(m.created_at)}</time></div>}.into_any()}}
+        <div class="avatar-gutter flex w-10 flex-none items-start justify-center self-start">{if continuation{view!{<time class="gutter-time invisible text-xs leading-[21px] whitespace-nowrap group-focus-within/message:visible group-hover/message:visible">{short_time(m.created_at)}</time>}.into_any()}else{view!{<button class="touch:grid touch:min-h-11 touch:min-w-11 touch:place-items-center touch:p-0.5" data-live=format!("profile:{}",m.author_id.0) aria-label=format!("{}'s profile",name(&author))>{apps::avatar_override(m).unwrap_or_else(||avatar(&author,"message-avatar"))}</button>}.into_any()}}</div>
+        <div class="message-content min-w-0 flex-1 wrap-anywhere">{if continuation{().into_any()}else{view!{<div class="message-meta flex min-h-[21px] items-baseline gap-2 phone:flex-wrap phone:gap-x-2 phone:gap-y-1"><button class="author role-color max-w-[min(60%,360px)] truncate p-0 font-semibold" style=themes::role_style(&color(a,m.author_id)) title=name(&author) data-live=format!("profile:{}",m.author_id.0)>{profiles::name_for(a,m.author_id,&name(&author))}</button>{apps::tag(&author)}<time class="text-xs">{timestamp(m.created_at)}</time></div>}.into_any()}}
         {if let Some(reply)=m.reply_to{view!{<button class="reply-preview flex max-w-full items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11" data-live=format!("seek-message:{}",reply.0)>{icon_with("reply","icon size-4")}<span class="min-w-0 truncate">{a.model.messages.get(&m.channel_id).and_then(|ms|ms.get(&reply)).map_or("Original message".into(),|m|format!("{}: {}",a.model.name(m.author_id),preview(a,m)))}</span></button>}.into_any()}else{().into_any()}}
-        {body}
-        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{expression::stickers(m)}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}{threads::extras(a,m)}{stage::message_extra(a,m)}
+        {apps::interaction_line(a,m)}{body}
+        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{expression::stickers(m)}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}{apps::extra(a,m)}{threads::extras(a,m)}{stage::message_extra(a,m)}
         {expression::reactions(a,m)}</div>
-        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{expression::message_actions(m)}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{threads::message_actions(a,m)}{privacy::message_actions(a,m)}{themes::message_actions(m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
+        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{expression::message_actions(m)}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{apps::message_actions(a,m)}{threads::message_actions(a,m)}{privacy::message_actions(a,m)}{themes::message_actions(m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
     </article>}.into_any()
 }
 /// A message as its author typed it: mentions are "@username" again.
@@ -796,7 +800,7 @@ fn profile_actions(a: &App, u: &UserSummary) -> AnyView {
             "secondary",
         ),
     };
-    view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{if blocked{().into_any()}else{button("Message",&format!("friend:dm,{id}"),"primary")}}{friendship}{if blocked{button("Unblock",&format!("friend:unblock,{id}"),"secondary")}else{button("Block",&format!("friend:block,{id}"),"danger-text")}}</div>{moderation::member_actions(a,u)}{privacy::profile_extras(a,u)}}.into_any()
+    view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{if blocked{().into_any()}else{button("Message",&format!("friend:dm,{id}"),"primary")}}{friendship}{if blocked{button("Unblock",&format!("friend:unblock,{id}"),"secondary")}else{button("Block",&format!("friend:block,{id}"),"danger-text")}}</div>{moderation::member_actions(a,u)}{apps::member_actions(a,u)}{privacy::profile_extras(a,u)}}.into_any()
 }
 /// What a dialog is called for assistive technology.
 fn dialog_label(dialog: &str) -> &'static str {
@@ -900,6 +904,7 @@ fn dialog(a: &App) -> AnyView {
         value if value.starts_with("channel-delete:")=>settings::channel_delete(a,value),
         value if value.starts_with("channel-move:")=>settings::channel_move(a,value),
         value if moderation::owns(value)=>moderation::page(a,value),
+        value if super::apps::owns_page(value)=>apps::page_view(a,value),
         value if privacy::owns(value)=>privacy::page(a,value),
         value if value.starts_with("invite-revoke:")=>form_with("Revoke Invite","invite-revoke",view!{<p>"This invite link will stop working immediately."</p><input id="f-name" type="hidden" value=value.trim_start_matches("invite-revoke:").to_owned()/>}.into_any(),"dialog:invite",true),
         value if value.starts_with("unban:")=>form_with("Revoke Ban","unban",view!{<p>"This person will be able to join again with an invite."</p><input id="f-name" type="hidden" value=value.trim_start_matches("unban:").to_owned()/>}.into_any(),"dialog:server-bans",true),
@@ -1088,7 +1093,7 @@ fn member_groups(a: &App) -> AnyView {
         let offline=label=="Offline";
         view!{<section class=if offline{"member-group offline"}else{"member-group"}>
             <h2 class="category mx-4 mt-6 mb-2">{format!("{} — {}",label,members.len())}</h2>
-            {members.into_iter().map(|m|{let shown=super::privacy::nickname(m.user.id).or_else(||m.nickname.clone()).unwrap_or_else(||name(&m.user));let look=profiles::member_user(m);view!{<button class=if offline{"member-row flex min-h-[42px] w-full items-center gap-3 px-4 py-1 opacity-60 hover:bg-sidebar-accent hover:opacity-100 touch:min-h-11"}else{ROW} title=shown.clone() data-live=format!("profile:{}",m.user.id.0)>{profiles::nameplate(&look)}{avatar_status(a,&look)}<span class=NAME data-member-name=m.user.id.0.to_string() style=themes::role_style(&color(a,m.user.id))>{profiles::styled_name(&shown,look.style.name.as_ref())}{if m.role==MemberRole::Owner {icon("crown")} else {().into_any()}}</span></button>}}).collect_view()}
+            {members.into_iter().map(|m|{let shown=super::privacy::nickname(m.user.id).or_else(||m.nickname.clone()).unwrap_or_else(||name(&m.user));let look=profiles::member_user(m);view!{<button class=if offline{"member-row flex min-h-[42px] w-full items-center gap-3 px-4 py-1 opacity-60 hover:bg-sidebar-accent hover:opacity-100 touch:min-h-11"}else{ROW} title=shown.clone() data-live=format!("profile:{}",m.user.id.0)>{profiles::nameplate(&look)}{avatar_status(a,&look)}<span class=NAME data-member-name=m.user.id.0.to_string() style=themes::role_style(&color(a,m.user.id))>{profiles::styled_name(&shown,look.style.name.as_ref())}{if m.role==MemberRole::Owner {icon("crown")} else {().into_any()}}{apps::tag(&m.user)}</span></button>}}).collect_view()}
         </section>}
     }).collect_view()}}.into_any()
 }
@@ -1111,6 +1116,7 @@ fn user_settings(page: &str) -> bool {
     ) || page.starts_with("target-notifications:")
         || expression::is_user_page(page)
         || themes::is_user_page(page)
+        || super::apps::is_user_page(page)
 }
 fn settings_nav(a: &App) -> AnyView {
     let u = &a.model.me.as_ref().unwrap().user;
@@ -1123,6 +1129,7 @@ fn settings_nav(a: &App) -> AnyView {
         {settings_nav_row("monitor","Appearance","dialog:appearance",a.dialog=="appearance")}
         {themes::settings_nav(a)}
         {expression::settings_nav(a)}
+        {apps::settings_nav(a)}
         <div class="settings-divider my-6 phone:mb-4"></div><button class="settings-nav-row danger-text flex min-h-9 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium text-destructive hover:bg-destructive/10 touch:min-h-12 touch:text-[15px] phone:mt-0.5 phone:min-h-[52px] phone:bg-accent phone:p-3" data-live="logout">{icon("log-out")}<span class="flex-1">"Log Out"</span></button><small class="muted-copy px-3 pt-4">{concat!("StickTalk ",env!("CARGO_PKG_VERSION"))}</small>
     }.into_any()
 }
@@ -1140,6 +1147,9 @@ fn settings_layout(a: &App, body: AnyView) -> AnyView {
         "media-settings" => "Voice & Video",
         "expression-settings" => "Expression",
         value if themes::title(value).is_some() => themes::title(value).unwrap_or("Settings"),
+        value if super::apps::title(value).is_some() => {
+            super::apps::title(value).unwrap_or("Settings")
+        }
         "notifications" | "channel-notifications" => "Notifications",
         value if value.starts_with("target-notifications:") => "Notifications",
         _ => "Settings",

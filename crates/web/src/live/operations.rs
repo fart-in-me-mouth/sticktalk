@@ -351,6 +351,8 @@ pub(super) fn action(app: Shared, raw: &str) {
         "appearance" => super::themes::action(app, arg),
         "submit" if arg.starts_with("privacy-") => super::privacy::submit(app, arg),
         "cm" => super::community::action(app, arg),
+        "apps" => super::apps::action(app, arg),
+        "submit" if super::apps::is_form(arg) => super::apps::submit(app, arg),
         "submit" if arg.starts_with("cm-") => super::community::submit(app, arg),
         "submit" if arg.starts_with("mod-") => super::moderation::submit(app, arg),
         "pins-refresh" => {
@@ -444,6 +446,8 @@ pub(super) fn action(app: Shared, raw: &str) {
                 }
             }
         }
+        // The `/` command picker (apps.rs).
+        "complete" if arg.starts_with("/|") => super::apps::compose(app, arg),
         "complete" => {
             let epoch = {
                 let mut a = app.borrow_mut();
@@ -469,6 +473,7 @@ pub(super) fn action(app: Shared, raw: &str) {
         }
         "complete-close" => {
             let mut a = app.borrow_mut();
+            super::apps::close_picker(&mut a);
             a.completion_query.clear();
             a.completions.clear();
             a.touch();
@@ -820,6 +825,10 @@ fn expand_shortcodes(content: String) -> String {
     sticktalk_emoji::replace_shortcodes(&content).into_owned()
 }
 fn send_message(app: Shared, content: String) {
+    // `/command`: a built-in or an app's command, not a message (apps.rs).
+    if super::apps::slash(&app, &content) {
+        return;
+    }
     // `:name:` of a custom emoji becomes its token first (expression.rs).
     let content = super::expression::prepare_send(&app.borrow(), &content);
     let candidate = content.split(':').any(|part| {
@@ -1081,6 +1090,7 @@ pub(super) fn load_history(
         });
     }
     super::moderation::channel_opened(app.clone(), c);
+    super::apps::channel_opened(app.clone(), c);
     super::community::channel_opened(app.clone(), c);
     if super::moderation::gated(&app.borrow(), c) {
         // Age-restricted: nothing is fetched until the viewer confirms.
@@ -1266,6 +1276,7 @@ fn open_dialog(app: Shared, name: &str) {
     super::moderation::opened(app.clone(), name);
     super::profiles::opened(app.clone(), name);
     super::privacy::opened(app.clone(), name);
+    super::apps::opened(app.clone(), name);
     let name = name.to_owned();
     spawn_local(async move {
         dialog_data(app, name, epoch, generation).await;
@@ -1992,6 +2003,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     || sticktalk_client_core::http::error_text(&error),
                     str::to_owned,
                 ),
+                (Some(Command::Apps(_)), _) => sticktalk_client_core::http::error_text(&error),
                 (Some(Command::Appearance(c)), code) => super::themes::refused(c, code)
                     .map_or_else(
                         || sticktalk_client_core::http::error_text(&error),
@@ -2019,6 +2031,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             if let Some(op) = operation.clone().filter(super::expression::owns) {
                 drop(a);
                 super::expression::answered(app, op, result);
+                return;
+            }
+            if let Some(op) = operation.clone().filter(super::apps::owns) {
+                drop(a);
+                super::apps::answered(app, op, result);
                 return;
             }
             if let Some(op) = operation.clone().filter(super::profiles::owns) {
@@ -2514,7 +2531,9 @@ pub(super) fn upload(
         a.uploading = false;
         match result {
             Ok(file) => {
-                if super::profiles::uploaded(&mut a, purpose, &file) {
+                if super::profiles::uploaded(&mut a, purpose, &file)
+                    || super::apps::uploaded(&mut a, purpose, &file)
+                {
                 } else if purpose == UploadPurpose::Avatar {
                     a.command(Command::UpdateProfile(ProfilePatch {
                         avatar_id: Patch::Set(file.id),

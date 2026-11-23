@@ -672,19 +672,7 @@ async fn ephemeral(
         Some(id) => id,
         None => core.id().await?,
     };
-    let interaction_meta = match &p.kind {
-        Kind::Command { path, kind } => Some(InteractionMeta {
-            name: path.clone(),
-            user_id: p.user,
-            kind: *kind,
-        }),
-        Kind::Modal { path } => Some(InteractionMeta {
-            name: path.clone(),
-            user_id: p.user,
-            kind: CommandKind::ChatInput,
-        }),
-        _ => None,
-    };
+    let interaction_meta = meta(p);
     let message = EphemeralMessage {
         id,
         channel_id: p.channel,

@@ -176,16 +176,33 @@ Webhooks (no account; the secret URL): `GET|POST /api/v1/webhooks/{id}/{secret}`
   overrides; Remove; and the server's webhooks.
 - Channel settings › **Webhooks**: create, rename, avatar, Copy URL (after
   create or Rotate), Rotate, Delete.
-- Composer: typing `/` opens the command picker (grouped by app, built-ins
-  first, fuzzy search, option hints, validation, autocomplete with a 2 s
-  timeout); `Tab`/`Enter` choose, `Esc` closes. Built-ins: `/shrug`,
-  `/tableflip`, `/unflip`, `/me`, `/spoiler`, `/nick`, `/tts`.
-- Messages: the APP tag on bots and webhooks, "used /command" headers,
-  embeds (accent color, author, title link, fields, image, thumbnail, footer,
-  time), buttons and selects, ephemeral messages ("Only you can see this ·
-  Dismiss"), "thinking…", forms in a dialog, failures as a notice.
-- Everything apps-related is in a lazily loaded module; the first load gains
-  only the event dispatch line and the `/` trigger check.
+- Composer: typing `/` opens the command picker: built-ins first, then each
+  app's commands under its name, fuzzy matched. Choosing one (Tab/Enter or a
+  click) shows its signature; options are typed as `name:value` (quotes keep
+  spaces; `@member`, `#channel`, `@role`), with suggestions for the option
+  being typed (choices, members, roles, channels, true/false, or the bot's
+  autocomplete, which the server drops after 2 s). Text after the command
+  fills its first text option. Enter sends when nothing is left to choose;
+  a problem (missing required option, wrong type) is shown and the draft
+  kept. Built-ins: `/shrug`, `/tableflip`, `/unflip`, `/me`, `/spoiler`,
+  `/nick`, `/tts` (the existing one). Unknown `/words` are sent as text.
+- User and message commands: "Apps" on a message's actions and on a
+  member's profile card, when the channel's apps have such commands (the
+  channel's catalog is fetched only in servers that have a bot member).
+- Messages: the APP tag on bots and webhooks (messages and member list),
+  "*name* used /command" lines, embeds (accent color, author, linked title,
+  Markdown description, inline and full-width fields, image, thumbnail,
+  footer, time), buttons (five styles; link buttons open in a new tab) and
+  selects (with a Choose button), ephemeral messages ("Only you can see
+  this · Dismiss message"), "*app* is thinking…", forms in a dialog, and
+  "didn't respond in time" as a notice.
+- First load: the state struct, the event dispatch, and small hooks that do
+  nothing until an app message, a `/`, or one of these pages appears. The
+  views (`load_views`), the picker (`compose_lazy`), the send intercept
+  (`run_slash`), page data (`refresh`), actions and forms are separate
+  lazily loaded chunks (about 90 KB Brotli together).
+- Browser test: `crates/web/tests/apps.mjs` (needs the reference bot binary;
+  see the file's header).
 
 ## Decisions to revisit
 

@@ -39,6 +39,7 @@ pub(super) fn is_server_page(page: &str) -> bool {
         || super::privacy::is_server_page(page)
         || super::community::is_server_page(page)
         || super::themes::is_server_page(page)
+        || crate::live::apps::is_server_page(page)
         || [
             "role:",
             "channel-edit:",
@@ -101,6 +102,13 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             "Theme",
             "server-theme",
             can(a, Permissions::MANAGE_GUILD),
+        ),
+        // Apps and webhooks (apps.rs).
+        (
+            "layout-grid",
+            "Integrations",
+            "server-integrations",
+            can_any(a, Permissions::MANAGE_GUILD | Permissions::MANAGE_WEBHOOKS),
         ),
     ];
     // Moderation, as its own group.
@@ -271,7 +279,7 @@ pub(super) fn channel_editor(a: &App, page: &str) -> AnyView {
     let edit = form_with("Edit Channel","channel-save",view!{<fieldset disabled=!can(a,Permissions::MANAGE_CHANNELS)>{field("f-name","Name",c.name.as_deref().unwrap_or(""),"text")}{field("f-value","Topic",a.model.topics.get(&c.id).and_then(|t|t.as_deref()).unwrap_or(""),"text")}<input id="f-extra" type="hidden" value=c.id.0.to_string()/></fieldset>{super::call_extras::bitrate_section(a,c)}
         <div class="settings-divider"></div>{if can(a,Permissions::MANAGE_CHANNELS){view!{{button(if c.kind==ChannelKind::Category{"Move Category"}else{"Move Channel"},&format!("dialog:channel-move:{}",c.id.0),"secondary")}{button(if c.kind==ChannelKind::Category{"Delete Category"}else{"Delete Channel"},&format!("dialog:channel-delete:{}",c.id.0),"danger-text")}}.into_any()}else{().into_any()}}
     }.into_any(),"dialog:server-channels",can(a,Permissions::MANAGE_CHANNELS));
-    view! {{edit}{safety}}.into_any()
+    view! {{edit}{safety}{super::apps::channel_section(a,c)}}.into_any()
 }
 /// Put a channel inside another one, or back at the top level.
 pub(super) fn channel_move(a: &App, page: &str) -> AnyView {

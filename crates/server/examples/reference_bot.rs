@@ -14,7 +14,9 @@ use std::time::Duration;
 use sticktalk_proto::*;
 use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message as Frame};
 
-const NAMES: &[&str] = &["Ada", "Alan", "Grace", "Linus", "Margaret", "Barbara", "Ken"];
+const NAMES: &[&str] = &[
+    "Ada", "Alan", "Grace", "Linus", "Margaret", "Barbara", "Ken",
+];
 
 #[allow(dead_code)]
 #[tokio::main(flavor = "current_thread")]
@@ -50,7 +52,12 @@ pub fn commands() -> Vec<CommandDraft> {
     }]
 }
 
-fn button(style: ButtonStyle, label: &str, custom_id: Option<&str>, url: Option<&str>) -> Component {
+fn button(
+    style: ButtonStyle,
+    label: &str,
+    custom_id: Option<&str>,
+    url: Option<&str>,
+) -> Component {
     Component::Button(Button {
         style,
         label: Some(label.into()),
@@ -79,10 +86,13 @@ fn feedback_form() -> Modal {
 }
 
 fn string_option<'a>(options: &'a [InvokedOption], name: &str) -> Option<&'a str> {
-    options.iter().find(|o| o.name == name).and_then(|o| match &o.value {
-        Some(OptionValue::String(s)) => Some(s.as_str()),
-        _ => None,
-    })
+    options
+        .iter()
+        .find(|o| o.name == name)
+        .and_then(|o| match &o.value {
+            Some(OptionValue::String(s)) => Some(s.as_str()),
+            _ => None,
+        })
 }
 
 /// What the bot answers to one interaction.
@@ -138,9 +148,13 @@ pub fn answer(i: &Interaction) -> Option<InteractionResponse> {
                     .collect(),
             }
         }
-        InteractionData::Component(c) if c.custom_id == "wave" => {
-            private(format!("{} waves back. 👋", i.user.display_name.clone().unwrap_or_else(|| i.user.username.clone())))
-        }
+        InteractionData::Component(c) if c.custom_id == "wave" => private(format!(
+            "{} waves back. 👋",
+            i.user
+                .display_name
+                .clone()
+                .unwrap_or_else(|| i.user.username.clone())
+        )),
         InteractionData::Component(c) if c.custom_id == "feedback" => {
             InteractionResponse::Modal(feedback_form())
         }
@@ -164,11 +178,15 @@ fn encode(m: &ClientMsg) -> Frame {
 /// Connects, registers the command and answers interactions until the
 /// connection closes.
 pub async fn run(url: &str, token: &str) -> Result<(), String> {
-    let ws_url = format!("{}/api/v1/ws", url.trim_end_matches('/').replacen("http", "ws", 1));
+    let ws_url = format!(
+        "{}/api/v1/ws",
+        url.trim_end_matches('/').replacen("http", "ws", 1)
+    );
     let mut request = ws_url.into_client_request().map_err(|e| e.to_string())?;
-    request
-        .headers_mut()
-        .insert("sec-websocket-protocol", "sticktalk.v1".parse().expect("header"));
+    request.headers_mut().insert(
+        "sec-websocket-protocol",
+        "sticktalk.v1".parse().expect("header"),
+    );
     let (ws, _) = tokio_tungstenite::connect_async(request)
         .await
         .map_err(|e| e.to_string())?;
@@ -185,7 +203,8 @@ pub async fn run(url: &str, token: &str) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
     let mut nonce: u64 = 1;
     let mut last_seq = 0;
-    let mut heartbeat = tokio::time::interval(Duration::from_millis(u64::from(HEARTBEAT_INTERVAL_MS)));
+    let mut heartbeat =
+        tokio::time::interval(Duration::from_millis(u64::from(HEARTBEAT_INTERVAL_MS)));
     heartbeat.tick().await;
     loop {
         tokio::select! {

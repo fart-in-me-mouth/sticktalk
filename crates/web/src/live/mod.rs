@@ -1,4 +1,5 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
+mod apps;
 mod authsec;
 mod calls;
 mod community;
@@ -173,6 +174,8 @@ struct App {
     stage: stage::State,
     /// Custom and server themes, the theme editor, shared themes.
     themes: themes::State,
+    /// Apps, bots, commands, interactions and webhooks.
+    apps: apps::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -245,6 +248,7 @@ impl App {
         self.community = Default::default();
         self.stage = Default::default();
         self.themes = Default::default();
+        self.apps = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -413,6 +417,7 @@ pub fn mount() {
             community: Default::default(),
             stage: Default::default(),
             themes: Default::default(),
+            apps: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -695,6 +700,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 moderation::connected(app.clone());
                                 privacy::connected(app.clone());
                                 themes::connected(app.clone());
+                                apps::ready(app.clone());
                                 let channel = app.borrow().channel;
                                 if let Some(c) = channel {
                                     operations::load_channel(app.clone(), c, None);
@@ -794,6 +800,7 @@ async fn socket(app: Shared, epoch: u64) {
                                         Event::Moderation(e) => moderation::event(&mut a, e),
                                         Event::Privacy(e) => privacy::event(&mut a, e),
                                         Event::Appearance(e) => themes::event(&mut a, e),
+                                        Event::Apps(e) => apps::event(&mut a, e.clone()),
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id

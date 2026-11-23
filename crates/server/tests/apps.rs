@@ -179,7 +179,9 @@ async fn the_reference_bot_answers_a_slash_command_buttons_and_a_form() {
     me.command(Command::Apps(AppCommand::Install(InstallRequest {
         app_id: info.id,
         guild_id: g,
-        permissions: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES | Permissions::EMBED_LINKS,
+        permissions: Permissions::VIEW_CHANNEL
+            | Permissions::SEND_MESSAGES
+            | Permissions::EMBED_LINKS,
         message_content: false,
         confirm_administrator: false,
     })))
@@ -203,7 +205,10 @@ async fn the_reference_bot_answers_a_slash_command_buttons_and_a_form() {
         .await
         .unwrap();
     let hello = catalog.apps[0].commands[0].clone();
-    assert_eq!((hello.name.as_str(), catalog.apps[0].name.as_str()), ("hello", "Reference"));
+    assert_eq!(
+        (hello.name.as_str(), catalog.apps[0].name.as_str()),
+        ("hello", "Reference")
+    );
     // Autocomplete.
     me.command(Command::Apps(AppCommand::Autocomplete {
         invocation: Invocation {
@@ -222,7 +227,10 @@ async fn the_reference_bot_answers_a_slash_command_buttons_and_a_form() {
     .await;
     let choices = me
         .event(|e| match e {
-            Event::Apps(AppEvent::Autocomplete { request: 1, choices }) => Some(choices.clone()),
+            Event::Apps(AppEvent::Autocomplete {
+                request: 1,
+                choices,
+            }) => Some(choices.clone()),
             _ => None,
         })
         .await;
