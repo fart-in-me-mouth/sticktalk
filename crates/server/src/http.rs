@@ -23,6 +23,7 @@ pub fn router(app: App) -> axum::Router {
         .merge(crate::browser::routes())
         .merge(crate::custom_emoji::routes())
         .merge(crate::mcp::routes())
+        .merge(crate::moderation::routes())
         .route(
             "/api/v1/users/@me/server-folders",
             get(crate::folders::endpoint),
@@ -692,6 +693,7 @@ pub(crate) async fn api(State(app): State<App>, r: Request<Body>) -> Result<ApiR
         ["channels", ch, "messages"] => {
             let ch = url_id(ch)?;
             text(&mut c, u, ch, Permissions::READ_HISTORY).await?;
+            crate::moderation::age_gate(&mut c, u, ch).await?;
             // Separate static statements keep SQLite on the (channel_id,id) index;
             // ORDER BY CASE would force a history-wide sort before applying LIMIT.
             let limit = i64::from(q.limit.unwrap_or(50)) + 1;

@@ -115,6 +115,7 @@ pub(crate) struct Core {
     pub streams: HashMap<Vec<u8>, Stream>,
     pub voice: HashMap<VoiceSession, crate::voice::Entry>,
     pub limits: HashMap<String, Bucket>,
+    pub moderation: crate::moderation::Runtime,
     last_id: u64,
     worker: u16,
 }
@@ -304,6 +305,10 @@ impl Core {
             .values_mut()
             .filter(|s| users.contains(&s.user) && filter(s))
         {
+            if matches!(&event, Event::Moderation(_)) && !self.moderation.subscribed.contains(&s.id)
+            {
+                continue;
+            }
             if !s.text_features
                 && matches!(
                     &event,
@@ -466,6 +471,7 @@ impl App {
                 streams: HashMap::new(),
                 voice: HashMap::new(),
                 limits: HashMap::new(),
+                moderation: Default::default(),
                 last_id,
                 worker,
             }),
@@ -686,6 +692,7 @@ mod tests {
             streams: HashMap::new(),
             voice: HashMap::new(),
             limits: HashMap::new(),
+            moderation: Default::default(),
             last_id: 0,
             worker: 0,
         }

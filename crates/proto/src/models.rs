@@ -107,6 +107,9 @@ pub struct Member {
     pub role_ids: Vec<crate::Id>,
     #[serde(default)]
     pub nickname: Option<String>,
+    /// While in the future the member is timed out: they can read, not talk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_until: Option<UnixMillis>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

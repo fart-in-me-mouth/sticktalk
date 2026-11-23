@@ -171,8 +171,9 @@ impl Transport for Browser {
                 Closure::wrap(Box::new(move |event: MessageEvent| {
                     let frame = if let Ok(buffer) = event.data().dyn_into::<js_sys::ArrayBuffer>() {
                         let count = buffer.byte_length() as usize;
-                        if count > sticktalk_proto::MAX_WS_FRAME_BYTES as usize
-                            || queued.get() + count > 2 * 1024 * 1024
+                        if count > sticktalk_proto::MAX_SERVER_FRAME_BYTES as usize
+                            || queued.get() + count
+                                > 2 * 1024 * 1024 + sticktalk_proto::MAX_SERVER_FRAME_BYTES as usize
                         {
                             let _ = tx.borrow_mut().try_send(Ok(Frame::Close(Some(1009))));
                             tx.borrow_mut().close_channel();

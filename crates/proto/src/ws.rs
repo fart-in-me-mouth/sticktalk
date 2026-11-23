@@ -320,6 +320,7 @@ pub enum CommandResult {
     Reaction(ReactionUpdate),
     ReadState(ReadState),
     Subscription { presences: Vec<Presence> },
+    Moderation(ModerationResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -421,6 +422,8 @@ pub enum Event {
         expires_at: UnixMillis,
     },
     ReadStateUpdated(ReadState),
+    /// Only sent to streams that sent `ModerationCommand::Subscribe`.
+    Moderation(ModerationEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

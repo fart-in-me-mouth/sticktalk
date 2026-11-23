@@ -76,6 +76,7 @@ fn member() -> Member {
         joined_at: SNOWFLAKE_EPOCH_MS,
         role_ids: vec![],
         nickname: None,
+        timeout_until: None,
     }
 }
 
@@ -703,6 +704,7 @@ fn maximum_bootstrap_metadata_fits_the_frame_budget() {
             joined_at: SNOWFLAKE_EPOCH_MS,
             role_ids,
             nickname: Some("🦀".repeat(32)),
+            timeout_until: Some(i64::MAX as u64),
         });
         ready.notification_settings.push(NotificationSettings {
             guild_id: Some(guild_id),
@@ -729,7 +731,7 @@ fn maximum_bootstrap_metadata_fits_the_frame_budget() {
     let bytes = rmp_serde::to_vec_named(&wire).unwrap();
     println!("maximum launch Ready bytes: {}", bytes.len());
     assert!(
-        bytes.len() <= MAX_WS_FRAME_BYTES as usize,
+        bytes.len() <= MAX_SERVER_FRAME_BYTES as usize,
         "Ready was {} bytes",
         bytes.len()
     );

@@ -991,6 +991,11 @@ async fn migration_preserves_legacy_member_admin_owner_and_wire_bits() {
         .execute(&mut c)
         .await
         .unwrap();
+    // Evaluation also reads timeouts, a later migration.
+    sqlx::raw_sql("CREATE TABLE member_timeouts(guild_id INTEGER,user_id INTEGER,until INTEGER,reason TEXT,actor_id INTEGER)")
+        .execute(&mut c)
+        .await
+        .unwrap();
     assert!(acl::evaluate(&mut c, Id(1), Id(10), None)
         .await
         .unwrap()
@@ -1622,23 +1627,31 @@ async fn any_channel_nests_in_any_other_and_inherits_every_level() {
 async fn nesting_is_as_deep_as_the_guild_channel_limit() {
     let (_dir, app) = fixture().await;
     let mut core = app.0.core.lock().await;
-    // `general` plus a chain of 31, each inside the one before it.
-    let mut chain = vec![];
-    for n in 0..31 {
-        let kind = if n % 2 == 0 {
-            ChannelKind::Text
-        } else {
-            ChannelKind::Category
-        };
-        let parent = chain.last().copied();
-        chain.push(nest(&app, &mut core, n + 1, kind, &format!("level{n}"), parent).await);
+    // `general` plus a chain of 499, each inside the one before it: far past the
+    // old 64-level evaluation bound, so the bound must follow the channel limit.
+    let depth = MAX_CHANNELS_PER_GUILD - 1;
+    // Stored directly up to the last level, which goes through the command.
+    let mut chain: Vec<Id> = vec![];
+    for n in 0..depth as u64 - 1 {
+        let kind = if n % 2 == 0 { "text" } else { "category" };
+        sqlx::query("INSERT INTO channels(id,kind,guild_id,parent_id,name,position,created_at) VALUES(?,?,10,?,?,0,0)")
+            .bind(100_000 + n as i64)
+            .bind(kind)
+            .bind(chain.last().map(|v| v.0 as i64))
+            .bind(format!("level{n}"))
+            .execute(&app.0.pool)
+            .await
+            .unwrap();
+        chain.push(Id(100_000 + n));
     }
+    let parent = chain.last().copied();
+    chain.push(nest(&app, &mut core, 1, ChannelKind::Text, "deepest", parent).await);
     denied(
         command(
             &app,
             &mut core,
             1,
-            40,
+            1000,
             Command::CreateChannel {
                 guild_id: Id(10),
                 kind: ChannelKind::Text,
@@ -1650,14 +1663,14 @@ async fn nesting_is_as_deep_as_the_guild_channel_limit() {
         .await,
     );
     let listed = tree(&app, 2).await;
-    assert_eq!(listed.len(), 32);
-    assert_eq!(listed[31], (chain[30], Some(chain[29])));
+    assert_eq!(listed.len(), MAX_CHANNELS_PER_GUILD);
+    assert_eq!(listed[depth], (chain[depth - 1], Some(chain[depth - 2])));
     // A deny on the outermost level reaches the innermost one.
     ok(run(
         &app,
         &mut core,
         1,
-        41,
+        1001,
         LaunchCommand::SetOverwrites {
             channel_id: chain[0],
             overwrites: vec![overwrite(
@@ -1670,7 +1683,7 @@ async fn nesting_is_as_deep_as_the_guild_channel_limit() {
     )
     .await);
     let mut conn = app.0.pool.acquire().await.unwrap();
-    let deepest = acl::evaluate(&mut conn, Id(2), Id(10), Some(chain[30]))
+    let deepest = acl::evaluate(&mut conn, Id(2), Id(10), Some(chain[depth - 1]))
         .await
         .unwrap();
     assert!(deepest.contains(Permissions::VIEW_CHANNEL));

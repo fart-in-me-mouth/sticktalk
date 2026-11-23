@@ -47,7 +47,9 @@ pub struct MessageSearchPage {
     pub terms: Vec<String>,
 }
 
-pub const SLOWMODE_SECONDS: &[u32] = &[0, 5, 10, 30, 60, 300, 900, 3600, 21600];
+pub const SLOWMODE_SECONDS: &[u32] = &[
+    0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600,
+];
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SlowmodeStatus {
     pub channel_id: ChannelId,

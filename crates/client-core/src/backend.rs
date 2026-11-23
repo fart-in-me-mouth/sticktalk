@@ -253,8 +253,9 @@ impl std::fmt::Debug for AccountAction {
     }
 }
 pub fn decode(bytes: &[u8]) -> Result<ServerMsg, String> {
-    if bytes.len() > MAX_WS_FRAME_BYTES as usize {
-        return Err("Server frame exceeds 512 KiB".into());
+    // Server frames (the initial snapshot above all) may exceed the command limit.
+    if bytes.len() > MAX_SERVER_FRAME_BYTES as usize {
+        return Err("Server frame is too large".into());
     }
     let mut de = rmp_serde::Deserializer::new(std::io::Cursor::new(bytes));
     de.set_max_depth(32);

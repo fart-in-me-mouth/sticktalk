@@ -50,6 +50,7 @@ pub(crate) async fn mutate(
             channel_id,
             seconds,
         } => crate::slowmode::set(c, u, channel_id, seconds, out).await,
+        Moderation(cmd) => crate::moderation::mutate(c, core, key, u, cmd, out).await,
         RenameEmoji {
             guild_id,
             emoji_id,
@@ -633,8 +634,21 @@ pub(crate) async fn filter_event(
         _ => None,
     };
     let mut allowed = vec![];
+    // Many recipients: one batched audience instead of one evaluation each.
+    let viewers = match ch {
+        Some(ch) if users.len() > 2 => Some(match audience(c, ch).await {
+            Ok(v) => v.into_iter().collect::<std::collections::HashSet<_>>(),
+            Err(e) if e.0.code == ErrorCode::NotFound => Default::default(),
+            Err(e) => return Err(e),
+        }),
+        _ => None,
+    };
     for u in users {
-        if let Some(ch) = ch {
+        if let Some(viewers) = &viewers {
+            if !viewers.contains(&u) {
+                continue;
+            }
+        } else if let Some(ch) = ch {
             if access(c, u, ch, Permissions::VIEW_CHANNEL).await.is_err() {
                 continue;
             }
@@ -749,7 +763,7 @@ pub(crate) async fn snapshot(
             let ch = url_id(ch)?;
             text(c, u, ch, Permissions::READ_HISTORY).await?;
             let mut messages = vec![];
-            for m in sqlx::query_scalar::<_,i64>("SELECT p.message_id FROM pins p JOIN messages m ON m.id=p.message_id WHERE p.channel_id=? AND m.deleted_at IS NULL ORDER BY p.pinned_at DESC,p.message_id DESC LIMIT 50").bind(id(ch)?).fetch_all(&mut *c).await? {messages.push(message(c,u,ch,Id(m as u64),false).await?);}
+            for m in sqlx::query_scalar::<_,i64>("SELECT p.message_id FROM pins p JOIN messages m ON m.id=p.message_id WHERE p.channel_id=?2 AND m.deleted_at IS NULL ORDER BY p.pinned_at DESC,p.message_id DESC LIMIT ?1").bind(MAX_PINS_PER_CHANNEL as i64).bind(id(ch)?).fetch_all(&mut *c).await? {messages.push(message(c,u,ch,Id(m as u64),false).await?);}
             snap!(messages)
         }
         ["me", "notifications"] => snap!(notifications(c, u).await?),

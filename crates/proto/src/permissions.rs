@@ -33,6 +33,9 @@ bitflags::bitflags! {
         const USE_VOICE_ACTIVITY = 1 << 26;
         const PRIORITY_SPEAKER = 1 << 27;
         const MANAGE_EMOJI = 1 << 28;
+        const VIEW_AUDIT_LOG = 1 << 29;
+        /// Time out members (Discord's "Moderate Members").
+        const MODERATE_MEMBERS = 1 << 30;
     }
 }
 

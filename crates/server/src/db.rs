@@ -183,6 +183,7 @@ pub async fn member(c: &mut SqliteConnection, g: Id, u: Id) -> Result<Member> {
         role,
         permissions: crate::permissions::evaluate(c, u, g, None).await?,
         role_ids: crate::permissions::role_ids(c, g, u).await?,
+        timeout_until: crate::moderation::timeout_until(c, g, u).await?,
         nickname: sqlx::query_scalar(
             "SELECT nickname FROM nicknames WHERE guild_id=? AND user_id=?",
         )
@@ -306,16 +307,7 @@ pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Re
 pub async fn audience(c: &mut SqliteConnection, ch: Id) -> Result<Vec<Id>> {
     let ch = channel(c, ch).await?;
     if let Some(g) = ch.summary.guild_id {
-        let mut users = vec![];
-        for u in guild_users(c, g).await? {
-            if crate::permissions::evaluate(c, u, g, Some(ch.summary.id))
-                .await?
-                .contains(Permissions::VIEW_CHANNEL)
-            {
-                users.push(u);
-            }
-        }
-        Ok(users)
+        crate::capacity::members_with(c, g, Some(ch.summary.id), Permissions::VIEW_CHANNEL).await
     } else {
         Ok(ch.summary.recipient_ids)
     }
@@ -325,29 +317,35 @@ pub async fn channels(
     u: Id,
     g: Option<Id>,
 ) -> Result<Vec<ChannelSummary>> {
-    let ids: Vec<i64> = if let Some(g) = g {
+    // Server channels are loaded and evaluated a server at a time (see
+    // `capacity`); only direct messages are read one by one.
+    let (guilds, dms): (Vec<i64>, Vec<i64>) = if let Some(g) = g {
         role(c, u, g).await?;
-        sqlx::query_scalar("SELECT id FROM channels WHERE guild_id=? ORDER BY position,id")
-            .bind(id(g)?)
-            .fetch_all(&mut *c)
-            .await?
+        (vec![id(g)?], vec![])
     } else {
-        sqlx::query_scalar("SELECT c.id FROM channels c WHERE c.guild_id IN (SELECT guild_id FROM guild_members WHERE user_id=?) OR c.id IN(SELECT channel_id FROM dm_members WHERE user_id=? AND visible=1) ORDER BY c.position,c.id").bind(id(u)?).bind(id(u)?).fetch_all(&mut *c).await?
+        (
+            sqlx::query_scalar("SELECT guild_id FROM guild_members WHERE user_id=? ORDER BY guild_id")
+                .bind(id(u)?)
+                .fetch_all(&mut *c)
+                .await?,
+            sqlx::query_scalar("SELECT channel_id FROM dm_members WHERE user_id=? AND visible=1 ORDER BY channel_id")
+                .bind(id(u)?)
+                .fetch_all(&mut *c)
+                .await?,
+        )
     };
     let mut list = vec![];
     let mut parents: HashMap<Id, Option<Id>> = HashMap::new();
-    for i in ids {
-        let ch = channel(c, Id(i as u64)).await?.summary;
-        if let Some(g) = ch.guild_id {
+    for g in guilds {
+        for (ch, visible) in crate::capacity::guild_channels(c, u, Id(g as u64)).await? {
             parents.insert(ch.id, ch.parent_id);
-            if !crate::permissions::evaluate(c, u, g, Some(ch.id))
-                .await?
-                .contains(Permissions::VIEW_CHANNEL)
-            {
-                continue;
+            if visible {
+                list.push(ch);
             }
         }
-        list.push(ch);
+    }
+    for i in dms {
+        list.push(channel(c, Id(i as u64)).await?.summary);
     }
     let visible: HashSet<Id> = list.iter().map(|c| c.id).collect();
     let (nested, mut dms): (Vec<_>, Vec<_>) = list.into_iter().partition(|c| c.guild_id.is_some());
@@ -454,7 +452,7 @@ pub async fn guild_quota(c: &mut SqliteConnection, u: Id) -> Result<()> {
         .bind(id(u)?)
         .fetch_one(c)
         .await?;
-    require(n < 10, ErrorCode::LimitExceeded)
+    require(n < MAX_GUILDS_PER_USER as i64, ErrorCode::LimitExceeded)
 }
 pub fn attachment_row(r: &SqliteRow) -> Attachment {
     Attachment {

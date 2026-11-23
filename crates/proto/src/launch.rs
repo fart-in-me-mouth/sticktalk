@@ -2,9 +2,9 @@ use crate::*;
 use serde::{Deserialize, Serialize};
 
 pub type RoleId = Id;
-pub const MAX_ROLES_PER_GUILD: usize = 64;
+pub const MAX_ROLES_PER_GUILD: usize = 250;
 pub const MAX_CHANNEL_OVERWRITES: usize = 128;
-pub const MAX_PINS_PER_CHANNEL: usize = 50;
+pub const MAX_PINS_PER_CHANNEL: usize = 250;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Role {
     pub id: RoleId,
@@ -174,4 +174,5 @@ pub enum LaunchCommand {
         session_id: String,
     },
     LogoutAllOthers,
+    Moderation(ModerationCommand),
 }

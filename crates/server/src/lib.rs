@@ -6,6 +6,7 @@ mod audit_tests;
 pub mod backup;
 pub mod blob;
 pub mod browser;
+mod capacity;
 mod commands;
 mod custom_emoji;
 mod db;
@@ -21,6 +22,7 @@ mod launch;
 mod legacy;
 mod mcp;
 mod mentions;
+mod moderation;
 mod reauth;
 mod search;
 mod slowmode;
@@ -45,6 +47,7 @@ pub use state::{App, Config};
 pub fn router(app: App) -> axum::Router {
     voice::spawn(&app);
     push::spawn(&app);
+    moderation::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]
