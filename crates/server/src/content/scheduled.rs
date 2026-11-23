@@ -104,13 +104,15 @@ pub(super) async fn update(
 ) -> Result<ContentResult> {
     let old = own(c, u, s).await?;
     let content = validate(c, u, old.channel_id, &d).await?;
-    sqlx::query("UPDATE scheduled_messages SET content=?,mention_ids=?,send_at=?,failure=NULL WHERE id=?")
-        .bind(&content)
-        .bind(mentions_json(&d.mention_ids))
-        .bind(d.send_at as i64)
-        .bind(id(s)?)
-        .execute(&mut *c)
-        .await?;
+    sqlx::query(
+        "UPDATE scheduled_messages SET content=?,mention_ids=?,send_at=?,failure=NULL WHERE id=?",
+    )
+    .bind(&content)
+    .bind(mentions_json(&d.mention_ids))
+    .bind(d.send_at as i64)
+    .bind(id(s)?)
+    .execute(&mut *c)
+    .await?;
     let scheduled = own(c, u, s).await?;
     out.push((
         vec![u],

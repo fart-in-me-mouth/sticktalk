@@ -10,7 +10,9 @@ fn valid_emoji(e: &str) -> bool {
     !e.is_empty()
         && e.len() <= 32
         && e.chars().count() <= 8
-        && !e.chars().any(|c| c.is_ascii() || c.is_control() || c.is_whitespace())
+        && !e
+            .chars()
+            .any(|c| c.is_ascii() || c.is_control() || c.is_whitespace())
 }
 
 pub(super) async fn create(
@@ -213,13 +215,15 @@ pub(super) async fn end(
         author == u || moderator(c, u, &channel).await?,
         ErrorCode::Forbidden,
     )?;
-    let closed = sqlx::query("UPDATE polls SET closed_at=? WHERE message_id=? AND closed_at IS NULL AND expires_at>?")
-        .bind(now() as i64)
-        .bind(id(m)?)
-        .bind(now() as i64)
-        .execute(&mut *c)
-        .await?
-        .rows_affected();
+    let closed = sqlx::query(
+        "UPDATE polls SET closed_at=? WHERE message_id=? AND closed_at IS NULL AND expires_at>?",
+    )
+    .bind(now() as i64)
+    .bind(id(m)?)
+    .bind(now() as i64)
+    .execute(&mut *c)
+    .await?
+    .rows_affected();
     require(closed == 1, ErrorCode::Conflict)?;
     let poll = load(c, m, u)
         .await?

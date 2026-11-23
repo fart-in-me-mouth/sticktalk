@@ -48,7 +48,10 @@ async fn voters(
     h: HeaderMap,
 ) -> Result<http::ApiResponse> {
     let (mut c, u) = who(&app, &h).await?;
-    require(usize::from(answer) < MAX_POLL_ANSWERS, ErrorCode::InvalidRequest)?;
+    require(
+        usize::from(answer) < MAX_POLL_ANSWERS,
+        ErrorCode::InvalidRequest,
+    )?;
     let page = polls::voters(&mut c, u, Id(ch), Id(m), answer, q.after.map(Id)).await?;
     Ok(http::json(page))
 }

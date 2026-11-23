@@ -251,6 +251,28 @@ fn inline(
                 }
             }
         }
+        // `<https://...>` is a link without a preview; the brackets are not shown.
+        if let Some(rest) = s.strip_prefix('<') {
+            if rest.starts_with("https://") || rest.starts_with("http://") {
+                if let Some(end) = rest
+                    .find('>')
+                    .filter(|e| !rest[..*e].contains(char::is_whitespace))
+                {
+                    let url = &rest[..end];
+                    if safe_url(url) {
+                        push(
+                            out,
+                            url.into(),
+                            style,
+                            Some(Target::Auto(url.into())),
+                            hidden,
+                        );
+                        s = &rest[end + 1..];
+                        continue;
+                    }
+                }
+            }
+        }
         if s.starts_with("https://") || s.starts_with("http://") {
             let end = s.find(char::is_whitespace).unwrap_or(s.len());
             let url = s[..end].trim_end_matches(['.', ',', '!', ';', ')', ']']);
@@ -321,6 +343,16 @@ mod tests {
             .iter()
             .any(|x| matches!(x.target, Some(Target::Masked(_)))));
         assert!(v.iter().any(|x| matches!(x.target, Some(Target::Auto(_)))));
+        let quiet = parse("see <https://example.com/a> now").blocks;
+        let Block::Paragraph(v) = &quiet[0] else {
+            panic!()
+        };
+        assert!(v.iter().any(
+            |x| x.text == "https://example.com/a" && matches!(x.target, Some(Target::Auto(_)))
+        ));
+        assert!(!v
+            .iter()
+            .any(|x| x.text.contains('<') || x.text.contains('>')));
         assert!(v.last().unwrap().text.contains("*literal*"));
     }
     #[test]

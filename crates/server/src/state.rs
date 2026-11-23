@@ -461,7 +461,7 @@ impl App {
         let browser = crate::browser::Browser::new(&config)?;
         let push = crate::push::Push::new(&config).await?;
         let tier = crate::tier::Tier::new(&config)?;
-        let content = crate::content::Content::new(&config.operations.content);
+        let content = crate::content::Content::configured(&config.operations.content, config.bind)?;
         let app = Self(Arc::new(Inner {
             tier,
             browser,

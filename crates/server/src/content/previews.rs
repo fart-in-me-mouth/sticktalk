@@ -219,6 +219,30 @@ impl Previews {
             limits: Mutex::new(HashMap::new()),
         }
     }
+    /// `--mock-link-preview-host`: one name, on loopback, and no real DNS.
+    pub(crate) fn mock(&self, host: String) {
+        struct Mock(String);
+        impl HostResolver for Mock {
+            fn lookup(&self, host: String) -> Lookup {
+                let ok = host.eq_ignore_ascii_case(&self.0);
+                Box::pin(async move {
+                    if ok {
+                        Ok(vec![IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)])
+                    } else {
+                        Err(std::io::Error::other("only the mock host resolves"))
+                    }
+                })
+            }
+        }
+        *self.net.write().unwrap() = (
+            Net {
+                resolver: Arc::new(Mock(host)),
+                allow_ip: |ip| ip == IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+                allow_name: public_name,
+            },
+            None,
+        );
+    }
     #[cfg(test)]
     pub(crate) fn set_net(&self, net: Net) {
         *self.net.write().unwrap() = (net, None);
@@ -281,11 +305,19 @@ impl Previews {
         cache.insert(url, (now(), page));
         let size = |c: &HashMap<String, (u64, Option<Arc<Page>>)>| -> usize {
             c.values()
-                .map(|(_, p)| p.as_ref().and_then(|p| p.image.as_ref()).map_or(0, |i| i.bytes.len()))
+                .map(|(_, p)| {
+                    p.as_ref()
+                        .and_then(|p| p.image.as_ref())
+                        .map_or(0, |i| i.bytes.len())
+                })
                 .sum()
         };
         while cache.len() > CACHE_ENTRIES || size(&cache) > CACHE_BYTES {
-            let Some(oldest) = cache.iter().min_by_key(|(_, (at, _))| *at).map(|(k, _)| k.clone()) else {
+            let Some(oldest) = cache
+                .iter()
+                .min_by_key(|(_, (at, _))| *at)
+                .map(|(k, _)| k.clone())
+            else {
                 break;
             };
             cache.remove(&oldest);
@@ -304,7 +336,12 @@ impl Previews {
 
     async fn fetch_page(&self, url: &str) -> Result<Option<Page>> {
         let (final_url, body) = self
-            .get(url, &["text/html", "application/xhtml+xml"], MAX_PAGE_BYTES, true)
+            .get(
+                url,
+                &["text/html", "application/xhtml+xml"],
+                MAX_PAGE_BYTES,
+                true,
+            )
             .await?;
         let html = String::from_utf8_lossy(&body);
         let meta = parse_html(&html);
@@ -330,13 +367,24 @@ impl Previews {
         page.site_name = page.site_name.filter(|s| !s.is_empty());
         page.title = page.title.filter(|s| !s.is_empty());
         page.description = page.description.filter(|s| !s.is_empty());
-        let image = ["og:image:secure_url", "og:image:url", "og:image", "twitter:image", "twitter:image:src"]
-            .iter()
-            .find_map(|k| meta.get(*k))
-            .and_then(|src| final_url.join(src.trim()).ok());
+        let image = [
+            "og:image:secure_url",
+            "og:image:url",
+            "og:image",
+            "twitter:image",
+            "twitter:image:src",
+        ]
+        .iter()
+        .find_map(|k| meta.get(*k))
+        .and_then(|src| final_url.join(src.trim()).ok());
         if let Some(image) = image {
             if let Ok((_, bytes)) = self
-                .get(image.as_str(), &["image/png", "image/jpeg", "image/gif", "image/webp"], MAX_IMAGE_BYTES, false)
+                .get(
+                    image.as_str(),
+                    &["image/png", "image/jpeg", "image/gif", "image/webp"],
+                    MAX_IMAGE_BYTES,
+                    false,
+                )
                 .await
             {
                 page.image = tokio::task::spawn_blocking(move || shrink(&bytes))
@@ -345,8 +393,10 @@ impl Previews {
                     .flatten();
             }
         }
-        Ok((page.title.is_some() || page.description.is_some() || page.image.is_some())
-            .then_some(page))
+        Ok(
+            (page.title.is_some() || page.description.is_some() || page.image.is_some())
+                .then_some(page),
+        )
     }
 
     /// GET with manual, re-checked redirects. Returns the final URL and body.
@@ -390,7 +440,10 @@ impl Previews {
                 .unwrap_or_default()
                 .trim()
                 .to_ascii_lowercase();
-            require(types.contains(&kind.as_str()), ErrorCode::UnsupportedMediaType)?;
+            require(
+                types.contains(&kind.as_str()),
+                ErrorCode::UnsupportedMediaType,
+            )?;
             if let Some(len) = response.content_length().filter(|_| !stop_at_head) {
                 require(len as usize <= cap, ErrorCode::PayloadTooLarge)?;
             }
@@ -408,7 +461,15 @@ impl Previews {
                     break;
                 }
                 body.extend_from_slice(&chunk);
-                if stop_at_head && find_ci(&String::from_utf8_lossy(&body[body.len().saturating_sub(chunk.len() + 8)..]), "</head").is_some() {
+                if stop_at_head
+                    && find_ci(
+                        &String::from_utf8_lossy(
+                            &body[body.len().saturating_sub(chunk.len() + 8)..],
+                        ),
+                        "</head",
+                    )
+                    .is_some()
+                {
                     break;
                 }
             }
@@ -421,11 +482,17 @@ impl Previews {
 fn check_url(url: &reqwest::Url, net: &Net) -> Result<()> {
     let bad = || Error::new(ErrorCode::InvalidRequest);
     require(
-        matches!(url.scheme(), "http" | "https") && url.username().is_empty() && url.password().is_none(),
+        matches!(url.scheme(), "http" | "https")
+            && url.username().is_empty()
+            && url.password().is_none(),
         ErrorCode::InvalidRequest,
     )?;
     let host = url.host_str().ok_or_else(bad)?;
-    match host.trim_start_matches('[').trim_end_matches(']').parse::<IpAddr>() {
+    match host
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .parse::<IpAddr>()
+    {
         Ok(ip) => require((net.allow_ip)(ip), ErrorCode::Forbidden),
         Err(_) => require((net.allow_name)(host), ErrorCode::Forbidden),
     }
@@ -440,7 +507,12 @@ fn shrink(bytes: &[u8]) -> Option<Image> {
     require(
         matches!(
             reader.format(),
-            Some(image::ImageFormat::Png | image::ImageFormat::Jpeg | image::ImageFormat::Gif | image::ImageFormat::WebP)
+            Some(
+                image::ImageFormat::Png
+                    | image::ImageFormat::Jpeg
+                    | image::ImageFormat::Gif
+                    | image::ImageFormat::WebP
+            )
         ),
         ErrorCode::UnsupportedMediaType,
     )
@@ -456,7 +528,12 @@ fn shrink(bytes: &[u8]) -> Option<Image> {
     let mut out = vec![];
     let content_type = if img.color().has_alpha() {
         image::codecs::png::PngEncoder::new(&mut out)
-            .write_image(img.to_rgba8().as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgba8)
+            .write_image(
+                img.to_rgba8().as_raw(),
+                img.width(),
+                img.height(),
+                image::ExtendedColorType::Rgba8,
+            )
             .ok()?;
         "image/png"
     } else {
@@ -579,7 +656,9 @@ fn attributes(tag: &str) -> HashMap<String, String> {
         let name = s[..eq].trim().to_ascii_lowercase();
         if name.is_empty() || name.contains(char::is_whitespace) {
             // A bare attribute before this one: skip a word.
-            let Some(space) = s.find(char::is_whitespace) else { break };
+            let Some(space) = s.find(char::is_whitespace) else {
+                break;
+            };
             s = &s[space..];
             continue;
         }
@@ -630,11 +709,20 @@ pub(super) async fn load(c: &mut SqliteConnection, ch: Id, m: Id) -> Result<Vec<
 /// Starts (in the background) building previews for a sent or edited message.
 pub(super) fn queue(app: &App, message: &Message) {
     let previews = &app.0.content.previews;
-    if !previews.enabled || message.extra.forwarded.is_some() {
+    if !previews.enabled || message.extra.forwarded.is_some() || message.extra.gif.is_some() {
         return;
     }
-    let links = preview_links(&message.content);
-    let current: Vec<&str> = message.extra.embeds.iter().map(|e| e.url.as_str()).collect();
+    // GIF provider media is shown inline, not as a page preview.
+    let links: Vec<String> = preview_links(&message.content)
+        .into_iter()
+        .filter(|l| !gif_media(l))
+        .collect();
+    let current: Vec<&str> = message
+        .extra
+        .embeds
+        .iter()
+        .map(|e| e.url.as_str())
+        .collect();
     if links.iter().map(String::as_str).eq(current.iter().copied()) {
         return;
     }
@@ -680,11 +768,12 @@ async fn store(
 ) -> Result<()> {
     let mut core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
-    let Some(r) = sqlx::query("SELECT content,deleted_at FROM messages WHERE id=? AND channel_id=?")
-        .bind(id(m)?)
-        .bind(id(ch)?)
-        .fetch_optional(&mut *c)
-        .await?
+    let Some(r) =
+        sqlx::query("SELECT content,deleted_at FROM messages WHERE id=? AND channel_id=?")
+            .bind(id(m)?)
+            .bind(id(ch)?)
+            .fetch_optional(&mut *c)
+            .await?
     else {
         return Ok(());
     };
@@ -696,7 +785,10 @@ async fn store(
     // Edited again meanwhile, deleted, or previews removed: leave it.
     if r.get::<Option<i64>, _>("deleted_at").is_some()
         || suppressed
-        || preview_links(&r.get::<String, _>("content")) != links
+        || preview_links(&r.get::<String, _>("content"))
+            .into_iter()
+            .filter(|l| !gif_media(l))
+            .ne(links.iter().cloned())
     {
         return Ok(());
     }
@@ -705,7 +797,11 @@ async fn store(
         .bind(id(m)?)
         .execute(&mut *c)
         .await?;
-    for (i, (url, page)) in pages.iter().filter_map(|(u, p)| p.as_ref().map(|p| (u, p))).enumerate() {
+    for (i, (url, page)) in pages
+        .iter()
+        .filter_map(|(u, p)| p.as_ref().map(|p| (u, p)))
+        .enumerate()
+    {
         sqlx::query("INSERT INTO link_embeds(message_id,idx,url,site_name,title,description,video,image,image_type,image_width,image_height) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
             .bind(id(m)?)
             .bind(i as i64)

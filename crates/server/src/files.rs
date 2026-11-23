@@ -252,7 +252,11 @@ pub async fn upload(
     let reservation = stream_id();
     {
         let mut core = app.0.core.lock().await;
-        core.rate(format!("upload:{}", u.0), 20., 4.)?;
+        core.rate(
+            format!("upload:{}", u.0),
+            20.,
+            2. * MAX_MESSAGE_ATTACHMENTS as f64,
+        )?;
         let mut c = app.0.pool.acquire().await?;
         let mut tx = c.begin().await?;
         crate::upload_accounting::admit(&mut tx, u).await?;

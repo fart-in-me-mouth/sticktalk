@@ -160,6 +160,7 @@ const paths = sizes
       !p.includes("viewer.js") &&
       !p.includes("message-menu.js") &&
       !p.includes("gifs.js") &&
+      !p.includes("content.js") &&
       !(p.endsWith(".wasm") && !p.endsWith("_bg.wasm")) &&
       !p.includes("__wasm_split_manifest"),
   );

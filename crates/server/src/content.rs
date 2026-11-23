@@ -35,11 +35,16 @@ pub struct ContentOptions {
         action = clap::ArgAction::Set
     )]
     pub link_previews: bool,
+    /// Local browser tests only (requires a loopback bind): previews resolve
+    /// this one host name to 127.0.0.1 and resolve nothing else.
+    #[arg(long, env = "STICKTALK_MOCK_LINK_PREVIEW_HOST", hide = true)]
+    pub mock_link_preview_host: Option<String>,
 }
 impl Default for ContentOptions {
     fn default() -> Self {
         Self {
             link_previews: true,
+            mock_link_preview_host: None,
         }
     }
 }
@@ -55,6 +60,18 @@ impl Content {
             wake: tokio::sync::Notify::new(),
             previews: previews::Previews::new(options.link_previews),
         }
+    }
+    /// With the test-only mock host, which needs a loopback-only server.
+    pub(crate) fn configured(options: &ContentOptions, bind: std::net::SocketAddr) -> Result<Self> {
+        let content = Self::new(options);
+        if let Some(host) = &options.mock_link_preview_host {
+            require(
+                bind.ip().is_loopback() && previews::public_name(host),
+                ErrorCode::InvalidRequest,
+            )?;
+            content.previews.mock(host.to_ascii_lowercase());
+        }
+        Ok(content)
     }
 }
 
@@ -76,6 +93,11 @@ pub(crate) async fn mutate(
             return send(c, core, key, u, draft, out).await;
         }
         CreatePoll(draft) => return polls::create(c, core, key, u, draft, out).await,
+        SendGif {
+            channel_id,
+            gif_id,
+            url,
+        } => return send_gif(c, core, key, u, channel_id, gif_id, url, out).await,
         VotePoll {
             channel_id,
             message_id,
@@ -258,7 +280,72 @@ pub(crate) async fn decorate(c: &mut SqliteConnection, viewer: Id, m: &mut Messa
     m.extra.poll = polls::load(c, m.id, viewer).await?;
     m.extra.forwarded = forward::load(c, viewer, m.id).await?.map(Box::new);
     m.extra.embeds = previews::load(c, m.channel_id, m.id).await?;
+    m.extra.gif = sqlx::query_scalar("SELECT gif_id FROM message_gifs WHERE message_id=?")
+        .bind(id(m.id)?)
+        .fetch_optional(&mut *c)
+        .await?;
     Ok(())
+}
+
+/// The provider's media hosts; GIF URLs must be on one of them.
+pub(crate) fn gif_media(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    url.len() <= 2048
+        && rest.len() > host.len() + 1
+        && matches!(
+            host,
+            "static.klipy.com" | "static1.klipy.com" | "static2.klipy.com"
+        )
+        && !url.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn send_gif(
+    c: &mut SqliteConnection,
+    core: &mut Core,
+    key: &[u8],
+    u: Id,
+    ch: Id,
+    gif_id: String,
+    url: String,
+    out: &mut Deliveries,
+) -> Result<CommandResult> {
+    let provider_id = gif_id.strip_prefix("klipy:").filter(|v| {
+        (1..=128).contains(&v.len())
+            && v.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    });
+    require(
+        provider_id.is_some() && gif_media(&url),
+        ErrorCode::InvalidRequest,
+    )?;
+    let draft = MessageDraft {
+        channel_id: ch,
+        content: url,
+        reply_to: None,
+        attachment_ids: vec![],
+        mention_ids: vec![],
+    };
+    let CommandResult::Message(mut message) = send(c, core, key, u, draft, out).await? else {
+        return Err(Error::new(ErrorCode::Internal));
+    };
+    sqlx::query("INSERT INTO message_gifs(message_id,gif_id) VALUES(?,?)")
+        .bind(id(message.id)?)
+        .bind(&gif_id)
+        .execute(&mut *c)
+        .await?;
+    message.extra.gif = Some(gif_id);
+    for (_, e) in out.iter_mut() {
+        if let Event::MessageCreated { message: m, .. } = e {
+            if m.id == message.id {
+                m.extra.gif = message.extra.gif.clone();
+            }
+        }
+    }
+    Ok(CommandResult::Message(message))
 }
 
 /// Whether someone may download a stored file because a forwarded copy of it
@@ -330,9 +417,10 @@ async fn next_deadline(app: &App) -> Result<Option<u64>> {
         sqlx::query_scalar("SELECT MIN(expires_at) FROM polls WHERE closed_at IS NULL")
             .fetch_one(&mut *c)
             .await?;
-    let scheduled: Option<i64> = sqlx::query_scalar("SELECT MIN(send_at) FROM scheduled_messages WHERE failure IS NULL")
-        .fetch_one(&mut *c)
-        .await?;
+    let scheduled: Option<i64> =
+        sqlx::query_scalar("SELECT MIN(send_at) FROM scheduled_messages WHERE failure IS NULL")
+            .fetch_one(&mut *c)
+            .await?;
     Ok([poll, scheduled]
         .into_iter()
         .flatten()

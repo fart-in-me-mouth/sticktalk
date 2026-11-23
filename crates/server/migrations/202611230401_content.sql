@@ -74,3 +74,8 @@ CREATE TABLE scheduled_messages(
 );
 CREATE INDEX scheduled_due ON scheduled_messages(send_at) WHERE failure IS NULL;
 CREATE INDEX scheduled_author ON scheduled_messages(author_id, channel_id, send_at);
+
+CREATE TABLE message_gifs(
+    message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+    gif_id TEXT NOT NULL CHECK(length(gif_id) BETWEEN 7 AND 134)
+);

@@ -1,9 +1,10 @@
 // Nonsecret device preferences only. No account, message, draft or token storage.
-const defaults = { density: 'cozy', fontScale: 1, underlineLinks: false };
+const defaults = { density: 'cozy', fontScale: 1, underlineLinks: false, linkPreviews: true };
 export function normalizePreferences(value = {}) {
   return { density: value?.density === 'compact' ? 'compact' : 'cozy',
     fontScale: [0.8,0.9,1,1.1,1.25,1.5].includes(Number(value?.fontScale)) ? Number(value.fontScale) : 1,
-    underlineLinks: value?.underlineLinks === true };
+    underlineLinks: value?.underlineLinks === true,
+    linkPreviews: value?.linkPreviews !== false };
 }
 let preferences = { ...defaults };
 export function loadPreferences() {
@@ -17,6 +18,7 @@ export function applyPreferences() {
   const root=document.documentElement;
   root.dataset.density=preferences.density;
   root.dataset.underlineLinks=String(preferences.underlineLinks);
+  root.dataset.linkPreviews=String(preferences.linkPreviews);
   root.style.setProperty('--chat-font-size',`${15*preferences.fontScale}px`);
   document.querySelectorAll('[data-preference]').forEach(field=>{
     const value=preferences[field.dataset.preference];

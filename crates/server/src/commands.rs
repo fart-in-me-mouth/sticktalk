@@ -131,7 +131,11 @@ async fn channel_event(c: &mut SqliteConnection, out: &mut Deliveries, ch: Id) -
     event(out, users, Event::ChannelUpsert(ch.clone()));
     Ok(ch)
 }
-pub(crate) async fn reads_event(c: &mut SqliteConnection, out: &mut Deliveries, ch: Id) -> Result<()> {
+pub(crate) async fn reads_event(
+    c: &mut SqliteConnection,
+    out: &mut Deliveries,
+    ch: Id,
+) -> Result<()> {
     recount(c, ch).await?;
     for u in audience(c, ch).await? {
         let visible = if channel(c, ch).await?.summary.guild_id.is_none() {

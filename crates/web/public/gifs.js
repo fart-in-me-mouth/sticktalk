@@ -3,6 +3,17 @@
 export async function directSearch(key, query) {
   const url = new URL(`https://api.klipy.com/v2/${query ? 'search' : 'featured'}`);
   url.search = new URLSearchParams({key, client_key:'sticktalk', limit:'24', q:query.slice(0,200), media_filter:'nanowebm,nanomp4,tinywebm,tinymp4,mediumgif',contentfilter:'high'});
+  return fetchPage(url);
+}
+// Favorites: the provider posts for up to 24 provider-qualified IDs.
+export async function directItems(key, ids) {
+  const plain = String(ids).split(',').filter((id) => /^klipy:[a-zA-Z0-9_-]{1,128}$/.test(id)).slice(0, 24).map((id) => id.slice(6));
+  if (!plain.length) return JSON.stringify({items:[],next_cursor:null});
+  const url = new URL('https://api.klipy.com/v2/posts');
+  url.search = new URLSearchParams({key, client_key:'sticktalk', ids:plain.join(','), media_filter:'nanowebm,nanomp4,tinywebm,tinymp4,mediumgif'});
+  return fetchPage(url);
+}
+async function fetchPage(url) {
   const controller = new AbortController(), timer = setTimeout(()=>controller.abort(),8000);
   try {
     const r = await fetch(url,{credentials:'omit',redirect:'error',referrerPolicy:'no-referrer',signal:controller.signal});

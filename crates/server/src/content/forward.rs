@@ -197,14 +197,16 @@ pub(super) async fn forward(
     for ch in destinations {
         let (_, recipients) = destination(c, u, ch, !files.is_empty(), out).await?;
         let m = core.id().await?;
-        sqlx::query("INSERT INTO messages(id,channel_id,author_id,content,created_at) VALUES(?,?,?,?,?)")
-            .bind(id(m)?)
-            .bind(id(ch)?)
-            .bind(id(u)?)
-            .bind(&comment)
-            .bind(now() as i64)
-            .execute(&mut *c)
-            .await?;
+        sqlx::query(
+            "INSERT INTO messages(id,channel_id,author_id,content,created_at) VALUES(?,?,?,?,?)",
+        )
+        .bind(id(m)?)
+        .bind(id(ch)?)
+        .bind(id(u)?)
+        .bind(&comment)
+        .bind(now() as i64)
+        .execute(&mut *c)
+        .await?;
         sqlx::query("INSERT INTO forwarded_messages(message_id,source_channel_id,source_message_id,content,created_at) VALUES(?,?,?,?,?)")
             .bind(id(m)?)
             .bind(id(source_channel)?)

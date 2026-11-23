@@ -249,6 +249,13 @@ const openViewer = async (target) => {
 export async function directSearch(key, query) {
   return (await import('/public/gifs.js')).directSearch(key, query);
 }
+export async function directItems(key, ids) {
+  return (await import('/public/gifs.js')).directItems(key, ids);
+}
+// Voice recording and playback (public/content.js), loaded on first use.
+let content, forwardTimer;
+const contentModule = () => content ??= import('/public/content.js');
+export function contentAction(action) { if (content) void content.then((m) => m.action(action)); }
 export async function recoverSession() {
   const pending = globalThis.__sticktalkSession;
   delete globalThis.__sticktalkSession;
@@ -448,6 +455,7 @@ export function mediaAction(action) {
     return;
   }
   if (action === "purge") {
+    contentAction('stop');
     uploads.length = 0;
     uploading = false;
     void purgePrivateCaches();
@@ -681,6 +689,8 @@ export function installPlatform() {
     // A visible button for a hidden file input, so the keyboard can reach it.
     const pick = e.target.closest('[data-pick]');
     if (pick) { e.preventDefault(); document.getElementById(pick.dataset.pick)?.click(); return; }
+    const rich = e.target.closest('[data-content]');
+    if (rich) { e.preventDefault(); void contentModule().then((m) => m.click(rich, e)).catch((err) => emit(`voice-error:${err.message}`)); return; }
     const target = e.target.closest("[data-live]");
     if (target) {
         // Chromium may fat-finger-adjust a touch on message text to its nearby
@@ -728,6 +738,21 @@ export function installPlatform() {
         .then((m) => m.subscribe(permission))
         .catch((e) => emit(`media-error:${e.message}`));
     }
+  });
+  // A press on the microphone may be a hold-to-record gesture (touch, pen).
+  document.addEventListener('pointerdown', (e) => {
+    const rec = e.target.closest?.('[data-content="voice-record"]');
+    if (rec && e.pointerType !== 'mouse') { e.preventDefault(); void contentModule().then((m) => m.press(rec, e)); }
+  });
+  document.addEventListener('keydown', (e) => {
+    const seek = e.target.closest?.('[data-content="voice-seek"]');
+    if (seek && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) { e.preventDefault(); void contentModule().then((m) => m.key(seek, e)); }
+  });
+  document.addEventListener('input', (e) => {
+    if (!e.target.matches?.('[data-forward-query]')) return;
+    clearTimeout(forwardTimer);
+    const text = e.target.value;
+    forwardTimer = setTimeout(() => emit(`forward-query:${text}`), 150);
   });
   document.addEventListener("submit", (e) => {
     if (e.target.matches("[data-live-form]")) {

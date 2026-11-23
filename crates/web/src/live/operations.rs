@@ -477,6 +477,7 @@ pub(super) fn action(app: Shared, raw: &str) {
         // The page has already hidden the note. No render here: one would race
         // with the typing that caused it.
         "saved-clear" => app.borrow_mut().saved = None,
+        "submit" if super::content::FORMS.contains(&arg) => super::content::submit(app, arg),
         "submit" => {
             app.borrow_mut().saved = None;
             let submission = Submission::capture(&app.borrow());
@@ -716,14 +717,15 @@ pub(super) fn action(app: Shared, raw: &str) {
                 .borrow()
                 .gifs
                 .iter()
+                .chain(app.borrow().content.favorite_items.iter())
                 .find(|g| g.id == arg)
                 .map(|g| g.send.url.clone());
             if let Some(url) = url {
-                send_message(app.clone(), url);
-                app.borrow_mut().dialog.clear();
+                super::content::send_gif(&app, arg, url);
             }
         }
         "read" => mark_read(&app),
+        kind if super::content::ACTIONS.contains(&kind) => super::content::action(app, kind, arg),
         _ => {}
     }
 }
@@ -734,7 +736,7 @@ fn fail(app: &Shared, error: String) {
 }
 /// Turns each "@username" into a mention. The name may be followed by
 /// punctuation; text inside code is left exactly as typed.
-fn mentions(model: &Model, content: &str) -> (String, Vec<Id>) {
+pub(super) fn mentions(model: &Model, content: &str) -> (String, Vec<Id>) {
     let mut out = String::with_capacity(content.len());
     let mut ids = vec![];
     let (mut fence, mut tick) = (false, false);
@@ -843,10 +845,9 @@ fn send_prepared(app: Shared, content: String) {
         a.touch();
         return;
     }
-    if a.pending
-        .values()
-        .any(|(cmd, _)| matches!(cmd,Command::SendMessage(d) if d.channel_id==channel_id))
-    {
+    if a.pending.values().any(|(cmd, _)| {
+        super::content::draft_of(Some(cmd)).is_some_and(|d| d.channel_id == channel_id)
+    }) {
         a.error = "Your previous message is still sending. Your draft is kept.".into();
         a.touch();
         return;
@@ -862,13 +863,15 @@ fn send_prepared(app: Shared, content: String) {
     a.new_after = None;
     let reply_to = a.reply;
     let attachment_ids = a.attachments.iter().map(|a| a.id).collect();
-    a.command(Command::SendMessage(MessageDraft {
+    let draft = MessageDraft {
         channel_id,
         content,
         reply_to,
         attachment_ids,
         mention_ids,
-    }));
+    };
+    let cmd = super::content::send_command(&mut a, draft);
+    a.command(cmd);
     a.reply = None;
     media_action(&format!("sent:{}", channel_id.0));
 }
@@ -902,7 +905,13 @@ pub(super) fn mark_read(app: &Shared) {
 pub(super) fn load_channel(app: Shared, c: Id, rank: Option<u64>) {
     load_history(app, c, rank, None, None);
 }
-fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, target: Option<Id>) {
+pub(super) fn load_history(
+    app: Shared,
+    c: Id,
+    rank: Option<u64>,
+    edge: Option<bool>,
+    target: Option<Id>,
+) {
     if target.is_none()
         && (rank.is_some() || edge.is_some())
         && app.borrow().history_busy
@@ -1183,6 +1192,7 @@ fn open_dialog(app: Shared, name: &str) {
         a.error.clear();
         a.touch();
     }
+    super::content::opened(app.clone(), name);
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
     let name = name.to_owned();
@@ -1827,7 +1837,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
     let pending = a.pending.remove(&response.nonce);
     match response.outcome {
         CommandOutcome::Err(error) => {
-            if let Some((Command::SendMessage(draft), _)) = &pending {
+            if let Some(draft) = super::content::draft_of(pending.as_ref().map(|(c, _)| c)) {
                 media_action(&format!(
                     "restore-draft:{}:{}",
                     draft.channel_id.0, draft.content
@@ -1868,6 +1878,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     Some(Command::JoinGuild { .. }),
                     ErrorCode::AlreadyExists | ErrorCode::Conflict,
                 ) => "You’re already in that server.".into(),
+                (Some(Command::Content(c)), code) => super::content::refused(c, code).map_or_else(
+                    || sticktalk_client_core::http::error_text(&error),
+                    str::to_owned,
+                ),
                 _ => sticktalk_client_core::http::error_text(&error),
             };
             a.touch();
@@ -1936,11 +1950,16 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                 open_dialog(app, page);
                 return;
             }
+            if let CommandResult::Content(result) = result {
+                super::content::answered(&mut a, operation.as_ref(), result);
+                a.touch();
+                return;
+            }
             match result {
                 CommandResult::Message(message) => {
                     // Responses identify the committed operation; only events may
                     // replace live entities (receipt snapshots can be historical).
-                    if let Some(Command::SendMessage(draft)) = &operation {
+                    if let Some(draft) = super::content::draft_of(operation.as_ref()) {
                         if a.channel == Some(message.channel_id) {
                             a.attachments
                                 .retain(|f| !draft.attachment_ids.contains(&f.id));
@@ -2050,6 +2069,8 @@ pub(super) fn ready(app: Shared) {
             platform,
         }));
     }
+    drop(a);
+    super::content::ready(app);
 }
 /// While the server cannot be reached and nobody is signed in, look again.
 pub(super) fn retry_recover(app: Shared) {
@@ -2109,7 +2130,7 @@ fn move_role(app: Shared, arg: String, epoch: u64) {
     }));
 }
 #[lazy]
-fn gif_search(app: Shared, query: String, epoch: u64) {
+pub(super) fn gif_search(app: Shared, query: String, epoch: u64) {
     if app.borrow().epoch != epoch {
         return;
     }
@@ -2167,7 +2188,7 @@ fn gif_search(app: Shared, query: String, epoch: u64) {
     });
 }
 #[lazy]
-fn upload(
+pub(super) fn upload(
     app: Shared,
     purpose: UploadPurpose,
     file: web_sys::File,
@@ -2185,7 +2206,7 @@ fn upload(
     let (http, channel, epoch) = {
         let mut a = app.borrow_mut();
         if purpose == UploadPurpose::Message && a.attachments.len() >= MAX_MESSAGE_ATTACHMENTS {
-            a.error = "You can attach up to 4 files to a message.".into();
+            a.error = format!("You can attach up to {MAX_MESSAGE_ATTACHMENTS} files to a message.");
             a.touch();
             drop(a);
             media_action("upload-stop");
@@ -2343,7 +2364,8 @@ fn upload(
                         });
                     }
                 } else if let Some(channel) = channel {
-                    if a.channel == Some(channel) {
+                    if super::content::uploaded(&mut a, &file) {
+                    } else if a.channel == Some(channel) {
                         a.attachments.push(file)
                     } else {
                         a.channel_attachments.entry(channel).or_default().push(file);

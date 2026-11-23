@@ -35,10 +35,17 @@ pub struct MessageExtra {
     /// Link preview cards, filled in by the server shortly after sending.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embeds: Vec<LinkEmbed>,
+    /// Sent from the GIF picker: the provider ID (`klipy:...`), so anyone can
+    /// add the GIF to their favorites. The message text is its media URL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gif: Option<String>,
 }
 impl MessageExtra {
     pub fn is_empty(&self) -> bool {
-        self.poll.is_none() && self.forwarded.is_none() && self.embeds.is_empty()
+        self.poll.is_none()
+            && self.forwarded.is_none()
+            && self.embeds.is_empty()
+            && self.gif.is_none()
     }
 }
 
@@ -201,6 +208,12 @@ pub enum ContentCommand {
         attachments: Vec<AttachmentMetaPatch>,
     },
     CreatePoll(PollDraft),
+    /// A GIF from the picker: `url` is its send rendition on the provider's media host.
+    SendGif {
+        channel_id: ChannelId,
+        gif_id: String,
+        url: String,
+    },
     /// Replace your vote. An empty list removes it.
     VotePoll {
         channel_id: ChannelId,
