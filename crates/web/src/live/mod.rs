@@ -1,5 +1,6 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
 mod calls;
+mod nav;
 mod operations;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
@@ -141,6 +142,7 @@ struct App {
     voice_render: Option<fn(&App) -> AnyView>,
     loading_dialog: std::cell::Cell<bool>,
     loading_voice: std::cell::Cell<bool>,
+    nav: nav::NavState,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -201,6 +203,7 @@ impl App {
         self.dialog.clear();
         self.panel.clear();
         self.screen = "home".into();
+        self.nav = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -358,6 +361,7 @@ pub fn mount() {
             voice_render: None,
             loading_dialog: std::cell::Cell::new(false),
             loading_voice: std::cell::Cell::new(false),
+            nav: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -634,6 +638,7 @@ async fn socket(app: Shared, epoch: u64) {
                                     break;
                                 }
                                 operations::ready(app.clone());
+                                nav::ready(app.clone());
                                 let channel = app.borrow().channel;
                                 if let Some(c) = channel {
                                     operations::load_channel(app.clone(), c, None);
@@ -731,6 +736,9 @@ async fn socket(app: Shared, epoch: u64) {
                                             });
                                             a.notifications.push(n.clone());
                                         }
+                                        Event::NavUpdated(_)
+                                        | Event::SavedUpdated(_)
+                                        | Event::ReminderDue(_) => nav::event(&mut a, &event.event),
                                         _ => {}
                                     }
                                 }

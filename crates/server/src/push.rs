@@ -600,5 +600,81 @@ async fn deliver(app: &App, n: &PushNotice, count: u32) -> Result<()> {
     Ok(())
 }
 
+/// A reminder the user set came due (see `nav.rs`). Generic lock-screen text,
+/// sent only while they are not using the app and only for a message they may
+/// still read. Do Not Disturb holds it back.
+pub(crate) async fn reminder(app: &App, user: Id, channel: Id, message: Id) -> Result<()> {
+    if focused(&*app.0.core.lock().await, user) {
+        return Ok(());
+    }
+    let allowed = |app: &App| {
+        let app = app.clone();
+        async move {
+            let mut c = app.0.pool.acquire().await?;
+            db::enabled(&mut c, user).await?;
+            db::text(
+                &mut c,
+                user,
+                channel,
+                Permissions::VIEW_CHANNEL | Permissions::READ_HISTORY,
+            )
+            .await?;
+            db::message(&mut c, user, channel, message, false).await?;
+            let dnd: bool =
+                sqlx::query_scalar("SELECT desired_presence='dnd' FROM users WHERE id=?")
+                    .bind(db::id(user)?)
+                    .fetch_one(&mut *c)
+                    .await?;
+            Ok::<bool, Error>(!dnd)
+        }
+    };
+    if !allowed(app).await? {
+        return Ok(());
+    }
+    let mut c = app.0.pool.acquire().await?;
+    let rows=sqlx::query("SELECT p.id,p.endpoint,p.p256dh,p.auth FROM push_subscriptions p JOIN sessions s ON s.token_hash=p.session_hash WHERE s.user_id=? AND s.expires_at>? LIMIT 25").bind(db::id(user)?).bind(state::now() as i64).fetch_all(&mut *c).await?;
+    drop(c);
+    let payload = serde_json::to_vec(&PushPayload {
+        url: format!("/?channel={}&message={}", channel.0, message.0),
+        channel_id: channel,
+        message_id: message,
+        count: 1,
+        title: "StickTalk".into(),
+        body: "Reminder".into(),
+    })
+    .map_err(|_| crypto_error())?;
+    for row in rows {
+        if focused(&*app.0.core.lock().await, user) || !allowed(app).await? {
+            break;
+        }
+        let endpoint = app.0.push.endpoint(&row.get::<String, _>("endpoint"))?;
+        let body = encrypt(
+            &decode(&row.get::<String, _>("p256dh"), 65)?,
+            &decode(&row.get::<String, _>("auth"), 16)?,
+            &payload,
+        )?;
+        let response = app
+            .0
+            .push
+            .client
+            .post(endpoint.clone())
+            .header("authorization", app.0.push.authorization(&endpoint)?)
+            .header("content-encoding", "aes128gcm")
+            .header("content-type", "application/octet-stream")
+            .header("ttl", "3600")
+            .header("urgency", "normal")
+            .body(body)
+            .send()
+            .await;
+        if response.is_ok_and(|r| matches!(r.status().as_u16(), 404 | 410)) {
+            sqlx::query("DELETE FROM push_subscriptions WHERE id=?")
+                .bind(row.get::<String, _>("id"))
+                .execute(&app.0.pool)
+                .await?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests;

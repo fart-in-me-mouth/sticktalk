@@ -237,6 +237,7 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.guild = None;
             a.new_after = None;
             a.panel.clear();
+            a.nav.favorites = false;
             a.touch();
         }
         "friend-add" => app.borrow_mut().command(Command::SendFriendRequest {
@@ -369,6 +370,7 @@ pub(super) fn action(app: Shared, raw: &str) {
                     let mut a = app.borrow_mut();
                     a.guild = Some(g);
                     a.panel.clear();
+                    a.nav.favorites = false;
                     a.command(Command::SubscribeGuild {
                         guild_id: Some(g),
                         presence_user_ids: vec![],
@@ -725,6 +727,7 @@ pub(super) fn action(app: Shared, raw: &str) {
             }
         }
         "read" => mark_read(&app),
+        k if k.starts_with("nav-") => super::nav::action(app, k, arg),
         _ => {}
     }
 }
@@ -903,7 +906,13 @@ pub(super) fn mark_read(app: &Shared) {
 pub(super) fn load_channel(app: Shared, c: Id, rank: Option<u64>) {
     load_history(app, c, rank, None, None);
 }
-fn load_history(app: Shared, c: Id, rank: Option<u64>, edge: Option<bool>, target: Option<Id>) {
+pub(super) fn load_history(
+    app: Shared,
+    c: Id,
+    rank: Option<u64>,
+    edge: Option<bool>,
+    target: Option<Id>,
+) {
     if target.is_none()
         && (rank.is_some() || edge.is_some())
         && app.borrow().history_busy

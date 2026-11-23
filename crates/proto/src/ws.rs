@@ -421,6 +421,12 @@ pub enum Event {
         expires_at: UnixMillis,
     },
     ReadStateUpdated(ReadState),
+    /// Sent only to streams that fetched GET /api/v1/users/@me/nav (see docs/features/nav.md).
+    NavUpdated(NavSettings),
+    /// Saved messages changed (another device, or a reminder came due).
+    SavedUpdated(SavedSummary),
+    /// A reminder's time has come. `message` is None when it may no longer be read.
+    ReminderDue(SavedMessage),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

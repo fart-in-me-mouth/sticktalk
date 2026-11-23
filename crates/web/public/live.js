@@ -2,6 +2,7 @@
 import '/public/ui.js';
 import {loadPreferences, applyPreferences, setPreference} from './preferences.js';
 import {swipeAction, installOverlayHistory, syncOverlayHistory} from './navigation.js';
+import {installNav, navBeforeRender, navRestore} from './nav.js';
 const emit = (action) =>
   window.dispatchEvent(new CustomEvent("sticktalk-live", { detail: action }));
 const $ = (s) => document.querySelector(s);
@@ -291,6 +292,7 @@ function remember(channel, text) {
   drafts.set(channel, text.slice(0, 16000));
 }
 export function beforeRender() {
+  navBeforeRender();
   const list = $("#live-messages"),
     input = $("#live-input"),
     focus = document.activeElement;
@@ -578,6 +580,7 @@ function restore() {
   if(shell)shell.inert=!!modal||!!$('#live-viewer,#live-message-menu');
   const left=$('.left-panel');
   if(left)left.inert=innerWidth<768&&!shell?.classList.contains('panel-left');
+  navRestore();
   applyPreferences();
   resizeComposer(input);
   updateJump(list);
@@ -633,6 +636,7 @@ function send() {
 export function installPlatform() {
   if (installed) return;
   installed = true;
+  installNav(emit);
   loadPreferences();
   // Back leaves a page too: unsaved changes are asked about first.
   installOverlayHistory(emit, () => unsaved() ? ask('Discard unsaved changes?', 'Your changes on this page haven’t been saved.', 'Discard') : null);

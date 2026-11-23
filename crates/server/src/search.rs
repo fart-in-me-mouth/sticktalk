@@ -22,6 +22,7 @@ struct Filters {
     link: bool,
     file: bool,
     image: bool,
+    video: bool,
 }
 fn parse(q: &str) -> Result<Filters> {
     require(
@@ -81,6 +82,16 @@ fn parse(q: &str) -> Result<Filters> {
             Some(("has", "link")) => f.link = true,
             Some(("has", "file")) => f.file = true,
             Some(("has", "image")) => f.image = true,
+            Some(("has", "video")) => f.video = true,
+            Some(("during", s)) => {
+                require(
+                    f.before.is_none() && f.after.is_none(),
+                    ErrorCode::InvalidRequest,
+                )?;
+                let day = date(s)?;
+                f.after = Some(day.saturating_sub(1));
+                f.before = Some(day + 86_400_000);
+            }
             Some(("has", _)) => return Err(Error::new(ErrorCode::InvalidRequest)),
             _ => f.words.push(token),
         }
@@ -173,7 +184,42 @@ pub(crate) async fn endpoint(
         cursor: core.cursor(&key, u),
     }))
 }
-type SearchResult = (
+#[derive(serde::Deserialize)]
+pub(crate) struct DirectQuery {
+    q: String,
+    before: Option<Id>,
+    limit: Option<u16>,
+    channel_id: Option<Id>,
+}
+/// GET /api/v1/users/@me/messages/search: direct messages and groups only.
+pub(crate) async fn direct_endpoint(
+    State(app): State<App>,
+    Query(q): Query<DirectQuery>,
+    h: HeaderMap,
+) -> Result<http::ApiResponse> {
+    let mut core = app.0.core.lock().await;
+    let mut c = app.0.pool.acquire().await?;
+    let (key, u) = auth(&mut c, http::bearer(&h)?).await?;
+    core.rate(format!("search:{}", u.0), 30., 5.)?;
+    let query = MessageSearchQuery {
+        q: q.q,
+        before: q.before,
+        limit: q.limit,
+    };
+    let (items, users, next_before, has_more, terms) =
+        direct(&mut c, u, q.channel_id, &query).await?;
+    Ok(http::json(Snapshot {
+        data: MessageSearchPage {
+            items,
+            users,
+            next_before,
+            has_more,
+            terms,
+        },
+        cursor: core.cursor(&key, u),
+    }))
+}
+pub(crate) type SearchResult = (
     Vec<Message>,
     Vec<UserSummary>,
     Option<Id>,
@@ -187,16 +233,7 @@ pub(crate) async fn search(
     q: &MessageSearchQuery,
 ) -> Result<SearchResult> {
     guild(c, u, g).await?;
-    let f = parse(&q.q).map_err(|mut e| {
-        e.0.message = "Check your search filters and dates (YYYY-MM-DD).".into();
-        e.0.field = Some("q".into());
-        e
-    })?;
-    let limit = q.limit.unwrap_or(25);
-    require((1..=50).contains(&limit), ErrorCode::InvalidRequest)?;
-    if let Some(b) = q.before {
-        id(b)?;
-    }
+    let f = checked(q)?;
     let mut readable = Vec::new();
     for ch in channels(c, u, Some(g)).await? {
         if ch.kind != ChannelKind::Text {
@@ -219,6 +256,74 @@ pub(crate) async fn search(
             readable.push(ch.id);
         }
     }
+    run(c, u, readable, f, q).await
+}
+/// Parses a query and its paging bounds, with the error message the search box shows.
+fn checked(q: &MessageSearchQuery) -> Result<Filters> {
+    let f = parse(&q.q).map_err(|mut e| {
+        e.0.message = "Check your search filters and dates (YYYY-MM-DD).".into();
+        e.0.field = Some("q".into());
+        e
+    })?;
+    let limit = q.limit.unwrap_or(25);
+    require((1..=50).contains(&limit), ErrorCode::InvalidRequest)?;
+    if let Some(b) = q.before {
+        id(b)?;
+    }
+    Ok(f)
+}
+/// Direct messages and groups `u` is a member of, open or closed. `only`
+/// narrows to one of them; anything else is not found.
+pub(crate) async fn direct(
+    c: &mut SqliteConnection,
+    u: Id,
+    only: Option<Id>,
+    q: &MessageSearchQuery,
+) -> Result<SearchResult> {
+    let f = checked(q)?;
+    let mut readable = Vec::new();
+    let ids: Vec<i64> =
+        sqlx::query_scalar("SELECT channel_id FROM dm_members WHERE user_id=? ORDER BY channel_id")
+            .bind(id(u)?)
+            .fetch_all(&mut *c)
+            .await?;
+    for ch in ids {
+        let ch = Id(ch as u64);
+        if only.is_some_and(|o| o != ch) {
+            continue;
+        }
+        let channel = access(c, u, ch, Permissions::empty()).await?;
+        if let Some(filter) = &f.channel {
+            let mut names = vec![ch.0.to_string()];
+            names.extend(channel.summary.name.clone().map(|n| n.to_lowercase()));
+            for v in &channel.summary.recipient_ids {
+                if *v != u {
+                    names.push(user(c, *v).await?.username);
+                }
+            }
+            let filter = filter.trim_start_matches('@').to_lowercase();
+            if !names.contains(&filter) {
+                continue;
+            }
+        }
+        readable.push(ch);
+    }
+    if let Some(o) = only {
+        require(
+            readable.contains(&o) || f.channel.is_some(),
+            ErrorCode::NotFound,
+        )?;
+    }
+    run(c, u, readable, f, q).await
+}
+async fn run(
+    c: &mut SqliteConnection,
+    u: Id,
+    readable: Vec<Id>,
+    f: Filters,
+    q: &MessageSearchQuery,
+) -> Result<SearchResult> {
+    let limit = q.limit.unwrap_or(25);
     if readable.is_empty() {
         return Ok((vec![], vec![], None, false, f.words));
     }
@@ -279,10 +384,13 @@ pub(crate) async fn search(
             " AND (instr(lower(m.content),'https://')>0 OR instr(lower(m.content),'http://')>0)",
         );
     }
-    if f.file || f.image {
+    if f.file || f.image || f.video {
         query.push(" AND EXISTS(SELECT 1 FROM message_attachments ma JOIN uploads a ON a.id=ma.attachment_id WHERE ma.message_id=m.id");
         if f.image {
             query.push(" AND a.content_type LIKE 'image/%'");
+        }
+        if f.video {
+            query.push(" AND a.content_type LIKE 'video/%'");
         }
         query.push(")");
     }
@@ -328,7 +436,8 @@ mod tests {
         assert_eq!(date("2025-01-01").unwrap(), SNOWFLAKE_EPOCH_MS);
         for q in [
             "",
-            "has:video",
+            "has:audio",
+            "during:2026-01-01 after:2026-01-02",
             "from:",
             "before:2026-02-29",
             "after:2026-12-01 before:2026-01-01",
