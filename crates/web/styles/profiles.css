@@ -1,0 +1,371 @@
+/* Profiles and cosmetics (docs/features/profiles.md): name styles, avatar
+ decorations, animated avatars, nameplates, profile cards, effects, frames
+ and badges. Layout is utility classes in src/live/ui/profiles.rs; these are
+ the looks. Unlayered on purpose: a look must win over the utilities it sits on.
+
+ Efficiency rules: every image here is a static SVG or a still rendition that
+ the browser fetches only when a rule matches an element on screen. Motion is
+ transform/opacity only (compositor), runs only while its row is hovered or
+ focused (or a few cycles when a profile card opens), and stops entirely with
+ reduced motion. No script ever drives an animation. */
+
+/* Display-name fonts (OFL, public/fonts/names/NOTICE.md): fetched only when
+   a name in that font is drawn. */
+@font-face { font-family: "ST Script"; src: url("/public/fonts/names/pacifico-latin-400.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "ST Pixel"; src: url("/public/fonts/names/press-start-2p-latin-400.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "ST Future"; src: url("/public/fonts/names/orbitron-latin-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "ST Serif"; src: url("/public/fonts/names/playfair-display-latin-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "ST Hand"; src: url("/public/fonts/names/caveat-latin-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "ST Display"; src: url("/public/fonts/names/bungee-latin-400.woff2") format("woff2"); font-display: swap; }
+
+/* ---- Display names ---------------------------------------------------- */
+.styled-name {
+  color: var(--name-c1);
+  font-family: var(--name-font, inherit);
+}
+.name-font-script { --name-font: "ST Script", cursive; font-weight: 400; }
+.name-font-pixel { --name-font: "ST Pixel", monospace; font-weight: 400; font-size: 0.72em; letter-spacing: 0; }
+.name-font-future { --name-font: "ST Future", sans-serif; font-weight: 700; letter-spacing: 0.02em; }
+.name-font-serif { --name-font: "ST Serif", serif; font-weight: 700; }
+.name-font-hand { --name-font: "ST Hand", cursive; font-weight: 700; font-size: 1.15em; }
+.name-font-display { --name-font: "ST Display", sans-serif; font-weight: 400; font-size: 0.9em; }
+.name-effect-gradient,
+.name-effect-shimmer {
+  background-image: linear-gradient(90deg, var(--name-c1), var(--name-c2, var(--name-c1)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.name-effect-glow { text-shadow: 0 0 6px color-mix(in srgb, var(--name-c1) 65%, transparent), 0 0 1px var(--name-c1); }
+/* A dark outline only makes a light name easier to read. */
+.name-effect-outline {
+  text-shadow: 1px 0 var(--name-c2, #08080a), -1px 0 var(--name-c2, #08080a), 0 1px var(--name-c2, #08080a), 0 -1px var(--name-c2, #08080a);
+}
+/* Shimmer: a light band crosses the name, only while it is hovered or focused. */
+.name-effect-shimmer {
+  background-image: linear-gradient(100deg, var(--name-c1) 0 40%, #ffffff 50%, var(--name-c2, var(--name-c1)) 60% 100%);
+  background-size: 250% 100%;
+  background-position: 100% 0;
+}
+:is(.message, .member-row, .channel-row, .profile-card, .name-preview):is(:hover, :focus-within) .name-effect-shimmer {
+  transition: background-position 0.9s ease;
+  background-position: 0 0;
+}
+/* Settings > Appearance > "Show plain names": everyone else's style is off,
+   and their role color (inherited from the row) applies again. */
+[data-plain-names="true"] .styled-name:not(.is-self) {
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  text-shadow: none;
+}
+
+/* ---- Avatars ------------------------------------------------------------ */
+.avatar-frame {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  border-radius: 9999px;
+}
+.avatar-deco {
+  position: absolute;
+  inset: -18%;
+  z-index: 1;
+  pointer-events: none;
+  background: center / 100% 100% no-repeat;
+}
+.deco-halo { background-image: url("/public/cosmetics/deco-halo.svg"); }
+.deco-orbit { background-image: url("/public/cosmetics/deco-orbit.svg"); }
+.deco-sprout { background-image: url("/public/cosmetics/deco-sprout.svg"); }
+.deco-crown { background-image: url("/public/cosmetics/deco-crown.svg"); }
+.deco-cat_ears { background-image: url("/public/cosmetics/deco-cat_ears.svg"); }
+.deco-starfield { background-image: url("/public/cosmetics/deco-starfield.svg"); }
+.deco-ember { background-image: url("/public/cosmetics/deco-ember.svg"); }
+.deco-frost { background-image: url("/public/cosmetics/deco-frost.svg"); }
+.deco-pixel { background-image: url("/public/cosmetics/deco-pixel.svg"); }
+.deco-prism { background-image: url("/public/cosmetics/deco-prism.svg"); }
+.deco-bubbles { background-image: url("/public/cosmetics/deco-bubbles.svg"); }
+.deco-headset { background-image: url("/public/cosmetics/deco-headset.svg"); }
+.deco-hearts { background-image: url("/public/cosmetics/deco-hearts.svg"); }
+.deco-lightning { background-image: url("/public/cosmetics/deco-lightning.svg"); }
+/* Where an avatar may move: while its row (or card, or picker swatch) is
+   hovered or focused. A profile card plays it while open. */
+:is(.message, .member-row, .friend-row, .channel-row, .user-panel, .call-tile, .deco-swatch, .profile-card):is(:hover, :focus-within) :is(.deco-orbit, .deco-prism) {
+  animation: deco-spin 8s linear infinite;
+}
+:is(.message, .member-row, .friend-row, .channel-row, .user-panel, .call-tile, .deco-swatch, .profile-card):is(:hover, :focus-within) :is(.deco-halo, .deco-ember, .deco-hearts, .deco-bubbles) {
+  animation: deco-pulse 1.6s ease-in-out infinite alternate;
+}
+:is(.message, .member-row, .friend-row, .channel-row, .user-panel, .call-tile, .deco-swatch, .profile-card):is(:hover, :focus-within) :is(.deco-starfield, .deco-lightning, .deco-frost) {
+  animation: deco-twinkle 1.2s ease-in-out infinite alternate;
+}
+:is(.message, .member-row, .friend-row, .channel-row, .user-panel, .call-tile, .deco-swatch, .profile-card):is(:hover, :focus-within) :is(.deco-crown, .deco-cat_ears, .deco-sprout, .deco-headset, .deco-pixel) {
+  animation: deco-bob 1.4s ease-in-out infinite alternate;
+}
+@keyframes deco-spin { to { transform: rotate(1turn); } }
+@keyframes deco-pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
+@keyframes deco-twinkle { from { opacity: 1; } to { opacity: 0.55; } }
+@keyframes deco-bob { from { transform: translateY(0); } to { transform: translateY(-3%); } }
+
+/* Animated avatars: lists draw the still first frame; the animation is a
+   background that is only fetched and decoded while the row is hovered or
+   focused. Crop: object-fit/background cover, focal point, zoom. */
+.avatar-face.cropped,
+.avatar-anim,
+.banner-face.cropped {
+  object-position: var(--crop-x) var(--crop-y);
+  transform: scale(var(--crop-z));
+  transform-origin: var(--crop-x) var(--crop-y);
+}
+.avatar-anim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--crop-x, 50%) var(--crop-y, 50%) / cover no-repeat;
+  opacity: 0;
+  pointer-events: none;
+}
+:is(.message, .member-row, .friend-row, .channel-row, .user-panel, .call-tile, .self-preview):is(:hover, :focus-within) .avatar-anim {
+  background-image: var(--anim);
+  opacity: 1;
+}
+
+/* A profile card plays its avatar and banner while it is open. */
+.profile-card .avatar-anim {
+  background-image: var(--anim);
+  opacity: 1;
+}
+
+/* ---- Nameplates (member list, direct messages) ------------------------- */
+:is(.member-row, .channel-row):has(> .nameplate) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.nameplate {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.6;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 45%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 45%);
+}
+.plate-dusk { background: linear-gradient(90deg, #2a1f4d, #7a3b6e 60%, #f2925c); }
+.plate-forest { background: linear-gradient(90deg, #0f2a1d, #1f6b4e 55%, #6fcf97); }
+.plate-ocean { background: linear-gradient(90deg, #0b1f3a, #1c5d99 55%, #5bc0eb); }
+.plate-ember { background: linear-gradient(90deg, #2b0f0f, #a23a2a 55%, #f2b84b); }
+.plate-candy { background: repeating-linear-gradient(120deg, #ff8fb1 0 10px, #ffd1e0 10px 20px); }
+.plate-circuit { background: url("/public/cosmetics/plate-circuit.svg") right center / 64px 64px repeat, linear-gradient(90deg, #0c1a14, #12352a); }
+.plate-stars { background: url("/public/cosmetics/plate-stars.svg") right center / 96px 48px repeat, linear-gradient(90deg, #0b0d24, #1d2259); }
+.plate-waves { background: url("/public/cosmetics/plate-waves.svg") right center / 80px 24px repeat, linear-gradient(90deg, #08202a, #0f3a4a); }
+.plate-plaid {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 8px, rgb(255 255 255 / 0.12) 8px 10px, transparent 10px 18px),
+    repeating-linear-gradient(90deg, transparent 0 8px, rgb(255 255 255 / 0.12) 8px 10px, transparent 10px 18px),
+    linear-gradient(90deg, #3a1214, #8c2a28);
+}
+:is(.member-row, .channel-row):hover > .nameplate { opacity: 0.8; }
+
+/* ---- Profile cards ------------------------------------------------------ */
+.live-modal.profile-popout:has(.profile-card) {
+  padding: 0;
+  overflow: hidden auto;
+}
+.profile-card {
+  position: relative;
+  isolation: isolate;
+  color: var(--card-text, var(--text-primary));
+  background: var(--bg-elevated);
+}
+.profile-card.tinted {
+  background: linear-gradient(180deg, var(--card-p) 0%, var(--card-a) 100%);
+}
+.profile-card.tinted::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgb(0 0 0 / var(--card-scrim, 0));
+  pointer-events: none;
+}
+.profile-card.tinted :is(.text-subtle, small, .muted-copy, .profile-username) {
+  color: color-mix(in srgb, var(--card-text) 82%, transparent);
+}
+.profile-card.tinted .profile-section {
+  background: rgb(0 0 0 / 0.28);
+}
+.profile-card.tinted.dark-text .profile-section {
+  background: rgb(255 255 255 / 0.4);
+}
+.profile-card.tinted.dark-text .button.secondary {
+  background: rgb(255 255 255 / 0.55);
+  color: #111113;
+}
+.profile-card .markdown a { color: inherit; text-decoration: underline; }
+.profile-banner-box {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 5 / 2;
+  overflow: hidden;
+  background: var(--banner, var(--color-brand-avatar));
+}
+.banner-face {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.profile-card .avatar-frame .avatar {
+  box-shadow: 0 0 0 6px var(--card-ring, var(--bg-elevated));
+}
+.profile-card.tinted .avatar-frame .avatar { box-shadow: 0 0 0 6px var(--card-p); }
+
+/* Profile effects: a tile of static particles moved by transform. They play
+   a few cycles when the card opens, again while it is hovered, and never with
+   reduced motion or Reduce cosmetics. */
+.profile-effect {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.profile-effect::before {
+  content: "";
+  position: absolute;
+  inset: -240px 0 0 0;
+  background: var(--fx) 0 0 / 240px 240px repeat;
+  opacity: 0.85;
+  animation: fx-fall 12s linear 2;
+}
+.profile-card:hover .profile-effect::before { animation-name: fx-fall-again; animation-iteration-count: infinite; }
+.effect-snowfall { --fx: url("/public/cosmetics/effect-snowfall.svg"); }
+.effect-confetti { --fx: url("/public/cosmetics/effect-confetti.svg"); }
+.effect-rain { --fx: url("/public/cosmetics/effect-rain.svg"); }
+.effect-rain::before { animation-duration: 3s; animation-iteration-count: 8; }
+.effect-fireflies { --fx: url("/public/cosmetics/effect-fireflies.svg"); }
+.effect-bubbles { --fx: url("/public/cosmetics/effect-bubbles.svg"); }
+.effect-fireflies::before,
+.effect-bubbles::before { inset: 0 0 -240px 0; animation-name: fx-rise; }
+.profile-card:hover :is(.effect-fireflies, .effect-bubbles)::before { animation-name: fx-rise-again; }
+.effect-sparkle { --fx: url("/public/cosmetics/effect-sparkle.svg"); }
+.effect-sparkle::before { inset: 0; animation: fx-twinkle 1.5s ease-in-out 6 alternate; }
+.profile-card:hover .effect-sparkle::before { animation-name: fx-twinkle-again; }
+.effect-aurora::before {
+  inset: 0 -100% auto 0;
+  height: 50%;
+  background: url("/public/cosmetics/effect-aurora.svg") 0 0 / 50% 100% repeat-x;
+  animation: fx-sway 14s ease-in-out 2 alternate;
+}
+.profile-card:hover .effect-aurora::before { animation-name: fx-sway-again; }
+@keyframes fx-fall { from { transform: translateY(0); } to { transform: translateY(240px); } }
+@keyframes fx-fall-again { from { transform: translateY(0); } to { transform: translateY(240px); } }
+@keyframes fx-rise { from { transform: translateY(0); } to { transform: translateY(-240px); } }
+@keyframes fx-rise-again { from { transform: translateY(0); } to { transform: translateY(-240px); } }
+@keyframes fx-twinkle { from { opacity: 0.2; } to { opacity: 0.9; } }
+@keyframes fx-twinkle-again { from { opacity: 0.2; } to { opacity: 0.9; } }
+@keyframes fx-sway { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes fx-sway-again { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* Profile frames: a border around the whole card. */
+.profile-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.frame-gilded,
+.frame-neon,
+.frame-ribbon {
+  padding: 3px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.frame-gilded { background: linear-gradient(135deg, #fff1c2, #e3a82b 30%, #9a6b12 50%, #ffe08a 70%, #c7902a); }
+.frame-neon { background: linear-gradient(135deg, #3ddc97, #5bb8f2, #b48cff, #ff6bd5); box-shadow: inset 0 0 12px rgb(91 184 242 / 0.45); }
+.frame-ribbon { padding: 4px; background: repeating-linear-gradient(45deg, #f25f5c 0 8px, #fff 8px 12px, #5bb8f2 12px 20px, #fff 20px 24px); }
+.frame-vine { box-shadow: inset 0 0 0 2px #3fa45a, inset 0 0 0 4px #1f4d2b, inset 0 0 18px rgb(127 216 138 / 0.35); }
+.frame-pixel { border: 4px dashed #7cf29c; border-radius: 4px; }
+.frame-frost { box-shadow: inset 0 0 0 2px #bfe9ff, inset 0 0 22px rgb(191 233 255 / 0.5); }
+
+/* Badges on a profile. */
+.profile-badges img { width: 22px; height: 22px; }
+
+/* ---- Pickers in the editor --------------------------------------------- */
+.cosmetic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+.cosmetic-option {
+  position: relative;
+  display: grid;
+  min-height: 84px;
+  place-items: center;
+  gap: 4px;
+  border: 1px solid var(--divider);
+  border-radius: 8px;
+  background: var(--bg-sidebar);
+  padding: 8px 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.cosmetic-option:hover { background: var(--bg-hover); }
+.cosmetic-option:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.cosmetic-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cosmetic-option input { position: absolute; opacity: 0; pointer-events: none; }
+.plate-swatch {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  min-height: 32px;
+  border-radius: 6px;
+}
+.plate-swatch .nameplate { z-index: -1; }
+.effect-swatch {
+  position: relative;
+  width: 100%;
+  height: 48px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #2e2e34, #1c1c20);
+}
+.effect-swatch .profile-effect::before { animation: none; }
+.cosmetic-option:hover .effect-swatch .profile-effect::before { animation: fx-fall-again 6s linear infinite; }
+.cosmetic-option:hover .effect-swatch .effect-sparkle::before { animation: fx-twinkle-again 1.5s ease-in-out infinite alternate; }
+.cosmetic-option:hover .effect-swatch :is(.effect-fireflies, .effect-bubbles)::before { animation-name: fx-rise-again; }
+.cosmetic-option:hover .effect-swatch .effect-aurora::before { animation: fx-sway-again 8s ease-in-out infinite alternate; }
+.frame-swatch { position: relative; width: 100%; height: 48px; border-radius: 8px; background: var(--bg-elevated); }
+
+/* Crop dialog (public/profiles.js). */
+.crop-dialog { width: min(480px, calc(100vw - 32px)); }
+.crop-stage { position: relative; margin: 16px auto; overflow: hidden; border-radius: 8px; touch-action: none; cursor: grab; }
+.crop-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.crop-dialog input[type="range"] { width: 100%; accent-color: var(--accent); }
+.crop-stage:active { cursor: grabbing; }
+.crop-stage canvas { display: block; width: 100%; height: 100%; border-radius: 8px; }
+.crop-mask { position: absolute; inset: 0; pointer-events: none; border-radius: 2px; box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55), inset 0 0 0 2px rgb(255 255 255 / 0.8); }
+.crop-stage { padding: 0; }
+.crop-mask.round { border-radius: 9999px; }
+
+/* Settings > Appearance > "Reduce cosmetics": other people's decorations,
+   nameplates, effects and frames are hidden. Your own stay. */
+[data-reduce-cosmetics="true"] .cosmetic:not(.is-self) { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar-deco,
+  .profile-effect::before,
+  .styled-name { animation: none !important; transition: none !important; }
+  .avatar-anim { display: none; }
+  .profile-effect { display: none; }
+}

@@ -100,6 +100,7 @@ pub async fn erase(c: &mut SqliteConnection, user: Id) -> Result<Vec<String>> {
     }
     sqlx::query("UPDATE users SET username=?,display_name='Deleted User',password_hash='',avatar_id=NULL,status_text=NULL,desired_presence='invisible' WHERE id=?")
         .bind(format!("!deleted:{u}")).bind(u).execute(&mut *c).await?;
+    crate::profiles::erase(&mut *c, user).await?;
     // Remove references before file metadata; no dangling attachment can be served.
     for sql in [
         "UPDATE users SET avatar_id=NULL WHERE avatar_id IN(SELECT id FROM uploads WHERE owner_id=?)",
@@ -165,7 +166,7 @@ pub async fn erase(c: &mut SqliteConnection, user: Id) -> Result<Vec<String>> {
     sqlx::query("DELETE FROM command_receipts")
         .execute(&mut *c)
         .await?;
-    sqlx::query("UPDATE read_states SET unread_count=(SELECT COUNT(*) FROM messages m WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0)),mention_count=(SELECT COUNT(*) FROM messages m JOIN message_mentions mm ON mm.message_id=m.id WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND mm.user_id=read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0))").execute(&mut *c).await?;
+    sqlx::query("UPDATE read_states SET unread_count=(SELECT COUNT(*) FROM messages m WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND NOT EXISTS(SELECT 1 FROM user_ignores i WHERE i.user_id=read_states.user_id AND i.ignored_id=m.author_id)),mention_count=(SELECT COUNT(*) FROM messages m JOIN message_mentions mm ON mm.message_id=m.id WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND mm.user_id=read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND NOT EXISTS(SELECT 1 FROM user_ignores i WHERE i.user_id=read_states.user_id AND i.ignored_id=m.author_id) AND NOT EXISTS(SELECT 1 FROM suppressed_mentions s WHERE s.message_id=m.id AND s.user_id=read_states.user_id))").execute(&mut *c).await?;
     Ok(paths)
 }
 pub async fn reserved(c: &mut SqliteConnection, name: &str) -> Result<bool> {

@@ -2,7 +2,7 @@
 //! settings, the channel permission editor, member sanctions, and the notices
 //! in the chat (raid alert, age gate, timeout, verification and slowmode).
 use super::*;
-use crate::live::moderation::{clock, cooldown, radio_name, CHANNEL_PERMISSIONS};
+use crate::live::moderation::{applies, clock, cooldown, radio_name, CHANNEL_PERMISSIONS};
 
 /// Dialog pages this module renders.
 pub(super) fn owns(page: &str) -> bool {
@@ -605,6 +605,30 @@ fn channel_permissions(a: &App, page: &str) -> AnyView {
         .collect();
     let parent = c.parent_id.and_then(|p| a.model.channels.get(&p));
     let label = a.model.channel_name(c);
+    // Overwrites flow into nested channels, so offer what applies to this
+    // channel or to anything inside it.
+    let mut kinds = vec![c.kind];
+    let mut frontier = vec![c.id];
+    while let Some(p) = frontier.pop() {
+        for ch in a.model.channels.values().filter(|x| x.parent_id == Some(p)) {
+            if !kinds.contains(&ch.kind) {
+                kinds.push(ch.kind);
+            }
+            frontier.push(ch.id);
+        }
+    }
+    let groups: Vec<(&str, Vec<(&str, Permissions)>)> = CHANNEL_PERMISSIONS
+        .iter()
+        .map(|(group, bits)| {
+            let bits = bits
+                .iter()
+                .copied()
+                .filter(|(_, bit)| kinds.iter().any(|k| applies(*bit, *k)))
+                .collect::<Vec<_>>();
+            (*group, bits)
+        })
+        .filter(|(_, bits)| !bits.is_empty())
+        .collect();
     view!{<h2>{format!("Permissions for {label}")}</h2>
         {summary.map(|s|view!{<p class="channel-access mb-4 rounded-lg bg-card p-3" role="status">{icon("users")}" "{s}</p>})}
         <fieldset disabled=!allowed>
@@ -617,7 +641,7 @@ fn channel_permissions(a: &App, page: &str) -> AnyView {
         {if sorted.is_empty(){view!{<p class="muted-copy mt-6">"No changes yet: this channel uses the server’s role permissions (and those of everything it is inside)."</p>}.into_any()}else{().into_any()}}
         {sorted.into_iter().map(|o|{let who=target_name(a,o);let kind=if o.kind==OverwriteKind::Member{"member"}else{"role"};view!{<section class="overwrite mt-6 rounded-lg border p-4 phone:p-3" data-overwrite=format!("{kind}:{}",o.target_id.0)>
             <div class="mb-2 flex items-center gap-2"><strong class="flex-1 font-semibold wrap-anywhere">{who.clone()}</strong><small class="text-subtle">{if kind=="member"{"Member"}else{"Role"}}</small>{ib_plain("x",&format!("Remove {who}"),&format!("mod:ow-remove,{kind}:{}",o.target_id.0))}</div>
-            {CHANNEL_PERMISSIONS.iter().map(|(group,bits)|view!{<h3 class="category mt-3 mb-1">{*group}</h3>{bits.iter().map(|(label,bit)|{let state=if o.allow.contains(*bit){"allow"}else if o.deny.contains(*bit){"deny"}else{"inherit"};let n=radio_name(o,*bit);view!{<div class="tri-state flex items-center gap-2 border-b py-1.5" role="radiogroup" aria-label=format!("{label} for {who}")><span class="min-w-0 flex-1 text-sm">{*label}</span>
+            {groups.iter().map(|(group,bits)|view!{<h3 class="category mt-3 mb-1">{*group}</h3>{bits.iter().map(|(label,bit)|{let state=if o.allow.contains(*bit){"allow"}else if o.deny.contains(*bit){"deny"}else{"inherit"};let n=radio_name(o,*bit);view!{<div class="tri-state flex items-center gap-2 border-b py-1.5" role="radiogroup" aria-label=format!("{label} for {who}")><span class="min-w-0 flex-1 text-sm">{*label}</span>
                 {[("deny","x","Deny"),("inherit","minus","Inherit"),("allow","check","Allow")].into_iter().map(|(v,glyph,title)|view!{<label class=format!("tri-option grid size-9 cursor-pointer place-items-center rounded-md border has-checked:border-transparent touch:size-11 [&>.icon]:size-4 {}",match v{"allow"=>"has-checked:bg-primary has-checked:text-primary-foreground","deny"=>"has-checked:bg-destructive has-checked:text-primary-foreground",_=>"has-checked:bg-secondary"}) title=title><input class="sr-only" type="radio" name=n.clone() value=v checked=state==v aria-label=title/>{icon(glyph)}</label>}).collect_view()}
             </div>}}).collect_view()}}).collect_view()}
         </section>}}).collect_view()}

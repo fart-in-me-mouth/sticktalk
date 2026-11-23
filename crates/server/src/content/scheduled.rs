@@ -10,13 +10,25 @@ pub(crate) struct Draft {
     pub content: String,
     pub mention_ids: Vec<Id>,
     pub send_at: u64,
+    /// `None` (an update from an older client) keeps the files held now.
+    pub attachment_ids: Option<Vec<Id>>,
 }
 
-async fn validate(c: &mut SqliteConnection, u: Id, ch: Id, d: &Draft) -> Result<String> {
+/// `files`: how many files the message will carry.
+async fn validate(
+    c: &mut SqliteConnection,
+    u: Id,
+    ch: Id,
+    d: &Draft,
+    files: usize,
+) -> Result<String> {
     text(c, u, ch, Permissions::SEND_MESSAGES).await?;
+    if files > 0 {
+        text(c, u, ch, Permissions::ATTACH_FILES).await?;
+    }
     let content = d.content.trim().to_owned();
     require(
-        !content.is_empty() && content.chars().count() <= MAX_MESSAGE_CHARS,
+        (!content.is_empty() || files > 0) && content.chars().count() <= MAX_MESSAGE_CHARS,
         ErrorCode::InvalidRequest,
     )?;
     require(
@@ -32,6 +44,83 @@ async fn validate(c: &mut SqliteConnection, u: Id, ch: Id, d: &Draft) -> Result<
     Ok(content)
 }
 
+/// The files held for scheduled message `s`, in order.
+async fn held(c: &mut SqliteConnection, s: Id) -> Result<Vec<Attachment>> {
+    Ok(sqlx::query("SELECT u.* FROM scheduled_attachments a JOIN uploads u ON u.id=a.attachment_id WHERE a.scheduled_id=? ORDER BY a.position")
+        .bind(id(s)?)
+        .fetch_all(&mut *c)
+        .await?
+        .iter()
+        .map(attachment_row)
+        .collect())
+}
+
+/// Holds `files` for scheduled message `s`: each must be the author's own
+/// unattached, unexpired upload to channel `ch` (as when sending), and not
+/// held by another scheduled message. Held files count toward the author's
+/// upload quota like any upload. Files held before and left out are released:
+/// they become ordinary unattached uploads and are collected as usual.
+async fn hold(c: &mut SqliteConnection, u: Id, ch: Id, s: Id, files: &[Id]) -> Result<()> {
+    unique(files, MAX_MESSAGE_ATTACHMENTS)?;
+    let before: Vec<i64> =
+        sqlx::query_scalar("SELECT attachment_id FROM scheduled_attachments WHERE scheduled_id=?")
+            .bind(id(s)?)
+            .fetch_all(&mut *c)
+            .await?;
+    for gone in before.iter().filter(|a| !files.contains(&Id(**a as u64))) {
+        sqlx::query("DELETE FROM scheduled_attachments WHERE attachment_id=?")
+            .bind(gone)
+            .execute(&mut *c)
+            .await?;
+    }
+    for (position, a) in files.iter().enumerate() {
+        if before.contains(&(a.0 as i64)) {
+            sqlx::query("UPDATE scheduled_attachments SET position=? WHERE attachment_id=?")
+                .bind(position as i64)
+                .bind(id(*a)?)
+                .execute(&mut *c)
+                .await?;
+            continue;
+        }
+        let claimed = sqlx::query("UPDATE uploads SET expires_at=NULL WHERE id=? AND owner_id=? AND purpose='message' AND channel_id=? AND expires_at>? AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE attachment_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM scheduled_attachments WHERE attachment_id=uploads.id)")
+            .bind(id(*a)?)
+            .bind(id(u)?)
+            .bind(id(ch)?)
+            .bind(now() as i64)
+            .execute(&mut *c)
+            .await?
+            .rows_affected();
+        require(claimed == 1, ErrorCode::InvalidAttachment)?;
+        sqlx::query(
+            "INSERT INTO scheduled_attachments(scheduled_id,attachment_id,position) VALUES(?,?,?)",
+        )
+        .bind(id(s)?)
+        .bind(id(*a)?)
+        .bind(position as i64)
+        .execute(&mut *c)
+        .await?;
+    }
+    Ok(())
+}
+
+/// Hands the held files back to the send path, which attaches only
+/// unexpired uploads: they get a short lease, then become the message's.
+/// Runs in the delivery's transaction, so a refused delivery keeps them held.
+async fn release_for_send(c: &mut SqliteConnection, s: Id) -> Result<Vec<Id>> {
+    let files: Vec<i64> = sqlx::query_scalar(
+        "SELECT attachment_id FROM scheduled_attachments WHERE scheduled_id=? ORDER BY position",
+    )
+    .bind(id(s)?)
+    .fetch_all(&mut *c)
+    .await?;
+    sqlx::query("UPDATE uploads SET expires_at=? WHERE id IN (SELECT attachment_id FROM scheduled_attachments WHERE scheduled_id=?)")
+        .bind((now() + 600_000) as i64)
+        .bind(id(s)?)
+        .execute(&mut *c)
+        .await?;
+    Ok(files.into_iter().map(|v| Id(v as u64)).collect())
+}
+
 fn row(r: &sqlx::sqlite::SqliteRow) -> ScheduledMessage {
     ScheduledMessage {
         id: Id(r.get::<i64, _>("id") as u64),
@@ -45,17 +134,20 @@ fn row(r: &sqlx::sqlite::SqliteRow) -> ScheduledMessage {
         send_at: r.get::<i64, _>("send_at").max(0) as u64,
         created_at: r.get::<i64, _>("created_at").max(0) as u64,
         failure: r.get("failure"),
+        attachments: vec![],
     }
 }
 
 async fn own(c: &mut SqliteConnection, u: Id, s: Id) -> Result<ScheduledMessage> {
-    sqlx::query("SELECT * FROM scheduled_messages WHERE id=? AND author_id=?")
+    let mut m = sqlx::query("SELECT * FROM scheduled_messages WHERE id=? AND author_id=?")
         .bind(id(s)?)
         .bind(id(u)?)
         .fetch_optional(&mut *c)
         .await?
         .map(|r| row(&r))
-        .ok_or_else(|| Error::new(ErrorCode::NotFound))
+        .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+    m.attachments = held(c, s).await?;
+    Ok(m)
 }
 
 fn mentions_json(ids: &[Id]) -> String {
@@ -69,7 +161,8 @@ pub(super) async fn create(
     d: Draft,
     out: &mut Deliveries,
 ) -> Result<ContentResult> {
-    let content = validate(c, u, d.channel_id, &d).await?;
+    let files = d.attachment_ids.clone().unwrap_or_default();
+    let content = validate(c, u, d.channel_id, &d, files.len()).await?;
     let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM scheduled_messages WHERE author_id=?")
         .bind(id(u)?)
         .fetch_one(&mut *c)
@@ -86,6 +179,7 @@ pub(super) async fn create(
         .bind(now() as i64)
         .execute(&mut *c)
         .await?;
+    hold(c, u, d.channel_id, s, &files).await?;
     let scheduled = own(c, u, s).await?;
     out.push((
         vec![u],
@@ -103,7 +197,12 @@ pub(super) async fn update(
     out: &mut Deliveries,
 ) -> Result<ContentResult> {
     let old = own(c, u, s).await?;
-    let content = validate(c, u, old.channel_id, &d).await?;
+    let files = d
+        .attachment_ids
+        .clone()
+        .unwrap_or_else(|| old.attachments.iter().map(|a| a.id).collect());
+    let content = validate(c, u, old.channel_id, &d, files.len()).await?;
+    hold(c, u, old.channel_id, s, &files).await?;
     sqlx::query(
         "UPDATE scheduled_messages SET content=?,mention_ids=?,send_at=?,failure=NULL WHERE id=?",
     )
@@ -143,12 +242,12 @@ pub(super) async fn cancel(
     Ok(ContentResult::Ack)
 }
 
-fn draft(s: &ScheduledMessage) -> MessageDraft {
+fn draft(s: &ScheduledMessage, attachment_ids: Vec<Id>) -> MessageDraft {
     MessageDraft {
         channel_id: s.channel_id,
         content: s.content.clone(),
         reply_to: None,
-        attachment_ids: vec![],
+        attachment_ids,
         mention_ids: s.mention_ids.clone(),
     }
 }
@@ -162,11 +261,12 @@ pub(super) async fn send_now(
     out: &mut Deliveries,
 ) -> Result<CommandResult> {
     let old = own(c, u, s).await?;
+    let files = release_for_send(c, s).await?;
     sqlx::query("DELETE FROM scheduled_messages WHERE id=?")
         .bind(id(s)?)
         .execute(&mut *c)
         .await?;
-    let result = send(c, core, key, u, draft(&old), out).await?;
+    let result = send(c, core, key, u, draft(&old, files), out).await?;
     let sent = match &result {
         CommandResult::Message(m) => Some(m.id),
         _ => None,
@@ -213,11 +313,21 @@ pub(super) async fn deliver_due(app: &App) -> Result<()> {
             let author = Id(r.get::<i64, _>("author_id") as u64);
             let mut out = vec![];
             // Timeout, verification level and AutoMod, exactly as for a live send.
-            let command = Command::SendMessage(draft(&s));
+            let files: Vec<Id> = sqlx::query_scalar::<_, i64>(
+                "SELECT attachment_id FROM scheduled_attachments WHERE scheduled_id=? ORDER BY position",
+            )
+            .bind(id(s.id)?)
+            .fetch_all(&mut *c)
+            .await?
+            .into_iter()
+            .map(|v| Id(v as u64))
+            .collect();
+            let command = Command::SendMessage(draft(&s, files));
             let checked = crate::moderation::precheck(app, &mut core, &mut c, author, &command)
                 .await
                 .map(drop);
             let mut tx = c.begin().await?;
+            release_for_send(&mut tx, s.id).await?;
             sqlx::query("DELETE FROM scheduled_messages WHERE id=?")
                 .bind(id(s.id)?)
                 .execute(&mut *tx)

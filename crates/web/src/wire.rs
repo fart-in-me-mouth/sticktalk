@@ -238,9 +238,20 @@ fn message_group_boundaries() {
     assert!(!continues_group(1, 1, Some((1, 2))));
 }
 
+/// The voice event the server sends after every Ready when none of your
+/// conversations has a call (`VoiceEvent::CallSnapshot { calls: [] }`, as the
+/// SFU encodes events). A client that knows of no calls has nothing to do with
+/// it, so it need not load the voice module on an idle screen.
+pub const EMPTY_CALL_SNAPSHOT: &[u8] = b"\x82\xa4type\xadcall_snapshot\xa4data\x81\xa5calls\x90";
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn the_empty_call_snapshot_bytes_match_the_encoding() {
+        let encoded = rmp_serde::to_vec_named(&VoiceEvent::CallSnapshot { calls: vec![] }).unwrap();
+        assert_eq!(encoded, EMPTY_CALL_SNAPSHOT);
+    }
     #[test]
     fn invite_links_are_parsed_as_data_not_navigation() {
         let code = "AbC_def-0123456789abcd";

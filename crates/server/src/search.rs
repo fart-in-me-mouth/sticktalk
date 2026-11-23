@@ -256,6 +256,7 @@ pub(crate) async fn search(
         )
         .await
         .is_err()
+            || crate::privacy::gate::age_blocked(c, u, ch.id).await?
         {
             continue;
         }

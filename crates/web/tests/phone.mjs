@@ -60,7 +60,10 @@ try {
       } else await swipe(page,{x:280,y:400},{x:100,y:400});
       await page.waitForFunction(()=>!document.querySelector('.panel-left,.panel-right'));
       await page.waitForFunction(()=>!history.state?.sticktalkOverlay?.panel);
-      await page.getByRole('button',{name:'Member List',exact:true}).tap();
+      // Phones keep Member List in the header's options menu (wider screens: a button).
+      const members=page.getByRole('button',{name:'Member List',exact:true});
+      if(await members.isVisible())await members.tap();
+      else{await page.getByRole('button',{name:'Channel Options',exact:true}).tap();await page.locator('ui-menu-content[data-open] ui-menu-item[value="panel:right"]').tap();}
       await page.waitForSelector('.panel-right');
       screenshots.push(await shot(page,'members-drawer'));
       await page.goBack();
@@ -119,16 +122,16 @@ try {
       checks.push('profile pronouns/about/banner save and hydrate from the real server');
       // Notification values must hydrate from the server and survive reopen.
       await act(page,'dialog:notifications');
-      await page.locator('#f-name').selectOption('nothing');
-      await page.locator('#f-muted').check();
-      await page.locator('[type=submit]').click();
+      await page.locator('input[name=p-level][value=nothing]').check();
+      await page.locator('#p-mute').selectOption('forever');
+      await page.locator('[data-live-form=privacy-notify] [type=submit]').click();
       // The page stays open and says it saved.
       await page.waitForSelector('.live-modal .form-saved');
       await act(page,'close');
       await page.waitForFunction(()=>!document.querySelector('.live-modal'));
       await act(page,'dialog:notifications');
-      await page.waitForFunction(()=>document.querySelector('#f-name')?.value==='nothing');
-      assert(await page.locator('#f-muted').isChecked());
+      await page.waitForFunction(()=>document.querySelector('input[name=p-level][value=nothing]')?.checked);
+      await page.waitForSelector('[data-live-form=privacy-notify] label:has-text("Muted until you turn it back on")');
       await act(page,'close');
       checks.push('notification form roundtrip/hydration');
 
@@ -142,7 +145,8 @@ try {
       await act(page,`dialog:channel-edit:${renameId}`);
       await page.locator('#f-name').fill('release-notes');
       await page.locator('#f-value').fill('Release checklist and QA findings');
-      await page.locator('[type=submit]').click();
+      // The editor also has the Slowmode & Safety form with its own button.
+      await page.getByRole('button',{name:'Save Changes',exact:true}).click();
       await page.waitForSelector('.channel-header:has-text("release-notes")');
       await act(page,`dialog:channel-delete:${renameId}`);
       await page.locator('#f-name').fill('DELETE');

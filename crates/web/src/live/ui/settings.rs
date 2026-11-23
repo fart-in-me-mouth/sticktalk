@@ -36,6 +36,7 @@ pub(super) fn is_server_page(page: &str) -> bool {
             | "guild-delete"
     ) || super::moderation::is_server_page(page)
         || super::expression::is_server_page(page)
+        || super::privacy::is_server_page(page)
         || super::community::is_server_page(page)
         || [
             "role:",
@@ -131,6 +132,18 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             "Prune Members",
             "prune",
             can(a, Permissions::KICK_MEMBERS),
+        ),
+        (
+            "flag",
+            "Reports",
+            "server-reports",
+            can_any(
+                a,
+                Permissions::MANAGE_MESSAGES
+                    | Permissions::KICK_MEMBERS
+                    | Permissions::BAN_MEMBERS
+                    | Permissions::MODERATE_MEMBERS,
+            ),
         ),
     ];
     let kind = a.dialog.split(':').next().unwrap_or_default();
@@ -369,64 +382,14 @@ pub(super) fn appearance() -> AnyView {
         <label class="field"><span>"Chat Font Scaling"</span><select data-preference="fontScale"><option value="0.8">"80%"</option><option value="0.9">"90%"</option><option value="1">"100%"</option><option value="1.1">"110%"</option><option value="1.25">"125%"</option><option value="1.5">"150%"</option></select></label>
         <label class="live-checkbox"><span>"Always underline links"</span><input type="checkbox" data-preference="underlineLinks"/></label>
         <label class="live-checkbox"><span>"Show website previews for links"</span><input type="checkbox" data-preference="linkPreviews"/></label>
+        <h3 class="mt-6">"Profiles"</h3><label class="live-checkbox"><span class="flex flex-col"><span>"Show plain names"</span><small class="text-xs text-subtle">"Other people’s name fonts, colors and effects are turned off. Role colors stay."</small></span><input type="checkbox" data-preference="plainNames"/></label>
+        <label class="live-checkbox"><span class="flex flex-col"><span>"Reduce cosmetics"</span><small class="text-xs text-subtle">"Hide other people’s avatar decorations, nameplates, profile effects and frames."</small></span><input type="checkbox" data-preference="reduceCosmetics"/></label>
         <div class="settings-divider"></div><h3>"Preview"</h3><p class="appearance-preview rounded-lg border bg-card p-4">"This is how your messages will look."</p><p class="muted-copy">"StickTalk respects your device’s reduced motion setting."</p>
     }.into_any()
 }
 pub(super) fn privacy(a: &App) -> AnyView {
-    let blocked = a
-        .model
-        .relationships
-        .values()
-        .filter(|r| r.kind == RelationshipKind::Blocked)
-        .collect::<Vec<_>>();
-    view!{<h2>"Privacy & Safety"</h2><h2>"Blocked Users"</h2>{if blocked.is_empty(){view!{<p class="muted-copy">"You haven’t blocked anyone."</p>}.into_any()}else{().into_any()}}
-        {blocked.into_iter().map(|r|view!{<div class="settings-list-row flex flex-wrap items-center gap-3 border-b py-4">{avatar(&r.user,"small")}<span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere">{name(&r.user)}</span>{button("Unblock",&format!("friend:unblock,{}",r.user.id.0),"secondary")}</div>}).collect_view()}
-        <div class="settings-divider"></div><h2>"Your Data"</h2><p class="muted-copy">"Messages are not stored in the offline app cache. Browser notifications never show message text on your lock screen."</p>{button("Manage Devices","dialog:devices","secondary")}
-    }.into_any()
+    super::privacy::privacy_page(a)
 }
 pub(super) fn notifications(a: &App) -> AnyView {
-    let explicit = a
-        .dialog
-        .strip_prefix("target-notifications:")
-        .and_then(|v| v.split_once(':'))
-        .and_then(|(kind, value)| id(value).map(|id| (kind, id)));
-    let (guild, channel) = if let Some((kind, target)) = explicit {
-        if kind == "guild" {
-            (Some(target), None)
-        } else {
-            (
-                a.model.channels.get(&target).and_then(|c| c.guild_id),
-                Some(target),
-            )
-        }
-    } else if let Some(c) = a
-        .channel
-        .and_then(|id| a.model.channels.get(&id))
-        .filter(|c| {
-            matches!(
-                c.kind,
-                ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm
-            )
-        })
-    {
-        (c.guild_id, Some(c.id))
-    } else {
-        (
-            a.guild.or_else(|| a.model.guilds.keys().next().copied()),
-            None,
-        )
-    };
-    let target = channel.map_or_else(
-        || guild.map_or(String::new(), |g| format!("guild:{}", g.0)),
-        |c| format!("channel:{}", c.0),
-    );
-    let n = a.model.settings.notifications.get(&(guild, channel));
-    let level = n.map_or(NotificationLevel::Mentions, |n| n.level);
-    view!{<fieldset hidden=target.is_empty()>{form("Notifications","notifications",view!{
-        <label class="field"><span>"Server or Conversation"</span><select id="f-target" data-notification-target><option value="" disabled selected=target.is_empty()>"Choose a conversation"</option>
-        {a.model.guilds.values().map(|g|view!{<option value=format!("guild:{}",g.guild.id.0) selected=target==format!("guild:{}",g.guild.id.0)>{g.guild.name.clone()}</option>}).collect_view()}
-        {a.model.channels.values().filter(|c|matches!(c.kind,ChannelKind::Text|ChannelKind::Direct|ChannelKind::GroupDm)).map(|c|view!{<option value=format!("channel:{}",c.id.0) selected=target==format!("channel:{}",c.id.0)>{match c.guild_id.and_then(|g|a.model.guilds.get(&g)){Some(g)=>format!("#{} — {}",a.model.channel_name(c),g.guild.name),None=>a.model.channel_name(c)}}</option>}).collect_view()}</select></label>
-        <label class="field"><span>"Notify Me About"</span><select id="f-name"><option value="all" selected=level==NotificationLevel::All>"All messages"</option><option value="mentions" selected=level==NotificationLevel::Mentions>"Only @mentions"</option><option value="nothing" selected=level==NotificationLevel::Nothing>"Nothing"</option></select></label>
-        <label class="live-checkbox"><span>"Mute notifications"</span><input id="f-muted" type="checkbox" checked=n.is_some_and(|n|n.muted)/></label><label class="live-checkbox"><span>"Suppress @everyone and @here"</span><input id="f-suppress" type="checkbox" checked=n.is_some_and(|n|n.suppress_everyone)/></label>{saved_note(a,"notifications")}
-    }.into_any())}</fieldset>{if target.is_empty(){view!{<p class="muted-copy">"Choose a server or start a conversation to customize notifications."</p>{button("Add Friend","dialog:friend","secondary")}{button("Create a Server","dialog:create","secondary")}}.into_any()}else{().into_any()}}{if a.push{view!{<section class="push-explainer mt-6 border-t pt-6"><h3>"Notifications when you’re away"</h3><p>"Allow StickTalk to notify you about DMs and mentions. No message text appears on your lock screen. You can turn this off in your browser settings."</p><button class="button secondary" data-push-enable>"Enable Browser Notifications"</button></section>}.into_any()}else{().into_any()}}}.into_any()
+    super::privacy::notifications(a)
 }

@@ -342,6 +342,10 @@ pub(super) fn action(app: Shared, raw: &str) {
             }
         }
         "mod" => super::moderation::action(app, arg),
+        "profiles" => super::profiles::action(app, arg),
+        "submit" if super::profiles::FORMS.contains(&arg) => super::profiles::submit(app, arg),
+        "privacy" => super::privacy::action(app, arg),
+        "submit" if arg.starts_with("privacy-") => super::privacy::submit(app, arg),
         "cm" => super::community::action(app, arg),
         "submit" if arg.starts_with("cm-") => super::community::submit(app, arg),
         "submit" if arg.starts_with("mod-") => super::moderation::submit(app, arg),
@@ -629,6 +633,7 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.touch();
         }
         "profile" => {
+            super::profiles::card_requested(app.clone(), arg);
             let epoch = app.borrow().epoch;
             let arg = arg.to_owned();
             spawn_local(async move {
@@ -986,7 +991,10 @@ pub(super) fn load_history(
                 }
             }
             a.attachments = a.channel_attachments.remove(&c).unwrap_or_default();
-            a.extent = None;
+            let extent = a.extent.take();
+            if let Some(previous) = a.channel {
+                a.history_cache.park(previous, extent);
+            }
             a.window_ids.clear();
         }
         a.completions.clear();
@@ -1075,6 +1083,15 @@ pub(super) fn load_history(
         app.borrow_mut().history_busy = false;
         return;
     }
+    // Back to a recently visited conversation, at the present: from the cache.
+    if anchor.is_none()
+        && rank.is_none()
+        && edge.is_none()
+        && target.is_none()
+        && super::history_cache::reopen(&app, c)
+    {
+        return;
+    }
     let request = async move {
         let path = format!(
             "/channels/{c}/messages?limit=50{}",
@@ -1095,6 +1112,7 @@ pub(super) fn load_history(
         a.history_busy = false;
         match result {
             Ok(mut page) => {
+                let page_cursor = page.cursor.clone();
                 page.items.sort_by_key(|m| m.id);
                 a.window_ids = page.items.iter().map(|m| m.id).collect();
                 if let Ok(extent) = extent {
@@ -1121,7 +1139,9 @@ pub(super) fn load_history(
                 } else {
                     crate::wire::page_rank(count, page.items.len(), None)
                 };
-                a.model.merge_page(c, page);
+                if a.model.merge_page(c, page) {
+                    a.history_cache.loaded(c, page_cursor, latest);
+                }
                 // A message that arrived while this page was on its way is not
                 // in it, but a view of the present must still end with it.
                 if latest {
@@ -1240,6 +1260,8 @@ fn open_dialog(app: Shared, name: &str) {
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
     super::moderation::opened(app.clone(), name);
+    super::profiles::opened(app.clone(), name);
+    super::privacy::opened(app.clone(), name);
     let name = name.to_owned();
     spawn_local(async move {
         dialog_data(app, name, epoch, generation).await;
@@ -1742,15 +1764,24 @@ fn submit(app: Shared, form: String, submission: Submission) {
             } else {
                 (a.model.channels.get(&id).and_then(|c| c.guild_id), Some(id))
             };
+            let current = a
+                .model
+                .settings
+                .notifications
+                .get(&(guild_id, channel_id))
+                .cloned();
             Some(Command::Launch(LaunchCommand::SetNotifications(
                 NotificationSettings {
                     guild_id,
                     channel_id,
                     level,
                     muted: checked("f-muted"),
-                    mute_until: None,
+                    mute_until: current
+                        .as_ref()
+                        .filter(|_| checked("f-muted"))
+                        .and_then(|c| c.mute_until),
                     suppress_everyone: checked("f-suppress"),
-                    hide_muted_channels: false,
+                    hide_muted_channels: current.is_some_and(|c| c.hide_muted_channels),
                 },
             )))
         }
@@ -1880,6 +1911,9 @@ fn saved_form(command: &Command) -> Option<&'static str> {
         Command::Launch(LaunchCommand::UpdateUserProfile { .. }) => Some("about"),
         Command::Launch(LaunchCommand::UpdateGuildProfile { .. }) => Some("server-profile"),
         Command::Launch(LaunchCommand::SetNotifications(_)) => Some("notifications"),
+        Command::Privacy(PrivacyCommand::SetNotifications(_)) => Some("privacy-notify"),
+        Command::Privacy(PrivacyCommand::SetNote { .. }) => Some("privacy-note"),
+        Command::Privacy(PrivacyCommand::SetFriendNickname { .. }) => Some("privacy-nickname"),
         _ => None,
     }
 }
@@ -1901,6 +1935,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             }
             let operation = pending.as_ref().map(|(c, _)| c);
             super::moderation::failed(operation);
+            super::profiles::failed(operation);
             super::community::failed(operation);
             // A refused save is no longer waiting for its answer.
             if let Some(form) = operation.and_then(saved_form) {
@@ -1915,6 +1950,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                         | Command::Typing { .. }
                         | Command::Launch(LaunchCommand::UpdateDevice { .. })
                         | Command::Launch(LaunchCommand::Moderation(ModerationCommand::Subscribe))
+                        | Command::Privacy(PrivacyCommand::Subscribe)
                 )
             ) {
                 return;
@@ -1934,6 +1970,10 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     Some(Command::JoinGuild { .. }),
                     ErrorCode::AlreadyExists | ErrorCode::Conflict,
                 ) => "You’re already in that server.".into(),
+                (Some(Command::Privacy(c)), code) => super::privacy::refused(c, code).map_or_else(
+                    || sticktalk_client_core::http::error_text(&error),
+                    str::to_owned,
+                ),
                 (Some(Command::Content(c)), code) => super::content::refused(c, code).map_or_else(
                     || sticktalk_client_core::http::error_text(&error),
                     str::to_owned,
@@ -1964,6 +2004,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             if let Some(op) = operation.clone().filter(super::expression::owns) {
                 drop(a);
                 super::expression::answered(app, op, result);
+                return;
+            }
+            if let Some(op) = operation.clone().filter(super::profiles::owns) {
+                drop(a);
+                super::profiles::answered(app, op);
                 return;
             }
             a.error.clear();
@@ -2026,6 +2071,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             if let Some(page) = back.filter(|_| !a.dialog.is_empty()) {
                 drop(a);
                 open_dialog(app, page);
+                return;
+            }
+            if let Some(Command::Privacy(op)) = &operation {
+                super::privacy::answered(&mut a, op, &result);
+                a.touch();
                 return;
             }
             if let CommandResult::Content(result) = result {
@@ -2124,6 +2174,8 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                                         | LaunchCommand::UpdateDevice { .. }
                                         | LaunchCommand::PinMessage { .. }
                                         | LaunchCommand::SetNotifications(_)
+                                        // Saved from the profile editor, which stays open.
+                                        | LaunchCommand::SetNickname { .. }
                                 )
                         )
                     ) {
@@ -2434,7 +2486,8 @@ pub(super) fn upload(
         a.uploading = false;
         match result {
             Ok(file) => {
-                if purpose == UploadPurpose::Avatar {
+                if super::profiles::uploaded(&mut a, purpose, &file) {
+                } else if purpose == UploadPurpose::Avatar {
                     a.command(Command::UpdateProfile(ProfilePatch {
                         avatar_id: Patch::Set(file.id),
                         ..Default::default()
@@ -2662,6 +2715,8 @@ fn profile_request(app: Shared, arg: String, epoch: u64) {
                     a.profile = Some(p.data);
                     a.dialog = "profile".into();
                     a.touch();
+                    drop(a);
+                    super::privacy::profile_opened(app.clone(), u);
                 }
                 Err(e) => fail(&app, e),
             }

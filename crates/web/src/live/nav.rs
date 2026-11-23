@@ -538,13 +538,19 @@ fn search(app: Shared) {
         if a.epoch != epoch || a.nav.generation != generation {
             return;
         }
+        let mut places = vec![];
         a.nav.search = Some(result.map(|s| {
             for u in &s.data.users {
                 a.model.users.entry(u.id).or_insert_with(|| u.clone());
             }
+            places = s.data.items.iter().map(|m| m.channel_id).collect();
             s.data
         }));
         a.touch();
+        drop(a);
+        if !places.is_empty() {
+            super::threads::learn(&app, places);
+        }
     });
 }
 
@@ -644,7 +650,13 @@ fn fetch_mentions(app: Shared, more: bool) {
             }
             (Err(e), _, _) => a.nav.mentions = Some(Err(e)),
         }
+        let places: Vec<Id> = match &a.nav.mentions {
+            Some(Ok(p)) => p.items.iter().map(|m| m.channel_id).collect(),
+            _ => vec![],
+        };
         a.touch();
+        drop(a);
+        super::threads::learn(&app, places);
     });
 }
 fn fetch_saved(app: Shared, more: bool) {
@@ -695,7 +707,13 @@ fn fetch_saved(app: Shared, more: bool) {
             }
             (Err(e), _, _) => a.nav.saved = Some(Err(e)),
         }
+        let places: Vec<Id> = match &a.nav.saved {
+            Some(Ok(p)) => p.items.iter().map(|i| i.channel_id).collect(),
+            _ => vec![],
+        };
         a.touch();
+        drop(a);
+        super::threads::learn(&app, places);
     });
 }
 fn ack(app: Shared, channel_ids: Vec<Id>) {

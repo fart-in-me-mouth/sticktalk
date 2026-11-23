@@ -103,6 +103,8 @@ pub fn user_row(r: &SqliteRow) -> UserSummary {
         display_name: r.get("display_name"),
         avatar_id: r.get::<Option<i64>, _>("avatar_id").map(|v| Id(v as u64)),
         status_text: r.get("status_text"),
+        style: Box::new(crate::profiles::style_column(r)),
+        status_emoji: r.try_get("status_emoji").ok().flatten(),
     }
 }
 pub async fn user(c: &mut SqliteConnection, u: Id) -> Result<UserSummary> {
@@ -184,6 +186,7 @@ pub async fn member(c: &mut SqliteConnection, g: Id, u: Id) -> Result<Member> {
         permissions: crate::permissions::evaluate(c, u, g, None).await?,
         role_ids: crate::permissions::role_ids(c, g, u).await?,
         timeout_until: crate::moderation::timeout_until(c, g, u).await?,
+        server_style: Box::new(crate::profiles::member_style(c, g, u).await?),
         nickname: sqlx::query_scalar(
             "SELECT nickname FROM nicknames WHERE guild_id=? AND user_id=?",
         )
@@ -308,15 +311,17 @@ pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Re
         ),
         ErrorCode::InvalidRequest,
     )?;
+    // Reading an age-restricted channel waits for the viewer's confirmation.
+    if p.contains(Permissions::READ_HISTORY) && channel.summary.guild_id.is_some() {
+        crate::privacy::gate::age(c, u, ch).await?;
+    }
     Ok(channel)
 }
 pub async fn audience(c: &mut SqliteConnection, ch: Id) -> Result<Vec<Id>> {
     let ch = channel(c, ch).await?;
     if let Some(g) = ch.summary.guild_id {
-        let users =
-            crate::capacity::members_with(c, g, Some(ch.summary.id), Permissions::VIEW_CHANNEL)
-                .await?;
-        crate::threads::private_audience(c, g, ch.summary.id, users).await
+        // The batched evaluator applies the thread rules (private membership).
+        crate::capacity::members_with(c, g, Some(ch.summary.id), Permissions::VIEW_CHANNEL).await
     } else {
         Ok(ch.summary.recipient_ids)
     }
@@ -549,7 +554,7 @@ pub async fn init_read(c: &mut SqliteConnection, u: Id, ch: Id, caught_up: bool)
     Ok(())
 }
 pub async fn recount(c: &mut SqliteConnection, ch: Id) -> Result<()> {
-    sqlx::query("UPDATE read_states SET unread_count=(SELECT COUNT(*) FROM messages m WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0)),mention_count=(SELECT COUNT(*) FROM messages m JOIN message_mentions mm ON mm.message_id=m.id WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND mm.user_id=read_states.user_id) WHERE channel_id=?").bind(id(ch)?).execute(c).await?;
+    sqlx::query("UPDATE read_states SET unread_count=(SELECT COUNT(*) FROM messages m WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND NOT EXISTS(SELECT 1 FROM user_ignores i WHERE i.user_id=read_states.user_id AND i.ignored_id=m.author_id)),mention_count=(SELECT COUNT(*) FROM messages m JOIN message_mentions mm ON mm.message_id=m.id WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND mm.user_id=read_states.user_id AND NOT EXISTS(SELECT 1 FROM user_ignores i WHERE i.user_id=read_states.user_id AND i.ignored_id=m.author_id) AND NOT EXISTS(SELECT 1 FROM suppressed_mentions s WHERE s.message_id=m.id AND s.user_id=read_states.user_id)) WHERE channel_id=?").bind(id(ch)?).execute(c).await?;
     Ok(())
 }
 pub async fn read_states(c: &mut SqliteConnection, u: Id) -> Result<Vec<ReadState>> {
@@ -584,7 +589,7 @@ pub async fn presence(
                 || (s.ever_connected && now().saturating_sub(s.touched) < 5000))
     });
     let mut status = if online {
-        me(c, u).await?.desired_presence
+        crate::privacy::status::shown(core, u, me(c, u).await?.desired_presence)
     } else {
         PresenceStatus::Offline
     };
@@ -688,7 +693,7 @@ pub async fn ban(c: &mut SqliteConnection, g: Id, u: Id) -> Result<Ban> {
     })
 }
 pub async fn gc_uploads(c: &mut SqliteConnection) -> Result<Vec<String>> {
-    let rows=sqlx::query("SELECT id,storage_key,thumbnail_key FROM uploads u WHERE expires_at IS NULL AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM forwarded_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=u.id) AND NOT EXISTS(SELECT 1 FROM guilds WHERE icon_id=u.id) LIMIT 100").fetch_all(&mut *c).await?;
+    let rows=sqlx::query("SELECT id,storage_key,thumbnail_key FROM uploads u WHERE expires_at IS NULL AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM forwarded_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM scheduled_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=u.id) AND NOT EXISTS(SELECT 1 FROM guilds WHERE icon_id=u.id) AND NOT EXISTS(SELECT 1 FROM profile_uploads WHERE upload_id=u.id) LIMIT 100").fetch_all(&mut *c).await?;
     let mut keys = vec![];
     for r in rows {
         keys.push(r.get("storage_key"));

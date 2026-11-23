@@ -134,12 +134,14 @@ pub(crate) async fn mutate(
             content,
             mention_ids,
             send_at,
+            attachment_ids,
         } => {
             let draft = scheduled::Draft {
                 channel_id,
                 content,
                 mention_ids,
                 send_at,
+                attachment_ids: Some(attachment_ids),
             };
             scheduled::create(c, core, u, draft, out).await?
         }
@@ -148,12 +150,14 @@ pub(crate) async fn mutate(
             content,
             mention_ids,
             send_at,
+            attachment_ids,
         } => {
             let draft = scheduled::Draft {
                 channel_id: Id(0),
                 content,
                 mention_ids,
                 send_at,
+                attachment_ids,
             };
             scheduled::update(c, u, id, draft, out).await?
         }
@@ -457,8 +461,12 @@ pub(crate) async fn deliver(
             crate::mentions::notify(app, core, c, message).await?;
         }
         observe(app, &e);
+        let alert = matches!(e, Event::MessageCreated { .. }).then(|| e.clone());
         for (users, e) in crate::launch::filter_event(c, users, e).await? {
             core.emit(&users, e)?;
+        }
+        if let Some(e) = alert {
+            crate::privacy::observe(app, core, c, &e).await;
         }
     }
     Ok(())

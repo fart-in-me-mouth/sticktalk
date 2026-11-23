@@ -482,7 +482,7 @@ pub(crate) async fn execute(
             if matches!(req.command,Command::SendMessage(_)) {core.rate(format!("send:{}",u.0),60.,10.)?;}
             let n:i64=sqlx::query_scalar("SELECT COUNT(*) FROM command_receipts WHERE session_hash=? AND expires_at>?").bind(key).bind(now() as i64).fetch_one(&mut *c).await?;require(n<256,ErrorCode::LimitExceeded)?;
         }
-        let mut moderation_hook = crate::moderation::precheck(app, core, &mut c, u, &req.command).await?;
+        let mut moderation_hook = Box::pin(crate::moderation::precheck(app, core, &mut c, u, &req.command)).await?;
         let visibility_users = visibility_users(&mut c, u, &req.command).await?;
         let mut previous_base = Vec::new();
         for viewer in visibility_users { previous_base.push((viewer, base_presence(&mut c, viewer).await?)); }
@@ -493,7 +493,7 @@ pub(crate) async fn execute(
         if let Some(g)=acl_guild {for v in guild_users(&mut c,g).await? {before.push((v,channels(&mut c,v,Some(g)).await?));}}
         let mut tx=c.begin().await?;let mut out=vec![];
         let revoke_sessions=matches!(req.command,Command::Launch(LaunchCommand::LogoutSession{..}|LaunchCommand::LogoutAllOthers));
-        let presence_changed=matches!(req.command,Command::SetPresence{..});
+        let presence_changed=matches!(req.command,Command::SetPresence{..}|Command::Privacy(PrivacyCommand::SetStatus{..}));
         let needs_file_gc=matches!(req.command,Command::DeleteGuild{..}|Command::DeleteChannel{..}|Command::LeaveGroupDm{..});
         let block_pair=if let Command::BlockUser{user_id}=req.command {Some(user_id)}else{None};
         let voice_acl_changed=acl_guild.is_some() || revoke_sessions || crate::community::voice_acl(&req.command) || matches!(req.command,Command::SetVoicePermission{..}|Command::SetMemberRole{..}|Command::TransferGuildOwnership{..}|Command::KickMember{..}|Command::BanMember{..}|Command::LeaveGuild{..}|Command::DeleteGuild{..}|Command::DeleteChannel{..});
@@ -502,7 +502,7 @@ pub(crate) async fn execute(
         let deleted_channel=if let Command::DeleteChannel {channel_id}=req.command {Some(channel_id)} else {None};
         let call_acl_changed=crate::calls::acl_changed(&req.command);
         let mut revoked_visibility=vec![];
-        let mut result=mutate(&mut tx,core,key,u,req.command,&mut out).await?;
+        let mut result=Box::pin(mutate(&mut tx,core,key,u,req.command,&mut out)).await?;
         crate::moderation::record(&mut tx, u, &mut moderation_hook, &result).await?;
         if let CommandResult::Channel(ch)=&mut result {*ch=access(&mut tx,u,ch.summary.id,Permissions::VIEW_CHANNEL).await?;}
         if let Some(g)=acl_guild {
@@ -544,11 +544,14 @@ pub(crate) async fn execute(
         if needs_file_gc || !orphaned.is_empty() {app.0.tier.wake.notify_one();let app=app.clone();tokio::spawn(async move{let _=app.collect_orphan_files().await;});}
         // Access revocation invalidates old body-bearing replay before admitting removal events.
         for (users,e) in &out {if matches!(e,Event::GuildRemoved{..}|Event::ChannelRemoved{..}|Event::RelationshipRemoved{..}|Event::MessageDeleted{..}) {core.invalidate(users);}}
+        let mut reaction_alerted=false;
         for (users,e) in out {
             if let Event::MessageCreated { ref message, .. } = e { crate::push::message(app, &mut c, &users, message).await; }
             if let Event::MessageCreated{message,..}=&e {crate::mentions::notify(app,core,&mut c,message).await?;}
             crate::content::observe(app, &e);
             crate::threads::observe(app, &e);
+            // One alert per message, and per reaction (its event is per viewer).
+            let alert=match &e {Event::MessageCreated{..}=>Some(e.clone()),Event::ReactionUpdated(_) if !reaction_alerted=>{reaction_alerted=true;Some(e.clone())},_=>None};
             crate::community::observe(core, &mut c, &e).await;
             let deliveries=crate::launch::filter_event(&mut c,users,e).await?;
             for (users,e) in deliveries {
@@ -560,6 +563,7 @@ pub(crate) async fn execute(
                 core.emit_filtered(&users, e, |s| streams.contains(&s.id))?;
             } else { core.emit(&users,e)?; }
         }
+            if let Some(e)=alert { crate::privacy::observe(app, core, &mut c, &e).await; }
         }
         if let Some(v) = block_pair.filter(|_| changed) {
             for (viewer, target) in [(u, v), (v, u)] {
@@ -578,7 +582,7 @@ pub(crate) async fn execute(
         }
         // Presence is synthesized against the committed projection, not supplied by clients.
         if presence_changed && changed { broadcast_presence(&mut c,core,u).await?; }
-        crate::moderation::after(app, core, &mut c, u, moderation_hook).await?;
+        Box::pin(crate::moderation::after(app, core, &mut c, u, moderation_hook)).await?;
         Ok(result)
     }.await;
     let outcome = match outcome {
@@ -663,7 +667,7 @@ async fn sync_base_presence(
     }
     Ok(())
 }
-async fn profile_projection(
+pub(crate) async fn profile_projection(
     c: &mut SqliteConnection,
     viewer: Id,
     target: Id,
@@ -749,11 +753,14 @@ pub(crate) async fn mutate(
     use Command::*;
     let adding_reaction = matches!(cmd, Command::AddReaction { .. });
     match cmd {
-        Launch(cmd) => crate::launch::mutate(c, core, key, u, cmd, out).await,
-        Content(cmd) => crate::content::mutate(c, core, key, u, cmd, out).await,
-        Threads(cmd) => crate::threads::mutate(c, core, key, u, cmd, out).await,
-        Expression(cmd) => crate::expression::mutate(c, core, key, u, cmd, out).await,
-        Community(cmd) => crate::community::mutate(c, core, key, u, cmd, out).await,
+        // Boxed: each feature's future is large, and holding them all inline in
+        // this one overflowed a 2 MB stack in debug builds.
+        Launch(cmd) => Box::pin(crate::launch::mutate(c, core, key, u, cmd, out)).await,
+        Content(cmd) => Box::pin(crate::content::mutate(c, core, key, u, cmd, out)).await,
+        Threads(cmd) => Box::pin(crate::threads::mutate(c, core, key, u, cmd, out)).await,
+        Expression(cmd) => Box::pin(crate::expression::mutate(c, core, key, u, cmd, out)).await,
+        Privacy(cmd) => Box::pin(crate::privacy::mutate(c, core, key, u, cmd, out)).await,
+        Community(cmd) => Box::pin(crate::community::mutate(c, core, key, u, cmd, out)).await,
         UpdateProfile(p) => {
             let old = me(c, u).await?;
             let mut user = old.user.clone();
@@ -823,7 +830,7 @@ pub(crate) async fn mutate(
             require(status != PresenceStatus::Offline, ErrorCode::InvalidRequest)?;
             let old = me(c, u).await?;
             if old.desired_presence != status {
-                sqlx::query("UPDATE users SET desired_presence=? WHERE id=?")
+                sqlx::query("UPDATE users SET desired_presence=?,presence_until=NULL WHERE id=?")
                     .bind(enum_str(status))
                     .bind(id(u)?)
                     .execute(&mut *c)
@@ -956,10 +963,13 @@ pub(crate) async fn mutate(
             .bind(id(high)?)
             .fetch_optional(&mut *c)
             .await?;
+            // A first contact from a non-friend may arrive as a message request.
+            let mut request = false;
             let ch = if let Some(ch) = existing {
+                crate::privacy::requests::opened_by(c, Id(ch as u64), u, out).await?;
                 Id(ch as u64)
             } else {
-                friends(c, u, v).await?;
+                request = crate::privacy::requests::opening(c, u, v).await?;
                 let ch = core.id().await?;
                 sqlx::query(
                     "INSERT INTO channels(id,kind,position,created_at) VALUES(?,'direct',0,?)",
@@ -983,9 +993,12 @@ pub(crate) async fn mutate(
                         .await?;
                     init_read(c, user, ch, false).await?;
                 }
+                if request {
+                    crate::privacy::requests::record(c, ch, u, v, out).await?;
+                }
                 ch
             };
-            let opened = if existing.is_none() {
+            let opened = if existing.is_none() && !request {
                 vec![u, v]
             } else {
                 vec![u]
@@ -997,12 +1010,12 @@ pub(crate) async fn mutate(
                 "SELECT COUNT(*) FROM dm_members WHERE channel_id=? AND visible=0 AND (? OR user_id=?)",
             )
             .bind(id(ch)?)
-            .bind(existing.is_none()).bind(id(u)?)
+            .bind(existing.is_none() && !request).bind(id(u)?)
             .fetch_one(&mut *c)
             .await?;
             sqlx::query("UPDATE dm_members SET visible=1 WHERE channel_id=? AND (? OR user_id=?)")
                 .bind(id(ch)?)
-                .bind(existing.is_none())
+                .bind(existing.is_none() && !request)
                 .bind(id(u)?)
                 .execute(&mut *c)
                 .await?;
@@ -1855,8 +1868,9 @@ pub(crate) async fn mutate(
             let ch = d.channel_id;
             let recipients = audience(c, ch).await?;
             if channel.summary.kind == ChannelKind::Direct {
+                let hidden = crate::privacy::requests::sending(c, ch, u, &d.content, out).await?;
                 let mut changed = vec![];
-                for v in &recipients {
+                for v in recipients.iter().filter(|v| !hidden.contains(v)) {
                     dm_quota(c, *v, Some(ch)).await?;
                     let visible: i64 = sqlx::query_scalar(
                         "SELECT visible FROM dm_members WHERE channel_id=? AND user_id=?",
@@ -1869,7 +1883,7 @@ pub(crate) async fn mutate(
                         changed.push(*v);
                     }
                 }
-                sqlx::query("UPDATE dm_members SET visible=1 WHERE channel_id=?")
+                sqlx::query("UPDATE dm_members SET visible=1 WHERE channel_id=? AND NOT EXISTS(SELECT 1 FROM message_requests r WHERE r.channel_id=dm_members.channel_id AND r.recipient_id=dm_members.user_id AND r.state IN('pending','spam','ignored'))")
                     .bind(id(ch)?)
                     .execute(&mut *c)
                     .await?;

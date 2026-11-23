@@ -1,7 +1,17 @@
 use clap::Parser;
 use sticktalk_server::{App, Config};
-#[tokio::main(worker_threads = 2)]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        // A command runs through several nested feature futures; a debug build
+        // needs about 2 MB of stack for the deepest one. The reserve is address
+        // space only: pages are committed as they are touched.
+        .thread_stack_size(8 * 1024 * 1024)
+        .enable_all()
+        .build()?
+        .block_on(run())
+}
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

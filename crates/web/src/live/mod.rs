@@ -4,9 +4,12 @@ mod calls;
 mod community;
 mod content;
 mod expression;
+mod history_cache;
 mod moderation;
 mod nav;
 mod operations;
+mod privacy;
+mod profiles;
 mod threads;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
@@ -94,6 +97,8 @@ struct App {
     history_busy: bool,
     history_abort: Option<futures_util::future::AbortHandle>,
     extent: Option<HistoryExtent>,
+    /// Recently visited conversations that reopen without a request.
+    history_cache: history_cache::HistoryCache,
     window_rank: u64,
     window_ids: Vec<Id>,
     roles: BTreeMap<Id, Role>,
@@ -156,6 +161,10 @@ struct App {
     threads: threads::State,
     /// Custom emoji everywhere, stickers, Super Reactions, typing indicators.
     expression: expression::State,
+    /// Profile cards, the profile editor and profile image uploads.
+    profiles: profiles::State,
+    /// Status, nicknames, notes, ignore, requests, notifications, reports.
+    privacy: privacy::State,
     /// Rules screening, applications, onboarding, Discover, templates, insights.
     community: community::State,
 }
@@ -181,12 +190,14 @@ impl App {
         self.pending.clear();
         self.window_ids.clear();
         self.extent = None;
+        self.history_cache.clear();
         self.history_busy = false;
         self.history_generation = self.history_generation.wrapping_add(1);
         self.typing_expiry_active = false;
         self.roles.clear();
         self.devices.clear();
         self.profile = None;
+        self.profiles = Default::default();
         self.pins.clear();
         self.notifications.clear();
         self.admin_after = None;
@@ -223,6 +234,8 @@ impl App {
         self.nav = Default::default();
         self.moderation = Default::default();
         self.expression = Default::default();
+        self.privacy = Default::default();
+        privacy::reset();
         self.community = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
@@ -338,6 +351,7 @@ pub fn mount() {
             history_busy: false,
             history_abort: None,
             extent: None,
+            history_cache: Default::default(),
             window_rank: 0,
             window_ids: vec![],
             roles: BTreeMap::new(),
@@ -386,6 +400,8 @@ pub fn mount() {
             moderation: Default::default(),
             threads: Default::default(),
             expression: Default::default(),
+            profiles: Default::default(),
+            privacy: Default::default(),
             community: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
@@ -666,6 +682,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 operations::ready(app.clone());
                                 nav::ready(app.clone());
                                 moderation::connected(app.clone());
+                                privacy::connected(app.clone());
                                 let channel = app.borrow().channel;
                                 if let Some(c) = channel {
                                     operations::load_channel(app.clone(), c, None);
@@ -734,6 +751,9 @@ async fn socket(app: Shared, epoch: u64) {
                                                 }
                                             }
                                         }
+                                        Event::MessageCreated { message, .. } => {
+                                            a.history_cache.counted(message.channel_id, 1)
+                                        }
                                         Event::MessageDeleted {
                                             channel_id,
                                             message_id,
@@ -750,6 +770,9 @@ async fn socket(app: Shared, epoch: u64) {
                                                     extent.message_count.saturating_sub(1);
                                             }
                                         }
+                                        Event::MessageDeleted { channel_id, .. } => {
+                                            a.history_cache.counted(*channel_id, -1)
+                                        }
                                         Event::RolesUpdated { guild_id, roles } => {
                                             a.roles.retain(|_, r| r.guild_id != *guild_id);
                                             for r in roles {
@@ -757,6 +780,7 @@ async fn socket(app: Shared, epoch: u64) {
                                             }
                                         }
                                         Event::Moderation(e) => moderation::event(&mut a, e),
+                                        Event::Privacy(e) => privacy::event(&mut a, e),
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id
@@ -804,7 +828,18 @@ async fn socket(app: Shared, epoch: u64) {
                                 };
                                 let profile_changed =
                                     matches!(&event.event, Event::ProfileUpdated(_));
+                                let badge = matches!(
+                                    &event.event,
+                                    Event::ReadStateUpdated(_)
+                                        | Event::MessageCreated { .. }
+                                        | Event::NotificationSettingsUpdated(_)
+                                        | Event::ChannelRemoved { .. }
+                                        | Event::GuildRemoved { .. }
+                                );
                                 let applied = a.model.apply(*event);
+                                if applied && badge {
+                                    privacy::badge(&a);
+                                }
                                 // Someone who has just sent their message is no longer typing it.
                                 if let Some(sent) = created {
                                     a.model.typing.remove(&sent);
@@ -932,7 +967,14 @@ async fn socket(app: Shared, epoch: u64) {
                                 // Voice-state broadcasts also reach people who are not in
                                 // the call: they show who is in each voice channel. Only
                                 // someone in a call has the events passed on to the media host.
-                                if payload.version == VOICE_VERSION && payload.kind == "event" {
+                                // The empty call list sent after every Ready changes nothing
+                                // while no call is known: do not load the voice module for it.
+                                let idle = payload.payload == crate::wire::EMPTY_CALL_SNAPSHOT
+                                    && app.borrow().calls.live.is_empty();
+                                if payload.version == VOICE_VERSION
+                                    && payload.kind == "event"
+                                    && !idle
+                                {
                                     forward_voice(app.clone(), epoch, payload).await;
                                 }
                             }
@@ -968,6 +1010,8 @@ async fn socket(app: Shared, epoch: u64) {
                     a.window_ids.clear();
                     a.extent = None;
                 }
+                // Events may be missed until the stream resumes or resyncs.
+                a.history_cache.clear();
                 a.ready = false;
                 a.pending
                     .retain(|_, (_, at)| Browser.monotonic_ms().saturating_sub(*at) < 590_000);

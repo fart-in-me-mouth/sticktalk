@@ -346,15 +346,23 @@ try {
 
   // Change Avatar is a real button (reachable by keyboard) for a hidden picker.
   // Choosing a picture does not throw away a display name typed but not yet saved.
+  // Turn file-chooser interception on before the key press: waitForEvent
+  // enables it asynchronously, and on a busy machine Enter could otherwise be
+  // handled first (no event, and the test waited forever).
+  alice.on("filechooser", () => {});
   await act(alice, "dialog:profile-edit");
   await alice.waitForSelector('.live-modal [data-pick="live-avatar"]');
   await alice.locator('.live-modal [data-profile-editor] #f-name').fill("Alice Draft");
+  // Let the typed name's re-render land first (it shows the save bar): on a busy
+  // machine it could otherwise replace the dialog between focus and Enter.
+  await alice.waitForSelector('.profile-save-bar:not([hidden])');
   await alice.locator('.live-modal [data-pick="live-avatar"]').focus();
   [chooser] = await Promise.all([
     alice.waitForEvent("filechooser"),
     alice.keyboard.press("Enter"),
   ]);
   await chooser.setFiles({ name: "avatar.png", mimeType: "image/png", buffer: await readFile("public/icons/icon-192.png") });
+  await alice.locator("#profiles-crop-apply").click();
   await alice.waitForSelector('.live-modal [data-live="avatar-remove"]', { timeout: 15000 });
   assert.equal(await alice.locator('.live-modal [data-profile-editor] #f-name').inputValue(), "Alice Draft");
   assert.equal(await alice.locator(".profile-save-bar").isVisible(), true, "the unsaved name is still unsaved");

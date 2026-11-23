@@ -520,6 +520,8 @@ async fn slow_initial_replay_has_one_deadline() {
                         display_name: None,
                         avatar_id: None,
                         status_text: None,
+                        style: Default::default(),
+                        status_emoji: None,
                     },
                 },
             )

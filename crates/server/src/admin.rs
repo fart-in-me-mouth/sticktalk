@@ -95,11 +95,37 @@ pub enum AdminCommand {
     EnableUser {
         username: String,
     },
+    /// Profile badges: create, award and revoke (docs/features/profiles.md).
+    Badge {
+        #[command(subcommand)]
+        command: crate::profiles::badges::BadgeCommand,
+    },
+    /// In-app reports for the instance administrator (`privacy.rs`).
+    Reports {
+        #[command(subcommand)]
+        command: ReportAdmin,
+    },
     /// The server directory: list, feature, hide or delist servers, or turn it off.
     Directory {
         #[command(subcommand)]
         command: DirectoryAdmin,
     },
+}
+/// `sticktalk-server admin reports ...`: the instance administrator's queue
+/// (direct messages, people, servers, and reports left by deleted servers).
+#[derive(Subcommand, Clone, Debug)]
+pub enum ReportAdmin {
+    /// Open reports (with --all, every report), newest first.
+    List {
+        #[arg(long)]
+        all: bool,
+    },
+    /// One report, with its evidence.
+    Show { id: u64 },
+    /// Close a report without action.
+    Dismiss { id: u64 },
+    /// Disable the reported account (signs it out everywhere) and close the report.
+    DisableUser { id: u64 },
 }
 #[derive(Subcommand, Clone, Debug)]
 pub enum DirectoryAdmin {
@@ -169,6 +195,12 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     )
     .await?;
     crate::db::migrate(&mut c).await?;
+    if let AdminCommand::Badge { command } = command {
+        return crate::profiles::badges::run(&mut c, command).await;
+    }
+    if let AdminCommand::Reports { command } = command {
+        return crate::privacy::reports::admin(&mut c, command).await;
+    }
     if let AdminCommand::Directory { command } = command {
         return crate::community::admin_cli(&mut c, command).await;
     }

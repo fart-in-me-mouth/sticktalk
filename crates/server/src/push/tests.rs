@@ -554,7 +554,13 @@ async fn delivery_rechecks_launch_preferences_and_current_mentions() {
         allowed(&app, &mut c, &n).await.unwrap(),
         "role mention survives suppression"
     );
+    // Invisible people are notified like anyone else; Do Not Disturb holds it back.
     sqlx::query("UPDATE users SET desired_presence='invisible' WHERE id=2")
+        .execute(&mut *c)
+        .await
+        .unwrap();
+    assert!(allowed(&app, &mut c, &n).await.unwrap());
+    sqlx::query("UPDATE users SET desired_presence='dnd' WHERE id=2")
         .execute(&mut *c)
         .await
         .unwrap();

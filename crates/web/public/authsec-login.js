@@ -104,6 +104,19 @@ export function qrSvg(size, modules, label) {
   return svg;
 }
 
+// The sign-in buckets are per address, shared by everyone behind it. A busy
+// bucket must not throw away an approval: the ticket is checked only after the
+// rate limit and stays valid for 60 s, so wait as told and try again.
+async function redeemQr(ticket) {
+  const until = Date.now() + 55000;
+  for (;;) {
+    const r = await post('browser/session/qr', {ticket});
+    if (r.status !== 429) return r;
+    const wait = Number((await r.clone().json().catch(() => ({}))).retry_after_ms) || 2000;
+    if (Date.now() + wait > until) return r;
+    await new Promise((done) => setTimeout(done, Math.min(Math.max(wait, 250), 10000)));
+  }
+}
 // qrHold: a final message is showing; only "Show a New Code" starts again.
 let socket = null, qrPanel = null, qrWanted = false, qrHold = false;
 function qrState(...children) {
@@ -140,7 +153,7 @@ function openQr(loadApp) {
       qrHold = true;
       closeQr();
       qrState(el('p', {class: 'text-sm', role: 'status', text: 'Signing you in…'}));
-      const r = await post('browser/session/qr', {ticket: m.ticket});
+      const r = await redeemQr(m.ticket);
       if (r.ok) loadApp();
       else retry((await r.json().catch(() => ({}))).code === 'limit_exceeded'
         ? 'That account is signed in on 5 devices, the most allowed. Log out on one of them first.'

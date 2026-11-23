@@ -3,7 +3,7 @@
 use crate::{
     db,
     error::{require, Error, Result},
-    state::{now, Core},
+    state::Core,
     App,
 };
 use sqlx::SqliteConnection;
@@ -156,6 +156,8 @@ pub(crate) async fn persist(
             .execute(&mut *c)
             .await?;
     }
+    crate::privacy::notify::persist_suppressions(c, message, &expanded.users, &expanded.origins)
+        .await?;
     Ok(())
 }
 pub(crate) async fn notify(
@@ -172,13 +174,16 @@ pub(crate) async fn notify(
         if user == message.author_id || db::blocked(c, user, message.author_id).await? {
             continue;
         }
-        let Some(mentioned) = notification_preference(c, user, &channel, message).await? else {
+        let Some(decision) = crate::privacy::notify::decide(c, user, &channel, message).await?
+        else {
             continue;
         };
-        let push = !core
-            .streams
-            .values()
-            .any(|s| s.user == user && s.connection.is_some());
+        let mentioned = decision.mentioned;
+        let push = decision.push
+            && !core
+                .streams
+                .values()
+                .any(|s| s.user == user && s.connection.is_some());
         let _ = app.0.notifications.send(Notification {
             user_id: user,
             channel_id: message.channel_id,
@@ -190,53 +195,19 @@ pub(crate) async fn notify(
     Ok(())
 }
 
-/// Current launch preferences shared by in-process notifications and Web Push.
-/// Some(mentioned) preserves the effective mention after broadcast suppression.
+/// Current preferences shared by in-process notifications and Web Push
+/// (`privacy::notify::decide`). Some(mentioned) keeps the effective mention
+/// after @everyone/@here and role suppression.
+#[allow(dead_code)]
 pub(crate) async fn notification_preference(
     c: &mut SqliteConnection,
     user: Id,
     channel: &Channel,
     message: &Message,
 ) -> Result<Option<bool>> {
-    let mut mentioned = message.mention_ids.contains(&user);
-    let mut level = if channel.summary.guild_id.is_some() {
-        NotificationLevel::Mentions
-    } else {
-        NotificationLevel::All
-    };
-    let mut muted = false;
-    let mut suppress = false;
-    // Guild preference first, channel preference takes precedence.
-    let settings = crate::launch::notifications(c, user).await?;
-    for setting in settings
-        .iter()
-        .filter(|s| s.channel_id.is_none() && s.guild_id == channel.summary.guild_id)
-        .chain(
-            settings
-                .iter()
-                .filter(|s| s.channel_id == Some(message.channel_id)),
-        )
-    {
-        level = setting.level;
-        muted = setting.muted && setting.mute_until.is_none_or(|t| t > now());
-        suppress = setting.suppress_everyone;
-    }
-    crate::threads::notify_level(c, user, channel, &settings, &mut level, &mut muted).await?;
-    if suppress && mentioned {
-        let broadcast:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM message_broadcast_mentions WHERE message_id=? AND user_id=? AND kind IN('everyone','here')) AND NOT EXISTS(SELECT 1 FROM message_broadcast_mentions WHERE message_id=? AND user_id=? AND kind='role')").bind(db::id(message.id)?).bind(db::id(user)?).bind(db::id(message.id)?).bind(db::id(user)?).fetch_one(&mut *c).await?;
-        mentioned &= !broadcast;
-    }
-    if muted
-        || level == NotificationLevel::Nothing
-        || (level == NotificationLevel::Mentions && !mentioned)
-    {
-        return Ok(None);
-    }
-    let presence = db::me(c, user).await?.desired_presence;
-    if matches!(presence, PresenceStatus::Dnd | PresenceStatus::Invisible) {
-        return Ok(None);
-    }
-    Ok(Some(mentioned))
+    Ok(crate::privacy::notify::decide(c, user, channel, message)
+        .await?
+        .map(|d| d.mentioned))
 }
 
 #[cfg(test)]
@@ -449,11 +420,12 @@ mod tests {
             .unwrap();
         message(send(&app, &mut core, 1, 11, "explicit", vec![Id(2)]).await);
         assert!(drain(&mut rx).is_empty());
-        // Muting/suppressing notifications never erases durable unread mention counts.
+        // Muting keeps mention counts; a suppressed @everyone does not count
+        // (badges follow the same settings as notifications, `privacy.rs`).
         let mut c = app.0.pool.acquire().await.unwrap();
         assert_eq!(
             db::read(&mut c, Id(2), Id(11)).await.unwrap().mention_count,
-            5
+            4
         );
     }
 }

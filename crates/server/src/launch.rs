@@ -51,6 +51,7 @@ pub(crate) async fn mutate(
             seconds,
         } => crate::slowmode::set(c, u, channel_id, seconds, out).await,
         Moderation(cmd) => crate::moderation::mutate(c, core, key, u, cmd, out).await,
+        Profiles(cmd) => crate::profiles::mutate(c, core, u, cmd, out).await,
         RenameEmoji {
             guild_id,
             emoji_id,
@@ -587,6 +588,11 @@ pub(crate) async fn filter_event(
         for u in users {
             let projected = match &e {
                 Event::ChannelUpsert(ch) => {
+                    let mut one = vec![u];
+                    crate::privacy::gate::filter(c, &mut one, &e).await?;
+                    if one.is_empty() {
+                        continue;
+                    }
                     match access(c, u, ch.summary.id, Permissions::VIEW_CHANNEL).await {
                         Ok(visible) => Event::ChannelUpsert(visible),
                         Err(_) => continue,
@@ -657,6 +663,7 @@ pub(crate) async fn filter_event(
         }
         allowed.push(u);
     }
+    crate::privacy::gate::filter(c, &mut allowed, &e).await?;
     Ok(vec![(allowed, e)])
 }
 

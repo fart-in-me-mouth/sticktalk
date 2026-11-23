@@ -150,6 +150,38 @@ async fn can_manage(c: &mut SqliteConnection, u: Id, g: Id) -> Result<bool> {
 async fn manage(c: &mut SqliteConnection, u: Id, g: Id) -> Result<()> {
     require(can_manage(c, u, g).await?, ErrorCode::Forbidden)
 }
+/// The server's audit log entry for a soundboard change, written in the
+/// change's own transaction (`moderation::audit`).
+async fn audit_sound(
+    c: &mut SqliteConnection,
+    u: Id,
+    action: AuditAction,
+    before: Option<&SoundboardSound>,
+    after: Option<&SoundboardSound>,
+) -> Result<()> {
+    use crate::moderation::audit::{write, Entry};
+    let Some(s) = after.or(before) else {
+        return Ok(());
+    };
+    let volume = |s: Option<&SoundboardSound>| s.map(|s| format!("{}%", s.volume));
+    let e = Entry::new(s.guild_id, action, AuditTarget::Sound, Some(s.id))
+        .named(s.name.clone())
+        .change(
+            "name",
+            before.map(|s| s.name.clone()),
+            after.map(|s| s.name.clone()),
+        )
+        .change(
+            "emoji",
+            before.and_then(|s| s.emoji.clone()),
+            after.and_then(|s| s.emoji.clone()),
+        )
+        .change("volume", volume(before), volume(after));
+    if action == AuditAction::SoundUpdate && before == after {
+        return Ok(());
+    }
+    write(c, u, e).await
+}
 
 #[derive(serde::Deserialize)]
 struct LibraryQuery {
@@ -304,12 +336,14 @@ async fn upload(
         .fetch_one(&mut *c)
         .await?;
     require(n < MAX_GUILD_SOUNDS as i64, ErrorCode::LimitExceeded)?;
+    crate::moderation::coverage::name_check(&mut core, &mut c, u, g, "name", &q.name).await?;
     let sid = core.id().await?;
     let format = match clip.format {
         SoundFormat::Mp3 => "mp3",
         SoundFormat::Ogg => "ogg",
         SoundFormat::Wav => "wav",
     };
+    let mut tx = sqlx::Connection::begin(&mut *c).await?;
     sqlx::query("INSERT INTO soundboard_sounds(id,guild_id,name,emoji,volume,duration_ms,format,data,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
         .bind(id(sid)?)
         .bind(id(g)?)
@@ -321,10 +355,13 @@ async fn upload(
         .bind(&bytes[..])
         .bind(id(u)?)
         .bind(now() as i64)
-        .execute(&mut *c)
+        .execute(&mut *tx)
         .await?;
-    core.persist_id(&mut c).await?;
-    Ok(js(&sound(&mut c, sid).await?))
+    let created = sound(&mut tx, sid).await?;
+    audit_sound(&mut tx, u, AuditAction::SoundCreate, None, Some(&created)).await?;
+    core.persist_id(&mut tx).await?;
+    tx.commit().await?;
+    Ok(js(&created))
 }
 async fn update(
     State(app): State<App>,
@@ -353,14 +390,22 @@ async fn update(
     // A non-member cannot learn that the sound exists.
     db::role(&mut c, u, old.guild_id).await?;
     manage(&mut c, u, old.guild_id).await?;
+    if let Some(name) = patch.name.as_deref().filter(|n| *n != old.name) {
+        crate::moderation::coverage::name_check(&mut core, &mut c, u, old.guild_id, "name", name)
+            .await?;
+    }
+    let mut tx = sqlx::Connection::begin(&mut *c).await?;
     sqlx::query("UPDATE soundboard_sounds SET name=?,emoji=?,volume=? WHERE id=?")
-        .bind(patch.name.unwrap_or(old.name))
-        .bind(emoji.unwrap_or(old.emoji))
+        .bind(patch.name.unwrap_or_else(|| old.name.clone()))
+        .bind(emoji.unwrap_or_else(|| old.emoji.clone()))
         .bind(i64::from(patch.volume.unwrap_or(old.volume)))
         .bind(id(old.id)?)
-        .execute(&mut *c)
+        .execute(&mut *tx)
         .await?;
-    Ok(js(&sound(&mut c, old.id).await?))
+    let new = sound(&mut tx, old.id).await?;
+    audit_sound(&mut tx, u, AuditAction::SoundUpdate, Some(&old), Some(&new)).await?;
+    tx.commit().await?;
+    Ok(js(&new))
 }
 async fn delete_sound(
     State(app): State<App>,
@@ -374,10 +419,13 @@ async fn delete_sound(
     let old = sound(&mut c, Id(s)).await?;
     db::role(&mut c, u, old.guild_id).await?;
     manage(&mut c, u, old.guild_id).await?;
+    let mut tx = sqlx::Connection::begin(&mut *c).await?;
     sqlx::query("DELETE FROM soundboard_sounds WHERE id=?")
         .bind(id(old.id)?)
-        .execute(&mut *c)
+        .execute(&mut *tx)
         .await?;
+    audit_sound(&mut tx, u, AuditAction::SoundDelete, Some(&old), None).await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 /// The clip itself: for members of its server, and for anyone in a call with a
@@ -787,19 +835,45 @@ async fn set_quality(
     let (_, u) = db::auth(&mut c, &token).await?;
     core.rate(format!("voice-quality:{}", u.0), 30., 10.)?;
     let ch = Id(ch);
-    voice_channel(&mut c, u, ch, Permissions::MANAGE_CHANNELS).await?;
+    let g = voice_channel(&mut c, u, ch, Permissions::MANAGE_CHANNELS).await?;
+    let before = bitrate(&mut c, g, ch).await?;
+    let mut tx = sqlx::Connection::begin(&mut *c).await?;
     if next.bitrate == DEFAULT_VOICE_BITRATE {
         sqlx::query("DELETE FROM voice_channel_quality WHERE channel_id=?")
             .bind(id(ch)?)
-            .execute(&mut *c)
+            .execute(&mut *tx)
             .await?;
     } else {
         sqlx::query("INSERT INTO voice_channel_quality VALUES(?,?) ON CONFLICT(channel_id) DO UPDATE SET bitrate=excluded.bitrate")
             .bind(id(ch)?)
             .bind(i64::from(next.bitrate))
-            .execute(&mut *c)
+            .execute(&mut *tx)
             .await?;
     }
+    if before != next.bitrate {
+        let name: Option<String> = sqlx::query_scalar("SELECT name FROM channels WHERE id=?")
+            .bind(id(ch)?)
+            .fetch_one(&mut *tx)
+            .await?;
+        crate::moderation::audit::write(
+            &mut tx,
+            u,
+            crate::moderation::audit::Entry::new(
+                g,
+                AuditAction::ChannelUpdate,
+                AuditTarget::Channel,
+                Some(ch),
+            )
+            .named(name.unwrap_or_default())
+            .change(
+                "bitrate",
+                Some(format!("{} kbps", before / 1000)),
+                Some(format!("{} kbps", next.bitrate / 1000)),
+            ),
+        )
+        .await?;
+    }
+    tx.commit().await?;
     // Live calls in the channel change now: the SFU's limit and every encoder.
     voice::set_audio_bitrate(&app, ch, next.bitrate);
     room(

@@ -391,8 +391,9 @@ try {
     "17 MiB Blob.slice upload: pause at 16 MiB, reselect, resume real server offset + attachment",
   );
   await act(alice, "dialog:notifications");
-  await alice.locator("#f-name").selectOption("mentions");
-  await alice.locator("[type=submit]").click();
+  await alice.locator("input[name=p-level][value=mentions]").check();
+  await alice.locator("[data-live-form=privacy-notify] [type=submit]").click();
+  await alice.waitForSelector("[data-live-form=privacy-notify] .form-saved");
   await wait(200);
   checks.push("notification settings mutation");
   await act(alice, "dialog:devices");
@@ -551,6 +552,8 @@ try {
   await alice.waitForSelector("#live-avatar", {state:'attached'});
   await capture(alice,"profile-settings");
   await alice.locator("#live-avatar").setInputFiles({name:"avatar.png",mimeType:"image/png",buffer:await readFile("public/icons/icon-192.png")});
+  // A new avatar is cropped first (profiles.js).
+  await alice.locator("#profiles-crop-apply").click();
   await alice.waitForFunction(()=>document.querySelector(".settings-identity .avatar img")?.naturalWidth>0);
   await act(alice,"close");
   checks.push("desktop settings layout, mobile settings-list/subpage navigation, real avatar upload");

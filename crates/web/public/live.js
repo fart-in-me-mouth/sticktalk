@@ -22,6 +22,11 @@ const confirmations = [
   [/^group-remove:/, 'Remove this person from the group?', '', 'Remove'],
   [/^submit:guild-icon-remove$/, 'Remove the server icon?', '', 'Remove Icon'],
   [/^avatar-remove$/, 'Remove your avatar?', '', 'Remove Avatar'],
+  [/^profiles:remove,avatar,/, 'Remove this avatar?', '', 'Remove Avatar'],
+  [/^profiles:remove,banner,/, 'Remove this banner?', '', 'Remove Banner'],
+  [/^profiles:reset,\d+,\d+,avatar$/, 'Remove their server avatar?', 'Their picture in this server goes back to their own. This is recorded in the audit log.', 'Remove'],
+  [/^profiles:reset,\d+,\d+,banner$/, 'Remove their server banner?', 'This is recorded in the audit log.', 'Remove'],
+  [/^profiles:nick-reset,/, 'Reset their nickname?', 'They go back to their display name in this server.', 'Reset'],
 ];
 // Actions that leave the page a settings form is on.
 const leaving = /^(close$|home$|dialog:|channel:|guild:|voice:)/;
@@ -270,6 +275,9 @@ function hintStickers(text) {
   if (hint !== stickerHint) { stickerHint = hint; emit(`expr-suggest:${hint}`); }
 }
 const contentModule = () => content ??= import('/public/content.js');
+// Profile editor, cropping and preview (public/profiles.js), loaded on first use.
+let profiles;
+const profilesModule = () => profiles ??= import('/public/profiles.js');
 export function contentAction(action) { if (content) void content.then((m) => m.action(action)); }
 export async function recoverSession() {
   const pending = globalThis.__sticktalkSession;
@@ -337,7 +345,9 @@ export function beforeRender() {
       ...document.querySelectorAll(
         ".live-modal input:not([type=file]),.live-modal select,.live-modal textarea",
       ),
-    ].filter(e=>e.dataset.dirty==='true'||e.closest('form')?.dataset.dirty==='true').map((e) => {
+    // The profile editor keeps its own fields across renders (profiles.js); a
+    // snapshot replayed by a later, unrelated mutation would undo typing there.
+    ].filter(e=>(e.dataset.dirty==='true'||e.closest('form')?.dataset.dirty==='true')&&!e.closest('[data-profiles-editor]')).map((e) => {
       const selector = e.id ? `#${CSS.escape(e.id)}` :
         ['group-user','member-role','role-bit','settings-search'].map(key => e.hasAttribute(`data-${key}`) ? `[data-${key}="${CSS.escape(e.getAttribute(`data-${key}`))}"]` : null).find(Boolean);
       return [selector, e.value, e.type === 'checkbox' ? e.checked : null];
@@ -621,12 +631,14 @@ function restore() {
   }
   media?.mount();
   if (authsec || $('[data-authsec-root]') || globalThis.__sticktalkLink) void authsecModule().then(m => m.mount(emit)).catch(() => {});
+  if (profiles || $('[data-profiles-root]')) void profilesModule().then(m => m.mount(emit)).catch(() => {});
   syncProfile();
   syncRolePositions();
 }
 function syncProfile() {
   const form = $('[data-profile-editor]');
   if (!form) return;
+  if (form.matches('[data-profiles-editor]')) { void profilesModule().then(m => m.sync(form)); return; }
   const inputs = [...form.querySelectorAll('input')];
   const dirty = inputs.some(input => input.value !== input.defaultValue);
   form.querySelector('.profile-save-bar').hidden = !dirty;
@@ -691,6 +703,10 @@ export function installPlatform() {
   // the newly visible drawer stays inert and Back never receives its entry.
   observer.observe(document.body, { childList: true, subtree: true, attributes:true, attributeFilter:['class','data-screen','data-role-id'] });
   document.addEventListener("click", (e) => {
+    const profileReset = e.target.closest('[data-profiles-editor] [data-profile-reset]');
+    if (profileReset) { void profilesModule().then(m => m.reset(profileReset.form)); return; }
+    const profilesAction = e.target.closest('[data-profiles]');
+    if (profilesAction) { e.preventDefault(); void profilesModule().then(m => m.click(profilesAction)); return; }
     if (e.target.closest('[data-profile-reset]')) {
       $('[data-profile-editor]').reset();
       syncProfile();
@@ -861,7 +877,8 @@ export function installPlatform() {
     if(e.target.matches('[data-preference]'))setPreference(e.target);
     if(e.target.matches('[data-notification-target]'))emit(`dialog:target-notifications:${e.target.value}`);
     if (e.target.id === "live-file") {queueUploads([...e.target.files]);e.target.value='';}
-    if (e.target.id === 'live-avatar') {emit('avatar-upload');e.target.value='';}
+    // A new avatar is cropped first (public/profiles.js), then uploaded.
+    if (e.target.id === 'live-avatar') { const input = e.target; void profilesModule().then(m => { m.mount(emit); return m.choose(input, 'avatar'); }).catch(() => { emit('avatar-upload'); input.value = ''; }); }
     if (e.target.id === 'live-guild-icon') {emit('guild-icon-upload');e.target.value='';}
     if (e.target.dataset.groupUser) {
       const selected = [...document.querySelectorAll('[data-group-user]:checked')];

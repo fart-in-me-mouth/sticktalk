@@ -175,4 +175,5 @@ pub enum LaunchCommand {
     },
     LogoutAllOthers,
     Moderation(ModerationCommand),
+    Profiles(ProfilesCommand),
 }

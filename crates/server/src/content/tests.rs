@@ -564,6 +564,7 @@ fn schedule(ch: u64, text: &str, at: u64) -> ContentCommand {
         content: text.into(),
         mention_ids: vec![],
         send_at: at,
+        attachment_ids: vec![],
     }
 }
 fn scheduled_of(r: CommandResult) -> ScheduledMessage {
@@ -604,6 +605,7 @@ async fn scheduled_messages_are_bounded_owned_and_rechecked_at_delivery() {
         content: text.into(),
         mention_ids: vec![],
         send_at: at,
+        attachment_ids: None,
     };
     assert_eq!(
         code(&content(&app, 1, 22, update(s.id, "hijack", later)).await),
@@ -1097,3 +1099,6 @@ async fn gifs_from_the_picker_keep_their_id_and_only_provider_media() {
         .unwrap();
     assert_eq!(seen.extra.gif.as_deref(), Some("klipy:42"));
 }
+
+/// Files on scheduled messages.
+mod integration;

@@ -130,9 +130,9 @@ console.log('Remote control: MessagePack round trip, key map without the Windows
 console.log('Call volumes: bounded, validated device-only values; stream capture leaves out own audio where supported: passed');
 
 const {normalizePreferences}=await import('../public/preferences.js');
-assert.deepEqual(normalizePreferences(null),{density:'cozy',fontScale:1,underlineLinks:false});
-assert.deepEqual(normalizePreferences({density:'compact',fontScale:'1.25',underlineLinks:true}),{density:'compact',fontScale:1.25,underlineLinks:true});
-assert.deepEqual(normalizePreferences({density:'injected',fontScale:Infinity,underlineLinks:'true',token:'not retained'}),{density:'cozy',fontScale:1,underlineLinks:false});
+assert.deepEqual(normalizePreferences(null),{density:'cozy',fontScale:1,underlineLinks:false,linkPreviews:true});
+assert.deepEqual(normalizePreferences({density:'compact',fontScale:'1.25',underlineLinks:true}),{density:'compact',fontScale:1.25,underlineLinks:true,linkPreviews:true});
+assert.deepEqual(normalizePreferences({density:'injected',fontScale:Infinity,underlineLinks:'true',token:'not retained'}),{density:'cozy',fontScale:1,underlineLinks:false,linkPreviews:true});
 const {swipeAction}=await import('../public/navigation.js');
 assert.equal(swipeAction('',120,4),'panel:left');
 assert.equal(swipeAction('',-120,4),'panel:right');

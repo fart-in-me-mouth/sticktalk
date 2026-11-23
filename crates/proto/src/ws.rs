@@ -290,6 +290,8 @@ pub enum Command {
     Threads(ThreadCommand),
     /// Stickers, Super Reactions and typing indicators (`expression.rs`).
     Expression(ExpressionCommand),
+    /// Status, nicknames, notes, ignore, requests, notifications, reports (`privacy.rs`).
+    Privacy(PrivacyCommand),
     /// Admission, onboarding, discovery, templates (`community.rs`).
     Community(CommunityCommand),
 }
@@ -334,6 +336,7 @@ pub enum CommandResult {
     Moderation(ModerationResult),
     Threads(ThreadResult),
     Expression(ExpressionResult),
+    Privacy(PrivacyResult),
     Community(CommunityResult),
 }
 
@@ -452,6 +455,8 @@ pub enum Event {
     Threads(ThreadEvent),
     /// Only sent to streams that sent `ExpressionCommand::Subscribe`.
     Expression(ExpressionEvent),
+    /// Only sent to streams that sent `PrivacyCommand::Subscribe`.
+    Privacy(PrivacyEvent),
     /// Only sent to streams that sent `CommunityCommand::Subscribe`.
     Community(CommunityEvent),
 }

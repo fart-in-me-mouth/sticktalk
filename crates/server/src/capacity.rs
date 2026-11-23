@@ -22,6 +22,8 @@ struct Guild {
     overwrites: HashMap<Id, Vec<PermissionOverwrite>>,
     parents: HashMap<Id, Option<Id>>,
     timed_out: HashSet<Id>,
+    /// The thread rules (`threads::scope`) for the one thread being evaluated.
+    thread: Option<(Id, crate::threads::ThreadScope, HashSet<Id>)>,
 }
 impl Guild {
     async fn load(c: &mut SqliteConnection, g: Id, timeouts_for: Option<Id>) -> Result<Self> {
@@ -90,6 +92,7 @@ impl Guild {
             overwrites,
             parents,
             timed_out,
+            thread: None,
         })
     }
     /// `ch` and every channel it is nested in, outermost first (as `acl::lineage`).
@@ -127,6 +130,12 @@ impl Guild {
                 }
             }
             p = acl::implicit(p);
+            p = match &self.thread {
+                Some((t, scope, members)) if *t == ch => {
+                    scope.apply(user, members.contains(&user), p)
+                }
+                _ => crate::threads::unscoped(p),
+            };
         }
         if self.timed_out.contains(&user) {
             p &= crate::moderation::TIMED_OUT_KEEPS;
@@ -200,7 +209,13 @@ pub(crate) async fn members_with(
     ch: Option<Id>,
     p: Permissions,
 ) -> Result<Vec<Id>> {
-    let guild = Guild::load(c, g, None).await?;
+    let mut guild = Guild::load(c, g, None).await?;
+    if let Some(ch) = ch {
+        if let Some(scope) = crate::threads::ThreadScope::load(c, ch).await? {
+            let members = crate::threads::ThreadScope::members(c, ch).await?;
+            guild.thread = Some((ch, scope, members));
+        }
+    }
     let mut users: Vec<_> = member_roles(c, g, None)
         .await?
         .into_iter()
@@ -236,7 +251,8 @@ mod tests {
     use super::*;
     use crate::audit_tests::fixture;
     /// The batched evaluator must agree with `evaluate` for every member and
-    /// channel, through nested overwrites, roles, administrators and timeouts.
+    /// channel, through nested overwrites, roles, administrators, timeouts and
+    /// the thread rules (private membership, locks).
     #[tokio::test]
     async fn batched_visibility_matches_evaluate() {
         let (_dir, app) = fixture().await;
@@ -246,13 +262,20 @@ mod tests {
             "INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(20,'category',10,'cat',1,0)",
             "INSERT INTO channels(id,kind,guild_id,parent_id,name,position,created_at) VALUES(21,'text',10,20,'inner',0,0)",
             "INSERT INTO channels(id,kind,guild_id,parent_id,name,position,created_at) VALUES(22,'voice',10,21,'deep',0,0)",
-            "INSERT INTO roles(guild_id,id,name,position,permissions) VALUES(10,30,'mods',2,1)",
+            // View Channel and Manage Threads.
+            "INSERT INTO roles(guild_id,id,name,position,permissions) VALUES(10,30,'mods',2,34359738369)",
             "INSERT INTO member_roles VALUES(10,3,30)",
             "INSERT INTO member_roles VALUES(10,4,11)",
             "INSERT INTO permission_overwrites VALUES(20,'role',10,0,1)",
             "INSERT INTO permission_overwrites VALUES(20,'role',30,1,0)",
             "INSERT INTO permission_overwrites VALUES(21,'member',3,0,2)",
             "INSERT INTO permission_overwrites VALUES(22,'member',2,1,0)",
+            // A private thread (member: 4) and a locked public one.
+            "INSERT INTO channels(id,kind,guild_id,parent_id,name,position,created_at) VALUES(23,'thread',10,21,'secret',0,0)",
+            "INSERT INTO threads(channel_id,parent_id,guild_id,owner_id,private,auto_archive_minutes,created_at,last_activity_at,archive_at) VALUES(23,21,10,1,1,60,0,0,0)",
+            "INSERT INTO thread_members VALUES(23,4,0,'default')",
+            "INSERT INTO channels(id,kind,guild_id,parent_id,name,position,created_at) VALUES(24,'thread',10,11,'closed',0,0)",
+            "INSERT INTO threads(channel_id,parent_id,guild_id,owner_id,locked,auto_archive_minutes,created_at,last_activity_at,archive_at) VALUES(24,11,10,1,1,60,0,0,0)",
         ] {
             sqlx::query(q).execute(&mut *c).await.unwrap();
         }
@@ -263,9 +286,15 @@ mod tests {
         .execute(&mut *c)
         .await
         .unwrap();
-        for ch in [11, 20, 21, 22] {
+        for ch in [11, 20, 21, 22, 23, 24] {
             let ch = Id(ch);
-            for p in [Permissions::VIEW_CHANNEL, Permissions::SEND_MESSAGES] {
+            for p in [
+                Permissions::VIEW_CHANNEL,
+                Permissions::SEND_MESSAGES,
+                Permissions::ADD_REACTIONS,
+                Permissions::MANAGE_THREADS,
+                Permissions::CREATE_PUBLIC_THREADS,
+            ] {
                 let batch = members_with(&mut c, Id(10), Some(ch), p).await.unwrap();
                 let mut slow = vec![];
                 for u in crate::db::guild_users(&mut c, Id(10)).await.unwrap() {

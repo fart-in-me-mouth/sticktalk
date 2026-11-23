@@ -30,6 +30,8 @@ mod mcp;
 mod mentions;
 mod moderation;
 mod nav;
+mod privacy;
+pub mod profiles;
 mod reauth;
 mod search;
 mod slowmode;
@@ -60,6 +62,7 @@ pub fn router(app: App) -> axum::Router {
     moderation::spawn(&app);
     authsec::spawn(&app);
     threads::spawn(&app);
+    privacy::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]
