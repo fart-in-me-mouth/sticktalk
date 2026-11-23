@@ -2,7 +2,7 @@
 //! Call under the application's serialization gate, using the current transaction.
 use crate::{
     db::id,
-    error::{require, Error, Result},
+    error::{require, Result},
 };
 use sqlx::{Row, SqliteConnection};
 use sticktalk_proto::*;
@@ -20,7 +20,11 @@ pub async fn evaluate(
 ) -> Result<Permissions> {
     let owner: Option<i64> = sqlx::query_scalar("SELECT owner_id FROM guilds WHERE id=? AND EXISTS(SELECT 1 FROM guild_members WHERE guild_id=? AND user_id=?)")
         .bind(id(guild)?).bind(id(guild)?).bind(id(user)?).fetch_optional(&mut *c).await?;
-    let owner = owner.ok_or_else(|| Error::new(ErrorCode::NotFound))? == id(user)?;
+    // Not a member: a webhook's fixed rights in its channel, else NotFound.
+    let Some(owner) = owner else {
+        return Box::pin(crate::apps::principal(c, user, guild, channel)).await;
+    };
+    let owner = owner == id(user)?;
     let scopes = match channel {
         Some(ch) => lineage(c, guild, ch).await?,
         None => vec![],

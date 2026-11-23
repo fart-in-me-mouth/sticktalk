@@ -189,7 +189,7 @@ async fn run(app: App, mut socket: WebSocket, cookie_token: Option<String>) {
     let (close, mut close_rx) = watch::channel(None);
     let connection_id = state::stream_id();
     let setup=async {
-        let mut core=app.0.core.lock().await;let mut c=app.0.pool.acquire().await?;let (key,u)=db::auth(&mut c,&identify.token).await?;
+        let mut core=app.0.core.lock().await;let mut c=app.0.pool.acquire().await?;let (key,u)=crate::apps::authenticate(&mut core,&mut c,&identify.token).await?;
         let expires:i64=sqlx::query_scalar("SELECT expires_at FROM sessions WHERE token_hash=?").bind(&key).fetch_one(&mut *c).await?;
         let was_online=core.streams.values().any(|s|s.user==u&&(s.connection.is_some()||(s.ever_connected&&state::now().saturating_sub(s.touched)<5000)));
         crate::voice::disconnect(&app,&mut core,&mut c,&key,None).await?;
@@ -411,6 +411,12 @@ async fn run(app: App, mut socket: WebSocket, cookie_token: Option<String>) {
                     }
                 }
             }
+            // Bots don't join calls (`apps.rs`).
+            ClientMsg::Voice(_)
+                if core
+                    .streams
+                    .get(&key)
+                    .is_some_and(|s| core.apps.bots.contains_key(&s.id)) => {}
             ClientMsg::Voice(v) => {
                 let _ = crate::voice::signal(&app, &mut core, &key, u, &connection_id, v).await;
             }

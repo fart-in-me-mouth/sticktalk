@@ -129,6 +129,8 @@ pub(crate) struct Core {
     pub schedule: crate::schedule::Schedule,
     /// Live activity sessions, one per call at most (`activities.rs`).
     pub activities: crate::activities::Activities,
+    /// Bots' event filters, interactions, embed image fetches (`apps.rs`).
+    pub(crate) apps: crate::apps::Runtime,
     last_id: u64,
     worker: u16,
 }
@@ -368,6 +370,11 @@ impl Core {
             if !s.appearance_features && matches!(&event, Event::Appearance(_)) {
                 continue;
             }
+            // Bots get only the event classes they may (`apps.rs`).
+            let app_view = crate::apps::view(&mut self.apps, s, &event);
+            if matches!(app_view, crate::apps::View::Skip) {
+                continue;
+            }
             if !s.launch_features
                 && matches!(
                     &event,
@@ -381,8 +388,9 @@ impl Core {
             {
                 continue;
             }
-            if matches!(&event, Event::MemberUpsert(m) if s.guild != Some(m.guild_id) && s.user != m.user.id)
-                || matches!(&event, Event::MemberRemoved{guild_id,..} if s.guild != Some(*guild_id))
+            if !matches!(app_view, crate::apps::View::Member)
+                && (matches!(&event, Event::MemberUpsert(m) if s.guild != Some(m.guild_id) && s.user != m.user.id)
+                    || matches!(&event, Event::MemberRemoved{guild_id,..} if s.guild != Some(*guild_id)))
             {
                 continue;
             }
@@ -394,7 +402,12 @@ impl Core {
                 s.interests.clear();
             }
             s.seq += 1;
-            let b = if let Some(b) = cache.get(&(s.seq, s.launch_features)) {
+            let b = if let crate::apps::View::Project(p) = &app_view {
+                encode(&ServerMsg::Event(Box::new(EventEnvelope {
+                    seq: s.seq,
+                    event: (**p).clone(),
+                })))?
+            } else if let Some(b) = cache.get(&(s.seq, s.launch_features)) {
                 b.clone()
             } else {
                 let mut projected = event.clone();
@@ -529,6 +542,7 @@ impl App {
                 stage: Default::default(),
                 schedule: Default::default(),
                 activities: Default::default(),
+                apps: Default::default(),
                 last_id,
                 worker,
             }),
@@ -760,6 +774,7 @@ mod tests {
             stage: Default::default(),
             schedule: Default::default(),
             activities: Default::default(),
+            apps: Default::default(),
             last_id: 0,
             worker: 0,
         }

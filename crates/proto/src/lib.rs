@@ -3,6 +3,8 @@
 
 mod activities;
 pub use activities::*;
+mod apps;
+pub use apps::*;
 mod authsec;
 pub use authsec::*;
 mod browser;

@@ -115,6 +115,11 @@ pub enum AdminCommand {
         #[command(subcommand)]
         command: DirectoryAdmin,
     },
+    /// Apps and bots: list, turn one off everywhere, who may create them.
+    Apps {
+        #[command(subcommand)]
+        command: crate::apps::admin::AppsAdmin,
+    },
 }
 /// `sticktalk-server admin reports ...`: the instance administrator's queue
 /// (direct messages, people, servers, and reports left by deleted servers).
@@ -211,6 +216,9 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     }
     if let AdminCommand::Directory { command } = command {
         return crate::community::admin_cli(&mut c, command).await;
+    }
+    if let AdminCommand::Apps { command } = command {
+        return crate::apps::admin::run(&mut c, command).await;
     }
     if matches!(command, AdminCommand::ListUsers) {
         let mut after = 0;

@@ -302,6 +302,18 @@ export function chatReady() {
 let completionRange, completionRequest = '';
 function complete(input) {
   const before = input.value.slice(0, input.selectionStart);
+  // The command picker (apps.rs) owns a line that starts with "/": it
+  // replaces the word at the cursor.
+  if (before.startsWith('/')) {
+    const word = before.match(/(\S*)$/u)[1];
+    completionRange = [input.selectionStart - word.length, input.selectionStart];
+    const request = `/|${before.slice(0, 2000)}`;
+    if (request !== completionRequest) {
+      completionRequest = request;
+      emit(`complete:${request}`);
+    }
+    return;
+  }
   const match = before.match(/(?:^|\s)([@#:])([^\s@#:]*)$/u);
   const request = match ? `${match[1]}|${match[2]}` : '';
   completionRange = match ? [input.selectionStart - match[2].length - 1, input.selectionStart] : null;
@@ -318,7 +330,9 @@ function acceptCompletion(row) {
   completionRange = null;
   completionRequest = '';
   input.focus();
-  emit('complete-close');
+  // A chosen command shows what it needs next.
+  if (input.value.startsWith('/')) complete(input);
+  else emit('complete-close');
 }
 const drafts = new Map();
 function remember(channel, text) {
@@ -870,6 +884,7 @@ export function installPlatform() {
     }
   });
   document.addEventListener("change", (e) => {
+    if (e.target.matches('input[type=file][data-live-file]')) emit(e.target.dataset.liveFile);
     if (e.target.matches('[data-role-position]')) {
       emit(`role-move:${e.target.dataset.rolePosition},${e.target.value}`);
     }
