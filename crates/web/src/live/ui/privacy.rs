@@ -19,10 +19,10 @@ fn status_name(s: PresenceStatus) -> &'static str {
 }
 fn dot_class(s: PresenceStatus) -> &'static str {
     match s {
-        PresenceStatus::Online => "bg-[#3DDC97]",
-        PresenceStatus::Idle => "bg-[#F2B84B]",
-        PresenceStatus::Dnd => "bg-[#F25F5C]",
-        _ => "bg-[#80848E]",
+        PresenceStatus::Online => "bg-online",
+        PresenceStatus::Idle => "bg-idle",
+        PresenceStatus::Dnd => "bg-dnd",
+        _ => "bg-offline",
     }
 }
 /// "until 3:45 PM" / "until Tue 9:00 AM".

@@ -25,7 +25,7 @@ sha2 = "0.10"
 leptos = { version = "0.8.20", features = ["csr"] }
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"], optional = true }
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlTextAreaElement", "Event", "CustomEvent", "CustomEventInit", "Location", "KeyboardEvent", "Blob", "File", "FileList", "HtmlSelectElement", "Navigator"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlTextAreaElement", "Event", "CustomEvent", "CustomEventInit", "Location", "KeyboardEvent", "Blob", "File", "FileList", "HtmlSelectElement", "Navigator", "History"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }

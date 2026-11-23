@@ -8,6 +8,7 @@ mod nav;
 mod operations;
 mod privacy;
 mod profiles;
+mod themes;
 mod threads;
 use crate::wire::{decode_signal, stringify_ids};
 mod ui;
@@ -161,6 +162,8 @@ struct App {
     profiles: profiles::State,
     /// Status, nicknames, notes, ignore, requests, notifications, reports.
     privacy: privacy::State,
+    /// Custom and server themes, the theme editor, shared themes.
+    themes: themes::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -229,6 +232,7 @@ impl App {
         self.expression = Default::default();
         self.privacy = Default::default();
         privacy::reset();
+        self.themes = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -393,6 +397,7 @@ pub fn mount() {
             expression: Default::default(),
             profiles: Default::default(),
             privacy: Default::default(),
+            themes: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -673,6 +678,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 nav::ready(app.clone());
                                 moderation::connected(app.clone());
                                 privacy::connected(app.clone());
+                                themes::connected(app.clone());
                                 let channel = app.borrow().channel;
                                 if let Some(c) = channel {
                                     operations::load_channel(app.clone(), c, None);
@@ -765,6 +771,10 @@ async fn socket(app: Shared, epoch: u64) {
                                         }
                                         Event::Moderation(e) => moderation::event(&mut a, e),
                                         Event::Privacy(e) => privacy::event(&mut a, e),
+                                        Event::Appearance(e) => themes::event(&mut a, e),
+                                        Event::MessageCreated { message, .. } => {
+                                            themes::message_created(&a, message)
+                                        }
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id

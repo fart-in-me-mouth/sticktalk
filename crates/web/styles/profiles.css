@@ -362,7 +362,7 @@
    nameplates, effects and frames are hidden. Your own stay. */
 [data-reduce-cosmetics="true"] .cosmetic:not(.is-self) { display: none; }
 
-@media (prefers-reduced-motion: reduce) {
+:root[data-motion="reduce"] {
   .avatar-deco,
   .profile-effect::before,
   .styled-name { animation: none !important; transition: none !important; }

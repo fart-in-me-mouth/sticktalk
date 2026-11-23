@@ -570,8 +570,7 @@ fn expression_settings(a: &App) -> AnyView {
             <button type="submit" class="button primary">"Save Typing Indicator"</button>{if style.is_some(){view!{<button type="button" class="button secondary mt-2 ml-2 phone:ml-0 phone:w-full" data-live="expr-typing-reset">"Use the Standard Indicator"</button>}.into_any()}else{().into_any()}}
         </form>
         <div class="settings-divider"></div><h2>"Super Reactions"</h2>
-        <label class="live-checkbox"><span>"Play Super Reaction animations"</span><input type="checkbox" data-preference="superReactions"/></label>
-        <p class="muted-copy">"Saved on this device. With reduced motion turned on in your system, Super Reactions are highlighted without moving."</p>
+        <p class="muted-copy">"Super Reaction animations, with motion and the other animation settings, are in Accessibility."</p>{button("Open Accessibility","dialog:accessibility","link-button")}
     }.into_any()
 }
 

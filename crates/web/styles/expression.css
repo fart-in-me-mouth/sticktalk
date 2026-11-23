@@ -64,7 +64,7 @@
 .animated > .emoji-still {
   display: none;
 }
-@media (prefers-reduced-motion: reduce) {
+:root[data-motion="reduce"] {
   .animated > .emoji-still {
     display: block;
   }
@@ -159,7 +159,7 @@
   100% { opacity: 0; transform: scale(1.15) rotate(-20deg); }
 }
 /* Reduced motion, or Settings › Expression turned off: a static highlight. */
-@media (prefers-reduced-motion: reduce) {
+:root[data-motion="reduce"] {
   .reaction.super-burst::before,
   .reaction.super-burst::after {
     animation: none;
@@ -206,7 +206,7 @@
   0%, 100% { transform: translateY(1px); }
   50% { transform: translateY(-3px); }
 }
-@media (prefers-reduced-motion: reduce) {
+:root[data-motion="reduce"] {
   .typing-custom .typing-glyph {
     animation: none;
   }

@@ -194,6 +194,8 @@ const paths = sizes
       !p.includes("/public/vendor/") &&
       !p.includes("/vendor/") &&
       !p.includes("expression.js") &&
+      // Themes: alternative app icons and chat fonts load only when chosen.
+      !/\/(app-icons|fonts\/chat)\//.test(p) &&
       !p.includes("/stickers/") &&
       !(p.endsWith(".wasm") && !p.endsWith("_bg.wasm")) &&
       !p.includes("__wasm_split_manifest"),

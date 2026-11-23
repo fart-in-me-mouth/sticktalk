@@ -7,6 +7,7 @@
 @import "./callextras.css";
 @import "./expression.css";
 @import "./profiles.css";
+@import "./themes.css";
 @source "../src/live";
 @source "../index.html";
 @source "../public/*.js";
@@ -37,7 +38,7 @@
   --color-primary-hover: var(--accent-hover);
   --color-primary-foreground: var(--accent-text);
   --color-secondary: var(--bg-selected);
-  --color-secondary-hover: #3a3a41;
+  --color-secondary-hover: var(--bg-control);
   --color-secondary-foreground: var(--text-primary);
   --color-muted: var(--bg-elevated);
   --color-muted-foreground: var(--text-muted);
@@ -47,8 +48,8 @@
   --color-destructive: var(--danger);
   --color-warning: var(--warning);
   --color-border: var(--divider);
-  --color-input: #3a3a41;
-  --color-field: #121215;
+  --color-input: var(--bg-control);
+  --color-field: var(--bg-field);
   --color-ring: var(--accent);
   --color-rail: var(--bg-rail);
   --color-sidebar: var(--bg-sidebar);
@@ -56,8 +57,14 @@
   --color-sidebar-accent: var(--bg-hover);
   --color-sidebar-accent-foreground: var(--text-primary);
   --color-sidebar-border: var(--divider);
-  --color-panel: #141417;
-  --color-brand-avatar: #496c63;
+  --color-panel: var(--bg-panel);
+  --color-brand-avatar: var(--brand-avatar);
+  /* Themes task: presence colors and the hover of bg.control as utilities. */
+  --color-online: var(--online);
+  --color-idle: var(--idle);
+  --color-dnd: var(--dnd);
+  --color-offline: var(--offline);
+  --color-control-hover: var(--bg-control-hover);
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
@@ -169,7 +176,7 @@
   input[type="color"] {
     @apply h-10 w-full cursor-pointer rounded-md border border-input bg-field p-1;
   }
-  @media (prefers-reduced-motion: reduce) {
+  :root[data-motion="reduce"] {
     * {
       scroll-behavior: auto !important;
       transition: none !important;

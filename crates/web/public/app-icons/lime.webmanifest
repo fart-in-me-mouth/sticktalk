@@ -1,0 +1,39 @@
+{
+  "id": "/",
+  "name": "StickTalk",
+  "short_name": "StickTalk",
+  "description": "Messages, friends and voice calls.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#111113",
+  "theme_color": "#111113",
+  "categories": [
+    "social"
+  ],
+  "icons": [
+    {
+      "src": "/public/app-icons/lime-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/public/app-icons/lime-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/public/app-icons/lime-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
