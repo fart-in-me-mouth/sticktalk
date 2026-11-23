@@ -3,6 +3,7 @@ use crate::{
     address, control, health,
     links::{self, Launch},
     policy::{Decision, Policy},
+    ptt,
     shell_page::{self, lock, Form, Shared, SharedState},
     webview, window_state,
 };
@@ -72,6 +73,13 @@ pub enum UserEvent {
     },
     /// Esc on the real keyboard during remote control.
     ControlEscape,
+    /// The page started or ended a call with push-to-talk keys.
+    Ptt(ptt::Message),
+    /// A push-to-talk or push-to-mute key went down or up, in any app.
+    PttKey {
+        which: ptt::Which,
+        down: bool,
+    },
 }
 
 /// Tells the page what became of a remote-control request.
@@ -444,6 +452,8 @@ pub fn run(launch: Launch) -> i32 {
     // Remote control: at most one question open and one session running.
     let mut session: Option<control::Session> = None;
     let mut asking: Option<(u64, control::Target, u32, u32)> = None;
+    // Push to talk: the passive key hooks, only while a call wants them.
+    let mut ptt_hook: Option<ptt::Hook> = None;
     let mut question = 0u64;
     // The question's message box is on screen (possibly for a withdrawn request).
     let mut prompting = false;
@@ -596,9 +606,26 @@ pub fn run(launch: Launch) -> i32 {
                     tell(&webview, "stopped", "You stopped remote control.");
                 }
             }
+            Event::UserEvent(UserEvent::Ptt(message)) => {
+                ptt_hook = None;
+                if let ptt::Message::Start { talk, mute } = message {
+                    if !is_smoke {
+                        let proxy = proxy.clone();
+                        ptt_hook = ptt::Hook::start(talk, mute, move |which, down| {
+                            let _ = proxy.send_event(UserEvent::PttKey { which, down });
+                        });
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::PttKey { which, down }) => {
+                if ptt_hook.is_some() {
+                    let _ = webview.evaluate_script(&ptt::script(which, down));
+                }
+            }
             Event::UserEvent(UserEvent::Loaded(load)) => {
                 // A page that has gone can no longer be the one that was allowed.
                 session = None;
+                ptt_hook = None;
                 asking = None;
                 withdraw();
                 lock(&shared).sharing = false;

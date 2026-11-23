@@ -7,6 +7,7 @@ use crate::{
     health::{self, Failure},
     menu,
     policy::{Decision, Grant, Permission},
+    ptt,
     shell_page::{self, lock, Form, Route, SharedState},
 };
 use std::{borrow::Cow, path::PathBuf};
@@ -98,7 +99,7 @@ pub fn build(window: &Window, context: &mut WebContext, config: Config) -> Resul
         // Remote control of a shared screen (see `control`). The page can only
         // ask; the person at this PC is asked by Windows before anything happens.
         .with_initialization_script(
-            "Object.defineProperty(window,'__sticktalkHost',{value:Object.freeze({control:1})});",
+            "Object.defineProperty(window,'__sticktalkHost',{value:Object.freeze({control:1,ptt:1})});",
         )
         .with_ipc_handler({
             let (shared, proxy) = (shared.clone(), proxy.clone());
@@ -106,6 +107,11 @@ pub fn build(window: &Window, context: &mut WebContext, config: Config) -> Resul
             move |request: Request<String>| {
                 // Only the chosen server's own pages are listened to.
                 if !lock(&shared).policy.is_server(&request.uri().to_string()) {
+                    return;
+                }
+                // Push to talk while another app has focus (see `ptt`).
+                if let Some(message) = ptt::parse(request.body()) {
+                    let _ = proxy.send_event(UserEvent::Ptt(message));
                     return;
                 }
                 let Some(message) = control::parse(request.body()) else {

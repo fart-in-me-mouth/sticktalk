@@ -14,6 +14,7 @@ mod health;
 mod links;
 mod menu;
 mod policy;
+mod ptt;
 mod shell_page;
 #[cfg(windows)]
 mod webview;
