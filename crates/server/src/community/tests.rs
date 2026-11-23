@@ -1307,7 +1307,17 @@ async fn onboarding_refuses_broadcast_and_moderation_rights_and_overwrites() {
         5,
     )
     .await;
-    let flow = |role: u64| onboarding(vec![question(1, true, true, vec![answer(1, &[role], &[]), answer(2, &[], &[])])], &[]);
+    let flow = |role: u64| {
+        onboarding(
+            vec![question(
+                1,
+                true,
+                true,
+                vec![answer(1, &[role], &[]), answer(2, &[], &[])],
+            )],
+            &[],
+        )
+    };
     for refused in [40, 44] {
         assert_eq!(
             err(cm(&app, 2, flow(refused)).await).field.as_deref(),
@@ -1323,7 +1333,14 @@ async fn onboarding_refuses_broadcast_and_moderation_rights_and_overwrites() {
     assert!(roles_of(&app, 3).await.contains(&Id(43)));
     ok(cm(&app, 3, respond(&[(1, 2)])).await);
     assert!(!roles_of(&app, 3).await.contains(&Id(43)));
-    sql(&app, &format!("INSERT INTO permission_overwrites VALUES(12,'role',43,{},0)", Permissions::MENTION_EVERYONE.bits())).await;
+    sql(
+        &app,
+        &format!(
+            "INSERT INTO permission_overwrites VALUES(12,'role',43,{},0)",
+            Permissions::MENTION_EVERYONE.bits()
+        ),
+    )
+    .await;
     ok(cm(&app, 3, respond(&[(1, 1)])).await);
     assert!(!roles_of(&app, 3).await.contains(&Id(43)));
 }

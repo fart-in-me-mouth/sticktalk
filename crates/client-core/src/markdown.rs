@@ -183,13 +183,21 @@ fn named_host(label: &str) -> Option<String> {
         .find(|w| {
             let parts: Vec<&str> = w.split('.').collect();
             parts.len() >= 2
-                && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '-'))
-                && parts.last().is_some_and(|t| t.chars().count() >= 2 && t.chars().all(char::is_alphabetic))
+                && parts
+                    .iter()
+                    .all(|p| !p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '-'))
+                && parts
+                    .last()
+                    .is_some_and(|t| t.chars().count() >= 2 && t.chars().all(char::is_alphabetic))
         })
         .map(str::to_lowercase)
 }
 fn same_site(a: &str, b: &str) -> bool {
-    let bare = |h: &str| h.trim_start_matches("www.").trim_end_matches('.').to_owned();
+    let bare = |h: &str| {
+        h.trim_start_matches("www.")
+            .trim_end_matches('.')
+            .to_owned()
+    };
     bare(a) == bare(b)
 }
 /// A masked link may show a label that names another site: then it is not a
@@ -407,15 +415,26 @@ mod tests {
         // A label naming another site is not a link; the real URL is.
         // (Shown as typed: each URL in it is a link to exactly where it reads.)
         let honest = |l: &[(String, Option<Target>)]| {
-            l.iter().all(|(text, t)| matches!(t, Some(Target::Auto(u)) if u == text))
+            l.iter()
+                .all(|(text, t)| matches!(t, Some(Target::Auto(u)) if u == text))
         };
-        let l = links("[https://accounts.google.com/signin](https://accounts-google.example/signin)");
+        let l =
+            links("[https://accounts.google.com/signin](https://accounts-google.example/signin)");
         assert!(honest(&l), "{l:?}");
         let l = links("[accounts.google.com](https://evil.example)");
-        assert!(l.iter().all(|(_, t)| !matches!(t, Some(Target::Masked(_)))), "{l:?}");
+        assert!(
+            l.iter().all(|(_, t)| !matches!(t, Some(Target::Masked(_)))),
+            "{l:?}"
+        );
         // A label naming the same site, or no site, is fine.
-        assert!(matches!(&links("[the docs](https://example.com/docs)")[0].1, Some(Target::Masked(_))));
-        assert!(matches!(&links("[example.com](https://www.example.com)")[0].1, Some(Target::Masked(_))));
+        assert!(matches!(
+            &links("[the docs](https://example.com/docs)")[0].1,
+            Some(Target::Masked(_))
+        ));
+        assert!(matches!(
+            &links("[example.com](https://www.example.com)")[0].1,
+            Some(Target::Masked(_))
+        ));
         // A login part is not a link.
         assert!(links("https://www.paypal.com@evil.example/").is_empty());
         assert!(links("[pay](https://paypal.com@evil.example/)").is_empty());

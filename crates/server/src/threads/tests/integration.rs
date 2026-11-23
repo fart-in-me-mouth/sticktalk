@@ -554,14 +554,32 @@ async fn follows_stop_when_their_creator_loses_access() {
     assert_eq!(scalar(&app, "SELECT COUNT(*) FROM crossposts").await, 1);
     // #news made unreadable to the follow's creator (3): at the next
     // delivery the follow is gone and nothing new is copied.
-    sql(&app, &format!("INSERT INTO permission_overwrites VALUES({},'member',3,0,{})", news.0, Permissions::VIEW_CHANNEL.bits())).await;
+    sql(
+        &app,
+        &format!(
+            "INSERT INTO permission_overwrites VALUES({},'member',3,0,{})",
+            news.0,
+            Permissions::VIEW_CHANNEL.bits()
+        ),
+    )
+    .await;
     publish(5, "secret plans").await;
     assert_eq!(scalar(&app, "SELECT COUNT(*) FROM crossposts").await, 1);
-    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM channel_follows").await, 0);
+    assert_eq!(
+        scalar(&app, "SELECT COUNT(*) FROM channel_follows").await,
+        0
+    );
     assert_eq!(audit(&app, 20, AuditAction::ChannelUnfollow).await.len(), 1);
     assert_eq!(audit(&app, 10, AuditAction::ChannelUnfollow).await.len(), 1);
     // Readable again, followed again; a ban removes it at once.
-    sql(&app, &format!("DELETE FROM permission_overwrites WHERE channel_id={}", news.0)).await;
+    sql(
+        &app,
+        &format!(
+            "DELETE FROM permission_overwrites WHERE channel_id={}",
+            news.0
+        ),
+    )
+    .await;
     follow(7).await;
     ok(run(
         &app,
@@ -574,7 +592,10 @@ async fn follows_stop_when_their_creator_loses_access() {
         },
     )
     .await);
-    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM channel_follows").await, 0);
+    assert_eq!(
+        scalar(&app, "SELECT COUNT(*) FROM channel_follows").await,
+        0
+    );
     publish(9, "after the ban").await;
     assert_eq!(scalar(&app, "SELECT COUNT(*) FROM crossposts").await, 1);
 }

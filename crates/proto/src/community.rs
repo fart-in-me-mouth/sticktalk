@@ -748,9 +748,16 @@ mod tests {
             | Permissions::CREATE_EVENTS;
         assert!((not_for_onboarding & ONBOARDING_ALLOWED).is_empty());
         let unclassified = Permissions::all() - not_for_onboarding - ONBOARDING_ALLOWED;
-        assert!(unclassified.is_empty(), "classify for onboarding: {unclassified:?}");
+        assert!(
+            unclassified.is_empty(),
+            "classify for onboarding: {unclassified:?}"
+        );
         assert_eq!(ONBOARDING_FORBIDDEN, not_for_onboarding);
-        assert!(!onboarding_grantable(Permissions::from_bits_retain(1 << 63)));
-        assert!(onboarding_grantable(Permissions::SEND_MESSAGES | Permissions::CONNECT));
+        assert!(!onboarding_grantable(Permissions::from_bits_retain(
+            1 << 63
+        )));
+        assert!(onboarding_grantable(
+            Permissions::SEND_MESSAGES | Permissions::CONNECT
+        ));
     }
 }

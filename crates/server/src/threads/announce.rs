@@ -325,12 +325,22 @@ async fn delete_copies(
 /// The follow's creator can still read the source and still manages the
 /// target (security review G1: a follow is permission, not a subscription).
 async fn still_allowed(c: &mut SqliteConnection, f: &ChannelFollow) -> Result<bool> {
-    Ok(announcement(c, f.created_by, f.source_channel_id, Permissions::READ_HISTORY)
+    Ok(announcement(
+        c,
+        f.created_by,
+        f.source_channel_id,
+        Permissions::READ_HISTORY,
+    )
+    .await
+    .is_ok()
+        && crate::db::text(
+            c,
+            f.created_by,
+            f.source_channel_id,
+            Permissions::READ_HISTORY,
+        )
         .await
         .is_ok()
-        && crate::db::text(c, f.created_by, f.source_channel_id, Permissions::READ_HISTORY)
-            .await
-            .is_ok()
         && target_manager(c, f.created_by, f.target_channel_id)
             .await
             .is_ok())
@@ -346,8 +356,16 @@ async fn lapse(c: &mut SqliteConnection, f: &ChannelFollow) -> Result<()> {
             .to_owned(),
     );
     for (g, ch, name) in [
-        (f.target_guild_id, f.target_channel_id, &f.target_channel_name),
-        (f.source_guild_id, f.source_channel_id, &f.source_channel_name),
+        (
+            f.target_guild_id,
+            f.target_channel_id,
+            &f.target_channel_name,
+        ),
+        (
+            f.source_guild_id,
+            f.source_channel_id,
+            &f.source_channel_name,
+        ),
     ] {
         crate::moderation::audit::write(
             c,
@@ -363,8 +381,7 @@ async fn lapse(c: &mut SqliteConnection, f: &ChannelFollow) -> Result<()> {
                 "follows",
                 Some(format!(
                     "#{} ({})",
-                    f.source_channel_name,
-                    f.source_guild_name
+                    f.source_channel_name, f.source_guild_name
                 )),
                 None,
             )

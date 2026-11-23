@@ -461,6 +461,7 @@ export function beforeRender() {
     anchor: anchor?.dataset.liveMessage,
     anchorOffset: anchor && anchor.getBoundingClientRect().top - list.getBoundingClientRect().top,
     id: focus?.id,
+    focused: focus,
     // A focused button has no id: it is found again by what it does.
     key: focus?.dataset?.live ? ['live', focus.dataset.live] : focus?.dataset?.pick ? ['pick', focus.dataset.pick] : null,
     start: focus?.selectionStart,
@@ -477,7 +478,7 @@ export function beforeRender() {
     ].filter(e=>(e.dataset.dirty==='true'||e.closest('form')?.dataset.dirty==='true')&&!e.closest('[data-profiles-editor]')).map((e) => {
       const selector = e.id ? `#${CSS.escape(e.id)}` :
         ['group-user','member-role','role-bit','settings-search'].map(key => e.hasAttribute(`data-${key}`) ? `[data-${key}="${CSS.escape(e.getAttribute(`data-${key}`))}"]` : null).find(Boolean);
-      return [selector, e.value, e.type === 'checkbox' ? e.checked : null];
+      return [selector, e.value, e.type === 'checkbox' ? e.checked : null, e];
     }),
   };
 }
@@ -666,9 +667,11 @@ function restore() {
   if (saved) {
     if(saved.authUsername && $('#auth-username'))$('#auth-username').value=saved.authUsername;
     if ($(".live-modal")?.dataset.dialog === saved.dialog)
-      for (const [selector, value, checked] of saved.fields) {
+      for (const [selector, value, checked, before] of saved.fields) {
         const e = selector && $('.live-modal')?.querySelector(selector);
-        if (e) {
+        // Only a field the render replaced needs its value back: one that was
+        // kept holds what is typed now, which may be newer than this snapshot.
+        if (e && e !== before) {
           e.value = value;
           if (checked !== null) e.checked = checked;
           e.dataset.dirty='true';
@@ -684,7 +687,10 @@ function restore() {
     // not take the keyboard away. Elsewhere the button may now be off screen.
     const focus = document.getElementById(saved.id) ?? (saved.key &&
       [...($('.live-modal')?.querySelectorAll(`[data-${saved.key[0]}]`) ?? [])].find(e => e.dataset[saved.key[0]] === saved.key[1] && e.offsetParent));
-    if (focus && !composing) {
+    // Only when the render took focus away (the focused element was replaced):
+    // a snapshot restored after a later change must not move focus back.
+    const lost = !document.activeElement || document.activeElement === document.body || !document.contains(saved.focused);
+    if (focus && !composing && lost) {
       focus.focus({ preventScroll: true });
       if (saved.start != null && focus.type !== "color")
         try {

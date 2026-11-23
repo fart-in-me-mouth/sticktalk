@@ -198,15 +198,18 @@ let press = null, pressed = 0;
 let held = [], hadResults = false, hadSwitcher = false, rendered = false;
 export function navBeforeRender() {
   rendered = true;
-  held = [...document.querySelectorAll('[data-nav-search]')].map((e) => [e.id, e.value, e === document.activeElement, e.selectionStart, e.selectionEnd]);
+  held = [...document.querySelectorAll('[data-nav-search]')].map((e) => [e.id, e.value, e === document.activeElement, e.selectionStart, e.selectionEnd, e]);
 }
 export function navRestore() {
   // Only after an app render; this module's own DOM edits also reach here.
   if (!rendered) return;
   rendered = false;
-  for (const [id, value, focused, start, end] of held) {
+  for (const [id, value, focused, start, end, before] of held) {
     const e = document.getElementById(id);
-    if (!e) continue;
+    // Only a box the render replaced needs its text back. One that was kept
+    // holds what is typed now, which may be newer than this snapshot (a
+    // render that changed nothing does not come here until a later change).
+    if (!e || e === before) continue;
     e.value = value;
     if (focused && document.activeElement !== e) { e.focus({ preventScroll: true }); try { e.setSelectionRange(start, end); } catch { /* not a text field */ } }
   }
