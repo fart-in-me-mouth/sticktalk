@@ -123,6 +123,7 @@ async fn upload(
         .bind(media.preview)
         .execute(&mut *tx)
         .await?;
+    crate::moderation::audit::emoji_created(&mut tx, u, Id(g), eid, &q.name).await?;
     core.persist_id(&mut tx).await?;
     let data = emojis(&mut tx, Id(g)).await?;
     let users = guild_users(&mut tx, Id(g)).await?;

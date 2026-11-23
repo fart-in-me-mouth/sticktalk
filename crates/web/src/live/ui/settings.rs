@@ -34,16 +34,17 @@ pub(super) fn is_server_page(page: &str) -> bool {
             | "private"
             | "invite"
             | "guild-delete"
-    ) || [
-        "role:",
-        "channel-edit:",
-        "channel-delete:",
-        "channel-move:",
-        "invite-revoke:",
-        "unban:",
-    ]
-    .iter()
-    .any(|prefix| page.starts_with(prefix))
+    ) || super::moderation::is_server_page(page)
+        || [
+            "role:",
+            "channel-edit:",
+            "channel-delete:",
+            "channel-move:",
+            "invite-revoke:",
+            "unban:",
+        ]
+        .iter()
+        .any(|prefix| page.starts_with(prefix))
 }
 pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
     let name = a
@@ -77,16 +78,50 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             "invite",
             can_any(a, Permissions::CREATE_INVITES | Permissions::MANAGE_GUILD),
         ),
+    ];
+    // Moderation, as its own group.
+    let moderation = [
+        (
+            "shield-check",
+            "Safety Setup",
+            "safety",
+            can_any(
+                a,
+                Permissions::MANAGE_GUILD
+                    | Permissions::KICK_MEMBERS
+                    | Permissions::BAN_MEMBERS
+                    | Permissions::MODERATE_MEMBERS,
+            ),
+        ),
         (
             "shield",
+            "AutoMod",
+            "automod",
+            can(a, Permissions::MANAGE_GUILD),
+        ),
+        (
+            "file",
+            "Audit Log",
+            "audit-log",
+            can(a, Permissions::VIEW_AUDIT_LOG),
+        ),
+        (
+            "ban",
             "Bans",
             "server-bans",
             can(a, Permissions::BAN_MEMBERS),
+        ),
+        (
+            "user-minus",
+            "Prune Members",
+            "prune",
+            can(a, Permissions::KICK_MEMBERS),
         ),
     ];
     let kind = a.dialog.split(':').next().unwrap_or_default();
     let title = pages
         .iter()
+        .chain(moderation.iter())
         .find(|(_, _, page, _)| *page == a.dialog)
         .map_or(
             match kind {
@@ -98,6 +133,8 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
                 "unban" => "Revoke Ban",
                 "invite-revoke" => "Revoke Invite",
                 "guild-delete" => "Delete Server",
+                "automod-rule" => "AutoMod Rule",
+                "channel-perms" => "Channel Permissions",
                 _ => "Server Settings",
             },
             |(_, label, _, _)| *label,
@@ -111,6 +148,8 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
         "ban" | "unban" => ("Back to Bans", "dialog:server-bans"),
         "invite-revoke" => ("Back to Invites", "dialog:invite"),
         "guild-delete" => ("Back to Overview", "dialog:server-overview"),
+        "automod-rule" => ("Back to AutoMod", "dialog:automod"),
+        "channel-perms" => ("Back to Channels", "dialog:server-channels"),
         _ => ("Back to Server Settings", "dialog:server"),
     };
     settings_page(
@@ -125,6 +164,8 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
         },
         view!{<h2 class="mx-2 text-xl wrap-anywhere">{name.to_owned()}</h2><h3 class="category mx-2 mt-6 mb-2">"Server Settings"</h3>
             {pages.into_iter().filter(|page|page.3).map(|(glyph,label,page,_)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}
+            {if moderation.iter().any(|page|page.3){view!{<h3 class="category mx-2 mt-6 mb-2">"Moderation"</h3>}.into_any()}else{().into_any()}}
+            {moderation.into_iter().filter(|page|page.3).map(|(glyph,label,page,_)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}
         }.into_any(),
         body,
     )
@@ -180,9 +221,12 @@ pub(super) fn channel_editor(a: &App, page: &str) -> AnyView {
     else {
         return ().into_any();
     };
-    form_with("Edit Channel","channel-save",view!{<fieldset disabled=!can(a,Permissions::MANAGE_CHANNELS)>{field("f-name","Name",c.name.as_deref().unwrap_or(""),"text")}{field("f-value","Topic",a.model.topics.get(&c.id).and_then(|t|t.as_deref()).unwrap_or(""),"text")}<input id="f-extra" type="hidden" value=c.id.0.to_string()/></fieldset>
+    // Slowmode, safety and permissions are separate forms, after this one.
+    let safety = super::moderation::channel_safety(a, c);
+    let edit = form_with("Edit Channel","channel-save",view!{<fieldset disabled=!can(a,Permissions::MANAGE_CHANNELS)>{field("f-name","Name",c.name.as_deref().unwrap_or(""),"text")}{field("f-value","Topic",a.model.topics.get(&c.id).and_then(|t|t.as_deref()).unwrap_or(""),"text")}<input id="f-extra" type="hidden" value=c.id.0.to_string()/></fieldset>
         <div class="settings-divider"></div>{if can(a,Permissions::MANAGE_CHANNELS){view!{{button(if c.kind==ChannelKind::Category{"Move Category"}else{"Move Channel"},&format!("dialog:channel-move:{}",c.id.0),"secondary")}{button(if c.kind==ChannelKind::Category{"Delete Category"}else{"Delete Channel"},&format!("dialog:channel-delete:{}",c.id.0),"danger-text")}}.into_any()}else{().into_any()}}
-    }.into_any(),"dialog:server-channels",can(a,Permissions::MANAGE_CHANNELS))
+    }.into_any(),"dialog:server-channels",can(a,Permissions::MANAGE_CHANNELS));
+    view! {{edit}{safety}}.into_any()
 }
 /// Put a channel inside another one, or back at the top level.
 pub(super) fn channel_move(a: &App, page: &str) -> AnyView {

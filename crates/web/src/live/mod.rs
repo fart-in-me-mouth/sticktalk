@@ -1,6 +1,7 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
 mod calls;
 mod content;
+mod moderation;
 mod nav;
 mod operations;
 use crate::wire::{decode_signal, stringify_ids};
@@ -146,6 +147,7 @@ struct App {
     nav: nav::NavState,
     /// Polls, forwarding, scheduled messages, voice messages, GIF favorites.
     content: content::State,
+    moderation: moderation::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -208,6 +210,7 @@ impl App {
         self.panel.clear();
         self.screen = "home".into();
         self.nav = Default::default();
+        self.moderation = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -367,6 +370,7 @@ pub fn mount() {
             loading_voice: std::cell::Cell::new(false),
             nav: Default::default(),
             content: Default::default(),
+            moderation: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -644,6 +648,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 }
                                 operations::ready(app.clone());
                                 nav::ready(app.clone());
+                                moderation::connected(app.clone());
                                 let channel = app.borrow().channel;
                                 if let Some(c) = channel {
                                     operations::load_channel(app.clone(), c, None);
@@ -734,6 +739,7 @@ async fn socket(app: Shared, epoch: u64) {
                                                 a.roles.insert(r.id, r.clone());
                                             }
                                         }
+                                        Event::Moderation(e) => moderation::event(&mut a, e),
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id

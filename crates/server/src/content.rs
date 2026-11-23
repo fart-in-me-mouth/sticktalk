@@ -163,6 +163,16 @@ pub(crate) async fn mutate(
     Ok(CommandResult::Content(result))
 }
 
+/// See `forward::snapshot_text`.
+pub(crate) async fn forward_text(
+    c: &mut SqliteConnection,
+    u: Id,
+    source_channel: Id,
+    source_message: Id,
+) -> Option<String> {
+    forward::snapshot_text(c, u, source_channel, source_message).await
+}
+
 /// The ordinary send path (permissions, slowmode, mentions, moderation checks).
 pub(crate) async fn send(
     c: &mut SqliteConnection,

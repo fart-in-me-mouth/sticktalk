@@ -1064,6 +1064,8 @@ export function installPlatform() {
   let touch, press;
   const cancelPress=()=>{if(press)clearTimeout(press.timer);press=null;};
   document.addEventListener('contextmenu',e=>{
+    const member=e.target.closest('.member-row[data-live]');
+    if(member&&!member.closest('.live-modal')){e.preventDefault();void request(member.dataset.live);return;}
     const row=e.target.closest('.message');
     if(!row||row.closest('.live-modal'))return;
     // With a mouse, a link, a picture or selected text keeps the browser's own menu.

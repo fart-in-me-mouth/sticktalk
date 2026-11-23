@@ -459,6 +459,7 @@ pub(crate) async fn execute(
             if matches!(req.command,Command::SendMessage(_)) {core.rate(format!("send:{}",u.0),60.,10.)?;}
             let n:i64=sqlx::query_scalar("SELECT COUNT(*) FROM command_receipts WHERE session_hash=? AND expires_at>?").bind(key).bind(now() as i64).fetch_one(&mut *c).await?;require(n<256,ErrorCode::LimitExceeded)?;
         }
+        let mut moderation_hook = crate::moderation::precheck(app, core, &mut c, u, &req.command).await?;
         let visibility_users = visibility_users(&mut c, u, &req.command).await?;
         let mut previous_base = Vec::new();
         for viewer in visibility_users { previous_base.push((viewer, base_presence(&mut c, viewer).await?)); }
@@ -479,6 +480,7 @@ pub(crate) async fn execute(
         let call_acl_changed=crate::calls::acl_changed(&req.command);
         let mut revoked_visibility=vec![];
         let mut result=mutate(&mut tx,core,key,u,req.command,&mut out).await?;
+        crate::moderation::record(&mut tx, u, &mut moderation_hook, &result).await?;
         if let CommandResult::Channel(ch)=&mut result {*ch=access(&mut tx,u,ch.summary.id,Permissions::VIEW_CHANNEL).await?;}
         if let Some(g)=acl_guild {
             for (v,old) in &before {
@@ -551,6 +553,7 @@ pub(crate) async fn execute(
         }
         // Presence is synthesized against the committed projection, not supplied by clients.
         if presence_changed && changed { broadcast_presence(&mut c,core,u).await?; }
+        crate::moderation::after(app, core, &mut c, u, moderation_hook).await?;
         Ok(result)
     }.await;
     let outcome = match outcome {
@@ -1576,7 +1579,7 @@ pub(crate) async fn mutate(
                     .bind(id(g)?)
                     .fetch_one(&mut *c)
                     .await?
-                    < 32,
+                    < MAX_CHANNELS_PER_GUILD as i64,
                 ErrorCode::LimitExceeded,
             )?;
             let pos = append_position(c, g, p).await?;
@@ -1662,7 +1665,7 @@ pub(crate) async fn mutate(
             let list = channels(c, u, Some(g)).await?;
             require(placements.len() == list.len(), ErrorCode::InvalidRequest)?;
             let ids: Vec<_> = placements.iter().map(|p| p.channel_id).collect();
-            unique(&ids, 32)?;
+            unique(&ids, MAX_CHANNELS_PER_GUILD)?;
             // Only placements that differ from what the actor sees are applied, so a
             // channel shown to them outside a hidden parent stays where it really is.
             let mut moved = vec![];

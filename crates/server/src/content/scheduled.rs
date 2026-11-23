@@ -212,20 +212,23 @@ pub(super) async fn deliver_due(app: &App) -> Result<()> {
             let s = row(r);
             let author = Id(r.get::<i64, _>("author_id") as u64);
             let mut out = vec![];
+            // Timeout, verification level and AutoMod, exactly as for a live send.
+            let command = Command::SendMessage(draft(&s));
+            let checked = crate::moderation::precheck(app, &mut core, &mut c, author, &command)
+                .await
+                .map(drop);
             let mut tx = c.begin().await?;
             sqlx::query("DELETE FROM scheduled_messages WHERE id=?")
                 .bind(id(s.id)?)
                 .execute(&mut *tx)
                 .await?;
-            let sent = crate::commands::mutate(
-                &mut tx,
-                &mut core,
-                &[],
-                author,
-                Command::SendMessage(draft(&s)),
-                &mut out,
-            )
-            .await;
+            let sent = match checked {
+                Ok(()) => {
+                    crate::commands::mutate(&mut tx, &mut core, &[], author, command, &mut out)
+                        .await
+                }
+                Err(e) => Err(e),
+            };
             match sent {
                 Ok(result) => {
                     let sent = match result {

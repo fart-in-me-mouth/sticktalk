@@ -106,6 +106,26 @@ pub(super) async fn file_access(c: &mut SqliteConnection, u: Id, a: Id) -> Resul
     Ok(false)
 }
 
+/// The text a forward of this message would carry, or None if `u` cannot
+/// forward it. Moderation checks this before the command runs.
+pub(super) async fn snapshot_text(
+    c: &mut SqliteConnection,
+    u: Id,
+    source_channel: Id,
+    source_message: Id,
+) -> Option<String> {
+    text(c, u, source_channel, Permissions::READ_HISTORY)
+        .await
+        .ok()?;
+    let original = message(c, u, source_channel, source_message, false)
+        .await
+        .ok()?;
+    match &original.extra.forwarded {
+        Some(f) => Some(f.content.clone()),
+        None => plain_mentions(c, &original.content).await.ok(),
+    }
+}
+
 /// Same checks as sending a message: may send (and attach), not blocked in a
 /// DM, slowmode. A hidden DM is shown again for its members.
 async fn destination(

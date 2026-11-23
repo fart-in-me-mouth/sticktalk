@@ -323,6 +323,7 @@ pub enum CommandResult {
     ReadState(ReadState),
     Subscription { presences: Vec<Presence> },
     Content(ContentResult),
+    Moderation(ModerationResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -432,6 +433,8 @@ pub enum Event {
     ReminderDue(SavedMessage),
     /// Sent only to connections that sent `ContentCommand::Subscribe`.
     Content(ContentEvent),
+    /// Only sent to streams that sent `ModerationCommand::Subscribe`.
+    Moderation(ModerationEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

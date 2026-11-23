@@ -43,11 +43,11 @@ pub async fn evaluate(
     if channel.is_some() {
         p = implicit(p);
     }
-    Ok(p)
+    crate::moderation::restrict(c, guild, user, p).await
 }
-/// The longest chain of nested channels that is followed. A guild holds fewer
+/// The longest chain of nested channels that is followed. A guild holds no more
 /// channels than this, so the bound only stops a corrupt, cyclic chain.
-pub(crate) const MAX_DEPTH: i64 = 64;
+pub(crate) const MAX_DEPTH: i64 = MAX_CHANNELS_PER_GUILD as i64;
 /// `ch` and every channel it is nested in, outermost first. NotFound when `ch`
 /// is not a channel of `guild`.
 pub(crate) async fn lineage(c: &mut SqliteConnection, guild: Id, ch: Id) -> Result<Vec<Id>> {
@@ -62,7 +62,7 @@ pub(crate) async fn lineage(c: &mut SqliteConnection, guild: Id, ch: Id) -> Resu
     require(!chain.is_empty(), ErrorCode::NotFound)?;
     Ok(chain.into_iter().map(|v| Id(v as u64)).collect())
 }
-fn apply(
+pub(crate) fn apply(
     mut p: Permissions,
     everyone: Id,
     user: Id,
@@ -92,7 +92,7 @@ fn apply(
     }
     p - Permissions::OWNER - Permissions::ADMINISTRATOR
 }
-fn implicit(mut p: Permissions) -> Permissions {
+pub(crate) fn implicit(mut p: Permissions) -> Permissions {
     if !p.contains(Permissions::VIEW_CHANNEL) {
         p.remove(
             Permissions::VIEW_CHANNEL

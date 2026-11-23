@@ -7,6 +7,7 @@ pub mod backup;
 pub mod blob;
 pub mod browser;
 mod calls;
+mod capacity;
 mod commands;
 mod content;
 mod custom_emoji;
@@ -23,6 +24,7 @@ mod launch;
 mod legacy;
 mod mcp;
 mod mentions;
+mod moderation;
 mod nav;
 mod reauth;
 mod search;
@@ -50,6 +52,7 @@ pub fn router(app: App) -> axum::Router {
     push::spawn(&app);
     nav::spawn(&app);
     content::spawn(&app);
+    moderation::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]
