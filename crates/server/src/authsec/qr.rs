@@ -104,7 +104,8 @@ async fn socket(
         .core
         .lock()
         .await
-        .rate(format!("qr-ip:{ip}"), 10., 5.)?;
+        // Its own bucket: opening login pages must never use up approvals.
+        .rate(format!("qr-socket-ip:{ip}"), 30., 10.)?;
     let device = device_label(
         r.headers()
             .get("user-agent")

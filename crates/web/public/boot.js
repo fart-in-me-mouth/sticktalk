@@ -22,6 +22,17 @@ const hasCsrf = document.cookie
   .some((v) => v.trim().startsWith("__Host-sticktalk_csrf="));
 const query = new URLSearchParams(location.search);
 const signup = query.get("google") === "signup";
+// Links from email and QR codes carry a one-time secret in the fragment. Take it
+// out of the address at once; authsec-login.js / authsec.js act on it.
+const link = /^#(qr|reset|verify-email)=([A-Za-z0-9_-]{43})$/.exec(location.hash);
+if (link) {
+  history.replaceState(history.state, "", location.pathname + location.search);
+  globalThis.__sticktalkLink = { kind: link[1], token: link[2] };
+}
+// A link pasted into an open tab only changes the fragment: start over with it.
+addEventListener("hashchange", () => {
+  if (/^#(qr|reset|verify-email)=/.test(location.hash)) location.reload();
+});
 // "Forgot your password?": the person who runs the server issues a reset code.
 let reset = query.has("reset");
 // The server answers with a code; say what it means here.
@@ -65,6 +76,7 @@ function show() {
   root.querySelector("[data-live=register]").textContent = reset || register ? "Log in" : "Register";
   if (!reset) $("boot-google").hidden = !google;
   else $("boot-google").hidden = true;
+  globalThis.__sticktalkAuthsecSync?.(reset || register);
 }
 let google = false;
 async function loadApp() {
@@ -89,7 +101,7 @@ async function loadApp() {
 }
 // Install the shell worker after the core has mounted (live.js). Installing
 // here would race its precache against the first compileStreaming download.
-if (!reset && (query.has("mock") || hasCsrf || signup)) {
+if (!reset && link?.[1] !== "reset" && (query.has("mock") || hasCsrf || signup)) {
   form
     .querySelectorAll("input,button")
     .forEach((element) => (element.disabled = true));
@@ -108,6 +120,10 @@ if (!reset && (query.has("mock") || hasCsrf || signup)) {
       say("Can’t reach the server. Check your connection.", true);
     });
   show();
+  // Passkeys, QR sign-in, email reset and the account chooser, after first paint.
+  import("/public/authsec-login.js")
+    .then((m) => m.install({ form, say, loadApp, otherForm: () => reset || register }))
+    .catch(() => {});
   root.querySelector("[data-live=register]").onclick = () => {
     if (reset) {
       reset = false;

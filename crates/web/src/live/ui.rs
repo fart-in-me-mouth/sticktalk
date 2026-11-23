@@ -4,6 +4,7 @@
 //! `message` or `live-modal` carry no styles of their own here: they are stable
 //! hooks for `public/*.js` and the browser tests.
 use super::*;
+mod authsec;
 mod call_views;
 mod navui;
 mod settings;
@@ -691,7 +692,7 @@ fn secret(id: &str, label: &str, autocomplete: &'static str) -> AnyView {
 /// What you can do from someone's profile depends on who they are to you.
 fn profile_actions(a: &App, u: &UserSummary) -> AnyView {
     if a.model.me.as_ref().is_some_and(|me| me.user.id == u.id) {
-        return view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{button("Edit Profile","dialog:profile-edit","secondary")}</div>}.into_any();
+        return view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{button("Edit Profile","dialog:profile-edit","secondary")}{authsec::switch_accounts()}</div>}.into_any();
     }
     let id = u.id.0;
     let relation = a.model.relationships.get(&u.id).map(|r| r.kind);
@@ -777,7 +778,8 @@ fn dialog(a: &App) -> AnyView {
         "invite"=>settings::invites(a),
         "profile-edit"=>profile_editor(a),
         "about"=>form("About Me","about",view!{{field("f-name","Pronouns",a.profile.as_ref().map_or("",|p|p.profile.pronouns.as_str()),"text")}<p class="muted-copy">"Optional. Let people know how to refer to you."</p><label class="field"><span>"About Me"</span><textarea id="f-value" rows="4" maxlength="190" aria-describedby="bio-help">{a.profile.as_ref().map_or("",|p|p.profile.about_me.as_str()).to_owned()}</textarea><small id="bio-help">"A little about you, up to 190 characters."</small></label>{field("f-extra","Banner Color",&format!("#{:06x}",a.profile.as_ref().map_or(0x496c63,|p|if p.profile.banner_color==0{0x496c63}else{p.profile.banner_color})),"color")}<p class="muted-copy">"Choose the color at the top of your profile."</p>{saved_note(a,"about")}}.into_any()),
-        "password"=>form("Password & Security","password",view!{{secret("f-name",if a.google{"Current Password (or verify with Google below)"}else{"Current Password"},"current-password")}{secret("f-value","New Password","new-password")}{secret("f-extra","Confirm New Password","new-password")}{if a.google{button("Verify with Google","reauth-google:password","secondary")}else{().into_any()}}{if a.google{view!{<p class="muted-copy">"Google proof is valid for one password change within 5 minutes. Re-enter the new password after returning."</p>}.into_any()}else{().into_any()}}}.into_any()),
+        "password"=>view!{{form("Password & Security","password",view!{{secret("f-name",if a.google{"Current Password (or verify with Google below)"}else{"Current Password"},"current-password")}{secret("f-value","New Password","new-password")}{secret("f-extra","Confirm New Password","new-password")}{if a.google{button("Verify with Google","reauth-google:password","secondary")}else{().into_any()}}{if a.google{view!{<p class="muted-copy">"Google proof is valid for one password change within 5 minutes. Re-enter the new password after returning."</p>}.into_any()}else{().into_any()}}}.into_any())}{authsec::security_root()}}.into_any(),
+        "data-export"=>authsec::data_page(),
         "delete-account"=>form_with("Delete Account Permanently","delete-account",view!{<p>"This erases your messages and attachments and signs out all devices. Encrypted backups expire after 14 days. Your username is held for 30 days."</p>{field("f-name",if a.google{"Current Password (or verify with Google)"}else{"Current Password"},"","password")}{field("f-value","Type DELETE to confirm","","text")}{if a.google{button("Verify with Google","reauth-google:delete_account","secondary")}else{().into_any()}}}.into_any(),"dialog:account",true),
         "devices"=>view!{<h2>"Devices"</h2><p class="muted-copy">"Where your account is signed in. Log out any device you don’t recognize."</p>{a.devices.iter().map(|d|{let known=d.platform!="Unknown";view!{<div class=DEVICE_ROW><span class="min-w-0 wrap-anywhere"><strong class="font-semibold">{if known{d.device_name.clone()}else{"Unnamed device".to_owned()}}</strong><small>{format!("{}{}{}",if known{d.platform.as_str()}else{""},if known{" · "}else{""},if d.current{"Current Device".to_owned()}else if d.last_active==0{"Not used yet".to_owned()}else{format!("Last active {}",timestamp(d.last_active))})}</small></span>{if d.current{().into_any()}else{button("Log Out",&format!("device-revoke:{}",d.id),"secondary")}}</div>}}).collect_view()}{button("Log Out All Other Devices","logout-others","danger-text")}}.into_any(),
         "media-settings"=>view!{<h2>"Voice & Video"</h2><div id="live-device-settings"></div>}.into_any(),
@@ -967,6 +969,7 @@ fn user_settings(page: &str) -> bool {
             | "appearance"
             | "privacy"
             | "delete-account"
+            | "data-export"
     ) || page.starts_with("target-notifications:")
 }
 fn settings_nav(a: &App) -> AnyView {
@@ -974,7 +977,7 @@ fn settings_nav(a: &App) -> AnyView {
     view!{<div class="settings-identity flex items-center gap-3 px-2 pt-2 pb-6">{avatar(u,"settings-avatar")}<span class="flex min-w-0 flex-col gap-1"><strong class="text-lg leading-tight font-semibold wrap-anywhere">{name(u)}</strong><small>{format!("@{}",u.username)}</small><button class="text-left text-[13px] text-primary hover:underline touch:min-h-11" data-live="dialog:profile-edit">"Edit Profile"</button></span></div>
         <label class="settings-search"><span class="sr-only">"Search settings"</span><input class="mb-4 w-full" type="search" placeholder="Search settings" data-settings-search/></label>
         <h2 class="category mx-2 mt-6 mb-2">"User Settings"</h2>
-        {[( "user-round","My Account","account"),("user-round","Profiles","profile-edit"),("shield","Privacy & Safety","privacy"),("shield","Password & Security","password"),("monitor","Devices","devices"),("bell","Notifications","notifications")].into_iter().map(|(glyph,label,page)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}
+        {[( "user-round","My Account","account"),("user-round","Profiles","profile-edit"),("shield","Privacy & Safety","privacy"),("shield","Password & Security","password"),("monitor","Devices","devices"),("download","Your Data","data-export"),("bell","Notifications","notifications")].into_iter().map(|(glyph,label,page)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}
         <h2 class="category mx-2 mt-6 mb-2">"App Settings"</h2>
         {settings_nav_row("headphones","Voice & Video","dialog:media-settings",a.dialog=="media-settings")}
         {settings_nav_row("monitor","Appearance","dialog:appearance",a.dialog=="appearance")}
@@ -991,6 +994,7 @@ fn settings_layout(a: &App, body: AnyView) -> AnyView {
         "appearance" => "Appearance",
         "privacy" => "Privacy & Safety",
         "delete-account" => "Delete Account",
+        "data-export" => "Your Data",
         "media-settings" => "Voice & Video",
         "notifications" | "channel-notifications" => "Notifications",
         value if value.starts_with("target-notifications:") => "Notifications",

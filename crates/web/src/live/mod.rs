@@ -1,4 +1,5 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
+mod authsec;
 mod calls;
 mod nav;
 mod operations;
@@ -739,6 +740,7 @@ async fn socket(app: Shared, epoch: u64) {
                                         Event::NavUpdated(_)
                                         | Event::SavedUpdated(_)
                                         | Event::ReminderDue(_) => nav::event(&mut a, &event.event),
+                                        Event::DataExportUpdated(_) => authsec::event(&event.event),
                                         _ => {}
                                     }
                                 }

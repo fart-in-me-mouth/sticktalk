@@ -182,7 +182,7 @@ async fn switch(State(app): State<App>, r: Request<Body>) -> Result<Response> {
         .core
         .lock()
         .await
-        .rate(http::auth_bucket(&app, &r), 30., 10.)?;
+        .rate(format!("account-switch-{}", http::auth_bucket(&app, &r)), 30., 10.)?;
     let choice: AccountChoice = http::parse(r).await?;
     let (active, others, _) = sessions(&app, &headers).await?;
     let (mut chosen, mut rest): (Vec<Signed>, Vec<Signed>) =
