@@ -46,6 +46,11 @@ pub trait Authorizer: Send + Sync {
     fn generation(&self) -> u64 {
         0
     }
+    /// The Opus bitrate this session's call uses. Microphone audio well above it
+    /// (a client ignoring the channel setting) is dropped. None: no limit.
+    fn audio_bitrate(&self, _session: VoiceSession) -> Option<u64> {
+        None
+    }
 }
 impl<F: Fn(VoiceSession, ChannelId) -> bool + Send + Sync> Authorizer for F {
     fn can_join(&self, session: VoiceSession, channel: ChannelId) -> bool {
@@ -223,6 +228,10 @@ struct Peer {
     bwe_target: u64,
     video_active: bool,
     limits: BTreeMap<String, u64>,
+    /// What each published video track needs (TrackQuality), by MID.
+    demands: BTreeMap<String, u64>,
+    /// The call's microphone bitrate ceiling, when the host sets one.
+    audio_policer: Option<crate::quality::AudioPolicer>,
 }
 impl Peer {
     fn participant(&self, session: VoiceSession) -> VoiceParticipant {
@@ -693,7 +702,22 @@ impl Sfu {
             // Host-authorized call signaling; never forwarded as untrusted SFU input.
             VoiceSignal::Moderate { .. }
             | VoiceSignal::Ring { .. }
-            | VoiceSignal::DeclineCall { .. } => return Err(Error::Forbidden),
+            | VoiceSignal::DeclineCall { .. }
+            | VoiceSignal::PlaySound { .. }
+            | VoiceSignal::SetClipping { .. }
+            | VoiceSignal::ClipTaken => return Err(Error::Forbidden),
+            VoiceSignal::TrackQuality { mid, max_bps } => {
+                let p = self.peers.get_mut(&key).unwrap();
+                let published = p
+                    .tracks
+                    .iter()
+                    .any(|t| t.mid == mid && is_video(t.kind));
+                if !published || !(100_000..=MAX_TRACK_BITRATE).contains(&max_bps) {
+                    return Err(Error::Invalid);
+                }
+                p.demands.insert(mid, max_bps);
+                self.allocate()?;
+            }
             VoiceSignal::Stats => {
                 return self.send(
                     key,
@@ -809,6 +833,8 @@ impl Sfu {
             bwe_target: 0,
             video_active: false,
             limits: BTreeMap::new(),
+            demands: BTreeMap::new(),
+            audio_policer: None,
         };
         self.peers.insert(key, p);
         self.room_budgets.entry(channel).or_insert_with(|| {
@@ -1049,7 +1075,11 @@ impl Sfu {
         for (s, mid) in stale {
             self.remove_route(s, &mid)?;
         }
-        self.peers.get_mut(&key).unwrap().tracks = tracks;
+        let p = self.peers.get_mut(&key).unwrap();
+        // A need is kept only while its track is still published.
+        p.demands
+            .retain(|mid, _| tracks.iter().any(|t| t.mid == *mid && is_video(t.kind)));
+        p.tracks = tracks;
         // A receiver's renegotiation can remove a local receiving slot.
         let stale: Vec<_> = self.peers[&key]
             .routes
@@ -1282,33 +1312,56 @@ impl Sfu {
         Ok(())
     }
     fn allocate(&mut self) -> Result<(), Error> {
-        let routes = self
+        // Every video route: (viewer, receiver MID, publisher, source MID, room).
+        let routes: Vec<(VoiceSession, String, VoiceSession, String, ChannelId)> = self
             .peers
-            .values()
-            .flat_map(|p| p.routes.values())
-            .filter(|r| r.video)
-            .count() as u64;
-        let share = self.config.video_egress_bps / routes.max(1);
+            .iter()
+            .flat_map(|(key, p)| {
+                p.routes.iter().filter(|(_, r)| r.video).map(move |(mid, r)| {
+                    (*key, mid.clone(), r.publisher, r.source.to_string(), p.channel)
+                })
+            })
+            .collect();
+        // What each route's track needs, as wire rate: the payload limits below
+        // keep 25% for RTP/SRTP headers, repair/probes and IDR bursts. Without a
+        // declared need every route is equal, as it always was.
+        let need: Vec<u64> = routes
+            .iter()
+            .map(|(_, _, publisher, source, _)| {
+                self.peers
+                    .get(publisher)
+                    .and_then(|p| p.demands.get(source))
+                    .map_or(u64::MAX, |bps| bps.saturating_mul(4) / 3)
+            })
+            .collect();
+        // Max-min fair shares of the global and of each room's video budget.
+        let global = crate::quality::waterfill(self.config.video_egress_bps, &need);
+        let mut room = vec![0; routes.len()];
+        let rooms: BTreeSet<ChannelId> = routes.iter().map(|r| r.4).collect();
+        for channel in rooms {
+            let members: Vec<usize> = (0..routes.len())
+                .filter(|&i| routes[i].4 == channel)
+                .collect();
+            let caps: Vec<u64> = members.iter().map(|&i| need[i]).collect();
+            for (k, share) in crate::quality::waterfill(self.config.room_video_egress_bps, &caps)
+                .into_iter()
+                .enumerate()
+            {
+                room[members[k]] = share;
+            }
+        }
+        let cap: Vec<u64> = (0..routes.len()).map(|i| global[i].min(room[i])).collect();
         // Desired capacity must be explicit: str0m defaults it to zero,
         // otherwise an idle -> high-bitrate transition can stay pinned to
         // a tiny old estimate without probing toward the subscription budget.
         let targets: Vec<_> = self
             .peers
-            .iter()
-            .map(|(key, p)| {
-                let videos = p.routes.values().filter(|r| r.video).count() as u64;
-                let room_routes = self
-                    .peers
-                    .values()
-                    .filter(|other| other.channel == p.channel)
-                    .flat_map(|other| other.routes.values())
-                    .filter(|r| r.video)
-                    .count() as u64;
-                (
-                    *key,
-                    (share.min(self.config.room_video_egress_bps / room_routes.max(1)) * videos)
-                        .min(self.config.peer_video_egress_bps),
-                )
+            .keys()
+            .map(|key| {
+                let sum = (0..routes.len())
+                    .filter(|&i| routes[i].0 == *key)
+                    .fold(0u64, |a, i| a.saturating_add(cap[i]));
+                (*key, sum.min(self.config.peer_video_egress_bps))
             })
             .collect();
         for (key, desired) in targets {
@@ -1340,26 +1393,23 @@ impl Sfu {
             }
         }
         let mut limits: BTreeMap<(VoiceSession, String), u64> = BTreeMap::new();
-        for p in self.peers.values() {
-            let videos = p.routes.values().filter(|r| r.video).count() as u64;
-            for r in p.routes.values().filter(|r| r.video) {
-                // Payload is not wire rate. Leave 25% for RTP/SRTP headers,
-                // repair/probes and IDR bursts. Two 1440p60 viewers receive
-                // 12 Mbps payload each within the unchanged 32 Mbps wire cap.
-                let room_routes = self
-                    .peers
-                    .values()
-                    .filter(|other| other.channel == p.channel)
-                    .flat_map(|other| other.routes.values())
-                    .filter(|r| r.video)
-                    .count() as u64;
-                let bps = share
-                    .min(p.bwe.min(self.config.peer_video_egress_bps) / videos.max(1))
-                    .min(self.config.room_video_egress_bps / room_routes.max(1))
-                    .saturating_mul(3)
-                    / 4;
+        for (key, p) in &self.peers {
+            let mine: Vec<usize> = (0..routes.len())
+                .filter(|&i| routes[i].0 == *key)
+                .collect();
+            if mine.is_empty() {
+                continue;
+            }
+            // Each viewer's estimate, split fairly among what it watches. Two
+            // 1440p60 viewers receive 12 Mbps payload each within the unchanged
+            // 32 Mbps wire cap; a 2.5 Mbps camera leaves the rest to a 4K share.
+            let caps: Vec<u64> = mine.iter().map(|&i| cap[i]).collect();
+            let total = p.bwe.min(self.config.peer_video_egress_bps);
+            for (k, allotted) in crate::quality::waterfill(total, &caps).into_iter().enumerate() {
+                let r = &routes[mine[k]];
+                let bps = allotted.saturating_mul(3) / 4;
                 limits
-                    .entry((r.publisher, r.source.to_string()))
+                    .entry((r.2, r.3.clone()))
                     .and_modify(|b| *b = (*b).min(bps))
                     .or_insert(bps);
             }
@@ -1808,6 +1858,25 @@ impl Sfu {
                             level_dbov: level,
                         },
                     )?;
+                }
+            }
+        }
+        // The voice channel's bitrate is enforced here, not only requested of
+        // the client's encoder: far-over-limit microphone audio is not sent on.
+        if track.kind == TrackKind::Audio {
+            if let Some(bps) = self.acl.audio_bitrate(key) {
+                let now = self.now;
+                let policer = self
+                    .peers
+                    .get_mut(&key)
+                    .unwrap()
+                    .audio_policer
+                    .get_or_insert_with(|| crate::quality::AudioPolicer::new(bps, now));
+                if policer.bps() != bps {
+                    policer.set(bps);
+                }
+                if !policer.admit(packet.payload.len(), now) {
+                    return Ok(());
                 }
             }
         }

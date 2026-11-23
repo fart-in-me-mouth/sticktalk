@@ -33,6 +33,11 @@ bitflags::bitflags! {
         const USE_VOICE_ACTIVITY = 1 << 26;
         const PRIORITY_SPEAKER = 1 << 27;
         const MANAGE_EMOJI = 1 << 28;
+        /// Play soundboard sounds in a guild voice channel (Discord's "Use Soundboard").
+        /// High bits keep clear of other additions to this list.
+        const USE_SOUNDBOARD = 1 << 40;
+        /// Upload, rename and delete a server's soundboard sounds.
+        const MANAGE_SOUNDBOARD = 1 << 41;
     }
 }
 

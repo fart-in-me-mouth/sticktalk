@@ -22,6 +22,7 @@ pub fn router(app: App) -> axum::Router {
     axum::Router::new()
         .merge(crate::browser::routes())
         .merge(crate::custom_emoji::routes())
+        .merge(crate::callextras::routes())
         .merge(crate::mcp::routes())
         .route(
             "/api/v1/users/@me/server-folders",

@@ -57,6 +57,8 @@ struct Lease {
     self_deafened: bool,
     expires: u64,
     alive: Arc<std::sync::atomic::AtomicBool>,
+    /// The call's Opus bitrate; the SFU drops microphone audio far above it.
+    audio_bps: u32,
 }
 #[derive(Default)]
 struct Policy {
@@ -109,6 +111,12 @@ impl sticktalk_sfu::Authorizer for ProjectedAcl {
     fn generation(&self) -> u64 {
         self.0.read().unwrap_or_else(|e| e.into_inner()).generation
     }
+    fn audio_bitrate(&self, session: VoiceSession) -> Option<u64> {
+        self.0
+            .read()
+            .ok()
+            .and_then(|p| p.leases.get(&session).map(|l| u64::from(l.audio_bps)))
+    }
 }
 fn advertised_ip(explicit: Option<IpAddr>, http: IpAddr, interfaces: Vec<IpAddr>) -> IpAddr {
     explicit
@@ -136,11 +144,63 @@ pub(crate) struct Entry {
     server_deafened: bool,
     self_muted: bool,
     self_deafened: bool,
+    /// This session keeps a rolling clip buffer; everyone in the call is told.
+    pub clipping: bool,
 }
 impl Entry {
     /// A direct or group call: its room is a DM channel, not a guild voice channel.
     pub fn dm(&self) -> bool {
         self.state.guild_id.0 == 0
+    }
+    pub fn key(&self) -> &[u8] {
+        &self.key
+    }
+    /// Muted or deafened by a moderator.
+    pub fn server_silenced(&self) -> bool {
+        self.server_muted || self.server_deafened
+    }
+    #[cfg(test)]
+    pub fn server_mute_for_test(&mut self, muted: bool) {
+        self.server_muted = muted;
+    }
+}
+#[cfg(test)]
+pub(crate) fn acl_bitrate_for_test(app: &App, session: VoiceSession) -> Option<u64> {
+    use sticktalk_sfu::Authorizer;
+    ProjectedAcl(app.0.voice.acl.clone()).audio_bitrate(session)
+}
+/// The connections in one call (sessions whose media connected).
+pub(crate) fn room_keys(core: &Core, channel: Id) -> Vec<Vec<u8>> {
+    core.voice
+        .values()
+        .filter(|e| e.joined && e.state.channel_id == channel)
+        .map(|e| e.key.clone())
+        .collect()
+}
+/// The other people in any call this user is in.
+pub(crate) fn companions(core: &Core, user: Id) -> Vec<Id> {
+    let rooms: Vec<Id> = core
+        .voice
+        .values()
+        .filter(|e| e.state.participant.session.user_id == user)
+        .map(|e| e.state.channel_id)
+        .collect();
+    let mut out: Vec<Id> = core
+        .voice
+        .values()
+        .filter(|e| e.joined && rooms.contains(&e.state.channel_id))
+        .map(|e| e.state.participant.session.user_id)
+        .filter(|u| *u != user)
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+/// A voice channel's bitrate changed: every live session in it, at once.
+pub(crate) fn set_audio_bitrate(app: &App, channel: Id, bitrate: u32) {
+    let mut p = app.0.voice.acl.write().unwrap_or_else(|e| e.into_inner());
+    for lease in p.leases.values_mut().filter(|l| l.channel == channel) {
+        lease.audio_bps = bitrate;
     }
 }
 /// What a session may do: guild roles and overwrites, or a DM member's fixed rights.
@@ -543,6 +603,7 @@ async fn moderate(
         )?;
         let rights =
             crate::permissions::evaluate(c, session.user_id, guild, Some(channel_id)).await?;
+        let bitrate = crate::callextras::bitrate(c, guild, channel_id).await?;
         {
             let mut p = app.0.voice.acl.write().unwrap_or_else(|e| e.into_inner());
             let lease = p
@@ -551,6 +612,7 @@ async fn moderate(
                 .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
             lease.channel = channel_id;
             lease.permissions = rights;
+            lease.audio_bps = bitrate;
             p.generation += 1;
         }
         core.voice.get_mut(&session).unwrap().state.channel_id = channel_id;
@@ -575,6 +637,16 @@ async fn moderate(
             },
         )
         .await?;
+        let key = core.voice[&session].key.clone();
+        let _ = send(
+            core,
+            &key,
+            0,
+            &VoiceEvent::AudioQuality {
+                channel_id,
+                bitrate,
+            },
+        );
     } else {
         let (mut muted, mut deafened) = (target.server_muted, target.server_deafened);
         match action {
@@ -696,6 +768,15 @@ async fn signal_inner(
             crate::calls::decline(core, &mut c, user, *channel_id).await?;
             return send(core, key, nonce, &VoiceEvent::Ack);
         }
+        VoiceSignal::PlaySound { .. } | VoiceSignal::SetClipping { .. } | VoiceSignal::ClipTaken => {
+            let session = core
+                .voice
+                .iter()
+                .find(|(_, v)| v.key == key && v.connection == connection)
+                .map(|(s, _)| *s);
+            crate::callextras::signal(core, &mut c, session, &signal).await?;
+            return send(core, key, nonce, &VoiceEvent::Ack);
+        }
         _ => {}
     }
     let existing = core
@@ -724,6 +805,7 @@ async fn signal_inner(
             connection_id: core.id().await?,
         };
         let rights = rights(&mut c, user, guild_id, channel_id).await?;
+        let audio_bps = crate::callextras::bitrate(&mut c, guild_id, channel_id).await?;
         let (server_muted, server_deafened) = if guild_id.0 == 0 {
             (false, false)
         } else {
@@ -752,6 +834,7 @@ async fn signal_inner(
                     self_muted: false,
                     self_deafened: false,
                     expires: expiry.unwrap() as u64,
+                    audio_bps,
                     alive: core.streams[key]
                         .connection
                         .as_ref()
@@ -770,6 +853,7 @@ async fn signal_inner(
                 server_deafened,
                 self_muted: false,
                 self_deafened: false,
+                clipping: false,
                 state: GuildVoiceState {
                     guild_id,
                     channel_id,
@@ -912,6 +996,9 @@ async fn output(
                 .map_err(|_| Error::new(ErrorCode::Internal))?,
         ),
     )?;
+    if matches!(event, VoiceEvent::Joined { .. }) {
+        crate::callextras::joined(core, c, signal.session).await;
+    }
     // queue() can detach a slow consumer; revoke its synchronous media ACL now.
     let detached: Vec<_> = core
         .voice
