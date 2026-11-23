@@ -142,7 +142,7 @@ pub(crate) async fn role_ids(c: &mut SqliteConnection, g: Id, u: Id) -> Result<V
     Ok(ids)
 }
 pub(crate) async fn roles(c: &mut SqliteConnection, g: Id) -> Result<Vec<Role>> {
-    sqlx::query("SELECT * FROM roles WHERE guild_id=? ORDER BY position,id")
+    sqlx::query("SELECT *,(SELECT look FROM role_looks WHERE guild_id=roles.guild_id AND role_id=roles.id) AS look FROM roles WHERE guild_id=? ORDER BY position,id")
         .bind(id(g)?)
         .fetch_all(c)
         .await?
@@ -157,6 +157,7 @@ pub(crate) async fn roles(c: &mut SqliteConnection, g: Id) -> Result<Vec<Role>> 
                 hoist: r.get("hoist"),
                 mentionable: r.get("mentionable"),
                 permissions: Permissions::from_bits_retain(r.get::<i64, _>("permissions") as u64),
+                look: crate::identity::role_look_column(&r),
             })
         })
         .collect()

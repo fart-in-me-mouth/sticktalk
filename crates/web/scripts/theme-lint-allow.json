@@ -28,5 +28,15 @@
     "file": "public/backgrounds.js",
     "contains": "",
     "reason": "camera background scenes are pictures, not UI"
+  },
+  {
+    "file": "styles/identity.css",
+    "contains": "background: rgb(0 0 0 / 0.45);",
+    "reason": "scrim behind a server tag on a call video tile (media overlay)"
+  },
+  {
+    "file": "styles/identity.css",
+    "contains": "color-mix(in oklab, #",
+    "reason": "the holographic role style's own hues (a cosmetic), each mixed toward the theme's text color for legibility"
   }
 ]

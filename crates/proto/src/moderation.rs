@@ -140,6 +140,10 @@ pub enum AuditAction {
     WebhookCreate,
     WebhookUpdate,
     WebhookDelete,
+    /// Server tags and vanity links (`identity.rs`). Role styles and icons
+    /// are `role_update`; banner, icon and invite background `guild_update`.
+    ServerTagUpdate,
+    VanityUpdate,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -219,6 +223,8 @@ impl AuditAction {
         Self::WebhookCreate,
         Self::WebhookUpdate,
         Self::WebhookDelete,
+        Self::ServerTagUpdate,
+        Self::VanityUpdate,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -299,6 +305,8 @@ impl AuditAction {
             Self::WebhookCreate => "webhook_create",
             Self::WebhookUpdate => "webhook_update",
             Self::WebhookDelete => "webhook_delete",
+            Self::ServerTagUpdate => "server_tag_update",
+            Self::VanityUpdate => "vanity_update",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -383,6 +391,8 @@ impl AuditAction {
             Self::WebhookCreate => "Created a webhook",
             Self::WebhookUpdate => "Updated a webhook",
             Self::WebhookDelete => "Deleted a webhook",
+            Self::ServerTagUpdate => "Changed the server tag",
+            Self::VanityUpdate => "Changed the vanity link",
         }
     }
 }

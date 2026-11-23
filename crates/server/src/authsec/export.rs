@@ -678,6 +678,13 @@ pub(super) fn build(
             Value::Array(rows.iter().map(row_json).collect()),
         );
     }
+    // The server tag the account wears (identity.rs).
+    let worn = a.rows(sqlx::query("SELECT tag FROM users WHERE id=?").bind(u))?;
+    settings.insert(
+        "worn_tag".into(),
+        worn.first()
+            .map_or(Value::Null, crate::identity::export_row),
+    );
     a.json("settings.json", &Value::Object(settings))?;
 
     let servers = a.rows(sqlx::query("SELECT g.id,g.name,g.owner_id=gm.user_id AS owner,gm.role,gm.joined_at FROM guild_members gm JOIN guilds g ON g.id=gm.guild_id WHERE gm.user_id=? ORDER BY gm.joined_at").bind(u))?;

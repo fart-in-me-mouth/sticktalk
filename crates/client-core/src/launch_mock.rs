@@ -39,6 +39,7 @@ pub fn seed(model: &mut Model, now: u64) {
                 hoist: false,
                 mentionable: false,
                 permissions: member,
+                look: None,
             },
             Role {
                 id: Id(90),
@@ -49,6 +50,7 @@ pub fn seed(model: &mut Model, now: u64) {
                 hoist: true,
                 mentionable: true,
                 permissions: Permissions::MANAGE_MESSAGES | Permissions::MANAGE_ROLES,
+                look: None,
             },
             Role {
                 id: Id(91),
@@ -59,6 +61,7 @@ pub fn seed(model: &mut Model, now: u64) {
                 hoist: false,
                 mentionable: true,
                 permissions: Permissions::empty(),
+                look: None,
             },
         ],
     );

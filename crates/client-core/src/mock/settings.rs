@@ -20,6 +20,7 @@ pub(super) fn seed(model: &mut Model, now: UnixMillis) {
                     | Permissions::ADD_REACTIONS
                     | Permissions::CONNECT
                     | Permissions::SPEAK,
+                look: None,
             },
         );
         model.settings.guild_profiles.insert(
@@ -191,6 +192,7 @@ pub(super) fn command(
                 hoist: false,
                 mentionable: false,
                 permissions: Permissions::empty(),
+                look: None,
             };
             mock.model.settings.roles.insert(id, r.clone());
             events.push(role_event(mock, guild_id));

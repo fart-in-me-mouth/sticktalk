@@ -300,6 +300,8 @@ pub enum Command {
     Appearance(AppearanceCommand),
     /// Apps, bots, application commands and webhooks (`apps.rs`).
     Apps(crate::AppCommand),
+    /// Server tags, role styles and icons, server images, vanity links (`identity.rs`).
+    Identity(IdentityCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -887,6 +887,7 @@ mod tests {
                     name: "g".repeat(64),
                     icon_id: Some(Id(2)),
                     member_count: 1000,
+                    look: None,
                 },
                 my_role: MemberRole::Owner,
                 my_permissions: Permissions::GUILD_OWNER,

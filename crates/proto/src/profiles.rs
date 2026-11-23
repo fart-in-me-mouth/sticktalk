@@ -210,6 +210,9 @@ pub struct UserStyle {
     /// by the server, for the accounts it creates for apps and webhooks.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub bot: bool,
+    /// The server tag the user wears (`identity.rs`); global only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<crate::WornTag>,
 }
 impl UserStyle {
     pub fn is_empty(&self) -> bool {
@@ -274,6 +277,7 @@ impl ServerProfile {
             decoration: self.decoration.clone(),
             nameplate: self.nameplate.clone(),
             bot: false,
+            tag: None,
         }
     }
 }

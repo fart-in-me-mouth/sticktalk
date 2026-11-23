@@ -437,6 +437,7 @@ mod tests {
             name: "Test".into(),
             icon_id: Some(Id(100)),
             member_count: 1,
+            look: None,
         };
         assert_eq!(
             guild_patch(&g, "Test", Some(Id(100))),
@@ -493,6 +494,7 @@ mod tests {
                     permissions,
                     hoist: false,
                     mentionable: false,
+                    look: None,
                 },
             );
         }
@@ -516,6 +518,7 @@ mod tests {
                 name: "Test".into(),
                 icon_id: None,
                 member_count: 2,
+                look: None,
             },
         )
     }

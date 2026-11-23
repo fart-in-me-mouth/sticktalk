@@ -98,6 +98,7 @@ pub(crate) fn configure(app: &mut App, screen: &str) {
             } else {
                 Permissions::empty()
             },
+            look: None,
         });
     }
     app.state.model.settings.roles = roles.into_iter().map(|r| (r.id, r)).collect();

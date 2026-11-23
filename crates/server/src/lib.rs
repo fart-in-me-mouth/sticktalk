@@ -26,6 +26,7 @@ mod google;
 mod history;
 mod http;
 mod http_io;
+mod identity;
 mod launch;
 mod legacy;
 mod mcp;

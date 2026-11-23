@@ -28,6 +28,9 @@ const confirmations = [
   [/^profiles:reset,\d+,\d+,avatar$/, 'Remove their server avatar?', 'Their picture in this server goes back to their own. This is recorded in the audit log.', 'Remove'],
   [/^profiles:reset,\d+,\d+,banner$/, 'Remove their server banner?', 'This is recorded in the audit log.', 'Remove'],
   [/^profiles:nick-reset,/, 'Reset their nickname?', 'They go back to their display name in this server.', 'Reset'],
+  [/^submit:id-tag-remove$/, 'Remove the server tag?', 'Everyone wearing it stops wearing it.', 'Remove Tag'],
+  [/^id:remove,/, 'Remove this picture?', '', 'Remove'],
+  [/^id:vanity-release$/, 'Release this vanity link?', 'It’s held for 30 days, then anyone can claim it.', 'Release Link'],
 ];
 // Actions that leave the page a settings form is on.
 const leaving = /^(close$|home$|dialog:|channel:|guild:|voice:)/;
@@ -279,6 +282,9 @@ const contentModule = () => content ??= import('/public/content.js');
 // Profile editor, cropping and preview (public/profiles.js), loaded on first use.
 let profiles;
 const profilesModule = () => profiles ??= import('/public/profiles.js');
+// Server identity: cropping server pictures, the tag editor (public/identity.js).
+let identity;
+const identityModule = () => identity ??= import('/public/identity.js');
 export function contentAction(action) { if (content) void content.then((m) => m.action(action)); }
 // Shared activities (public/activities.js), loaded the first time one is seen or launched.
 let activities;
@@ -653,6 +659,7 @@ function restore() {
   if (activities || $('[data-activity-settings]')) void activitiesModule().then(m => m.mount(emit)).catch(() => {});
   if (authsec || $('[data-authsec-root]') || globalThis.__sticktalkLink) void authsecModule().then(m => m.mount(emit)).catch(() => {});
   if (profiles || $('[data-profiles-root]')) void profilesModule().then(m => m.mount(emit)).catch(() => {});
+  if (identity || $('[data-identity-tag],[data-identity-slot]')) void identityModule().then(m => m.mount(emit)).catch(() => {});
   syncProfile();
   syncRolePositions();
 }
@@ -728,6 +735,8 @@ export function installPlatform() {
     if (profileReset) { void profilesModule().then(m => m.reset(profileReset.form)); return; }
     const profilesAction = e.target.closest('[data-profiles]');
     if (profilesAction) { e.preventDefault(); void profilesModule().then(m => m.click(profilesAction)); return; }
+    const glyph = e.target.closest('[data-identity-glyph]');
+    if (glyph) { e.preventDefault(); void identityModule().then(m => m.click(glyph)); return; }
     if (e.target.closest('[data-profile-reset]')) {
       $('[data-profile-editor]').reset();
       syncProfile();
@@ -809,6 +818,8 @@ export function installPlatform() {
     if (seek && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) { e.preventDefault(); void contentModule().then((m) => m.key(seek, e)); }
   });
   document.addEventListener('input', (e) => {
+    const tagForm = e.target.closest?.('form[data-identity-tag]');
+    if (tagForm) void identityModule().then((m) => m.sync(tagForm));
     if (!e.target.matches?.('[data-forward-query]')) return;
     clearTimeout(forwardTimer);
     const text = e.target.value;
@@ -902,6 +913,9 @@ export function installPlatform() {
     // A new avatar is cropped first (public/profiles.js), then uploaded.
     if (e.target.id === 'live-avatar') { const input = e.target; void profilesModule().then(m => { m.mount(emit); return m.choose(input, 'avatar'); }).catch(() => { emit('avatar-upload'); input.value = ''; }); }
     if (e.target.id === 'live-guild-icon') {emit('guild-icon-upload');e.target.value='';}
+    // Server pictures are cropped first (public/identity.js); role icons go as they are.
+    if (e.target.dataset.identitySlot) { const input = e.target; void identityModule().then(m => { m.mount(emit); return m.choose(input); }); }
+    if (e.target.dataset.identityRole) emit(`id:role-icon-upload,${e.target.dataset.identityRole}`);
     if (e.target.dataset.groupUser) {
       const selected = [...document.querySelectorAll('[data-group-user]:checked')];
       if (selected.length > 15) { e.target.checked = false; return; }

@@ -462,6 +462,7 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
     } else if !crate::activities::file_access(&core, u, a)
         && !crate::content::forwarded_file_access(&mut c, u, a).await?
         && !crate::profiles::file_access(&mut c, u, a).await?
+        && !crate::identity::file_access(&mut c, u, a).await?
     {
         let ch:Option<i64>=sqlx::query_scalar("SELECT m.channel_id FROM message_attachments ma JOIN messages m ON ma.message_id=m.id WHERE ma.attachment_id=? AND m.deleted_at IS NULL").bind(id(a)?).fetch_optional(&mut *c).await?;
         if let Some(ch) = ch {

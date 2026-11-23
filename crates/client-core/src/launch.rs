@@ -488,6 +488,7 @@ mod tests {
                     hoist: true,
                     mentionable: false,
                     permissions: Permissions::empty(),
+                    look: None,
                 },
                 Role {
                     id: Id(91),
@@ -498,6 +499,7 @@ mod tests {
                     hoist: true,
                     mentionable: false,
                     permissions: Permissions::empty(),
+                    look: None,
                 },
             ],
         );

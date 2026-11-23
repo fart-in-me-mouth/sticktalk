@@ -10,6 +10,7 @@ fn role() -> Role {
         hoist: true,
         mentionable: true,
         permissions: Permissions::MANAGE_ROLES,
+        look: None,
     }
 }
 fn settings() -> NotificationSettings {

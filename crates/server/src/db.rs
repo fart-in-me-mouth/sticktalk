@@ -104,7 +104,10 @@ pub fn user_row(r: &SqliteRow) -> UserSummary {
         display_name: r.get("display_name"),
         avatar_id: r.get::<Option<i64>, _>("avatar_id").map(|v| Id(v as u64)),
         status_text: r.get("status_text"),
-        style: Box::new(crate::profiles::style_column(r)),
+        style: Box::new(UserStyle {
+            tag: crate::identity::tag_column(r),
+            ..crate::profiles::style_column(r)
+        }),
         status_emoji: r.try_get("status_emoji").ok().flatten(),
     }
 }
@@ -211,7 +214,7 @@ pub async fn guild_users(c: &mut SqliteConnection, g: Id) -> Result<Vec<Id>> {
 }
 pub async fn guild(c: &mut SqliteConnection, u: Id, g: Id) -> Result<GuildSummary> {
     let role = role(c, u, g).await?;
-    let r=sqlx::query("SELECT *, (SELECT COUNT(*) FROM guild_members WHERE guild_id=guilds.id) AS n FROM guilds WHERE id=?").bind(id(g)?).fetch_one(&mut *c).await?;
+    let r=sqlx::query("SELECT *, (SELECT COUNT(*) FROM guild_members WHERE guild_id=guilds.id) AS n, (SELECT look FROM guild_looks WHERE guild_id=guilds.id) AS look FROM guilds WHERE id=?").bind(id(g)?).fetch_one(&mut *c).await?;
     Ok(GuildSummary {
         guild: Guild {
             id: g,
@@ -219,6 +222,7 @@ pub async fn guild(c: &mut SqliteConnection, u: Id, g: Id) -> Result<GuildSummar
             name: r.get("name"),
             icon_id: r.get::<Option<i64>, _>("icon_id").map(|v| Id(v as u64)),
             member_count: r.get::<i64, _>("n") as u32,
+            look: crate::identity::guild_look_column(&r),
         },
         my_role: role,
         my_permissions: crate::permissions::evaluate(c, u, g, None).await?,
@@ -698,7 +702,7 @@ pub async fn ban(c: &mut SqliteConnection, g: Id, u: Id) -> Result<Ban> {
     })
 }
 pub async fn gc_uploads(c: &mut SqliteConnection) -> Result<Vec<String>> {
-    let rows=sqlx::query("SELECT id,storage_key,thumbnail_key FROM uploads u WHERE expires_at IS NULL AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM forwarded_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM scheduled_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=u.id) AND NOT EXISTS(SELECT 1 FROM guilds WHERE icon_id=u.id) AND NOT EXISTS(SELECT 1 FROM profile_uploads WHERE upload_id=u.id) LIMIT 100").fetch_all(&mut *c).await?;
+    let rows=sqlx::query("SELECT id,storage_key,thumbnail_key FROM uploads u WHERE expires_at IS NULL AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM forwarded_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM scheduled_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=u.id) AND NOT EXISTS(SELECT 1 FROM guilds WHERE icon_id=u.id) AND NOT EXISTS(SELECT 1 FROM profile_uploads WHERE upload_id=u.id) AND NOT EXISTS(SELECT 1 FROM guild_uploads WHERE upload_id=u.id) LIMIT 100").fetch_all(&mut *c).await?;
     let mut keys = vec![];
     for r in rows {
         keys.push(r.get("storage_key"));
