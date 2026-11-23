@@ -85,8 +85,11 @@ async fn shell(State(app): State<App>, Path(id): Path<String>) -> Response {
     let Ok((url, activity_origin)) = found else {
         return Error::new(ErrorCode::NotFound).into_response();
     };
+    // shell.js runs before the activity's frame exists (not `defer`): the
+    // frame's one `ready` must find the relay listening, however fast it
+    // loads (activities.mjs timed out on it about one run in five).
     let page = format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Activity</title><link rel=\"stylesheet\" href=\"/activities/shell.css\"><script src=\"/activities/shell.js\" defer></script></head><body><iframe id=\"activity\" title=\"Activity\" src=\"{}\" data-origin=\"{}\" sandbox=\"allow-scripts\" allow=\"autoplay; fullscreen\" referrerpolicy=\"no-referrer\"></iframe></body></html>",
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Activity</title><link rel=\"stylesheet\" href=\"/activities/shell.css\"><script src=\"/activities/shell.js\"></script></head><body><iframe id=\"activity\" title=\"Activity\" src=\"{}\" data-origin=\"{}\" sandbox=\"allow-scripts\" allow=\"autoplay; fullscreen\" referrerpolicy=\"no-referrer\"></iframe></body></html>",
         escape(&url),
         escape(&activity_origin)
     );

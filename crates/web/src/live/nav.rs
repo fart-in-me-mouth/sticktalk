@@ -986,20 +986,16 @@ pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
     fallible
 )]
 pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
-    use features::Call;
-    match call {
-        Call::Event(raw) => {
-            let e = match raw.tag {
-                "nav_updated" => inbound::de(&raw.data).map(Event::NavUpdated),
-                "saved_updated" => inbound::de(&raw.data).map(Event::SavedUpdated),
-                "reminder_due" => inbound::de(&raw.data).map(Event::ReminderDue),
-                _ => Err(()),
-            };
-            let Ok(e) = e else { return Ok(false) };
-            event(&mut app.borrow_mut(), &e);
-        }
-
-        _ => {}
+    // The core fetches the snapshot after Ready (`ready`); only events come here.
+    if let features::Call::Event(raw) = call {
+        let e = match raw.tag {
+            "nav_updated" => inbound::de(&raw.data).map(Event::NavUpdated),
+            "saved_updated" => inbound::de(&raw.data).map(Event::SavedUpdated),
+            "reminder_due" => inbound::de(&raw.data).map(Event::ReminderDue),
+            _ => Err(()),
+        };
+        let Ok(e) = e else { return Ok(false) };
+        event(&mut app.borrow_mut(), &e);
     }
     Ok(true)
 }

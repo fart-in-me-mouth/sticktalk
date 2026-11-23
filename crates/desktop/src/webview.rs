@@ -108,7 +108,10 @@ pub fn build(window: &Window, context: &mut WebContext, config: Config) -> Resul
                 // Only the chosen server's app document is listened to: not
                 // its other pages, and never a frame (an activity), which
                 // WebView2 may give the host's script too.
-                if !lock(&shared).policy.is_app_page(&request.uri().to_string()) {
+                let uri = request.uri().to_string();
+                let accepted = lock(&shared).policy.is_app_page(&uri);
+                crate::app::smoke_ipc(&uri, accepted);
+                if !accepted {
                     return;
                 }
                 // The title bar and window icon follow the app (see `appearance`).

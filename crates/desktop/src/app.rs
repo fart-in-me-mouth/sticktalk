@@ -48,6 +48,19 @@ const SMOKE_TIMEOUT: Duration = Duration::from_secs(20);
 /// With a script or a screenshot, a smoke run reports once the page has been
 /// quiet this long (`--smoke-wait` overrides it).
 const SMOKE_SETTLE: Duration = Duration::from_millis(1500);
+
+/// Smoke runs only: the documents whose host messages (`window.ipc`) reached
+/// the IPC handler, and whether it listened (at most 16). The smoke line
+/// reports them, so a check can show which frames can reach the handler at
+/// all without a visible window (`crates/desktop/tests/frame-ipc.mjs`).
+static SMOKE_IPC: std::sync::Mutex<Option<Vec<(String, bool)>>> = std::sync::Mutex::new(None);
+pub(crate) fn smoke_ipc(uri: &str, accepted: bool) {
+    if let Ok(mut seen) = SMOKE_IPC.lock() {
+        if let Some(seen) = seen.as_mut().filter(|s| s.len() < 16) {
+            seen.push((uri.to_owned(), accepted));
+        }
+    }
+}
 /// Window placement is written once the moving or resizing has stopped.
 const SAVE_DELAY: Duration = Duration::from_millis(500);
 /// A page cannot open browser tabs faster than a person clicks links.
@@ -127,6 +140,12 @@ fn smoke_report(ok: bool, url: &str, title: &str, error: Option<&str>) {
     let mut line = serde_json::json!({ "ok": ok, "url": url, "title": title });
     if let Some(error) = error {
         line["error"] = error.into();
+    }
+    if let Some(seen) = SMOKE_IPC.lock().ok().and_then(|s| s.clone()) {
+        line["ipc"] = seen
+            .iter()
+            .map(|(uri, accepted)| serde_json::json!({ "uri": uri, "accepted": accepted }))
+            .collect();
     }
     let mut out = std::io::stdout().lock();
     let _ = writeln!(out, "{line}");
@@ -276,6 +295,11 @@ pub fn run(launch: Launch) -> i32 {
         activation,
     } = launch;
     let is_smoke = smoke.is_some();
+    if is_smoke {
+        if let Ok(mut seen) = SMOKE_IPC.lock() {
+            *seen = Some(Vec::new());
+        }
+    }
     // A smoke run is invisible to the installed app: its own data folder, and
     // so its own WebView profile, saved address and instance lock.
     let own_root = is_smoke && smoke_root.is_none();

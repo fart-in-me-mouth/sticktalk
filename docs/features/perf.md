@@ -12,6 +12,185 @@ extras kept undecoded with `Deferred`, composer paths as their own splits,
 lazily loaded feature stylesheets, the service worker's size) are in the
 next section.
 
+## Headroom before localization (task `headroom`)
+
+Every Discord-parity branch was merged (`t3/discord-parity`, `c26d2d0`) and
+the tree was over two budgets. Localization of the whole UI comes next and
+will add to the first screen, so this pass made room rather than only getting
+back under. Before: `c26d2d0`. After: this branch. Same method as below
+(release web build, headless Chromium, a real local server, this branch's
+`--profile server`), measured on the owner's PC while it was otherwise idle.
+
+| | Before (`c26d2d0`) | After | Target |
+| --- | ---: | ---: | ---: |
+| Core WASM, Brotli | 492,491 B | **458,098 B** | 460,000 B |
+| Core WASM, uncompressed (names split) | 1,652,679 B | 1,516,890 B | |
+| First load (installable shell inventory) | 649,707 B | **602,718 B** | 620,000 B |
+| First screen's JavaScript, Brotli | 61,710 B | **44,866 B** | 58,000 B |
+| WASM loaded at idle | 1,917,518 B in 13 files | 1,590,064 B in 3 | |
+| Idle private memory over a blank browser | 51.5 / 50.9 MiB (two runs) | **46.2 / 46.4 MiB** | 48 MiB |
+| Idle CPU, one logical core | 0.055-0.063% | 0.053-0.055% | not higher |
+
+### Where the bytes came from
+
+Found with the names split and `twiggy` ("Measuring" below), grouped by
+function and by the type a function decodes. Brotli savings are the core's
+measured size after each step.
+
+| Change | Core, Brotli |
+| --- | ---: |
+| The icon sprite is part of `index.html` (`scripts/finalize.mjs`), not a 20 KB string in the core's data copied into linear memory and parsed again by `inner_html` | about -4 KB |
+| Stage records and shared event cards in messages (`MessageExtra.stage`) are `Deferred` and drawn by `load_stage_card`: the adjacently tagged `EventLocation` carried serde's buffered second decoder (12.7 KB uncompressed) | about -4 KB |
+| The GIF capability (`/meta` `gifs`, an untagged enum around an internally tagged one, both buffered) is kept as JSON (`live::Gifs`); the GIF picker and search decode it | about -2.5 KB |
+| Moderation's per-server fetches (`/moderation/me`, `/slowmode`) and their decoders run in `moderation_state` (`Call::State("refresh" / "slowmode")`) | about -4 KB |
+| Rare account actions (Google link/unlink with re-authentication, logout, the Join dialog's invite preview, signing in from the app's own form) are one split module, `account_action` | about -9 KB |
+| The app's own sign-in form (shown only after a logout or an ended session; the first sign-in is `index.html`'s form) is `load_auth` | about -5 KB |
+| Polls in messages (`MessageExtra.poll`) are `Deferred` and drawn by `load_poll` | about -6 KB |
+| Unit enums decode by name on wasm32 (`proto/src/wire_names.rs`): serde's derived decoder is 1-2.7 KB each, a name match a few hundred bytes. 14 enums: `ErrorCode`, `ChannelKind`, `PresenceStatus`, `TrackKind`, `VideoCodec`, ... | about -3 KB |
+| Added: settling the sign-in answers in the core and fetching the nav snapshot there (below) | about +3 KB |
+
+The first-screen JavaScript lost 16.9 KB: the UI SDK avatar (its chunk is
+15.6 KB, most of the SDK's kernel) is defined when the first avatar is in the
+page (`public/ui.js`), outside the module graph the app waits for before it
+starts, like the dialog, menu and tooltip. Until then `styles/app.css` keeps
+the picture out of sight and the initials show, exactly as the element does
+while a picture loads; the SDK checks `img.complete` when it attaches, so a
+picture that loaded first is shown at once. It is no longer precached (it is
+cached on first use like the other SDK modules): together with the core this
+is the 47 KB less first load.
+
+### Idle memory: no state module at sign-in
+
+Measured first: the idle benchmark with every lazily loaded module blocked
+(a `page.route` abort on `split_*`/`chunk_*`) used 46.8 MiB against 50.9: the
+state modules loaded at Ready cost about 4.4 MiB, much more than their 262 KB
+(each module is its own compiled instance, and a 4 KB state module could
+bring 48 KB of shared chunks). A memory-infra dump of the idle renderer shows
+where the rest is: malloc 33 MiB (V8's copies of the WASM bytes and module
+metadata among it), partition_alloc 6.4, Blink GC 6.0, V8 heap 5.1,
+compositor tiles 3.0 MiB.
+
+What loaded at idle, and what happens now:
+
+| Loaded at sign-in by | Before | Now |
+| --- | --- | --- |
+| Every housekeeping answer (subscriptions, the device name, read marks, typing, presences) | the answer module `response` | settled in the core, `operations::settle`, with exactly `respond`'s effects |
+| Content's Ready (subscription, scheduled list) | `content_state` | the core subscribes; the list is fetched with the first conversation (`operations::wake`, or the module's `run`) |
+| Expression's Ready (subscription, emoji and sticker library, recent picks) | `expression_state` + 2 chunks | the same: with the first conversation |
+| The threads subscription's snapshot | `threads_state` + 2 chunks | an empty snapshot is recognized by its bytes (`wire::EMPTY_THREAD_SNAPSHOT`); a non-empty one still goes to the module |
+| The nav snapshot (rail folders and order, pinned DMs, favorites, the saved badge) | `nav_state` + 48 KB of chunks | fetched and decoded by the core (`nav::ready`, a plain mirror without the adjacently tagged `RailItem` decoder): it is first-screen state |
+| Privacy's settings (your status, nicknames, ignored people, request counts, notification defaults) | `privacy_state` + 1 chunk | unchanged: first-screen state, handed straight to the module by `settle` |
+
+`settle` also no longer closes a dialog that is open when a reconnect's
+content subscription is answered (the generic path did).
+
+### First-open latency (`tests/perf.mjs`, median of 3)
+
+| Feature | Before, press | After, press | Before, intent | After, intent |
+| --- | ---: | ---: | ---: | ---: |
+| User Settings | 67 ms | 71 ms | 65 ms | 66 ms |
+| Emoji picker | 69 ms | 70 ms | 141 ms | 150 ms |
+| Inbox | 81 ms | 80 ms | 63 ms | 63 ms |
+| Profile card | 83 ms | 82 ms | 71 ms | 65 ms |
+| Server menu | 39 ms | 39 ms | 26 ms | 14 ms |
+| `/` command picker | 77 ms | 81 ms | 59 ms | 55 ms |
+| Activities launcher (in a call) | 80 ms | 65 ms | 55 ms | 62 ms |
+| Server tag card | 97 ms | 87 ms | 69 ms | 66 ms |
+| Role editor | 53 ms | 55 ms | 39 ms | 35 ms |
+
+Differences of up to about 5 ms are run-to-run noise here (five more runs of
+the launcher: 64 ms press, 60 ms intent). The one that is not: the **emoji
+picker with the pointer resting first**, 141 ms before (138-144) and 146-150
+ms after in three runs of three and one of five (141-157). The 150 ms goal is
+therefore not met reliably. A trace of the samples (`STICKTALK_PERF_TRACE=1`)
+shows every module downloaded within 60 ms of the hover and the press 130 ms
+later, so what is left is the picker's one render: drawing 128 color emoji
+in software and compiling the dialog module's functions on their first call
+(V8 compiles WASM functions lazily). `content-visibility: auto` on the cells
+below the fold was tried and made no difference (median 150 ms over five), so
+it was not kept. The likely cause of the few extra milliseconds is that the
+prefetch now instantiates more, smaller chunks (the polls and Stage cards moved
+out of the core changed the splitter's grouping); not confirmed. Not chased
+further: the next step is measuring compile time in a CPU profile of the press.
+
+The **role editor** was 53-56 ms on a press and 34-43 ms with intent, before
+and after, on this PC (the 80 ms measured on the integration tree was on a
+busier machine): there is no regression left to find. Its render is the 42
+permission switches plus the style and icon controls; the controls clone the
+server's emoji list on every render (`ui::identity::role_controls`), which
+costs nothing in the benchmark (no custom emoji) but grows with a server's
+emoji. Left as is.
+
+### Leftovers fixed here
+
+- **Encrypted calls: nonces by construction** (`docs/E2EE.md` 5.4). The frame
+  counter is the key's (`CallKeys.sendTrack`), not the RTP sender's.
+- **Activities: the shell lost the frame's `ready`.** The shell page ran its
+  relay `defer`red while its frame loaded, so a fast frame's one `ready` could
+  arrive before anyone listened (`activities.mjs`, about one run in five).
+  `shell.js` now runs before the frame is parsed; the test delays `shell.js`
+  by 600 ms, which fails every time with the old page.
+- **Manage Webhooks** is offered in a channel's permissions only where a
+  webhook can live (text, announcement, forum, and categories above them);
+  Use Application Commands everywhere there is a composer. Server test
+  `apps::tests::manage_webhooks_follows_channel_overwrites`; browser checks in
+  `moderation.mjs`.
+- **Windows app, frames and the host channel**: `crates/desktop/tests/frame-ipc.mjs`
+  (see that file) runs the app with `--smoke` (never shown) on a local page
+  whose top document, same-origin frame and sandboxed frames each try
+  `window.ipc`; smoke runs now report which documents reached the handler.
+  Result (WebView2 on the owner's PC): every frame, sandboxed or not, has
+  `window.ipc` and `chrome.webview` and calls them, but **no frame's message
+  reaches the handler**; only the top document's does. The handler's check of
+  the sender (`Policy::is_app_page`) is therefore a second line of defence,
+  and the check fails if a WebView2 update ever starts delivering them.
+- **`browser.mjs`** (the mock fixtures): proposed for removal, with the
+  evidence, in `crates/web/README.md`.
+
+### What is in the core now, and what localization should put there
+
+The core after this pass (uncompressed, names split; feature attribution as
+in "Where the core's bytes went"):
+
+| Kind | Bytes |
+| --- | ---: |
+| App logic (web) | 463,040 |
+| Generic instantiations (collections, sort, drop, clone) | 325,149 |
+| View code (Leptos/tachys) | 321,217 |
+| Decoders (serde_json) | 173,061 |
+| Data (strings, tables) | 112,143 |
+| Other (tables, fmt, compare, clone, drop, encoders) | 122,280 |
+| **Total** | **1,516,890** |
+
+The largest single pieces are the socket loop with the core events' decoders
+inlined (`start_session`, 83 KB), the app view (`mount`, 61 KB), the action
+router (40 KB), the model (59 KB), the message and chat views (50 KB). The
+features left in it are what every row or message draws: expression's chips
+and stickers (37 KB, with `ServerFolder`'s decoder), content's attachments,
+embeds and composer tools (36 KB), the nav snapshot and rail (29 KB), threads'
+previews (17 KB), name styles (14 KB).
+
+For localization, `scripts/budgets.json` reserves `allowances.localization`:
+20,000 B of core, 25,000 B of first load, 6,000 B of first-screen JavaScript.
+A budget plus its allowances must stay under its ceiling (`budgets.mjs`), so
+spending it means moving bytes from the allowance to the budget in the same
+commit, with the measured cost.
+
+- **Put in the core:** the lookup (a key to a string, with arguments), the
+  chosen locale's strings for what the first screen draws (rail, channel list,
+  composer, message row, Friends, connection banner, the sign-in placeholder),
+  and plural selection. Format dates, times, numbers and lists with the
+  browser's `Intl` from `live.js` or through `js_sys`, never with Rust tables
+  (the float parser alone is 13 KB, see "Common mistakes").
+- **Do not put in the core:** other locales; the strings of dialogs, settings
+  pages and feature views (each `LazyView` and feature module carries or
+  fetches its own); locale data the browser already has. Keep the strings out
+  of `format!`: a `format!` per string grows `fmt` code and data; one
+  substitution function shared by every string does not.
+- **Mind the index.html:** the first sign-in form and the skeleton are static
+  HTML in English; localizing them means the server picks the HTML per locale
+  or `boot.js` fills it, not the WASM.
+
 ## Activities, apps and identity (task `lazy2`)
 
 Three more eager-style branches (shared Activities, apps/bots/webhooks,
@@ -479,7 +658,7 @@ core talks to a feature only through `Call`s: `Action`, `Submit`, `Opened`,
   when the browser is idle after a menu is first in the page (task `lazy`:
   a press on the server menu with no hover first waited ~46 ms for it):
   pointing at, focusing or pressing one downloads it; a press that arrives
-  first is held and replayed. Avatars stay eager. Their content is rendered
+  first is held and replayed. Avatars are defined with the first avatar in the page (task `headroom`). Their content is rendered
   `hidden`, and icon buttons carry their own `aria-label`, so nothing shows or
   loses its name before then.
 - Every other feature script was already gesture-loaded; the service worker
@@ -766,7 +945,7 @@ twiggy top -n 100000 -f csv "$s/core_named.wasm" > core.csv   # grep it for your
 
 - The service worker precaches only what the first screen loads: the core,
   its glue, `live.js` and its static imports, the UI SDK modules those import
-  (the avatar; dialog, menu and tooltip load on first use), the stylesheets,
+  (none since task `headroom`: avatar, dialog, menu and tooltip load on first use), the stylesheets,
   the three Inter weights and the 192 px icon. Lazily imported scripts
   (sign-in extras, account security, call sounds, alerts), install-time icons
   and the monospace font are cached when first used (`scripts/finalize.mjs`).

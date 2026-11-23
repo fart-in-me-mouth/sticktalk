@@ -151,6 +151,39 @@ try {
   await act(owner,'close');
   checks.push('per-role tri-state overwrites, access summary, private toggle hides and restores');
 
+  // Manage Webhooks and Use Application Commands (task `headroom`): offered in
+  // a text channel's editor, saved and shown again; Manage Webhooks is not
+  // offered where no webhook can live (a voice channel); both in the role editor.
+  const tri=(page,label)=>page.getByRole('radiogroup',{name:`${label} for Moderators`});
+  await open(owner,`channel-perms:${general}`);
+  await owner.waitForSelector(`[data-overwrite="role:${role}"]`);
+  await tri(owner,'Manage Webhooks').locator('.tri-option[title=Allow]').click();
+  await tri(owner,'Use Application Commands').locator('.tri-option[title=Deny]').click();
+  await owner.locator('[data-live="mod:ow-save"]').click();
+  await toast(owner,'Channel permissions saved');
+  await act(owner,'close');
+  await open(owner,`channel-perms:${general}`);
+  await owner.waitForSelector(`[data-overwrite="role:${role}"]`);
+  assert.equal(await tri(owner,'Manage Webhooks').locator('input:checked').getAttribute('value'),'allow');
+  assert.equal(await tri(owner,'Use Application Commands').locator('input:checked').getAttribute('value'),'deny');
+  await act(owner,'close');
+  const voiceChannel=(await owner.locator('[data-live^="voice:"]').first().getAttribute('data-live')).slice(6);
+  await open(owner,`channel-perms:${voiceChannel}`);
+  await owner.locator('#ow-add-role').selectOption(role);
+  await owner.locator('[data-live="mod:ow-add,role:"]').click();
+  await owner.waitForSelector(`[data-overwrite="role:${role}"]`);
+  assert.equal(await tri(owner,'Manage Webhooks').count(),0,'no webhooks in a voice channel');
+  assert.equal(await tri(owner,'Use Application Commands').count(),1,'commands in voice channel chat');
+  await act(owner,'close');
+  await act(owner,`role:${role}`);
+  for(const label of['Manage Webhooks','Use Application Commands'])await owner.getByLabel(label,{exact:true}).check();
+  await owner.locator('[data-live-form=role-save] [type=submit]').click();
+  await owner.waitForSelector('[data-live-form=role-create]');
+  await act(owner,`role:${role}`);
+  for(const label of['Manage Webhooks','Use Application Commands'])assert(await owner.getByLabel(label,{exact:true}).isChecked(),label);
+  await act(owner,'close');
+  checks.push('Manage Webhooks and Use Application Commands: channel editor (where they apply) and role editor save and show again');
+
   // Member menu: right-click a member for moderation actions; time out with a reason.
   await act(member,`channel:${general}`);await member.waitForSelector('#live-input');
   await act(mod,`channel:${general}`);await mod.waitForSelector('#live-input');

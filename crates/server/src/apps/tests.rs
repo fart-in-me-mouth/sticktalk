@@ -1769,6 +1769,120 @@ async fn components_are_checked_on_the_server_before_the_bot_hears_of_them() {
     );
 }
 
+/// Manage Webhooks is a channel right (task `headroom`): a channel overwrite
+/// gives it in that channel only, a deny takes it away there, and a webhook
+/// can only live where the channel editor offers the bit.
+#[tokio::test]
+async fn manage_webhooks_follows_channel_overwrites() {
+    let (_dir, app) = fixture().await;
+    let mut core = app.0.core.lock().await;
+    let mut c = app.0.pool.acquire().await.unwrap();
+    sqlx::query("INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(12,'text',10,'other',1,0),(13,'voice',10,'Voice',2,0)").execute(&mut *c).await.unwrap();
+    drop(c);
+    let overwrite = |channel: u64, kind, target: u64, allow, deny| {
+        Command::Launch(LaunchCommand::SetOverwrites {
+            channel_id: Id(channel),
+            overwrites: vec![PermissionOverwrite {
+                kind,
+                target_id: Id(target),
+                allow,
+                deny,
+            }],
+        })
+    };
+    // A member without the right anywhere.
+    assert_eq!(
+        err(create_webhook(&app, &mut core, 2, 11).await).code,
+        ErrorCode::Forbidden
+    );
+    // Allowed for them in #general only.
+    ok(as_user(
+        &app,
+        &mut core,
+        1,
+        overwrite(
+            11,
+            OverwriteKind::Member,
+            2,
+            Permissions::MANAGE_WEBHOOKS,
+            Permissions::empty(),
+        ),
+    )
+    .await);
+    let AppResult::WebhookSecret(secret) = apps(ok(create_webhook(&app, &mut core, 2, 11).await))
+    else {
+        panic!()
+    };
+    assert_eq!(
+        err(create_webhook(&app, &mut core, 2, 12).await).code,
+        ErrorCode::Forbidden
+    );
+    // Allowed for everyone in #other, denied for them there: the member's own
+    // overwrite decides.
+    ok(as_user(
+        &app,
+        &mut core,
+        1,
+        Command::Launch(LaunchCommand::SetOverwrites {
+            channel_id: Id(12),
+            overwrites: vec![
+                PermissionOverwrite {
+                    kind: OverwriteKind::Role,
+                    target_id: Id(10),
+                    allow: Permissions::MANAGE_WEBHOOKS,
+                    deny: Permissions::empty(),
+                },
+                PermissionOverwrite {
+                    kind: OverwriteKind::Member,
+                    target_id: Id(2),
+                    allow: Permissions::empty(),
+                    deny: Permissions::MANAGE_WEBHOOKS,
+                },
+            ],
+        }),
+    )
+    .await);
+    assert_eq!(
+        err(create_webhook(&app, &mut core, 2, 12).await).code,
+        ErrorCode::Forbidden
+    );
+    // Taking the right away in #general stops them managing the webhook
+    // they made there.
+    ok(as_user(
+        &app,
+        &mut core,
+        1,
+        overwrite(
+            11,
+            OverwriteKind::Member,
+            2,
+            Permissions::empty(),
+            Permissions::MANAGE_WEBHOOKS,
+        ),
+    )
+    .await);
+    assert!(matches!(
+        err(as_user(
+            &app,
+            &mut core,
+            2,
+            Command::Apps(AppCommand::DeleteWebhook {
+                webhook_id: secret.webhook.id,
+            }),
+        )
+        .await)
+        .code,
+        ErrorCode::Forbidden | ErrorCode::NotFound
+    ));
+    // No webhook in a voice channel, even for the owner.
+    assert_eq!(
+        err(create_webhook(&app, &mut core, 1, 13).await)
+            .field
+            .as_deref(),
+        Some("channel")
+    );
+}
+
 async fn create_webhook(app: &App, core: &mut Core, by: u64, ch: u64) -> CommandOutcome {
     as_user(
         app,

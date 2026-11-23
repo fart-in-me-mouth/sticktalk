@@ -365,8 +365,15 @@ try {
   await shot(alice, 'server-settings');
   await act(alice, 'close');
   await act(alice, voice);
+  // The shell's relay script arriving after the activity's frame has loaded
+  // (a busy server) must not lose the frame's one `ready`: the shell runs it
+  // before the frame exists. Without that this step timed out about one run
+  // in five; the delay makes the race happen every time.
+  const slowShell = async (r) => { await wait(600); await r.continue(); };
+  for (const p of [alice, bob]) await p.route('**/activities/shell.js', slowShell);
   await launch(alice, 'Counter');
   await joinBanner(bob);
+  for (const p of [alice, bob]) await p.unroute('**/activities/shell.js', slowShell);
   const counterA = await frame(alice, `${thirdOrigin}/example/`);
   const counterB = await frame(bob, `${thirdOrigin}/example/`);
   await counterA.locator('#add').click();

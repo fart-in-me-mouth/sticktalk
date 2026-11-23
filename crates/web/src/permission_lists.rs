@@ -193,6 +193,9 @@ pub(crate) fn applies(bit: Permissions, kind: ChannelKind) -> bool {
         _ if bit == Permissions::REQUEST_TO_SPEAK => kind == Stage,
         // Activities run in voice channels, not on a Stage.
         _ if bit == Permissions::USE_ACTIVITIES => kind == Voice,
+        // Webhooks live in text, announcement and forum channels (and their
+        // threads), as the server allows (`apps/webhooks.rs` KINDS).
+        _ if bit == Permissions::MANAGE_WEBHOOKS => matches!(kind, Text | Announcement | Forum),
         _ if threads.contains(bit) => matches!(kind, Text | Announcement | Forum),
         // A Stage is a voice channel with roles: every voice right applies.
         _ if voice.contains(bit) => matches!(kind, Voice | Stage),
@@ -256,5 +259,18 @@ mod tests {
         assert!(!applies(Permissions::REQUEST_TO_SPEAK, Voice));
         assert!(applies(Permissions::CREATE_PUBLIC_THREADS, Forum));
         assert!(!applies(Permissions::CREATE_PUBLIC_THREADS, Voice));
+        // Webhooks where one can live; commands wherever there is a composer.
+        for kind in [Text, Announcement, Forum, Category] {
+            assert!(applies(Permissions::MANAGE_WEBHOOKS, kind), "{kind:?}");
+        }
+        for kind in [Voice, Stage] {
+            assert!(!applies(Permissions::MANAGE_WEBHOOKS, kind), "{kind:?}");
+        }
+        for kind in [Text, Announcement, Forum, Voice, Stage, Category] {
+            assert!(
+                applies(Permissions::USE_APPLICATION_COMMANDS, kind),
+                "{kind:?}"
+            );
+        }
     }
 }
