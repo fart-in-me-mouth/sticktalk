@@ -69,7 +69,9 @@ impl AudioPolicer {
     }
     /// True when this payload may be forwarded.
     pub fn admit(&mut self, payload_bytes: usize, now: Instant) -> bool {
-        let elapsed = now.saturating_duration_since(self.at).min(Duration::from_secs(2));
+        let elapsed = now
+            .saturating_duration_since(self.at)
+            .min(Duration::from_secs(2));
         self.at = now;
         self.tokens = (self.tokens + elapsed.as_secs_f64() * self.rate()).min(self.burst());
         let bits = payload_bytes as f64 * 8.;

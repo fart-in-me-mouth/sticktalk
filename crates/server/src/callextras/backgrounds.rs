@@ -172,7 +172,10 @@ async fn file(State(app): State<App>, Path(b): Path<u64>, h: HeaderMap) -> Resul
             ("content-type", mime),
             ("cache-control", "private, no-store".into()),
             ("x-content-type-options", "nosniff".into()),
-            ("content-security-policy", "default-src 'none'; sandbox".into()),
+            (
+                "content-security-policy",
+                "default-src 'none'; sandbox".into(),
+            ),
         ],
         bytes,
     )

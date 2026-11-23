@@ -169,7 +169,7 @@ pub fn valid_sound_emoji(emoji: &str) -> bool {
         && !emoji
             .chars()
             .any(|c| c.is_control() || c.is_ascii_alphanumeric() || "<>&\"' ".contains(c))
-        && emoji.chars().any(|c| !c.is_ascii())
+        && !emoji.is_ascii()
 }
 
 #[cfg(test)]
@@ -204,7 +204,10 @@ mod tests {
             },
         ] {
             let bytes = rmp_serde::to_vec_named(&signal).unwrap();
-            assert_eq!(rmp_serde::from_slice::<VoiceSignal>(&bytes).unwrap(), signal);
+            assert_eq!(
+                rmp_serde::from_slice::<VoiceSignal>(&bytes).unwrap(),
+                signal
+            );
         }
         let session = VoiceSession {
             user_id: Id(1),

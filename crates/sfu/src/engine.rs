@@ -708,10 +708,7 @@ impl Sfu {
             | VoiceSignal::ClipTaken => return Err(Error::Forbidden),
             VoiceSignal::TrackQuality { mid, max_bps } => {
                 let p = self.peers.get_mut(&key).unwrap();
-                let published = p
-                    .tracks
-                    .iter()
-                    .any(|t| t.mid == mid && is_video(t.kind));
+                let published = p.tracks.iter().any(|t| t.mid == mid && is_video(t.kind));
                 if !published || !(100_000..=MAX_TRACK_BITRATE).contains(&max_bps) {
                     return Err(Error::Invalid);
                 }
@@ -1317,9 +1314,18 @@ impl Sfu {
             .peers
             .iter()
             .flat_map(|(key, p)| {
-                p.routes.iter().filter(|(_, r)| r.video).map(move |(mid, r)| {
-                    (*key, mid.clone(), r.publisher, r.source.to_string(), p.channel)
-                })
+                p.routes
+                    .iter()
+                    .filter(|(_, r)| r.video)
+                    .map(move |(mid, r)| {
+                        (
+                            *key,
+                            mid.clone(),
+                            r.publisher,
+                            r.source.to_string(),
+                            p.channel,
+                        )
+                    })
             })
             .collect();
         // What each route's track needs, as wire rate: the payload limits below
@@ -1394,9 +1400,7 @@ impl Sfu {
         }
         let mut limits: BTreeMap<(VoiceSession, String), u64> = BTreeMap::new();
         for (key, p) in &self.peers {
-            let mine: Vec<usize> = (0..routes.len())
-                .filter(|&i| routes[i].0 == *key)
-                .collect();
+            let mine: Vec<usize> = (0..routes.len()).filter(|&i| routes[i].0 == *key).collect();
             if mine.is_empty() {
                 continue;
             }
@@ -1405,7 +1409,10 @@ impl Sfu {
             // 32 Mbps wire cap; a 2.5 Mbps camera leaves the rest to a 4K share.
             let caps: Vec<u64> = mine.iter().map(|&i| cap[i]).collect();
             let total = p.bwe.min(self.config.peer_video_egress_bps);
-            for (k, allotted) in crate::quality::waterfill(total, &caps).into_iter().enumerate() {
+            for (k, allotted) in crate::quality::waterfill(total, &caps)
+                .into_iter()
+                .enumerate()
+            {
                 let r = &routes[mine[k]];
                 let bps = allotted.saturating_mul(3) / 4;
                 limits

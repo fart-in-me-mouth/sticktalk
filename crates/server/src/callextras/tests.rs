@@ -87,7 +87,11 @@ async fn add_sound(app: &App, token: &str, guild: u64, name: &str) -> Response {
 
 async fn sound_id(response: Response) -> Id {
     assert_eq!(response.status(), StatusCode::OK);
-    Id(json(response).await["id"].as_str().unwrap().parse().unwrap())
+    Id(json(response).await["id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap())
 }
 
 fn key(user: u64) -> Vec<u8> {
@@ -131,7 +135,9 @@ fn played(events: &[VoiceEvent]) -> Vec<(Id, bool)> {
     events
         .iter()
         .filter_map(|e| match e {
-            VoiceEvent::SoundPlayed { sound, entrance, .. } => Some((sound.sound_id, *entrance)),
+            VoiceEvent::SoundPlayed {
+                sound, entrance, ..
+            } => Some((sound.sound_id, *entrance)),
             _ => None,
         })
         .collect()
@@ -185,7 +191,9 @@ async fn everyone_may_use_the_soundboard_by_default_in_old_and_new_servers() {
     let (_dir, app) = fixture().await;
     let mut c = app.0.pool.acquire().await.unwrap();
     // Guild 10 was created after the migration; its @everyone gets the bit too.
-    let p = permissions::evaluate(&mut c, Id(2), Id(10), None).await.unwrap();
+    let p = permissions::evaluate(&mut c, Id(2), Id(10), None)
+        .await
+        .unwrap();
     assert!(p.contains(Permissions::USE_SOUNDBOARD));
     assert!(!p.contains(Permissions::MANAGE_SOUNDBOARD));
 }
@@ -224,7 +232,10 @@ async fn upload_needs_manage_soundboard_and_validates_the_clip() {
     )
     .await;
     assert_eq!(long.status(), StatusCode::BAD_REQUEST);
-    assert!(json(long).await["message"].as_str().unwrap().contains("5.2"));
+    assert!(json(long).await["message"]
+        .as_str()
+        .unwrap()
+        .contains("5.2"));
     for (path, body, status) in [
         (
             "/api/v1/guilds/10/soundboard?name=html",
@@ -430,7 +441,14 @@ async fn playing_checks_the_call_the_permission_the_server_and_the_rate() {
     let mut one = attach(&mut core, 1).await;
     let mut two = attach(&mut core, 2).await;
     // Not in a call.
-    signal(&app, &mut core, 1, VoiceSignal::PlaySound { sound_id: ours }, true).await;
+    signal(
+        &app,
+        &mut core,
+        1,
+        VoiceSignal::PlaySound { sound_id: ours },
+        true,
+    )
+    .await;
     assert_eq!(error(&events(&mut one)), Some(ErrorCode::Forbidden));
     let s1 = join(&app, &mut core, 1, VOICE).await;
     join(&app, &mut core, 2, VOICE).await;
@@ -438,13 +456,29 @@ async fn playing_checks_the_call_the_permission_the_server_and_the_rate() {
     assert!(joined_events.iter().any(|e| matches!(e,
         VoiceEvent::AudioQuality { bitrate, .. } if *bitrate == DEFAULT_VOICE_BITRATE)));
     events(&mut two);
-    signal(&app, &mut core, 1, VoiceSignal::PlaySound { sound_id: ours }, true).await;
+    signal(
+        &app,
+        &mut core,
+        1,
+        VoiceSignal::PlaySound { sound_id: ours },
+        true,
+    )
+    .await;
     let heard = events(&mut two);
     assert_eq!(played(&heard), vec![(ours, false)]);
-    assert!(heard.iter().any(|e| matches!(e, VoiceEvent::SoundPlayed { by, .. } if *by == s1)));
+    assert!(heard
+        .iter()
+        .any(|e| matches!(e, VoiceEvent::SoundPlayed { by, .. } if *by == s1)));
     assert_eq!(played(&events(&mut one)), vec![(ours, false)]);
     // A sound of a server the player is not in does not exist for them.
-    signal(&app, &mut core, 1, VoiceSignal::PlaySound { sound_id: theirs }, true).await;
+    signal(
+        &app,
+        &mut core,
+        1,
+        VoiceSignal::PlaySound { sound_id: theirs },
+        true,
+    )
+    .await;
     assert_eq!(error(&events(&mut one)), Some(ErrorCode::NotFound));
     assert!(played(&events(&mut two)).is_empty());
     // Use Soundboard denied in this channel, for user 2.
@@ -453,20 +487,48 @@ async fn playing_checks_the_call_the_permission_the_server_and_the_rate() {
         .execute(&app.0.pool)
         .await
         .unwrap();
-    signal(&app, &mut core, 2, VoiceSignal::PlaySound { sound_id: ours }, true).await;
+    signal(
+        &app,
+        &mut core,
+        2,
+        VoiceSignal::PlaySound { sound_id: ours },
+        true,
+    )
+    .await;
     assert_eq!(error(&events(&mut two)), Some(ErrorCode::Forbidden));
     // A moderator's mute is not bypassed.
     core.voice.get_mut(&s1).unwrap().server_mute_for_test(true);
-    signal(&app, &mut core, 1, VoiceSignal::PlaySound { sound_id: ours }, true).await;
+    signal(
+        &app,
+        &mut core,
+        1,
+        VoiceSignal::PlaySound { sound_id: ours },
+        true,
+    )
+    .await;
     assert_eq!(error(&events(&mut one)), Some(ErrorCode::Forbidden));
     core.voice.get_mut(&s1).unwrap().server_mute_for_test(false);
     // Rate: a burst of four, then a wait.
     core.limits.clear();
     for _ in 0..4 {
-        signal(&app, &mut core, 1, VoiceSignal::PlaySound { sound_id: ours }, false).await;
+        signal(
+            &app,
+            &mut core,
+            1,
+            VoiceSignal::PlaySound { sound_id: ours },
+            false,
+        )
+        .await;
     }
     assert_eq!(played(&events(&mut two)).len(), 4);
-    signal(&app, &mut core, 1, VoiceSignal::PlaySound { sound_id: ours }, false).await;
+    signal(
+        &app,
+        &mut core,
+        1,
+        VoiceSignal::PlaySound { sound_id: ours },
+        false,
+    )
+    .await;
     assert_eq!(error(&events(&mut one)), Some(ErrorCode::RateLimited));
     assert!(played(&events(&mut two)).is_empty());
 }
@@ -495,7 +557,14 @@ async fn a_direct_call_plays_any_of_your_servers_sounds_and_the_listener_can_fet
         let got = events(&mut three);
         assert!(got.iter().any(|e| matches!(e,
             VoiceEvent::AudioQuality { bitrate, .. } if *bitrate == CALL_VOICE_BITRATE)));
-        signal(&app, &mut core, 1, VoiceSignal::PlaySound { sound_id: ours }, true).await;
+        signal(
+            &app,
+            &mut core,
+            1,
+            VoiceSignal::PlaySound { sound_id: ours },
+            true,
+        )
+        .await;
         assert_eq!(played(&events(&mut three)), vec![(ours, false)]);
     }
     // In a call with a member of its server, the listener can fetch the clip.
@@ -574,9 +643,14 @@ async fn entrance_sounds_play_once_a_minute_and_respect_choices() {
     let s2 = join_keep_limits(&app, &mut core, 2, VOICE).await;
     assert_eq!(played(&events(&mut one)), vec![(ours, true)]);
     // Leave and rejoin at once: no second entrance sound.
-    crate::voice::remove(&app, &mut core, &mut app.0.pool.acquire().await.unwrap(), s2)
-        .await
-        .unwrap();
+    crate::voice::remove(
+        &app,
+        &mut core,
+        &mut app.0.pool.acquire().await.unwrap(),
+        s2,
+    )
+    .await
+    .unwrap();
     join_keep_limits(&app, &mut core, 2, VOICE).await;
     assert!(played(&events(&mut one)).is_empty());
     drop(core);
@@ -591,9 +665,14 @@ async fn entrance_sounds_play_once_a_minute_and_respect_choices() {
     .await;
     let mut core = app.0.core.lock().await;
     let s2 = *core.voice.keys().find(|s| s.user_id == Id(2)).unwrap();
-    crate::voice::remove(&app, &mut core, &mut app.0.pool.acquire().await.unwrap(), s2)
-        .await
-        .unwrap();
+    crate::voice::remove(
+        &app,
+        &mut core,
+        &mut app.0.pool.acquire().await.unwrap(),
+        s2,
+    )
+    .await
+    .unwrap();
     join(&app, &mut core, 2, VOICE).await;
     assert!(played(&events(&mut one)).is_empty());
 }
@@ -650,7 +729,14 @@ async fn clipping_is_announced_to_the_call_and_to_late_joiners() {
     // A clip without clipping on is refused.
     signal(&app, &mut core, 1, VoiceSignal::ClipTaken, true).await;
     assert_eq!(error(&events(&mut one)), Some(ErrorCode::InvalidRequest));
-    signal(&app, &mut core, 1, VoiceSignal::SetClipping { enabled: true }, true).await;
+    signal(
+        &app,
+        &mut core,
+        1,
+        VoiceSignal::SetClipping { enabled: true },
+        true,
+    )
+    .await;
     assert!(events(&mut one).iter().any(|e| matches!(e,
         VoiceEvent::Clipping { session, enabled: true } if *session == s1)));
     join(&app, &mut core, 2, VOICE).await;
@@ -688,9 +774,16 @@ async fn voice_bitrate_needs_manage_channels_and_reaches_live_calls() {
     }
     // A text channel has no bitrate.
     assert_eq!(
-        request(&app, &owner, "PUT", "/api/v1/channels/11/voice-quality", body(96_000), true)
-            .await
-            .status(),
+        request(
+            &app,
+            &owner,
+            "PUT",
+            "/api/v1/channels/11/voice-quality",
+            body(96_000),
+            true
+        )
+        .await
+        .status(),
         StatusCode::BAD_REQUEST
     );
     let (s2, mut two) = {
@@ -701,8 +794,13 @@ async fn voice_bitrate_needs_manage_channels_and_reaches_live_calls() {
     events(&mut two);
     let saved = request(&app, &owner, "PUT", &path, body(256_000), true).await;
     assert_eq!(saved.status(), StatusCode::OK);
-    assert!(events(&mut two).iter().any(|e| matches!(e,
-        VoiceEvent::AudioQuality { bitrate: 256_000, .. })));
+    assert!(events(&mut two).iter().any(|e| matches!(
+        e,
+        VoiceEvent::AudioQuality {
+            bitrate: 256_000,
+            ..
+        }
+    )));
     assert_eq!(crate::voice::acl_bitrate_for_test(&app, s2), Some(256_000));
     let got = json(request(&app, &member, "GET", &path, None, false).await).await;
     assert_eq!(got["bitrate"], 256_000);
@@ -736,7 +834,9 @@ async fn camera_backgrounds_are_private_bounded_and_typed_by_content() {
         serde_json::json!([])
     );
     assert_eq!(
-        request(&app, &two, "GET", &item, None, false).await.status(),
+        request(&app, &two, "GET", &item, None, false)
+            .await
+            .status(),
         StatusCode::NOT_FOUND
     );
     assert_eq!(
@@ -750,7 +850,10 @@ async fn camera_backgrounds_are_private_bounded_and_typed_by_content() {
     assert_eq!(r.headers()["content-type"], "image/png");
     // Not a picture or video; a broken picture; too large.
     for (body, status) in [
-        (b"<svg onload=alert(1)>".to_vec(), StatusCode::UNSUPPORTED_MEDIA_TYPE),
+        (
+            b"<svg onload=alert(1)>".to_vec(),
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        ),
         (
             b"\x89PNG\r\n\x1a\nbroken".to_vec(),
             StatusCode::UNSUPPORTED_MEDIA_TYPE,

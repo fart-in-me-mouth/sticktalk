@@ -768,7 +768,9 @@ async fn signal_inner(
             crate::calls::decline(core, &mut c, user, *channel_id).await?;
             return send(core, key, nonce, &VoiceEvent::Ack);
         }
-        VoiceSignal::PlaySound { .. } | VoiceSignal::SetClipping { .. } | VoiceSignal::ClipTaken => {
+        VoiceSignal::PlaySound { .. }
+        | VoiceSignal::SetClipping { .. }
+        | VoiceSignal::ClipTaken => {
             let session = core
                 .voice
                 .iter()

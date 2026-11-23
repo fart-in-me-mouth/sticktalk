@@ -281,7 +281,10 @@ async fn upload(
         audio::Rejected::TooLarge => Error::new(ErrorCode::PayloadTooLarge),
         audio::Rejected::TooLong => {
             let mut e = Error::new(ErrorCode::InvalidRequest);
-            e.0.message = format!("Sounds can be at most {} seconds long.", MAX_SOUND_MS as f32 / 1000.);
+            e.0.message = format!(
+                "Sounds can be at most {} seconds long.",
+                MAX_SOUND_MS as f32 / 1000.
+            );
             e
         }
         audio::Rejected::Unsupported => {
@@ -337,7 +340,11 @@ async fn update(
         patch.volume.is_none_or(|v| v <= 100),
         ErrorCode::InvalidRequest,
     )?;
-    let emoji = patch.emoji.clone().map(|e| emoji_value(Some(e))).transpose()?;
+    let emoji = patch
+        .emoji
+        .clone()
+        .map(|e| emoji_value(Some(e)))
+        .transpose()?;
     let mut core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
     let (_, u) = db::auth(&mut c, &token).await?;
@@ -417,11 +424,7 @@ async fn clip(State(app): State<App>, Path(s): Path<u64>, h: HeaderMap) -> Resul
 async fn favorite(State(app): State<App>, Path(s): Path<u64>, h: HeaderMap) -> Result<Response> {
     set_favorite(app, Id(s), h, true).await
 }
-async fn unfavorite(
-    State(app): State<App>,
-    Path(s): Path<u64>,
-    h: HeaderMap,
-) -> Result<Response> {
+async fn unfavorite(State(app): State<App>, Path(s): Path<u64>, h: HeaderMap) -> Result<Response> {
     set_favorite(app, Id(s), h, false).await
 }
 async fn set_favorite(app: App, s: Id, h: HeaderMap, on: bool) -> Result<Response> {
@@ -432,10 +435,11 @@ async fn set_favorite(app: App, s: Id, h: HeaderMap, on: bool) -> Result<Respons
     if on {
         let found = sound(&mut c, s).await?;
         db::role(&mut c, u, found.guild_id).await?;
-        let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM soundboard_favorites WHERE user_id=?")
-            .bind(id(u)?)
-            .fetch_one(&mut *c)
-            .await?;
+        let n: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM soundboard_favorites WHERE user_id=?")
+                .bind(id(u)?)
+                .fetch_one(&mut *c)
+                .await?;
         require(n < MAX_SOUND_FAVORITES as i64, ErrorCode::LimitExceeded)?;
         sqlx::query("INSERT OR IGNORE INTO soundboard_favorites VALUES(?,?)")
             .bind(id(u)?)
@@ -460,10 +464,12 @@ async fn entrance_settings(c: &mut SqliteConnection, u: Id) -> Result<EntranceSe
             .bind(id(u)?)
             .fetch_optional(&mut *c)
             .await?;
-    let rows = sqlx::query("SELECT guild_id,sound_id FROM soundboard_entrance WHERE user_id=? ORDER BY guild_id")
-        .bind(id(u)?)
-        .fetch_all(&mut *c)
-        .await?;
+    let rows = sqlx::query(
+        "SELECT guild_id,sound_id FROM soundboard_entrance WHERE user_id=? ORDER BY guild_id",
+    )
+    .bind(id(u)?)
+    .fetch_all(&mut *c)
+    .await?;
     let mut settings = EntranceSettings {
         enabled: enabled.unwrap_or(true),
         ..Default::default()
@@ -494,11 +500,9 @@ async fn set_entrance(State(app): State<App>, r: Request<Body>) -> Result<http::
     let next: EntranceSettings = body(r).await?;
     require(
         next.overrides.len() <= 200
-            && next
-                .overrides
-                .iter()
-                .enumerate()
-                .all(|(i, o)| o.guild_id.0 != 0 && !next.overrides[..i].iter().any(|p| p.guild_id == o.guild_id)),
+            && next.overrides.iter().enumerate().all(|(i, o)| {
+                o.guild_id.0 != 0 && !next.overrides[..i].iter().any(|p| p.guild_id == o.guild_id)
+            }),
         ErrorCode::InvalidRequest,
     )?;
     let mut core = app.0.core.lock().await;
@@ -531,7 +535,11 @@ async fn set_entrance(State(app): State<App>, r: Request<Body>) -> Result<http::
         .default_sound_id
         .map(|s| (0i64, Some(s)))
         .into_iter()
-        .chain(next.overrides.iter().map(|o| (o.guild_id.0 as i64, o.sound_id)));
+        .chain(
+            next.overrides
+                .iter()
+                .map(|o| (o.guild_id.0 as i64, o.sound_id)),
+        );
     for (g, s) in rows {
         sqlx::query("INSERT INTO soundboard_entrance VALUES(?,?,?)")
             .bind(id(u)?)
@@ -645,7 +653,11 @@ pub(crate) async fn joined(core: &mut Core, c: &mut SqliteConnection, session: V
         tracing::debug!(code = ?error.0.code, "call extras on join skipped");
     }
 }
-async fn joined_inner(core: &mut Core, c: &mut SqliteConnection, session: VoiceSession) -> Result<()> {
+async fn joined_inner(
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    session: VoiceSession,
+) -> Result<()> {
     let Some(entry) = core.voice.get(&session) else {
         return Ok(());
     };

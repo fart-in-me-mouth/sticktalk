@@ -153,8 +153,7 @@ fn ogg(b: &[u8]) -> Result<u64, Rejected> {
             return Err(bad);
         }
         let first = serial.is_none();
-        if first != (flags & 2 != 0) || serial.is_some_and(|s| s != stream) || page_no != sequence
-        {
+        if first != (flags & 2 != 0) || serial.is_some_and(|s| s != stream) || page_no != sequence {
             return Err(bad);
         }
         serial = Some(stream);
@@ -227,11 +226,17 @@ fn mp3(b: &[u8]) -> Result<u64, Rejected> {
         let bitrate_index = usize::from(h[2] >> 4);
         let rate_index = usize::from((h[2] >> 2) & 3);
         let padding = u32::from((h[2] >> 1) & 1);
-        if version == 1 || layer != 1 || bitrate_index == 0 || bitrate_index == 15 || rate_index == 3
+        if version == 1
+            || layer != 1
+            || bitrate_index == 0
+            || bitrate_index == 15
+            || rate_index == 3
         {
             return Err(bad);
         }
-        const V1: [u32; 15] = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+        const V1: [u32; 15] = [
+            0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320,
+        ];
         const V2: [u32; 15] = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
         let mpeg1 = version == 3;
         let kbps = if mpeg1 { V1 } else { V2 }[bitrate_index];
