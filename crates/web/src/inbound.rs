@@ -238,6 +238,7 @@ routes! {
         "message_updated" => MessageUpdated(Message),
         "reaction_updated" => ReactionUpdated(ReactionUpdate),
         "read_state_updated" => ReadStateUpdated(ReadState),
+        "apps" => Apps(AppEvent),
     }
     fields {
         "slowmode_updated" => SlowmodeUpdated { channel_id: ChannelId, seconds: u32 },
@@ -290,6 +291,7 @@ routes! {
         "message" => Message(Message),
         "reaction" => Reaction(ReactionUpdate),
         "read_state" => ReadState(ReadState),
+        "apps" => Apps(AppResult),
     }
     fields {
         "subscription" => Subscription { presences: Vec<Presence> },
@@ -827,7 +829,8 @@ pub fn owner(e: &Event) -> Option<Feature> {
         | MessageDeleted { .. }
         | ReactionUpdated(_)
         | Typing { .. }
-        | ReadStateUpdated(_) => None,
+        | ReadStateUpdated(_)
+        | Apps(_) => None,
         NavUpdated(_) | SavedUpdated(_) | ReminderDue(_) => Some(Feature::Nav),
         Content(_) => Some(Feature::Content),
         Moderation(_) => Some(Feature::Moderation),

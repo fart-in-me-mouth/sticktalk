@@ -1,6 +1,10 @@
 //! Runtime-free protocol contracts. See `docs/PROTOCOL.md` for normative semantics.
 //! Encode WebSocket messages using `rmp_serde::to_vec_named`, never `to_vec`.
 
+mod activities;
+pub use activities::*;
+mod apps;
+pub use apps::*;
 mod authsec;
 pub use authsec::*;
 mod browser;
@@ -16,6 +20,8 @@ mod expression;
 pub use expression::*;
 mod features3;
 mod gifs;
+mod identity;
+pub use identity::*;
 mod ids;
 pub use features3::*;
 mod launch;

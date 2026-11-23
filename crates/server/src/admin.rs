@@ -105,11 +105,38 @@ pub enum AdminCommand {
         #[command(subcommand)]
         command: ReportAdmin,
     },
+    /// Activities registered by URL (`activities.rs`).
+    Activities {
+        #[command(subcommand)]
+        command: crate::activities::ActivityAdmin,
+    },
     /// The server directory: list, feature, hide or delist servers, or turn it off.
     Directory {
         #[command(subcommand)]
         command: DirectoryAdmin,
     },
+    /// Apps and bots: list, turn one off everywhere, who may create them.
+    Apps {
+        #[command(subcommand)]
+        command: crate::apps::admin::AppsAdmin,
+    },
+    /// Server tags and vanity links: list, revoke a tag, release a code.
+    Identity {
+        #[command(subcommand)]
+        command: IdentityCli,
+    },
+}
+/// `sticktalk-server admin identity ...` (docs/features/identity.md).
+#[derive(Subcommand, Clone, Debug)]
+pub enum IdentityCli {
+    /// Every server tag, vanity link and blocked tag on this instance.
+    List,
+    /// Remove a server's tag (everyone stops wearing it) and block its text.
+    RevokeTag { guild_id: u64 },
+    /// Let a blocked tag text be claimed again.
+    UnblockTag { text: String },
+    /// Take a vanity code away from its server; it is held for 30 days.
+    ReleaseVanity { code: String },
 }
 /// `sticktalk-server admin reports ...`: the instance administrator's queue
 /// (direct messages, people, servers, and reports left by deleted servers).
@@ -198,11 +225,20 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     if let AdminCommand::Badge { command } = command {
         return crate::profiles::badges::run(&mut c, command).await;
     }
+    if let AdminCommand::Activities { command } = command {
+        return crate::activities::run_admin(&mut c, command).await;
+    }
     if let AdminCommand::Reports { command } = command {
         return crate::privacy::reports::admin(&mut c, command).await;
     }
     if let AdminCommand::Directory { command } = command {
         return crate::community::admin_cli(&mut c, command).await;
+    }
+    if let AdminCommand::Apps { command } = command {
+        return crate::apps::admin::run(&mut c, command).await;
+    }
+    if let AdminCommand::Identity { command } = command {
+        return crate::identity::admin_cli(&mut c, command).await;
     }
     if matches!(command, AdminCommand::ListUsers) {
         let mut after = 0;

@@ -343,12 +343,18 @@ pub(crate) async fn precheck(
             )
             .await?
         }
-        Command::JoinGuild { invite_code } if invite_code.len() == 22 => {
-            let g: Option<i64> =
-                sqlx::query_scalar("SELECT guild_id FROM invites WHERE code_hash=?")
-                    .bind(crate::state::hash(invite_code.as_bytes()))
-                    .fetch_optional(&mut *c)
-                    .await?;
+        Command::JoinGuild { invite_code } => {
+            // Invite codes and vanity codes (identity.rs).
+            let found = crate::identity::find_invite(c, invite_code).await?;
+            let g: Option<i64> = match found {
+                Some(i) => {
+                    sqlx::query_scalar("SELECT guild_id FROM invites WHERE id=?")
+                        .bind(i)
+                        .fetch_optional(&mut *c)
+                        .await?
+                }
+                None => None,
+            };
             if let Some(g) = g.map(|g| Id(g as u64)) {
                 if role(c, u, g).await.is_err() {
                     if safety(c, g).await?.invites_paused_until.is_some() {
@@ -386,6 +392,12 @@ pub(crate) async fn precheck(
             }
         }
         Command::Threads(cmd) => coverage::thread_check(app, core, c, u, cmd).await?,
+        // Bots' and webhooks' messages, embeds included (`apps.rs`).
+        Command::Apps(cmd) => {
+            for o in crate::apps::outgoing(core, cmd) {
+                message_check(app, core, c, u, o.channel_id, &o.text, &[], o.send).await?;
+            }
+        }
         _ => {}
     }
     Ok(hook)

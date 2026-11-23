@@ -338,6 +338,34 @@ impl Previews {
         page
     }
 
+    /// One image by URL, with every protection above, re-encoded to at most
+    /// 480 px. For app embeds and webhook avatars (`apps.rs`).
+    pub(crate) async fn image(&self, url: &str) -> Option<Image> {
+        if !self.enabled || self.waiting.load(Ordering::Relaxed) >= MAX_WAITING {
+            return None;
+        }
+        self.waiting.fetch_add(1, Ordering::Relaxed);
+        let permit = self.fetches.clone().acquire_owned().await;
+        let fetched = match permit {
+            Ok(_) => self
+                .get(
+                    url,
+                    &["image/png", "image/jpeg", "image/gif", "image/webp"],
+                    MAX_IMAGE_BYTES,
+                    false,
+                )
+                .await
+                .ok(),
+            Err(_) => None,
+        };
+        self.waiting.fetch_sub(1, Ordering::Relaxed);
+        let (_, bytes) = fetched?;
+        tokio::task::spawn_blocking(move || shrink(&bytes))
+            .await
+            .ok()
+            .flatten()
+    }
+
     async fn fetch_page(&self, url: &str) -> Result<Option<Page>> {
         let (final_url, body) = self
             .get(

@@ -1,0 +1,10 @@
+.ck { display: grid; grid-template-columns: repeat(8, 1fr); width: min(100%, 440px, calc(100vh - 140px)); aspect-ratio: 1; border: 2px solid var(--border); border-radius: 6px; overflow: hidden; }
+.ck-sq { display: grid; place-items: center; min-height: 0; padding: 0; border: 0; border-radius: 0; }
+.ck-sq.light { background: var(--surface); }
+.ck-sq.dark { background: var(--muted); }
+.ck-sq.picked { box-shadow: inset 0 0 0 3px var(--accent); }
+.ck-sq.last { box-shadow: inset 0 0 0 2px var(--subtle); }
+.ck-sq:disabled { opacity: 1; cursor: default; }
+.ck-piece { display: grid; place-items: center; width: 76%; aspect-ratio: 1; border-radius: 50%; font-size: 14px; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
+.ck-piece.disc-0 { color: #fff; }
+.ck-piece.disc-1 { color: #222; }

@@ -130,6 +130,20 @@ pub enum AuditAction {
     StageStart,
     StageUpdate,
     StageEnd,
+    // Shared activities in guild voice channels (`activities.rs`).
+    ActivityStart,
+    ActivityEnd,
+    // Apps, bots and webhooks (`apps.rs`).
+    AppInstall,
+    AppRemove,
+    CommandPermissionsUpdate,
+    WebhookCreate,
+    WebhookUpdate,
+    WebhookDelete,
+    /// Server tags and vanity links (`identity.rs`). Role styles and icons
+    /// are `role_update`; banner, icon and invite background `guild_update`.
+    ServerTagUpdate,
+    VanityUpdate,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -201,6 +215,16 @@ impl AuditAction {
         Self::StageStart,
         Self::StageUpdate,
         Self::StageEnd,
+        Self::ActivityStart,
+        Self::ActivityEnd,
+        Self::AppInstall,
+        Self::AppRemove,
+        Self::CommandPermissionsUpdate,
+        Self::WebhookCreate,
+        Self::WebhookUpdate,
+        Self::WebhookDelete,
+        Self::ServerTagUpdate,
+        Self::VanityUpdate,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -273,6 +297,16 @@ impl AuditAction {
             Self::StageStart => "stage_start",
             Self::StageUpdate => "stage_update",
             Self::StageEnd => "stage_end",
+            Self::ActivityStart => "activity_start",
+            Self::ActivityEnd => "activity_end",
+            Self::AppInstall => "app_install",
+            Self::AppRemove => "app_remove",
+            Self::CommandPermissionsUpdate => "command_permissions_update",
+            Self::WebhookCreate => "webhook_create",
+            Self::WebhookUpdate => "webhook_update",
+            Self::WebhookDelete => "webhook_delete",
+            Self::ServerTagUpdate => "server_tag_update",
+            Self::VanityUpdate => "vanity_update",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -349,6 +383,16 @@ impl AuditAction {
             Self::StageStart => "Started a Stage",
             Self::StageUpdate => "Updated a Stage",
             Self::StageEnd => "Ended a Stage",
+            Self::ActivityStart => "Started an activity",
+            Self::ActivityEnd => "Ended an activity",
+            Self::AppInstall => "Added an app",
+            Self::AppRemove => "Removed an app",
+            Self::CommandPermissionsUpdate => "Changed app command permissions",
+            Self::WebhookCreate => "Created a webhook",
+            Self::WebhookUpdate => "Updated a webhook",
+            Self::WebhookDelete => "Deleted a webhook",
+            Self::ServerTagUpdate => "Changed the server tag",
+            Self::VanityUpdate => "Changed the vanity link",
         }
     }
 }
@@ -369,6 +413,9 @@ pub enum AuditTarget {
     Sound,
     /// A scheduled event (`schedule.rs`).
     Event,
+    /// An app (`apps.rs`).
+    App,
+    Webhook,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

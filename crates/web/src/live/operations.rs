@@ -280,7 +280,8 @@ pub(super) fn action(app: Shared, raw: &str) {
                 a.touch();
                 (a.http(), a.dialog_generation)
             };
-            if code.len() != 22
+            // Invite codes, and vanity codes (identity.rs).
+            if (code.len() != 22 && vanity_code(&code).is_none())
                 || !code
                     .bytes()
                     .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
@@ -399,6 +400,10 @@ pub(super) fn action(app: Shared, raw: &str) {
         "submit" if arg.starts_with("cm-") => {
             feature(app, Feature::Community, Call::Submit(arg.into()))
         }
+        "apps" => super::apps::action(app, arg),
+        "submit" if super::apps::is_form(arg) => super::apps::submit(app, arg),
+        "id" => super::identity::action(app, arg),
+        "submit" if arg.starts_with("id-") => super::identity::submit(app, arg),
         "pins-refresh" => {
             let (epoch, generation) = {
                 let a = app.borrow();
@@ -490,6 +495,8 @@ pub(super) fn action(app: Shared, raw: &str) {
                 }
             }
         }
+        // The `/` command picker (apps.rs).
+        "complete" if arg.starts_with("/|") => super::apps::compose(app, arg),
         "complete" => {
             let epoch = {
                 let mut a = app.borrow_mut();
@@ -515,6 +522,7 @@ pub(super) fn action(app: Shared, raw: &str) {
         }
         "complete-close" => {
             let mut a = app.borrow_mut();
+            super::apps::close_picker(&mut a);
             a.completion_query.clear();
             a.completions.clear();
             a.touch();
@@ -751,6 +759,9 @@ pub(super) fn action(app: Shared, raw: &str) {
             let arg = arg.to_owned();
             spawn_local(async move { super::calls::action(app, arg).await });
         }
+        "activity" => super::activities::action(app, arg),
+        "activity-signal" => super::activities::signal(app, arg),
+        "activity-send-file" => super::activities::send_file(app, arg),
         "media" => media_action(arg),
         "media-error" => fail(&app, arg.into()),
         "upload" | "avatar-upload" | "guild-icon-upload" => {
@@ -887,6 +898,10 @@ fn expand_shortcodes(content: String) -> String {
     sticktalk_emoji::replace_shortcodes(&content).into_owned()
 }
 fn send_message(app: Shared, content: String) {
+    // `/command`: a built-in or an app's command, not a message (apps.rs).
+    if super::apps::slash(&app, &content) {
+        return;
+    }
     // `:name:` of a custom emoji becomes its token first (expression.rs).
     let content = super::expression::prepare_send(&app.borrow(), &content);
     let candidate = content.split(':').any(|part| {
@@ -1148,6 +1163,7 @@ pub(super) fn load_history(
         });
     }
     super::moderation::channel_opened(app.clone(), c);
+    super::apps::channel_opened(app.clone(), c);
     super::community::channel_opened(app.clone(), c);
     if super::moderation::gated(&app.borrow(), c) {
         // Age-restricted: nothing is fetched until the viewer confirms.
@@ -1340,6 +1356,8 @@ fn open_dialog(app: Shared, name: &str) {
             feature(app.clone(), f, Call::Opened(name.into()));
         }
     }
+    super::identity::opened(app.clone(), name);
+    super::apps::opened(app.clone(), name);
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
     let name = name.to_owned();
@@ -2034,6 +2052,7 @@ fn respond(
             super::moderation::failed(operation);
             super::profiles::failed(operation);
             super::community::failed(operation);
+            super::identity::failed(operation);
             // A refused save is no longer waiting for its answer.
             if let Some(form) = operation.and_then(saved_form) {
                 media_action(&format!("form-failed:{form}"));
@@ -2083,6 +2102,7 @@ fn respond(
                     || sticktalk_client_core::http::error_text(&error),
                     str::to_owned,
                 ),
+                (Some(Command::Apps(_)), _) => sticktalk_client_core::http::error_text(&error),
                 (Some(Command::Appearance(c)), code) => super::themes::refused(c, code)
                     .map_or_else(
                         || sticktalk_client_core::http::error_text(&error),
@@ -2142,6 +2162,24 @@ fn respond(
             if let Some(f) = handler {
                 drop(a);
                 return Some((f, operation, reply));
+            }
+            if let Some(op) = operation.clone().filter(super::identity::owns) {
+                drop(a);
+                if let Reply::Core(result) = reply {
+                    super::identity::answered(app.clone(), op, result);
+                }
+                return None;
+            }
+            // Invite cards say whether you are in their server.
+            if matches!(operation, Some(Command::JoinGuild { .. })) {
+                super::identity::forget_invites(&a);
+            }
+            if let Some(op) = operation.clone().filter(super::apps::owns) {
+                drop(a);
+                if let Reply::Core(result) = reply {
+                    super::apps::answered(app.clone(), op, result);
+                }
+                return None;
             }
             a.error.clear();
             a.notice.clear();
@@ -2701,7 +2739,10 @@ pub(super) fn upload(
         a.uploading = false;
         match result {
             Ok(file) => {
-                if super::profiles::uploaded(&mut a, purpose, &file) {
+                if super::profiles::uploaded(&mut a, purpose, &file)
+                    || super::apps::uploaded(&mut a, purpose, &file)
+                    || super::identity::uploaded(&mut a, purpose, &file)
+                {
                 } else if purpose == UploadPurpose::Avatar {
                     a.command(Command::UpdateProfile(ProfilePatch {
                         avatar_id: Patch::Set(file.id),

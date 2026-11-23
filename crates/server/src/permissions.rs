@@ -2,7 +2,7 @@
 //! Call under the application's serialization gate, using the current transaction.
 use crate::{
     db::id,
-    error::{require, Error, Result},
+    error::{require, Result},
 };
 use sqlx::{Row, SqliteConnection};
 use sticktalk_proto::*;
@@ -20,7 +20,11 @@ pub async fn evaluate(
 ) -> Result<Permissions> {
     let owner: Option<i64> = sqlx::query_scalar("SELECT owner_id FROM guilds WHERE id=? AND EXISTS(SELECT 1 FROM guild_members WHERE guild_id=? AND user_id=?)")
         .bind(id(guild)?).bind(id(guild)?).bind(id(user)?).fetch_optional(&mut *c).await?;
-    let owner = owner.ok_or_else(|| Error::new(ErrorCode::NotFound))? == id(user)?;
+    // Not a member: a webhook's fixed rights in its channel, else NotFound.
+    let Some(owner) = owner else {
+        return Box::pin(crate::apps::principal(c, user, guild, channel)).await;
+    };
+    let owner = owner == id(user)?;
     let scopes = match channel {
         Some(ch) => lineage(c, guild, ch).await?,
         None => vec![],
@@ -138,7 +142,7 @@ pub(crate) async fn role_ids(c: &mut SqliteConnection, g: Id, u: Id) -> Result<V
     Ok(ids)
 }
 pub(crate) async fn roles(c: &mut SqliteConnection, g: Id) -> Result<Vec<Role>> {
-    sqlx::query("SELECT * FROM roles WHERE guild_id=? ORDER BY position,id")
+    sqlx::query("SELECT *,(SELECT look FROM role_looks WHERE guild_id=roles.guild_id AND role_id=roles.id) AS look FROM roles WHERE guild_id=? ORDER BY position,id")
         .bind(id(g)?)
         .fetch_all(c)
         .await?
@@ -153,6 +157,7 @@ pub(crate) async fn roles(c: &mut SqliteConnection, g: Id) -> Result<Vec<Role>> 
                 hoist: r.get("hoist"),
                 mentionable: r.get("mentionable"),
                 permissions: Permissions::from_bits_retain(r.get::<i64, _>("permissions") as u64),
+                look: crate::identity::role_look_column(&r),
             })
         })
         .collect()

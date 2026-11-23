@@ -753,7 +753,8 @@ impl Sfu {
             | VoiceSignal::PlaySound { .. }
             | VoiceSignal::SetClipping { .. }
             | VoiceSignal::ClipTaken
-            | VoiceSignal::Stage(_) => return Err(Error::Forbidden),
+            | VoiceSignal::Stage(_)
+            | VoiceSignal::Activities(_) => return Err(Error::Forbidden),
             VoiceSignal::TrackQuality { mid, max_bps } => {
                 let p = self.peers.get_mut(&key).unwrap();
                 let published = p.tracks.iter().any(|t| t.mid == mid && is_video(t.kind));

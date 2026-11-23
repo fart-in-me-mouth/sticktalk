@@ -61,6 +61,7 @@ fn guild() -> GuildDetail {
                 name: "Rust".into(),
                 icon_id: None,
                 member_count: 1,
+                look: None,
             },
             my_role: MemberRole::Owner,
             my_permissions: Permissions::GUILD_OWNER,
@@ -699,6 +700,7 @@ fn maximum_bootstrap_metadata_fits_the_frame_budget() {
                 hoist: true,
                 mentionable: true,
                 permissions: Permissions::all() - Permissions::OWNER,
+                look: None,
             });
             role_ids.push(id);
         }

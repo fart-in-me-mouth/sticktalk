@@ -173,6 +173,9 @@ fn report_target_text(a: &App, t: &ReportTarget) -> String {
                 .get(guild_id)
                 .map_or("".into(), |g| g.guild.name.clone())
         ),
+        ReportTarget::Activity { user_id, .. } => {
+            format!("What {} did in an activity", a.model.name(*user_id))
+        }
     }
 }
 fn report_dialog(a: &App) -> AnyView {
@@ -180,7 +183,7 @@ fn report_dialog(a: &App) -> AnyView {
         return view! {<h2>"Report"</h2><p class="muted-copy">"Nothing to report."</p>}.into_any();
     };
     let who = match t {
-        ReportTarget::Message { channel_id, .. }
+        ReportTarget::Message { channel_id, .. } | ReportTarget::Activity { channel_id, .. }
             if a.model
                 .channels
                 .get(&channel_id)

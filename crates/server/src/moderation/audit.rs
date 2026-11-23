@@ -141,6 +141,7 @@ pub(crate) fn permission_names(p: Permissions) -> String {
         (Permissions::MANAGE_THREADS, "Manage Threads"),
         (Permissions::PUBLISH_MESSAGES, "Publish Messages"),
         (Permissions::USE_SOUNDBOARD, "Use Soundboard"),
+        (Permissions::USE_ACTIVITIES, "Use Activities"),
         (Permissions::MANAGE_SOUNDBOARD, "Manage Soundboard"),
     ];
     let names: Vec<&str> = NAMES

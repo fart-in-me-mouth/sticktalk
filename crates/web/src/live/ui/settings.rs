@@ -39,6 +39,9 @@ pub(super) fn is_server_page(page: &str) -> bool {
         || super::privacy::is_server_page(page)
         || super::community::is_server_page(page)
         || super::themes::is_server_page(page)
+        || super::activities::is_server_page(page)
+        || crate::live::apps::is_server_page(page)
+        || super::identity::is_server_page(page)
         || [
             "role:",
             "channel-edit:",
@@ -102,6 +105,20 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             "server-theme",
             can(a, Permissions::MANAGE_GUILD),
         ),
+        // Activities (activities.rs): which ones members can start.
+        (
+            "sparkles",
+            "Activities",
+            "server-activities",
+            can(a, Permissions::MANAGE_GUILD),
+        ),
+        // Apps and webhooks (apps.rs).
+        (
+            "layout-grid",
+            "Integrations",
+            "server-integrations",
+            can_any(a, Permissions::MANAGE_GUILD | Permissions::MANAGE_WEBHOOKS),
+        ),
     ];
     // Moderation, as its own group.
     let moderation = [
@@ -156,10 +173,12 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
     ];
     let kind = a.dialog.split(':').next().unwrap_or_default();
     let community = super::community::nav(a);
+    let identity = super::identity::nav(a);
     let title = pages
         .iter()
         .chain(moderation.iter())
         .chain(community.iter())
+        .chain(identity.iter())
         .find(|(_, _, page, _)| *page == a.dialog)
         .map_or(
             match kind {
@@ -211,6 +230,7 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             {if moderation.iter().any(|page|page.3){view!{<h3 class="category mx-2 mt-6 mb-2">"Moderation"</h3>}.into_any()}else{().into_any()}}
             {moderation.into_iter().filter(|page|page.3).map(|(glyph,label,page,_)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}
             {super::community::nav_group(a)}
+            {super::identity::nav_group(a)}
         }.into_any(),
         body,
     )
@@ -271,7 +291,7 @@ pub(super) fn channel_editor(a: &App, page: &str) -> AnyView {
     let edit = form_with("Edit Channel","channel-save",view!{<fieldset disabled=!can(a,Permissions::MANAGE_CHANNELS)>{field("f-name","Name",c.name.as_deref().unwrap_or(""),"text")}{field("f-value","Topic",a.model.topics.get(&c.id).and_then(|t|t.as_deref()).unwrap_or(""),"text")}<input id="f-extra" type="hidden" value=c.id.0.to_string()/></fieldset>{super::call_extras::bitrate_section(a,c)}
         <div class="settings-divider"></div>{if can(a,Permissions::MANAGE_CHANNELS){view!{{button(if c.kind==ChannelKind::Category{"Move Category"}else{"Move Channel"},&format!("dialog:channel-move:{}",c.id.0),"secondary")}{button(if c.kind==ChannelKind::Category{"Delete Category"}else{"Delete Channel"},&format!("dialog:channel-delete:{}",c.id.0),"danger-text")}}.into_any()}else{().into_any()}}
     }.into_any(),"dialog:server-channels",can(a,Permissions::MANAGE_CHANNELS));
-    view! {{edit}{safety}}.into_any()
+    view! {{edit}{safety}{super::apps::channel_section(a,c)}}.into_any()
 }
 /// Put a channel inside another one, or back at the top level.
 pub(super) fn channel_move(a: &App, page: &str) -> AnyView {

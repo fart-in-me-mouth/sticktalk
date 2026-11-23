@@ -1,4 +1,6 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
+mod activities;
+mod apps;
 mod authsec;
 mod calls;
 mod community;
@@ -6,6 +8,7 @@ mod content;
 mod expression;
 mod features;
 mod history_cache;
+mod identity;
 mod moderation;
 mod nav;
 mod operations;
@@ -176,6 +179,12 @@ struct App {
     stage: stage::State,
     /// Custom and server themes, the theme editor, shared themes.
     themes: themes::State,
+    /// Shared activities in the call (`activities.rs`).
+    activities: activities::State,
+    /// Apps, bots, commands, interactions and webhooks.
+    apps: apps::State,
+    /// Server tags, role styles and icons, server images, invite cards.
+    identity: identity::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -248,6 +257,9 @@ impl App {
         self.community = Default::default();
         self.stage = Default::default();
         self.themes = Default::default();
+        self.activities = Default::default();
+        self.apps = Default::default();
+        self.identity = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -425,6 +437,9 @@ pub fn mount() {
             community: Default::default(),
             stage: Default::default(),
             themes: Default::default(),
+            activities: Default::default(),
+            apps: Default::default(),
+            identity: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -759,6 +774,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 moderation::connected(app.clone());
                                 privacy::connected(app.clone());
                                 themes::connected(app.clone());
+                                apps::ready(app.clone());
                                 let channel = app.borrow().channel;
                                 if let Some(c) = channel {
                                     operations::load_channel(app.clone(), c, None);
@@ -889,6 +905,7 @@ async fn socket(app: Shared, epoch: u64) {
                                                 a.roles.insert(r.id, r.clone());
                                             }
                                         }
+                                        Event::Apps(e) => apps::event(&mut a, e.clone()),
                                         Event::NotificationSettingsUpdated(n) => {
                                             a.notifications.retain(|v| {
                                                 v.guild_id != n.guild_id
@@ -1229,6 +1246,15 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
     if let Ok(event) = inbound::de::<VoiceEvent>(&payload.payload) {
         // Stage state goes to the stage feature before this (`socket`).
         if matches!(event, VoiceEvent::Stage(_)) {
+            return;
+        }
+        if let VoiceEvent::Activities(e) = event {
+            activities::voice_event(&app, e);
+            return;
+        }
+        if matches!(event, VoiceEvent::Ack | VoiceEvent::Error { .. })
+            && activities::answer(&app, payload.nonce, &event)
+        {
             return;
         }
         if matches!(

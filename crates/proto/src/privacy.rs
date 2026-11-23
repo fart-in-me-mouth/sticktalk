@@ -275,6 +275,12 @@ pub enum ReportTarget {
     Guild {
         guild_id: GuildId,
     },
+    /// A person's part in a running activity (what they drew or typed there).
+    Activity {
+        channel_id: ChannelId,
+        session_id: Id,
+        user_id: UserId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

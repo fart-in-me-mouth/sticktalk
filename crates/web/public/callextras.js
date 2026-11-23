@@ -11,6 +11,13 @@ let host = null;
 export function bind(h) {
   host = h;
 }
+// Shared activities (activities.js) follow the call's output device, deafen,
+// speaking and its end. Nothing is registered unless an activity runs.
+const followers = new Set();
+export function follow(fn) { followers.add(fn); return () => followers.delete(fn); }
+export function callHost() { return host; }
+const tellFollowers = (what, value) => { for (const f of followers) try { f(what, value); } catch {} };
+export function speaking(data) { if (followers.size) tellFollowers('speaking', data); }
 const $ = (s) => document.querySelector(s);
 const emit = (action) => window.dispatchEvent(new CustomEvent('sticktalk-live', { detail: action }));
 const key = (s) => `${s.user_id}:${s.connection_id}`;
@@ -668,9 +675,11 @@ export function streamsChanged() {
 // ---- hooks from media.js -------------------------------------------------------------
 export function deafen(on) {
   if (on) stopSounds();
+  tellFollowers('deafen', on);
 }
 export function output(id) {
   soundContext?.setSinkId?.(id).catch(() => {});
+  tellFollowers('output', id);
 }
 export function mount() {
   if ($('.voice-view')) {
@@ -682,6 +691,7 @@ export function mount() {
 }
 /** The call ended: everything here stops and lets go of its memory. */
 export function stop() {
+  tellFollowers('stop');
   stopSounds();
   soundContext?.close().catch(() => {});
   soundContext = null;

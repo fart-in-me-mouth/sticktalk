@@ -298,6 +298,10 @@ pub enum Command {
     Schedule(crate::ScheduleCommand),
     /// Custom and server themes, `/tts` messages (`themes.rs`).
     Appearance(AppearanceCommand),
+    /// Apps, bots, application commands and webhooks (`apps.rs`).
+    Apps(crate::AppCommand),
+    /// Server tags, role styles and icons, server images, vanity links (`identity.rs`).
+    Identity(IdentityCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -344,6 +348,7 @@ pub enum CommandResult {
     Community(CommunityResult),
     Schedule(crate::ScheduleResult),
     Appearance(AppearanceResult),
+    Apps(crate::AppResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -469,6 +474,8 @@ pub enum Event {
     Schedule(crate::ScheduleUpdate),
     /// Only sent to streams that sent `AppearanceCommand::Subscribe`.
     Appearance(AppearanceEvent),
+    /// Only sent to streams that sent `AppCommand::Subscribe`, and to bots.
+    Apps(crate::AppEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:
@@ -619,6 +626,8 @@ pub enum VoiceSignal {
     },
     /// Stage roles and lifecycle (`stage.rs`). Host-handled.
     Stage(crate::StageSignal),
+    /// Shared activities in this call (`activities.rs`). Host-handled.
+    Activities(crate::ActivitySignal),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -762,6 +771,8 @@ pub enum VoiceEvent {
     },
     /// Stage state (`stage.rs`).
     Stage(crate::StageEvent),
+    /// Shared activities in this call (`activities.rs`).
+    Activities(crate::ActivityEvent),
 }
 
 /// ONLY sent as binary named MessagePack on CONTROL_CHANNEL_LABEL, never WS.
