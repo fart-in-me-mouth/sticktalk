@@ -105,7 +105,7 @@ try {
       await page.waitForSelector('#live-message-menu',{state:'detached'});
     }
 
-    await act(page,'dialog:notifications');await page.waitForSelector('[data-live-form=notifications]');
+    await act(page,'dialog:notifications');await page.waitForSelector('[data-live-form=privacy-notify]');
     assert(!await page.locator('.settings-content').innerText().then(s=>s.includes('not available')));
     screenshots.push(await shot(page,'notifications'));
     checks.push(`${width}: grouped role permissions, reorder mode, six quick reactions persist to server, no dead notification controls`);

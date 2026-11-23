@@ -13,6 +13,7 @@ pub fn user(id: u64, name: &str, display: &str) -> UserSummary {
         avatar_id: None,
         status_text: None,
         style: Default::default(),
+        status_emoji: None,
     }
 }
 

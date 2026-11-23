@@ -60,7 +60,7 @@ pub(crate) struct Runtime {
     recent: HashMap<(Id, Id), VecDeque<(u64, u64)>>,
     /// Recent join times per server, for raid detection.
     joins: HashMap<Id, VecDeque<u64>>,
-    reconcile_voice: bool,
+    pub(crate) reconcile_voice: bool,
     rearm: bool,
 }
 impl Runtime {
@@ -616,6 +616,11 @@ async fn dm_check(c: &mut SqliteConnection, u: Id, channel: &Channel) -> Result<
     else {
         return Ok(());
     };
+    dm_pair(c, u, peer).await
+}
+/// Paused DMs and the verification level, for a DM between `u` and `peer`
+/// (also used when a first-contact message request is started).
+pub(crate) async fn dm_pair(c: &mut SqliteConnection, u: Id, peer: Id) -> Result<()> {
     if friends(c, u, peer).await.is_ok() {
         return Ok(());
     }

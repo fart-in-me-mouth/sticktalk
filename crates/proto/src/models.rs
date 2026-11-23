@@ -34,6 +34,9 @@ pub struct UserSummary {
     /// Boxed so that enums carrying a user stay small.
     #[serde(default, skip_serializing_if = "crate::UserStyle::is_empty")]
     pub style: Box<crate::UserStyle>,
+    /// The custom status emoji beside `status_text` (`privacy.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status_emoji: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

@@ -119,16 +119,16 @@ try {
       checks.push('profile pronouns/about/banner save and hydrate from the real server');
       // Notification values must hydrate from the server and survive reopen.
       await act(page,'dialog:notifications');
-      await page.locator('#f-name').selectOption('nothing');
-      await page.locator('#f-muted').check();
-      await page.locator('[type=submit]').click();
+      await page.locator('input[name=p-level][value=nothing]').check();
+      await page.locator('#p-mute').selectOption('forever');
+      await page.locator('[data-live-form=privacy-notify] [type=submit]').click();
       // The page stays open and says it saved.
       await page.waitForSelector('.live-modal .form-saved');
       await act(page,'close');
       await page.waitForFunction(()=>!document.querySelector('.live-modal'));
       await act(page,'dialog:notifications');
-      await page.waitForFunction(()=>document.querySelector('#f-name')?.value==='nothing');
-      assert(await page.locator('#f-muted').isChecked());
+      await page.waitForFunction(()=>document.querySelector('input[name=p-level][value=nothing]')?.checked);
+      await page.waitForSelector('[data-live-form=privacy-notify] label:has-text("Muted until you turn it back on")');
       await act(page,'close');
       checks.push('notification form roundtrip/hydration');
 

@@ -208,6 +208,7 @@ async fn run(app: App, mut socket: WebSocket, cookie_token: Option<String>) {
         let ready=if !resume_ok{Some(Box::new(db::ready(&mut c,&mut core,&key,u).await?))}else{None};
         if resume_ok { crate::voice::snapshot(&mut core,&mut c,&key,u).await?; }
         crate::calls::snapshot(&mut core,&mut c,&key,u).await?;
+        crate::privacy::status::connected(&mut core,u);
         if !was_online {commands::broadcast_presence(&mut c,&mut core,u).await?;}Ok::<_,Error>((key,u,expires,initial,ready))
     }.await;
     let launch_features = identify.launch_features;
@@ -420,6 +421,7 @@ async fn run(app: App, mut socket: WebSocket, cookie_token: Option<String>) {
                 {
                     c.focused = focused;
                 }
+                crate::privacy::status::focus(&app, &mut core, u).await;
             }
             ClientMsg::Identify(_) => {
                 let _ = close.send(Some(1002));

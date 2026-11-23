@@ -521,6 +521,7 @@ async fn slow_initial_replay_has_one_deadline() {
                         avatar_id: None,
                         status_text: None,
                         style: Default::default(),
+                        status_emoji: None,
                     },
                 },
             )

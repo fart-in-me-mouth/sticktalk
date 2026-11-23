@@ -520,9 +520,11 @@ async fn allowed(app: &App, c: &mut SqliteConnection, n: &PushNotice) -> Result<
     }
     let channel = db::channel(c, n.channel_id).await?;
     let message = db::message(c, n.user_id, n.channel_id, n.message_id, false).await?;
-    if crate::mentions::notification_preference(c, n.user_id, &channel, &message)
+    // Mutes, levels, suppression, ignore, requests, age gate and the server's
+    // mobile push switch (`privacy::notify::decide`).
+    if !crate::privacy::notify::decide(c, n.user_id, &channel, &message)
         .await?
-        .is_none()
+        .is_some_and(|d| d.push && (d.mentioned || n.direct))
     {
         return Ok(false);
     }

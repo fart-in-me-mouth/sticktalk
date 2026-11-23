@@ -166,7 +166,7 @@ pub async fn erase(c: &mut SqliteConnection, user: Id) -> Result<Vec<String>> {
     sqlx::query("DELETE FROM command_receipts")
         .execute(&mut *c)
         .await?;
-    sqlx::query("UPDATE read_states SET unread_count=(SELECT COUNT(*) FROM messages m WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0)),mention_count=(SELECT COUNT(*) FROM messages m JOIN message_mentions mm ON mm.message_id=m.id WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND mm.user_id=read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0))").execute(&mut *c).await?;
+    sqlx::query("UPDATE read_states SET unread_count=(SELECT COUNT(*) FROM messages m WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND NOT EXISTS(SELECT 1 FROM user_ignores i WHERE i.user_id=read_states.user_id AND i.ignored_id=m.author_id)),mention_count=(SELECT COUNT(*) FROM messages m JOIN message_mentions mm ON mm.message_id=m.id WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND mm.user_id=read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND NOT EXISTS(SELECT 1 FROM user_ignores i WHERE i.user_id=read_states.user_id AND i.ignored_id=m.author_id) AND NOT EXISTS(SELECT 1 FROM suppressed_mentions s WHERE s.message_id=m.id AND s.user_id=read_states.user_id))").execute(&mut *c).await?;
     Ok(paths)
 }
 pub async fn reserved(c: &mut SqliteConnection, name: &str) -> Result<bool> {

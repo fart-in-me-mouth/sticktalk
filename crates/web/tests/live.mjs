@@ -391,8 +391,9 @@ try {
     "17 MiB Blob.slice upload: pause at 16 MiB, reselect, resume real server offset + attachment",
   );
   await act(alice, "dialog:notifications");
-  await alice.locator("#f-name").selectOption("mentions");
-  await alice.locator("[type=submit]").click();
+  await alice.locator("input[name=p-level][value=mentions]").check();
+  await alice.locator("[data-live-form=privacy-notify] [type=submit]").click();
+  await alice.waitForSelector("[data-live-form=privacy-notify] .form-saved");
   await wait(200);
   checks.push("notification settings mutation");
   await act(alice, "dialog:devices");

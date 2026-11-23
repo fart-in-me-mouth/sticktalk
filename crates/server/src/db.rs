@@ -104,6 +104,7 @@ pub fn user_row(r: &SqliteRow) -> UserSummary {
         avatar_id: r.get::<Option<i64>, _>("avatar_id").map(|v| Id(v as u64)),
         status_text: r.get("status_text"),
         style: Box::new(crate::profiles::style_column(r)),
+        status_emoji: r.try_get("status_emoji").ok().flatten(),
     }
 }
 pub async fn user(c: &mut SqliteConnection, u: Id) -> Result<UserSummary> {
@@ -310,6 +311,10 @@ pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Re
         ),
         ErrorCode::InvalidRequest,
     )?;
+    // Reading an age-restricted channel waits for the viewer's confirmation.
+    if p.contains(Permissions::READ_HISTORY) && channel.summary.guild_id.is_some() {
+        crate::privacy::gate::age(c, u, ch).await?;
+    }
     Ok(channel)
 }
 pub async fn audience(c: &mut SqliteConnection, ch: Id) -> Result<Vec<Id>> {
@@ -551,7 +556,7 @@ pub async fn init_read(c: &mut SqliteConnection, u: Id, ch: Id, caught_up: bool)
     Ok(())
 }
 pub async fn recount(c: &mut SqliteConnection, ch: Id) -> Result<()> {
-    sqlx::query("UPDATE read_states SET unread_count=(SELECT COUNT(*) FROM messages m WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0)),mention_count=(SELECT COUNT(*) FROM messages m JOIN message_mentions mm ON mm.message_id=m.id WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND mm.user_id=read_states.user_id) WHERE channel_id=?").bind(id(ch)?).execute(c).await?;
+    sqlx::query("UPDATE read_states SET unread_count=(SELECT COUNT(*) FROM messages m WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND NOT EXISTS(SELECT 1 FROM user_ignores i WHERE i.user_id=read_states.user_id AND i.ignored_id=m.author_id)),mention_count=(SELECT COUNT(*) FROM messages m JOIN message_mentions mm ON mm.message_id=m.id WHERE m.channel_id=read_states.channel_id AND m.deleted_at IS NULL AND m.author_id<>read_states.user_id AND m.id>COALESCE(read_states.last_read_id,0) AND mm.user_id=read_states.user_id AND NOT EXISTS(SELECT 1 FROM user_ignores i WHERE i.user_id=read_states.user_id AND i.ignored_id=m.author_id) AND NOT EXISTS(SELECT 1 FROM suppressed_mentions s WHERE s.message_id=m.id AND s.user_id=read_states.user_id)) WHERE channel_id=?").bind(id(ch)?).execute(c).await?;
     Ok(())
 }
 pub async fn read_states(c: &mut SqliteConnection, u: Id) -> Result<Vec<ReadState>> {
@@ -586,7 +591,7 @@ pub async fn presence(
                 || (s.ever_connected && now().saturating_sub(s.touched) < 5000))
     });
     let mut status = if online {
-        me(c, u).await?.desired_presence
+        crate::privacy::status::shown(core, u, me(c, u).await?.desired_presence)
     } else {
         PresenceStatus::Offline
     };

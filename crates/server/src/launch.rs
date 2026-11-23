@@ -588,6 +588,11 @@ pub(crate) async fn filter_event(
         for u in users {
             let projected = match &e {
                 Event::ChannelUpsert(ch) => {
+                    let mut one = vec![u];
+                    crate::privacy::gate::filter(c, &mut one, &e).await?;
+                    if one.is_empty() {
+                        continue;
+                    }
                     match access(c, u, ch.summary.id, Permissions::VIEW_CHANNEL).await {
                         Ok(visible) => Event::ChannelUpsert(visible),
                         Err(_) => continue,
@@ -658,6 +663,7 @@ pub(crate) async fn filter_event(
         }
         allowed.push(u);
     }
+    crate::privacy::gate::filter(c, &mut allowed, &e).await?;
     Ok(vec![(allowed, e)])
 }
 

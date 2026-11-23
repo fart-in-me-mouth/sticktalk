@@ -11,6 +11,7 @@ mod content;
 mod expression;
 mod moderation;
 mod navui;
+mod privacy;
 mod profiles;
 mod settings;
 mod threads;
@@ -47,7 +48,8 @@ fn field(id: &str, label: &str, text: &str, kind: &str) -> AnyView {
     view!{<div class="field"><label for=id.to_owned()>{label.to_owned()}</label><input id=id.to_owned() type=kind.to_owned() value=text.to_owned()/></div>}.into_any()
 }
 fn name(u: &UserSummary) -> String {
-    u.display_name.clone().unwrap_or_else(|| u.username.clone())
+    super::privacy::nickname(u.id)
+        .unwrap_or_else(|| u.display_name.clone().unwrap_or_else(|| u.username.clone()))
 }
 /// UI SDK Avatar, with its decoration and animation (`ui/profiles.rs`).
 fn avatar(u: &UserSummary, size: &str) -> AnyView {
@@ -346,21 +348,23 @@ fn shell(a: &App) -> AnyView {
                 {if manage_channels{ib("plus","Create Channel","dialog:channel")}else{().into_any()}}{if admin{ib("settings","Server Settings","dialog:server")}else{().into_any()}}}.into_any()}else{view!{<strong class="min-w-0 flex-1 truncate px-1 text-base font-semibold">{guild_name}</strong>{if a.nav.favorites{ib("settings","Manage Favorites","nav-menu:favorites-manage")}else{ib("users","New Group Message","dialog:group")}}}.into_any()}}</div>
             <nav class="channel-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2" aria-label="Channels">
             {navui::sidebar_top(a)}
-            {if a.nav.favorites{().into_any()}else{view!{<button class="nav-row flex w-full items-center justify-start gap-2 rounded-md p-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground touch:min-h-11 phone:text-base" data-live="home">{icon_with("users","icon text-muted-foreground")}"Friends"{request_badge("live-unread")}</button>}.into_any()}}
-            {channel_tree(a).into_iter().filter(|_|!a.nav.favorites).map(|(c,depth)|{
+            {if a.nav.favorites{().into_any()}else{view!{<button class="nav-row flex w-full items-center justify-start gap-2 rounded-md p-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground touch:min-h-11 phone:text-base" data-live="home">{icon_with("users","icon text-muted-foreground")}"Friends"{request_badge("live-unread")}</button>{privacy::requests_row(a)}}.into_any()}}
+            {channel_tree(a).into_iter().filter(|(c,_)|!a.nav.favorites&&!super::privacy::hidden(a,c)).map(|(c,depth)|{
                 let label=a.model.channel_name(c);
                 if c.kind==ChannelKind::Category{return view!{<div class=format!("category-row flex min-h-7 items-center gap-1 pr-1 pl-2 {}",if depth>0{"nested mt-2"}else{"mt-4"}) style=indent(depth,12) data-depth=depth.to_string()><h2 class="category min-w-0 flex-1 truncate" title=label.clone()>{label.clone()}</h2>{if manage_channels{create_inside(c,&label,"grid size-6 flex-none place-items-center rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground touch:size-11")}else{().into_any()}}</div>}.into_any()}
                 let selected=a.channel==Some(c.id);
                 let read=a.model.reads.get(&c.id);
-                let unread=read.is_some_and(|r|r.unread_count>0);
+                // Muted: no unread dot (mentions still count).
+                let muted=super::privacy::muted(a,c);
+                let unread=read.is_some_and(|r|r.unread_count>0)&&!muted;
                 // A direct message is always for you; in a server only mentions are counted.
-                let count=read.map_or(0,|r|if c.guild_id.is_none(){r.unread_count}else{r.mention_count});
+                let count=read.map_or(0,|r|if c.guild_id.is_none()&&!muted{r.unread_count}else{r.mention_count});
                 let voice=c.kind==ChannelKind::Voice;
                 view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()>{profiles::dm_nameplate(a,c)}<button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=format!("{}:{}",if voice{"voice"}else{"channel"},c.id.0)>{icon_with(if voice{"volume-2"}else if let Some(glyph)=threads::kind_icon(c.kind){glyph}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{call_views::row_chat(a,c)}{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}{navui::row_options(c)}</div>{if voice{voice_occupants(a,c.id,depth)}else{().into_any()}}{threads::rows(a,c,depth)}}.into_any()
             }).collect_view()}
             </nav>
             <section id="live-connected" class="voice-connected border-t p-3 text-sm" hidden><div class="voice-connection-line flex min-w-0 flex-col"><strong class="text-primary">"Voice Connected"</strong><small class="truncate" title=call_name.clone()>{call_name.clone()}</small></div><div class="voice-tiles mt-2 flex gap-2 [&_.icon-button]:flex-1 [&_.icon-button]:bg-accent">{ib("video","Camera","media:camera")}{ib("monitor","Share Screen","media:share")}{ib("phone-off","Disconnect","media:leave")}</div></section>
-            <section class="user-panel m-2 flex min-h-[52px] items-center gap-1 rounded-lg bg-panel p-2 touch:min-h-[60px] phone:h-auto phone:pb-[max(8px,var(--safe-bottom))]">{avatar(me,"small")}<button class="self-label ml-1 min-w-0 flex-1 touch:min-h-11" title=name(me) data-live=format!("profile:{}",me.id.0)><strong class="block truncate text-sm leading-tight font-semibold">{name(me)}</strong><small class="block truncate text-xs">{format!("@{}",me.username)}</small></button>{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("settings","User Settings","dialog:settings")}</section>
+            <section class="user-panel m-2 flex min-h-[52px] items-center gap-1 rounded-lg bg-panel p-2 touch:min-h-[60px] phone:h-auto phone:pb-[max(8px,var(--safe-bottom))]">{privacy::status_trigger(a,me)}<button class="self-label ml-1 min-w-0 flex-1 touch:min-h-11" title=name(me) data-live=format!("profile:{}",me.id.0)><strong class="block truncate text-sm leading-tight font-semibold">{name(me)}</strong><small class="block truncate text-xs">{format!("@{}",me.username)}</small></button>{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("settings","User Settings","dialog:settings")}</section>
         </aside></div><div class=if a.panel.is_empty(){"panel-scrim hidden"}else{"panel-scrim hidden touch-pan-y phone:absolute phone:inset-0 phone:z-[25] phone:block phone:bg-black/60"} data-live="panel:" aria-hidden="true"></div>
         <main class=format!("main-pane flex min-w-0 flex-1 touch-pan-y flex-col {}",if channel.is_none(){"phone:pb-[calc(56px+var(--safe-bottom))]"}else{""})><header class="channel-header flex h-12 min-h-12 flex-none items-center gap-2 border-b px-4 py-2 phone:h-(--header-height) phone:min-h-(--header-height) phone:px-2"><div class="mobile-menu hidden phone:block">{ib("menu","Open Channels","panel:left")}</div>{icon_with(if in_call{"volume-2"}else if direct{"at-sign"}else if let Some(glyph)=channel.and_then(|c|threads::kind_icon(c.kind)){glyph}else if channel.is_some(){"hash"}else{"users"},"icon text-muted-foreground")}<div class="flex min-w-0 flex-1 items-baseline gap-3">{if in_call{None}else{threads::title(a)}.unwrap_or_else(||view!{<h1 class="min-w-0 truncate text-base font-semibold" title=title.clone()>{title.clone()}</h1>}.into_any())}{if topic.is_empty()||in_call{().into_any()}else{view!{<p class="channel-topic m-0 min-w-0 flex-1 truncate text-[13px] text-subtle phone:hidden" title=topic.clone()>{topic.clone()}</p>}.into_any()}}</div><div class="header-actions flex gap-2 phone:gap-0">{if in_call{ib("message-circle","Open Chat",&open_chat)}else if channel.is_some(){view!{{a.channel.map_or_else(||().into_any(),|c|call_views::header(a,c))}{a.channel.map_or_else(||().into_any(),|c|threads::header(a,c))}{if a.channel.is_some_and(|c|a.threads.threads.contains_key(&c)){().into_any()}else{ib("bell","Notification Settings","dialog:channel-notifications")}}{ib("pin","Pinned Messages","dialog:pins")}{ib("users","Member List","panel:right")}}.into_any()}else{().into_any()}}{if in_call{().into_any()}else{navui::header(a)}}</div></header>
             {if !a.status.is_empty(){view!{<div class="connection-banner bg-warning px-4 py-2 text-sm text-rail" role="status">{a.status.clone()}</div>}.into_any()}else{().into_any()}}
@@ -418,7 +422,8 @@ fn home(a: &App) -> AnyView {
             RelationshipKind::OutgoingRequest => "Outgoing request",
             RelationshipKind::Blocked => "Blocked",
         };
-        let status = r.user.status_text.clone().filter(|_| r.kind == RelationshipKind::Friend);
+        let status = privacy::status_line(&r.user)
+            .filter(|_| r.kind == RelationshipKind::Friend && !super::privacy::ignored(r.user.id));
         view!{{heading}<div class="friend-row flex items-center gap-3 border-t py-4 phone:flex-wrap">{avatar_status(a,&r.user)}<button class="friend-info flex min-w-0 flex-1 flex-col gap-1 touch:min-h-11 phone:min-w-[140px] phone:text-base" data-live=format!("profile:{}",r.user.id.0)><strong class="max-w-full truncate font-semibold">{name(&r.user)}</strong><small class="max-w-full truncate">{format!("@{} · {}",r.user.username,status.as_deref().unwrap_or(state))}</small></button>
         {match r.kind{RelationshipKind::IncomingRequest=>view!{{button("Accept",&format!("friend:accept,{}",r.user.id.0),"primary")}{button("Decline",&format!("friend:decline,{}",r.user.id.0),"secondary")}}.into_any(),RelationshipKind::OutgoingRequest=>button("Cancel",&format!("friend:cancel,{}",r.user.id.0),"secondary"),RelationshipKind::Blocked=>button("Unblock",&format!("friend:unblock,{}",r.user.id.0),"secondary"),_=>ib("message-circle","Message",&format!("friend:dm,{}",r.user.id.0))}}
         </div>}
@@ -621,6 +626,9 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
     if let Some(record) = call_views::record(a, m) {
         return record;
     }
+    if let Some(hidden) = privacy::ignored_message(a, m) {
+        return hidden;
+    }
     let mut author = profiles::effective(a, m.author_id);
     // A crossposted announcement is shown as from its source server.
     if let Some(x) = m.extra.crosspost() {
@@ -658,7 +666,7 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
         {body}
         {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{expression::stickers(m)}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}{threads::extras(a,m)}
         {expression::reactions(a,m)}</div>
-        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{expression::message_actions(m)}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{threads::message_actions(a,m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
+        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{expression::message_actions(m)}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{threads::message_actions(a,m)}{privacy::message_actions(a,m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
     </article>}.into_any()
 }
 /// A message as its author typed it: mentions are "@username" again.
@@ -773,7 +781,7 @@ fn profile_actions(a: &App, u: &UserSummary) -> AnyView {
             "secondary",
         ),
     };
-    view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{if blocked{().into_any()}else{button("Message",&format!("friend:dm,{id}"),"primary")}}{friendship}{if blocked{button("Unblock",&format!("friend:unblock,{id}"),"secondary")}else{button("Block",&format!("friend:block,{id}"),"danger-text")}}</div>{moderation::member_actions(a,u)}}.into_any()
+    view!{<div class="profile-actions mt-4 flex flex-wrap gap-2">{if blocked{().into_any()}else{button("Message",&format!("friend:dm,{id}"),"primary")}}{friendship}{if blocked{button("Unblock",&format!("friend:unblock,{id}"),"secondary")}else{button("Block",&format!("friend:block,{id}"),"danger-text")}}</div>{moderation::member_actions(a,u)}{privacy::profile_extras(a,u)}}.into_any()
 }
 /// What a dialog is called for assistive technology.
 fn dialog_label(dialog: &str) -> &'static str {
@@ -797,6 +805,7 @@ fn dialog_label(dialog: &str) -> &'static str {
         "join" => "Join a Server",
         "channel" | "channel-in" | "category" => "Create Channel",
         value if value.starts_with("nav-") => navui::dialog_label(value),
+        value if privacy::label(value).is_some() => privacy::label(value).unwrap_or("Dialog"),
         _ => "Dialog",
     }
 }
@@ -868,6 +877,7 @@ fn dialog(a: &App) -> AnyView {
         value if value.starts_with("channel-delete:")=>settings::channel_delete(a,value),
         value if value.starts_with("channel-move:")=>settings::channel_move(a,value),
         value if moderation::owns(value)=>moderation::page(a,value),
+        value if privacy::owns(value)=>privacy::page(a,value),
         value if value.starts_with("invite-revoke:")=>form_with("Revoke Invite","invite-revoke",view!{<p>"This invite link will stop working immediately."</p><input id="f-name" type="hidden" value=value.trim_start_matches("invite-revoke:").to_owned()/>}.into_any(),"dialog:invite",true),
         value if value.starts_with("unban:")=>form_with("Revoke Ban","unban",view!{<p>"This person will be able to join again with an invite."</p><input id="f-name" type="hidden" value=value.trim_start_matches("unban:").to_owned()/>}.into_any(),"dialog:server-bans",true),
         "guild-delete"=>form_with("Delete Server","guild-delete",view!{<p>"This permanently deletes the server, its channels and every message in them, for everyone. It cannot be undone."</p>{field("f-name","Type the server’s name to confirm","","text")}}.into_any(),"dialog:server-overview",true),
@@ -1043,7 +1053,7 @@ fn member_groups(a: &App) -> AnyView {
         let offline=label=="Offline";
         view!{<section class=if offline{"member-group offline"}else{"member-group"}>
             <h2 class="category mx-4 mt-6 mb-2">{format!("{} — {}",label,members.len())}</h2>
-            {members.into_iter().map(|m|{let shown=m.nickname.clone().unwrap_or_else(||name(&m.user));let look=profiles::member_user(m);view!{<button class=if offline{"member-row flex min-h-[42px] w-full items-center gap-3 px-4 py-1 opacity-60 hover:bg-sidebar-accent hover:opacity-100 touch:min-h-11"}else{ROW} title=shown.clone() data-live=format!("profile:{}",m.user.id.0)>{profiles::nameplate(&look)}{avatar_status(a,&look)}<span class=NAME data-member-name=m.user.id.0.to_string() style=format!("color:{}",color(a,m.user.id))>{profiles::styled_name(&shown,look.style.name.as_ref())}{if m.role==MemberRole::Owner {icon("crown")} else {().into_any()}}</span></button>}}).collect_view()}
+            {members.into_iter().map(|m|{let shown=super::privacy::nickname(m.user.id).or_else(||m.nickname.clone()).unwrap_or_else(||name(&m.user));let look=profiles::member_user(m);view!{<button class=if offline{"member-row flex min-h-[42px] w-full items-center gap-3 px-4 py-1 opacity-60 hover:bg-sidebar-accent hover:opacity-100 touch:min-h-11"}else{ROW} title=shown.clone() data-live=format!("profile:{}",m.user.id.0)>{profiles::nameplate(&look)}{avatar_status(a,&look)}<span class=NAME data-member-name=m.user.id.0.to_string() style=format!("color:{}",color(a,m.user.id))>{profiles::styled_name(&shown,look.style.name.as_ref())}{if m.role==MemberRole::Owner {icon("crown")} else {().into_any()}}</span></button>}}).collect_view()}
         </section>}
     }).collect_view()}}.into_any()
 }
@@ -1068,7 +1078,7 @@ fn user_settings(page: &str) -> bool {
 }
 fn settings_nav(a: &App) -> AnyView {
     let u = &a.model.me.as_ref().unwrap().user;
-    view!{<div class="settings-identity flex items-center gap-3 px-2 pt-2 pb-6">{avatar(u,"settings-avatar")}<span class="flex min-w-0 flex-col gap-1"><strong class="text-lg leading-tight font-semibold wrap-anywhere">{name(u)}</strong><small>{format!("@{}",u.username)}</small><button class="text-left text-[13px] text-primary hover:underline touch:min-h-11" data-live="dialog:profile-edit">"Edit Profile"</button></span></div>
+    view!{<div class="settings-identity flex items-center gap-3 px-2 pt-2 pb-6">{avatar(u,"settings-avatar")}<span class="flex min-w-0 flex-col gap-1"><strong class="text-lg leading-tight font-semibold wrap-anywhere">{name(u)}</strong><small>{format!("@{}",u.username)}</small><button class="text-left text-[13px] text-primary hover:underline touch:min-h-11" data-live="dialog:profile-edit">"Edit Profile"</button></span></div>{privacy::settings_status(a)}
         <label class="settings-search"><span class="sr-only">"Search settings"</span><input class="mb-4 w-full" type="search" placeholder="Search settings" data-settings-search/></label>
         <h2 class="category mx-2 mt-6 mb-2">"User Settings"</h2>
         {[( "user-round","My Account","account"),("user-round","Profiles","profile-edit"),("shield","Privacy & Safety","privacy"),("shield","Password & Security","password"),("monitor","Devices","devices"),("download","Your Data","data-export"),("bell","Notifications","notifications")].into_iter().map(|(glyph,label,page)|settings_nav_row(glyph,label,&format!("dialog:{page}"),a.dialog==page)).collect_view()}

@@ -26,6 +26,8 @@ pub struct Model {
     pub invites: BTreeMap<Id, Invite>,
     pub bans: BTreeMap<Id, Ban>,
     pub typing: BTreeMap<(Id, Id), UnixMillis>,
+    /// Private friend nicknames, shown in place of their names (web `privacy`).
+    pub nicknames: BTreeMap<Id, String>,
     lru: VecDeque<Id>,
     journal: VecDeque<EventEnvelope>,
     floor: EventSeq,
@@ -115,6 +117,10 @@ impl Model {
                 self.me = Some(v);
             }
             Event::UserUpdated(v) => {
+                // The friends list shows the relationship's copy: keep it current.
+                if let Some(r) = self.relationships.get_mut(&v.id) {
+                    r.user = v.clone();
+                }
                 self.users.insert(v.id, v);
             }
             Event::RelationshipUpsert(v) => {
@@ -470,6 +476,9 @@ impl Model {
         self.lru.retain(|v| *v != id);
     }
     pub fn name(&self, id: Id) -> String {
+        if let Some(name) = self.nicknames.get(&id) {
+            return name.clone();
+        }
         if let Some(name) = self.launch.name(self.active_guild, id) {
             return name.to_owned();
         }

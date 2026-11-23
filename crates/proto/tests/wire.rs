@@ -18,6 +18,7 @@ fn user() -> UserSummary {
         avatar_id: None,
         status_text: Some("low memory, high spirits".into()),
         style: Default::default(),
+        status_emoji: None,
     }
 }
 
