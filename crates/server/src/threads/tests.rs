@@ -148,7 +148,7 @@ async fn new_servers_and_migrated_ones_grant_thread_rights_and_keep_read_only_ch
         .execute(&mut c)
         .await
         .unwrap();
-    sqlx::raw_sql("UPDATE permission_overwrites SET deny=deny|7696581394432 WHERE (deny & 2)<>0;")
+    sqlx::raw_sql("UPDATE permission_overwrites SET deny=deny|30064771072 WHERE (deny & 2)<>0;")
         .execute(&mut c)
         .await
         .unwrap();

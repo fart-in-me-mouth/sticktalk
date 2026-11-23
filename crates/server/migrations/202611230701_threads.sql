@@ -137,11 +137,12 @@ CREATE TABLE crosspost_queue(
 );
 
 -- New default rights, as in Discord: everyone may start threads and post in
--- them. A channel that denied Send Messages also denies the thread rights, so
--- read-only channels stay read-only.
-UPDATE roles SET permissions=permissions|7696581394432 WHERE id=guild_id;
-UPDATE permission_overwrites SET deny=deny|7696581394432 WHERE (deny & 2)<>0;
-DROP TRIGGER launch_guild;
-CREATE TRIGGER launch_guild AFTER INSERT ON guilds BEGIN
- INSERT INTO roles(guild_id,id,name,position,permissions) VALUES(NEW.id,NEW.id,'@everyone',0,7696656531743),(NEW.id,NEW.id+1,'Admin',1,4096);
+-- them (Create Public Threads, Create Private Threads, Send Messages in
+-- Threads: bits 32, 33 and 34 = 30064771072). A channel that denied Send
+-- Messages also denies them, so read-only channels stay read-only. New
+-- servers get them through their own trigger, leaving `launch_guild` as is.
+UPDATE roles SET permissions=permissions|30064771072 WHERE id=guild_id;
+UPDATE permission_overwrites SET deny=deny|30064771072 WHERE (deny & 2)<>0;
+CREATE TRIGGER thread_rights_default AFTER INSERT ON roles WHEN NEW.id=NEW.guild_id BEGIN
+ UPDATE roles SET permissions=permissions|30064771072 WHERE guild_id=NEW.guild_id AND id=NEW.id;
 END;

@@ -33,15 +33,14 @@ bitflags::bitflags! {
         const USE_VOICE_ACTIVITY = 1 << 26;
         const PRIORITY_SPEAKER = 1 << 27;
         const MANAGE_EMOJI = 1 << 28;
-        // Threads, forums and announcements (`threads.rs`). High bits, so
-        // other additions can take the next free low ones.
-        const CREATE_PUBLIC_THREADS = 1 << 40;
-        const CREATE_PRIVATE_THREADS = 1 << 41;
-        const SEND_MESSAGES_IN_THREADS = 1 << 42;
-        const MANAGE_THREADS = 1 << 43;
+        // Threads, forums and announcements (`threads.rs`).
+        const CREATE_PUBLIC_THREADS = 1 << 32;
+        const CREATE_PRIVATE_THREADS = 1 << 33;
+        const SEND_MESSAGES_IN_THREADS = 1 << 34;
+        const MANAGE_THREADS = 1 << 35;
         /// Publish your own messages in an announcement channel (Manage
         /// Messages publishes anyone's).
-        const PUBLISH_MESSAGES = 1 << 44;
+        const PUBLISH_MESSAGES = 1 << 36;
     }
 }
 
