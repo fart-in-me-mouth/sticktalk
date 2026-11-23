@@ -376,6 +376,7 @@ fn scheduled_list(a: &App) -> AnyView {
         <ul class="scheduled-list m-0 flex list-none flex-col gap-3 p-0">{here.into_iter().map(|s|view!{<li class="scheduled-item rounded-lg border bg-card p-3" data-scheduled=s.id.0.to_string()>
             <p class=format!("flex items-center gap-1 text-[13px] {}",if s.failure.is_some(){"text-warning"}else{"text-subtle"})>{icon_with("clock","icon size-4")}{s.failure.clone().map_or_else(||when(s.send_at),|f|format!("Not sent: {f}"))}</p>
             <p class="mt-1 whitespace-pre-wrap wrap-anywhere">{crate::wire::snippet(&a.model.content(&Message{id:s.id,channel_id:s.channel_id,author_id:Id(0),content:s.content.clone(),created_at:0,edited_at:None,reply_to:None,attachments:vec![],mention_ids:s.mention_ids.clone(),reactions:vec![],call:None,extra:Default::default()}))}</p>
+            {(!s.attachments.is_empty()).then(||view!{<p class="scheduled-files mt-1 flex items-center gap-1 text-[13px] text-subtle wrap-anywhere">{icon_with("paperclip","icon size-4 shrink-0")}{s.attachments.iter().map(|f|f.filename.clone()).collect::<Vec<_>>().join(", ")}</p>})}
             <div class="mt-2 flex flex-wrap gap-2">{button("Edit",&format!("dialog:scheduled-edit:{}",s.id.0),"secondary")}{button("Send Now",&format!("scheduled-send:{}",s.id.0),"secondary")}{button("Cancel",&format!("scheduled-cancel:{}",s.id.0),"danger-text")}</div>
         </li>}).collect_view()}</ul>
     }.into_any()

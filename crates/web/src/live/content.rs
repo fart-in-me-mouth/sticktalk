@@ -201,6 +201,10 @@ pub(super) fn answered(a: &mut App, cmd: Option<&Command>, result: ContentResult
                 Some(Command::Content(ContentCommand::ScheduleMessage { .. }))
             ) {
                 media_action(&format!("sent:{}", s.channel_id.0));
+                if a.channel == Some(s.channel_id) {
+                    a.attachments
+                        .retain(|f| !s.attachments.iter().any(|h| h.id == f.id));
+                }
                 notice(a, &format!("Scheduled for {}.", when(s.send_at)));
             }
             a.dialog = if a.dialog.starts_with("scheduled-edit:") {
@@ -776,7 +780,10 @@ fn schedule(app: &Shared, at: u64) {
     let mut a = app.borrow_mut();
     let Some(channel_id) = a.channel else { return };
     let (content, mention_ids) = composer_text(&a);
-    if content.trim().is_empty() {
+    // Files already uploaded in the composer go with it; the server holds
+    // them until the message is sent.
+    let attachment_ids: Vec<Id> = a.attachments.iter().map(|f| f.id).collect();
+    if content.trim().is_empty() && attachment_ids.is_empty() {
         a.error = "Write a message to schedule first.".into();
         a.touch();
         return;
@@ -786,6 +793,7 @@ fn schedule(app: &Shared, at: u64) {
         content,
         mention_ids,
         send_at: at,
+        attachment_ids,
     }));
 }
 
@@ -921,6 +929,7 @@ pub(super) fn submit(app: Shared, form: &str) {
                 content,
                 mention_ids,
                 send_at: at,
+                attachment_ids: None,
             }));
         }
         "attachment-meta" => {

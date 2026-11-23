@@ -236,6 +236,7 @@ pub(super) fn header(a: &App, ch: Id) -> AnyView {
             format!("thread-members:{}", ch.0),
             false,
         ));
+        phone.extend(common(false));
         phone.extend(tools);
         phone.extend(leave);
         phone.extend(delete);
@@ -269,6 +270,8 @@ pub(super) fn header(a: &App, ch: Id) -> AnyView {
                 format!("threads-browser:{}", ch.0),
                 false,
             ));
+            // Phones only: on desktop it is in the Threads browser and on
+            // each message, and the header keeps UI_PARITY 1.3's buttons.
             if p.intersects(
                 Permissions::CREATE_PUBLIC_THREADS | Permissions::CREATE_PRIVATE_THREADS,
             ) {
@@ -276,7 +279,7 @@ pub(super) fn header(a: &App, ch: Id) -> AnyView {
                     "message-square-text",
                     "Create Thread".into(),
                     format!("thread-new:{}", ch.0),
-                    false,
+                    true,
                 ));
             }
             if c.kind == ChannelKind::Announcement {
@@ -305,10 +308,35 @@ pub(super) fn header(a: &App, ch: Id) -> AnyView {
         }
         _ => {}
     }
-    view!{
-        <div class="contents phone:hidden">{items.iter().map(|(glyph,label,action,_)|ib(glyph,label,action)).collect_view()}</div>
-        {more_menu("Channel Options","hidden phone:contents",items)}
-    }.into_any()
+    let desktop: Vec<&Item> = items
+        .iter()
+        .filter(|(_, _, _, phone_only)| !phone_only)
+        .collect();
+    let desktop = view! {<div class="contents phone:hidden">{desktop.into_iter().map(|(glyph,label,action,_)|ib(glyph,label,action)).collect_view()}</div>};
+    let mut phone: Vec<Item> = items
+        .into_iter()
+        .map(|(glyph, label, action, _)| (glyph, label, action, false))
+        .collect();
+    phone.extend(common(true));
+    view! {{desktop}{more_menu("Channel Options","hidden phone:contents",phone)}}.into_any()
+}
+
+/// What every conversation header offers. On phones these live in the one
+/// options menu (with the thread and channel items above), so the title keeps
+/// its room; `ui.rs` shows them as buttons on wider screens.
+fn common(notifications: bool) -> Vec<Item> {
+    let mut items: Vec<Item> = vec![];
+    if notifications {
+        items.push((
+            "bell",
+            "Notification Settings".into(),
+            "dialog:channel-notifications".into(),
+            false,
+        ));
+    }
+    items.push(("pin", "Pinned Messages".into(), "dialog:pins".into(), false));
+    items.push(("users", "Member List".into(), "panel:right".into(), false));
+    items
 }
 
 /// Above the composer in a thread: why you cannot post, or what posting does.

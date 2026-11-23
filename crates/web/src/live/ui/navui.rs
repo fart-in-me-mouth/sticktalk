@@ -103,7 +103,24 @@ fn conv_icon(c: &ChannelSummary) -> &'static str {
         ChannelKind::Voice => "volume-2",
         ChannelKind::GroupDm => "users",
         ChannelKind::Direct => "message-circle",
-        _ => "hash",
+        kind => super::threads::kind_icon(kind).unwrap_or("hash"),
+    }
+}
+/// Where a message is, for result cards and the inbox: "#general", a voice
+/// channel's chat, "#general › Launch party" for a thread or forum post, or
+/// the people of a DM.
+fn place(a: &App, c: &ChannelSummary) -> String {
+    let name = a.model.channel_name(c);
+    if c.guild_id.is_none() {
+        return name;
+    }
+    match c
+        .parent_id
+        .filter(|_| c.kind == ChannelKind::Thread)
+        .and_then(|p| a.model.channels.get(&p))
+    {
+        Some(p) => format!("#{} › {name}", a.model.channel_name(p)),
+        None => format!("#{name}"),
     }
 }
 /// A conversation row outside the channel tree (Pinned, Favorites).
@@ -257,13 +274,7 @@ fn card(a: &App, m: &Message, terms: &[String], extra: AnyView) -> AnyView {
         .model
         .channels
         .get(&m.channel_id)
-        .map_or("Unknown conversation".into(), |c| {
-            let name = a.model.channel_name(c);
-            match c.guild_id {
-                Some(_) => format!("#{name}"),
-                None => name,
-            }
-        });
+        .map_or("Conversation".into(), |c| place(a, c));
     let text = nav_logic::excerpt(&a.model.content(m), 300);
     let parts = nav_logic::highlight(&text, terms);
     view!{<article class="nav-card relative rounded-lg border bg-card p-3 hover:bg-accent" data-nav-message=m.id.0.to_string()>
@@ -406,10 +417,15 @@ fn switcher(a: &App) -> AnyView {
             kind,
             glyph: conv_icon(c),
             label: a.model.channel_name(c),
-            sub: if c.kind == ChannelKind::Voice {
-                format!("{sub} · Voice")
-            } else {
-                sub
+            sub: match c.kind {
+                ChannelKind::Voice => format!("{sub} · Voice"),
+                ChannelKind::Thread => c
+                    .parent_id
+                    .and_then(|p| a.model.channels.get(&p))
+                    .map_or(sub.clone(), |p| {
+                        format!("{sub} · #{}", a.model.channel_name(p))
+                    }),
+                _ => sub,
             },
             action: format!("channel:{}", c.id.0),
             recent: read.and_then(|r| r.latest_message_id).map_or(0, |m| m.0),
@@ -508,7 +524,7 @@ fn unreads_tab(a: &App) -> AnyView {
         }
         view!{<div class="mb-3 flex justify-end">{button("Mark All as Read","nav-ack-all","secondary")}</div>
         {groups.into_iter().map(|(g,channels)|view!{<section class="nav-unread-group mb-4"><h3 class="category mb-2">{g.and_then(|g|a.model.guilds.get(&g)).map_or("Direct Messages".into(),|g|g.guild.name.clone())}</h3>
-            {channels.into_iter().map(|c|{let ch=a.model.channels.get(&c.read.channel_id);view!{<div class="nav-unread mb-3 rounded-lg border p-2"><div class="mb-2 flex items-center gap-2"><strong class="min-w-0 flex-1 truncate text-sm">{ch.map_or("Conversation".into(),|ch|if ch.guild_id.is_some(){format!("#{}",a.model.channel_name(ch))}else{a.model.channel_name(ch)})}</strong>{if c.read.mention_count>0{view!{<span class="live-unread">{c.read.mention_count.to_string()}</span>}.into_any()}else{().into_any()}}<button class="button link-button" data-live=format!("nav-ack:{}",c.read.channel_id.0)>"Mark as Read"</button></div>
+            {channels.into_iter().map(|c|{let ch=a.model.channels.get(&c.read.channel_id);view!{<div class="nav-unread mb-3 rounded-lg border p-2"><div class="mb-2 flex items-center gap-2"><strong class="min-w-0 flex-1 truncate text-sm">{ch.map_or("Conversation".into(),|ch|place(a,ch))}</strong>{if c.read.mention_count>0{view!{<span class="live-unread">{c.read.mention_count.to_string()}</span>}.into_any()}else{().into_any()}}<button class="button link-button" data-live=format!("nav-ack:{}",c.read.channel_id.0)>"Mark as Read"</button></div>
                 <div class="grid gap-2">{c.messages.iter().rev().map(|m|card(a,m,&[],().into_any())).collect_view()}</div>
                 {if c.read.unread_count as usize>c.messages.len(){view!{<button class="button link-button mt-1" data-live=format!("nav-go:channel:{}",c.read.channel_id.0)>{format!("{} more unread",c.read.unread_count as usize-c.messages.len())}</button>}.into_any()}else{().into_any()}}</div>}}).collect_view()}
         </section>}).collect_view()}
