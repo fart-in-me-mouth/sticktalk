@@ -302,6 +302,36 @@ impl Voice {
             .try_send(command)
             .map_err(|_| Error::new(ErrorCode::Unavailable))
     }
+    /// Remote control for a session's AI agent (see `crate::screen`, which
+    /// decides that the agent may act for that session). Does not wait.
+    pub(crate) fn agent_send(
+        &self,
+        session: VoiceSession,
+        action: sticktalk_sfu::AgentAction,
+    ) -> std::result::Result<
+        tokio::sync::oneshot::Receiver<std::result::Result<(), sticktalk_sfu::Error>>,
+        sticktalk_sfu::Error,
+    > {
+        let (reply, taken) = tokio::sync::oneshot::channel();
+        self.commands
+            .try_send(MediaCommand::Agent {
+                session,
+                action,
+                reply,
+            })
+            .map_err(|_| sticktalk_sfu::Error::Backpressure)?;
+        Ok(taken)
+    }
+    /// The same, resolving once the SFU has taken or refused it.
+    pub(crate) async fn agent(
+        &self,
+        session: VoiceSession,
+        action: sticktalk_sfu::AgentAction,
+    ) -> std::result::Result<(), sticktalk_sfu::Error> {
+        self.agent_send(session, action)?
+            .await
+            .unwrap_or(Err(sticktalk_sfu::Error::PeerFailed))
+    }
     pub fn clear(&self) {
         let mut p = self.acl.write().unwrap_or_else(|e| e.into_inner());
         p.leases.clear();
@@ -493,6 +523,7 @@ pub(crate) async fn remove(
         p.generation += 1;
     }
     crate::community::voice_left(core, c, session).await;
+    app.0.screens.left(session);
     if let Some(entry) = core.voice.remove(&session) {
         crate::e2ee::left(core, c, session).await;
         // Reserved cleanup lane, sized above the SFU's maximum live sessions.
@@ -1123,6 +1154,7 @@ async fn output(
     let key = entry.key.clone();
     let event: VoiceEvent = rmp_serde::from_slice(&signal.envelope.payload)
         .map_err(|_| Error::new(ErrorCode::Internal))?;
+    crate::screen::observe(app, signal.session, &event);
     // Process authoritative own-session state exactly once, not once/recipient.
     match &event {
         VoiceEvent::Joined { .. } => {

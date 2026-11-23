@@ -155,16 +155,16 @@ proptest! {
     #[test]
     fn prop_control_grants_rate_and_bounds(authorized in any::<bool>(), correct_grant in any::<bool>(), button in any::<u8>(), wheel in any::<i16>(), x in any::<u16>(), y in any::<u16>()) {
         let now = Instant::now();
-        let mut grant = Grant::new(key(1), now);
+        let mut grant = Grant::new(key(1), false, now);
         let id = grant.id;
         let sender = if authorized {key(1)} else {key(2)};
         let result = grant.accept(sender, if correct_grant {id} else {id.wrapping_add(1)}, 0, &ControlInput::Move {x,y}, now);
         prop_assert_eq!(result.is_ok(), authorized && correct_grant);
-        let mut grant = Grant::new(key(1), now);
+        let mut grant = Grant::new(key(1), false, now);
         let id = grant.id;
         prop_assert_eq!(grant.accept(key(1), id, 1, &ControlInput::Button {button, down:true}, now).is_ok(), button <= 4);
         prop_assert_eq!(grant.accept(key(1), id, 2, &ControlInput::Wheel {x:wheel,y:0}, now).is_ok(), wheel.unsigned_abs() <= 4096);
-        let mut grant = Grant::new(key(1), now);
+        let mut grant = Grant::new(key(1), false, now);
         let id = grant.id;
         for seq in 0..1000 { prop_assert!(grant.accept(key(1),id,seq,&ControlInput::Move {x,y},now).is_ok(), "allowed event"); }
         prop_assert!(matches!(grant.accept(key(1),id,1000,&ControlInput::Move {x,y},now), Err(Error::Limit)), "rate rejected");

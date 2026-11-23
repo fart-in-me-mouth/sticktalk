@@ -21,12 +21,17 @@ const INSTRUCTIONS: &str = "StickTalk is a Discord-style chat app. These tools a
 Servers contain channels; DMs are channels too. IDs are decimal strings. \
 Start with list_servers or list_direct_messages, then list_channels and read_messages. list_unread shows what needs attention. \
 Messages you send appear under the user's name: unless the user clearly asked you to post, show the draft and confirm first. \
-Mention someone with <@USER_ID>.";
+Mention someone with <@USER_ID>. \
+If the screen tools are listed, the user allowed you to control a screen that someone shares in a call the user is in: \
+list_screen_shares, then request_screen_control (the person sharing is asked on their PC and may say no), then screen_act and screen_screenshot, and release_screen_control when done. \
+It is someone else's computer: do only what the user asked for there.";
 
 pub(crate) struct Grant {
     pub session: Vec<u8>,
     pub user: Id,
     pub write: bool,
+    /// May ask to control a screen shared in the user's call.
+    pub screen: bool,
 }
 
 fn unauthorized(app: &App, presented: bool) -> Response {
@@ -81,13 +86,13 @@ async fn authenticate(app: &App, h: &HeaderMap) -> std::result::Result<Grant, Bo
             .execute(&app.0.pool)
             .await;
     }
+    let scope: String = row.get("scope");
+    let allows = |wanted: &str| scope.split(' ').any(|s| s == wanted);
     Ok(Grant {
         session,
         user: Id(row.get::<i64, _>("user_id") as u64),
-        write: row
-            .get::<String, _>("scope")
-            .split(' ')
-            .any(|s| s == super::SCOPE_WRITE),
+        write: allows(super::SCOPE_WRITE),
+        screen: allows(super::SCOPE_SCREEN),
     })
 }
 fn unavailable() -> Response {
@@ -209,7 +214,7 @@ async fn handle(app: &App, grant: &Grant, m: Map<String, Value>) -> Option<Value
                     "Invalid cursor: all tools fit on one page".to_owned(),
                 ))
             } else {
-                Ok(json!({"tools": tools::list(grant.write)}))
+                Ok(json!({"tools": tools::list(grant)}))
             }
         }
         "tools/call" => {

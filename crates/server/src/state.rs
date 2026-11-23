@@ -110,6 +110,8 @@ pub(crate) struct Inner {
     pub google: crate::google::Verifier,
     pub gifs: crate::gifs::GifService,
     pub(crate) content: crate::content::Content,
+    /// AI agents asking for or holding control of a shared screen.
+    pub screens: crate::screen::Screens,
     pub shutdown: tokio_util::sync::CancellationToken,
     pub nav: crate::nav::Nav,
     pub authsec: crate::authsec::AuthSec,
@@ -533,6 +535,7 @@ impl App {
             push,
             voice,
             notifications: tokio::sync::broadcast::channel(128).0,
+            screens: Default::default(),
             config,
             pool,
             core: Mutex::new(Core {
@@ -594,6 +597,7 @@ impl App {
     }
     pub async fn housekeeping(&self) -> Result<()> {
         crate::resumable::gc(self).await?;
+        crate::screen::expire(self);
         // Maintenance writes obey the same writer gate as account mutations.
         let mut core = self.0.core.lock().await;
         let mut conn = self.0.pool.acquire().await?;

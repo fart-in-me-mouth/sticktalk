@@ -88,6 +88,79 @@ A **Read only** connection doesn't list the send tools at all and refuses them i
 called. Uploads, voice, moderation, server or channel management, friends and
 account settings are deliberately not exposed.
 
+## Control a shared screen
+
+An assistant can also use a screen that someone shares in a call you are in,
+with their mouse and keyboard, if **both** of you allow it:
+
+1. **You** tick **Control shared screens** when you connect the AI app. It is
+   off unless you tick it, whatever the app asks for, and it is separate from
+   Read only / Read and send. To add it to an existing connection, disconnect
+   and connect again.
+2. **The person sharing** is asked on their own PC, by a Windows prompt from
+   the StickTalk app, every time: "*Name*'s AI agent wants to see and control
+   ...". Nothing happens until they choose Yes. They must be sharing a whole
+   screen or a window from the StickTalk Windows app; a browser can't be
+   controlled.
+
+You have to be in the call yourself. While it is on, the person sharing sees
+"*Name*'s AI agent is controlling your screen" and you see "Your AI agent is
+controlling *Name*'s screen", each with **Stop**. Pressing **Esc** on their own
+keyboard also ends it at once, as does stopping the share or either of you
+leaving the call. The agent's input lands only on what is shared, the Windows
+key is refused, and an agent that goes quiet lets go of every key it holds.
+
+| Tool | Does |
+|---|---|
+| `list_screen_shares` | Who is sharing a screen in your call, and whether the agent controls one |
+| `request_screen_control` | Asks that person (up to 30 s for their answer); returns a first screenshot |
+| `screen_screenshot` | A JPEG of the screen now; `max_size` 320-1920 px (default 1280) |
+| `screen_act` | Mouse and keyboard actions in order with exact timing, then a screenshot |
+| `release_screen_control` | Gives control back and lets go of everything held |
+
+`screen_act` takes a list of actions. Positions are pixels of the agent's most
+recent screenshot.
+
+| Action | Fields | Does |
+|---|---|---|
+| `move` | `x`, `y` | Moves the pointer |
+| `click` | `x`?, `y`?, `button`?, `count`? (1-3), `hold_ms`? | Clicks, optionally somewhere |
+| `mouse_down` / `mouse_up` | `button`?, `x`?, `y`? | Holds or lets go of a button |
+| `drag` | `x`, `y`, `to_x`, `to_y`, `ms`?, `button`? | Presses, moves smoothly, lets go |
+| `scroll` | `direction`, `amount`? (notches), `x`?, `y`? | Turns the wheel |
+| `key` | `key`, `hold_ms`? | Presses a key or a combination such as `ctrl+c` |
+| `key_down` / `key_up` | `key` | Holds or lets go of keys |
+| `type` | `text` | Types text, as on a US keyboard |
+| `look` | `dx`, `dy`, `ms`? | Raw mouse movement, which is how a game turns its camera |
+| `wait` | `ms` | Waits |
+
+Buttons are `left`, `right`, `middle`, `back`, `forward`. Keys are letters,
+digits, `f1`-`f12`, `enter`, `esc`, `backspace`, `tab`, `space`, the arrows
+(`up`, `down`, `left`, `right`), `home`, `end`, `pageup`, `pagedown`, `insert`,
+`delete`, `capslock`, `ctrl`, `shift`, `alt` (and `rctrl`, `rshift`, `ralt`),
+and the punctuation keys.
+
+### Built for games
+
+One call can hold a whole move: for example hold `w`, turn 800 counts over
+400 ms, click, let go. The server performs it with millisecond timing on the
+same low-latency channel a person's remote control uses, so the pace is set by
+the game, not by the round trip.
+
+- Up to 100 actions and 30 seconds of them per call.
+- `look` is sent as about 125 movements a second, like a real mouse.
+- Keys still down when a call ends stay down for `keep_held_ms` (default 5 s,
+  at most 60 s), so the agent can keep running while it decides, and are then
+  let go for it.
+- `screenshot: false` skips the picture; `settle_ms` (default 150) is how long
+  after the last action it is taken; `max_size` trades detail for speed.
+- 600 screen calls a minute per person, separate from the chat tools' limit.
+
+Input is ordinary Windows input (`SendInput`), marked as injected. Programs
+that refuse injected input, such as a game's anti-cheat, may ignore it, and
+windows running as administrator always do. StickTalk does nothing to hide
+it. Whether a game allows an assistant to play is that game's rule to check.
+
 ## Protocol reference
 
 - **Transport:** MCP Streamable HTTP, stateless. `POST /mcp` takes one JSON-RPC
@@ -148,8 +221,19 @@ account settings are deliberately not exposed.
     connection does. Both are random 256-bit values stored only as SHA-256.
   - `POST /oauth/revoke` (RFC 7009) accepts either token. Any refresh token of
     the connection ends it.
-- **Scopes:** `chat:read`, `chat:write`. You pick them on the consent page, where
-  Read and send is preselected; the client's requested scope is ignored.
+- **Scopes:** `chat:read`, `chat:write`, `screen:control`. You pick them on the
+  consent page, where Read and send is preselected and Control shared screens
+  is never preselected, not even by a link; the client's requested scope is
+  ignored.
+- **Screen tools:** `request_screen_control`, `screen_screenshot` and
+  `screen_act` return an `image` content block (`image/jpeg`, base64) followed
+  by the usual JSON text block, and `structuredContent` with
+  `screenshot: {width, height}`. Their errors are `isError` results with codes
+  such as `not_in_call`, `not_sharing`, `cannot_control`, `declined`,
+  `no_answer`, `not_controlling`, `busy`, `no_picture` and
+  `screen_control_not_allowed`. One connection per person can hold control,
+  and its calls are answered one at a time. How it works on the wire is in
+  [PROTOCOL.md](PROTOCOL.md), "Remote control by an AI agent".
 - **Storage:** see migration `202611140002_mcp_connector.sql`. Each connection is
   a row in `mcp_grants` backed by an ordinary `sessions` row. The session's own
   token is never issued. The row exists so the connection appears under Devices,
@@ -157,7 +241,7 @@ account settings are deliberately not exposed.
   receipts. MCP tokens are rejected by the REST and WebSocket APIs, and session
   tokens are rejected by `/mcp`.
 - **Limits:** 120 tool calls/min per user (search 30/min), plus the normal
-  command and send limits. 20 registrations/min, 60 token requests/min and
+  command and send limits. Screen tools have their own 600 calls/min. 20 registrations/min, 60 token requests/min and
   10 password sign-ins/min per IP. Request bodies are capped at 1 MiB. Idle
   connections cost nothing: no sockets, streams or timers. Expired codes and
   access tokens are pruned by the existing 60 s housekeeping pass.
@@ -180,6 +264,10 @@ Nothing extra to configure:
 
 ## Testing
 
+- `cargo test -p sticktalk-server --test voice an_ai_agent` runs screen control
+  end to end: a real server, two real WebRTC peers, the consent page, every
+  screen tool, timed input arriving at the sharer and pictures coming back.
+  `cargo test -p sticktalk-server screen` covers turning actions into input.
 - `cargo test -p sticktalk-server mcp::` covers the OAuth flow, CSRF/origin and
   redirect checks, PKCE, code reuse, refresh rotation and replay revocation,
   read-only gating, Devices revocation and every tool against a fixture server.

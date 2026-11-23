@@ -19,8 +19,19 @@ type RpcResult = std::result::Result<Value, (i64, String)>;
 enum Kind {
     Id,
     Text(usize),
-    Limit { default: i64, max: i64 },
+    Limit {
+        default: i64,
+        max: i64,
+    },
+    /// A whole number clamped to a range.
+    Number {
+        default: i64,
+        min: i64,
+        max: i64,
+    },
     Bool,
+    /// The list of mouse and keyboard actions for screen_act.
+    Actions,
 }
 struct Arg {
     name: &'static str,
@@ -32,7 +43,10 @@ struct Tool {
     name: &'static str,
     title: &'static str,
     description: &'static str,
+    /// Changes something. A chat tool that does needs "Read and send".
     write: bool,
+    /// A screen-control tool: needs "Control shared screens" instead.
+    screen: bool,
     destructive: bool,
     idempotent: bool,
     args: &'static [Arg],
@@ -58,12 +72,19 @@ const MESSAGE: Arg = arg(
     true,
     "Message ID from read_messages.",
 );
+const MAX_SIZE: Arg = arg(
+    "max_size",
+    Kind::Number { default: 1280, min: 320, max: 1920 },
+    false,
+    "Longer side of the screenshot in pixels, 320-1920 (default 1280). Smaller is faster and costs fewer tokens.",
+);
 const TOOLS: &[Tool] = &[
     Tool {
         name: "get_me",
         title: "Who am I",
         description: "The signed-in StickTalk user and whether this connection may send messages.",
         write: false,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[],
@@ -73,6 +94,7 @@ const TOOLS: &[Tool] = &[
         title: "List servers",
         description: "Servers (communities) the user belongs to, with unread and mention counts.",
         write: false,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[],
@@ -82,6 +104,7 @@ const TOOLS: &[Tool] = &[
         title: "List channels",
         description: "Channels in a server that the user can see, in sidebar order, with category, the channels each is nested inside (outermost first), topic, unread counts and whether the user can send there.",
         write: false,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[SERVER],
@@ -91,6 +114,7 @@ const TOOLS: &[Tool] = &[
         title: "List DMs",
         description: "Open direct messages and group DMs, most recent first, with recipients and unread counts.",
         write: false,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[],
@@ -100,6 +124,7 @@ const TOOLS: &[Tool] = &[
         title: "List unread",
         description: "Channels and DMs with unread messages, mentions first. Use read_messages with after = last_read_message_id to read just the new ones.",
         write: false,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[],
@@ -109,6 +134,7 @@ const TOOLS: &[Tool] = &[
         title: "Read messages",
         description: "Messages in a channel or DM, oldest first. Without a cursor returns the newest. Page back with before = older_cursor, forward with after = newer_cursor, or center on a message with around. Content is raw StickTalk markdown; <@ID> is a user mention.",
         write: false,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[
@@ -124,6 +150,7 @@ const TOOLS: &[Tool] = &[
         title: "Search messages",
         description: "Full-text search of a server's message history the user can read, newest first. Query syntax: words or \"exact phrases\", plus filters from:USERNAME, in:CHANNEL, mentions:USERNAME, before:YYYY-MM-DD, after:YYYY-MM-DD, has:link|file|image. DMs are not searchable.",
         write: false,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[
@@ -138,6 +165,7 @@ const TOOLS: &[Tool] = &[
         title: "List members",
         description: "Members of a server with usernames, display names and roles. Filter by name with query. Use a member's id to mention them as <@ID> or open a DM.",
         write: false,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[
@@ -152,6 +180,7 @@ const TOOLS: &[Tool] = &[
         title: "Send message",
         description: "Post a message as the user in a channel or DM. It is visible to everyone there under the user's name, so confirm the text with the user unless they asked you to post it. Up to 4000 characters of StickTalk markdown; mention with <@USER_ID>.",
         write: true,
+        screen: false,
         destructive: false,
         idempotent: false,
         args: &[
@@ -165,6 +194,7 @@ const TOOLS: &[Tool] = &[
         title: "Edit message",
         description: "Replace the text of one of the user's own messages. The previous text is not kept.",
         write: true,
+        screen: false,
         destructive: true,
         idempotent: true,
         args: &[
@@ -178,6 +208,7 @@ const TOOLS: &[Tool] = &[
         title: "Delete message",
         description: "Permanently delete a message (the user's own, or anyone's where they may manage messages). Cannot be undone: confirm with the user first, then pass confirm: true.",
         write: true,
+        screen: false,
         destructive: true,
         idempotent: true,
         args: &[
@@ -191,6 +222,7 @@ const TOOLS: &[Tool] = &[
         title: "Add reaction",
         description: "React to a message as the user with a Unicode emoji (for example 👍) or a server emoji written <:name:ID>.",
         write: true,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[CHANNEL, MESSAGE, arg("emoji", Kind::Text(128), true, "The emoji.")],
@@ -200,6 +232,7 @@ const TOOLS: &[Tool] = &[
         title: "Remove reaction",
         description: "Remove the user's own reaction from a message.",
         write: true,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[CHANNEL, MESSAGE, arg("emoji", Kind::Text(128), true, "The emoji.")],
@@ -209,6 +242,7 @@ const TOOLS: &[Tool] = &[
         title: "Mark read",
         description: "Mark a channel or DM read up to a message (default: the newest), clearing its unread badge on the user's devices.",
         write: true,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[
@@ -221,6 +255,7 @@ const TOOLS: &[Tool] = &[
         title: "Open DM",
         description: "Get (or open) the direct-message channel with a user, by user_id or username, so you can read or send there.",
         write: true,
+        screen: false,
         destructive: false,
         idempotent: true,
         args: &[
@@ -228,12 +263,114 @@ const TOOLS: &[Tool] = &[
             arg("username", Kind::Text(64), false, "Username, without @."),
         ],
     },
+    Tool {
+        name: "list_screen_shares",
+        title: "List shared screens",
+        description: "Screens that other people are sharing in the call the user is in right now, and whether you control one. The user has to have joined the call in StickTalk themselves.",
+        write: false,
+        screen: true,
+        destructive: false,
+        idempotent: true,
+        args: &[],
+    },
+    Tool {
+        name: "request_screen_control",
+        title: "Ask to control a screen",
+        description: "Ask someone in the user's call to let you see and control the screen or window they are sharing. They are asked on their own PC and have 30 seconds to answer, so this call can take that long. They must be sharing from the StickTalk Windows app. If they allow it, returns a first screenshot. They can stop you at any moment, and so can the user. It is their computer: ask only when the user told you to, and do there only what the user asked for.",
+        write: true,
+        screen: true,
+        destructive: false,
+        idempotent: false,
+        args: &[
+            arg("user_id", Kind::Id, true, "The person sharing, from list_screen_shares."),
+            MAX_SIZE,
+        ],
+    },
+    Tool {
+        name: "screen_screenshot",
+        title: "Look at the screen",
+        description: "A picture of the screen you control, as it is now. Positions in screen_act are pixels of your most recent screenshot.",
+        write: false,
+        screen: true,
+        destructive: false,
+        idempotent: true,
+        args: &[MAX_SIZE],
+    },
+    Tool {
+        name: "screen_act",
+        title: "Use the screen",
+        description: "Perform mouse and keyboard actions on the screen you control, in order and with exact timing, then return a screenshot taken after them. x and y are pixels of your most recent screenshot. Actions: move {x,y}. click {x?,y?,button?,count?,hold_ms?}. mouse_down / mouse_up {button?,x?,y?}. drag {x,y,to_x,to_y,ms?,button?}. scroll {direction,amount?,x?,y?} in wheel notches. key {key,hold_ms?} presses a key or a combination such as \"ctrl+c\" and lets go. key_down / key_up {key} hold a key and let it go. type {text} types text on a US keyboard. look {dx,dy,ms?} moves the mouse by raw counts, which is how a game turns its camera (positive dx is right, positive dy is down), smoothly over ms. wait {ms}. In a game, put several actions in one call (for example key_down w, look, click, key_up w): each call is a round trip. Keys and buttons still down when the call ends stay down for keep_held_ms, so you can keep moving while you decide, and are then let go for you. One call holds at most 30 seconds of actions.",
+        write: true,
+        screen: true,
+        destructive: true,
+        idempotent: false,
+        args: &[
+            arg("actions", Kind::Actions, true, "What to do, in order."),
+            arg("screenshot", Kind::Bool, false, "Return a screenshot afterwards (default true)."),
+            arg(
+                "settle_ms",
+                Kind::Number { default: 150, min: 0, max: 5000 },
+                false,
+                "How long after the last action the screenshot is taken, 0-5000 (default 150).",
+            ),
+            arg(
+                "keep_held_ms",
+                Kind::Number { default: 5000, min: 0, max: 60000 },
+                false,
+                "How long keys and buttons left down stay down after this call unless you call again, 0-60000 (default 5000).",
+            ),
+            MAX_SIZE,
+        ],
+    },
+    Tool {
+        name: "release_screen_control",
+        title: "Stop controlling the screen",
+        description: "Give control of the screen back and let go of everything held. Call it as soon as the task there is done.",
+        write: true,
+        screen: true,
+        destructive: false,
+        idempotent: true,
+        args: &[],
+    },
 ];
 
-pub(crate) fn list(write: bool) -> Vec<Value> {
+/// What one action of screen_act may hold. The server checks each action
+/// against its own type and says what is wrong, so this stays permissive.
+fn actions_schema() -> Value {
+    let whole = json!({"type": "integer"});
+    json!({
+        "type": "array",
+        "maxItems": crate::screen::MAX_ACTIONS,
+        "items": {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "enum": ["move", "look", "click", "mouse_down", "mouse_up", "scroll", "key", "key_down", "key_up", "type", "drag", "wait"]},
+                "x": whole, "y": whole, "to_x": whole, "to_y": whole,
+                "dx": whole, "dy": whole, "ms": whole, "hold_ms": whole,
+                "count": whole, "amount": whole,
+                "button": {"type": "string", "enum": ["left", "right", "middle", "back", "forward"]},
+                "direction": {"type": "string", "enum": ["up", "down", "left", "right"]},
+                "key": {"type": "string"},
+                "text": {"type": "string"},
+            },
+            "required": ["type"],
+            "additionalProperties": false,
+        },
+    })
+}
+
+/// Whether this connection was approved for what the tool needs.
+fn allowed(t: &Tool, grant: &Grant) -> bool {
+    if t.screen {
+        grant.screen
+    } else {
+        grant.write || !t.write
+    }
+}
+pub(crate) fn list(grant: &Grant) -> Vec<Value> {
     TOOLS
         .iter()
-        .filter(|t| write || !t.write)
+        .filter(|t| allowed(t, grant))
         .map(|t| {
             let mut properties = Map::new();
             for a in t.args {
@@ -243,7 +380,11 @@ pub(crate) fn list(write: bool) -> Vec<Value> {
                     Kind::Limit { default, max } => {
                         json!({"type": "integer", "minimum": 1, "maximum": max, "default": default})
                     }
+                    Kind::Number { default, min, max } => {
+                        json!({"type": "integer", "minimum": min, "maximum": max, "default": default})
+                    }
                     Kind::Bool => json!({"type": "boolean"}),
+                    Kind::Actions => actions_schema(),
                 };
                 let mut schema = schema;
                 schema["description"] = a.description.into();
@@ -317,6 +458,28 @@ impl From<Error> for Fail {
             message,
         }
     }
+}
+impl From<crate::screen::Refused> for Fail {
+    fn from(r: crate::screen::Refused) -> Self {
+        fail(r.code, r.message)
+    }
+}
+/// A picture of the controlled screen, then what was done, for the model.
+fn pictured(frame: &crate::screen::Frame, mut v: Value) -> Value {
+    use base64::Engine;
+    v["screenshot"] = json!({"width": frame.width, "height": frame.height});
+    json!({
+        "content": [
+            {
+                "type": "image",
+                "data": base64::engine::general_purpose::STANDARD.encode(&frame.jpeg),
+                "mimeType": "image/jpeg",
+            },
+            {"type": "text", "text": v.to_string()},
+        ],
+        "structuredContent": v,
+        "isError": false,
+    })
 }
 fn success(v: Value) -> Value {
     json!({
@@ -411,9 +574,31 @@ impl Args {
                     .ok_or_else(|| bad("an integer"))?;
                     *v = Value::from((n as i64).clamp(1, max));
                 }
+                Kind::Number { min, max, .. } => {
+                    let n = match &*v {
+                        Value::Number(n) => n.as_f64(),
+                        Value::String(s) => s.trim().parse::<f64>().ok(),
+                        _ => None,
+                    }
+                    .filter(|n| n.is_finite())
+                    .ok_or_else(|| bad("an integer"))?;
+                    *v = Value::from((n as i64).clamp(min, max));
+                }
                 Kind::Bool => {
                     if !v.is_boolean() {
                         return Err(bad("true or false"));
+                    }
+                }
+                Kind::Actions => {
+                    // Some clients send a nested argument as JSON text.
+                    if let Some(parsed) = v
+                        .as_str()
+                        .and_then(|s| serde_json::from_str::<Value>(s).ok())
+                    {
+                        *v = parsed;
+                    }
+                    if !v.is_array() {
+                        return Err(bad("a list of actions"));
                     }
                 }
             }
@@ -443,6 +628,17 @@ impl Args {
     fn flag(&self, k: &str) -> bool {
         self.0.get(k).and_then(Value::as_bool).unwrap_or(false)
     }
+    fn number(&self, tool: &Tool, k: &str) -> i64 {
+        self.0.get(k).and_then(Value::as_i64).unwrap_or_else(|| {
+            tool.args
+                .iter()
+                .find_map(|a| match a.kind {
+                    Kind::Number { default, .. } if a.name == k => Some(default),
+                    _ => None,
+                })
+                .unwrap_or_default()
+        })
+    }
 }
 
 pub(crate) async fn call(
@@ -454,11 +650,18 @@ pub(crate) async fn call(
     let Some(tool) = TOOLS.iter().find(|t| t.name == name) else {
         return Err((-32602, format!("Unknown tool: {name}")));
     };
-    if tool.write && !grant.write {
-        return Ok(failure(fail(
-            "read_only_connection",
-            "This connection was approved as read-only. To allow sending, disconnect StickTalk in your AI app (or log it out under Settings › Devices), connect again and choose \"Read and send\".",
-        )));
+    if !allowed(tool, grant) {
+        return Ok(failure(if tool.screen {
+            fail(
+                "screen_control_not_allowed",
+                "This connection was not approved to control shared screens. To allow it, disconnect StickTalk in your AI app (or log it out under Settings › Devices), connect again and tick \"Control shared screens\".",
+            )
+        } else {
+            fail(
+                "read_only_connection",
+                "This connection was approved as read-only. To allow sending, disconnect StickTalk in your AI app (or log it out under Settings › Devices), connect again and choose \"Read and send\".",
+            )
+        }));
     }
     let args = match Args::parse(tool, args) {
         Ok(a) => a,
@@ -469,7 +672,16 @@ pub(crate) async fn call(
         .core
         .lock()
         .await
-        .rate(format!("mcp:{}", grant.user.0), 120., 30.)
+        // Using a screen is a quick loop of look and act: it has its own budget.
+        .rate(
+            format!(
+                "{}:{}",
+                if tool.screen { "mcp-screen" } else { "mcp" },
+                grant.user.0
+            ),
+            if tool.screen { 600. } else { 120. },
+            if tool.screen { 60. } else { 30. },
+        )
     {
         return Ok(failure(e.into()));
     }
@@ -489,6 +701,12 @@ pub(crate) async fn call(
         "add_reaction" | "remove_reaction" => ctx.react(&args, tool.name == "add_reaction").await,
         "mark_read" => ctx.mark_read(&args).await,
         "open_dm" => ctx.open_dm(&args).await,
+        "list_screen_shares" => ctx.screen_list().await,
+        "release_screen_control" => ctx.screen_release().await,
+        // These answer with a picture, which `success` cannot carry.
+        "request_screen_control" | "screen_screenshot" | "screen_act" => {
+            return Ok(ctx.screen(tool, &args).await.unwrap_or_else(failure));
+        }
         _ => Err(fail("internal", "Unhandled tool.")),
     };
     Ok(match out {
@@ -695,8 +913,87 @@ impl Ctx<'_> {
         Ok(json!({
             "user": user_json(&me.user),
             "access": if self.grant.write { "read_and_send" } else { "read_only" },
+            "screen_control": self.grant.screen,
             "server_url": super::issuer(self.app),
         }))
+    }
+    async fn screen_list(&self) -> Out {
+        let (core, mut c) = self.open().await?;
+        let (in_call, shares) = crate::screen::shares(&core, self.me());
+        let current = self.app.0.screens.current(self.me());
+        let mut screens = vec![];
+        for share in shares {
+            let user = db::user(&mut c, share.sharer.user_id).await?;
+            screens.push(json!({
+                "user": user_json(&user),
+                "channel_id": sid(share.channel),
+                "sharing": match share.surface {
+                    ShareSurface::Monitor => "screen",
+                    ShareSurface::Window => "window",
+                },
+                "you_control": current == Some((share.sharer, true)),
+            }));
+        }
+        let mut out = json!({"in_call": in_call, "screens": screens});
+        if !in_call {
+            out["hint"] = "The user is not in a call. They need to join the voice channel in StickTalk before you can see or control a screen shared there.".into();
+        }
+        Ok(out)
+    }
+    async fn screen_release(&self) -> Out {
+        let released = crate::screen::release(self.app, &self.grant.session, self.me()).await?;
+        Ok(json!({"released": released}))
+    }
+    /// The tools that answer with a picture of the controlled screen.
+    async fn screen(&self, tool: &Tool, a: &Args) -> Out {
+        use std::time::Duration;
+        let (app, mcp, me) = (self.app, self.grant.session.as_slice(), self.me());
+        let max = a.number(tool, "max_size") as u16;
+        if tool.name == "request_screen_control" {
+            crate::screen::request(app, mcp, me, a.req_id("user_id")).await?;
+        }
+        let actions =
+            a.0.get("actions")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+        let plan = crate::screen::plan(&actions, app.0.screens.size(mcp, me)?)
+            .map_err(|message| fail("invalid_arguments", message))?;
+        let mut done = match tool.name {
+            "request_screen_control" => json!({
+                "controlling": true,
+                "note": "Control is on until you call release_screen_control, or they or the user stop it.",
+            }),
+            "screen_screenshot" => json!({}),
+            _ => json!({
+                "actions": actions.len(),
+                "duration_ms": plan.end.as_millis() as u64,
+            }),
+        };
+        // Looking does not let go of what an earlier call left held.
+        let keep = if tool.name == "screen_act" {
+            a.number(tool, "keep_held_ms") as u64
+        } else {
+            5000
+        };
+        if plan.holding {
+            done["still_held_for_ms"] = keep.into();
+        }
+        let wanted = tool.name != "screen_act"
+            || a.0
+                .get("screenshot")
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+        let settle = Duration::from_millis(a.number(tool, "settle_ms") as u64);
+        let picture = wanted.then_some((max, settle));
+        Ok(
+            match crate::screen::perform(app, mcp, me, plan, Duration::from_millis(keep), picture)
+                .await?
+            {
+                Some(frame) => pictured(&frame, done),
+                None => success(done),
+            },
+        )
     }
     async fn list_servers(&self) -> Out {
         let (_gate, mut c) = self.open().await?;
@@ -1218,7 +1515,9 @@ mod unit {
                 t.write,
                 !matches!(
                     t.name,
-                    "get_me"
+                    "list_screen_shares"
+                        | "screen_screenshot"
+                        | "get_me"
                         | "list_servers"
                         | "list_channels"
                         | "list_direct_messages"
@@ -1232,7 +1531,45 @@ mod unit {
             );
             assert!(!t.destructive || t.write);
         }
-        assert_eq!(list(false).len(), 8);
-        assert_eq!(list(true).len(), TOOLS.len());
+        let grant = |write, screen| Grant {
+            session: vec![],
+            user: Id(1),
+            write,
+            screen,
+        };
+        // Screen control is its own approval, whatever the chat access.
+        assert_eq!(list(&grant(false, false)).len(), 8);
+        assert_eq!(list(&grant(true, false)).len(), TOOLS.len() - 5);
+        assert_eq!(list(&grant(false, true)).len(), 8 + 5);
+        assert_eq!(list(&grant(true, true)).len(), TOOLS.len());
+        assert_eq!(TOOLS.iter().filter(|t| t.screen).count(), 5);
+    }
+    #[test]
+    fn screen_act_arguments_are_clamped_and_actions_may_arrive_as_text() {
+        let tool = TOOLS.iter().find(|t| t.name == "screen_act").unwrap();
+        let parse = |v: Value| Args::parse(tool, v.as_object().unwrap().clone());
+        let a = parse(
+            json!({"actions": [{"type": "wait", "ms": 5}], "max_size": 99999, "settle_ms": -4}),
+        )
+        .ok()
+        .unwrap();
+        assert_eq!(a.number(tool, "max_size"), 1920);
+        assert_eq!(a.number(tool, "settle_ms"), 0);
+        assert_eq!(a.number(tool, "keep_held_ms"), 5000);
+        let a = parse(json!({"actions": "[{\"type\":\"wait\",\"ms\":5}]"}))
+            .ok()
+            .unwrap();
+        assert_eq!(a.0["actions"][0]["type"], "wait");
+        assert!(parse(json!({"actions": "click"})).is_err());
+        assert!(parse(json!({})).is_err());
+        let listed = list(&Grant {
+            session: vec![],
+            user: Id(1),
+            write: false,
+            screen: true,
+        });
+        let act = listed.iter().find(|t| t["name"] == "screen_act").unwrap();
+        assert_eq!(act["inputSchema"]["properties"]["actions"]["type"], "array");
+        assert_eq!(act["annotations"]["readOnlyHint"], false);
     }
 }

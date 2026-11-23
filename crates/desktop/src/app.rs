@@ -551,6 +551,7 @@ pub fn run(launch: Launch) -> i32 {
                     surface,
                     width,
                     height,
+                    agent,
                 } => match control::target(&label, &surface) {
                     // The question is asked by Windows, off this thread, so no
                     // page can draw it, answer it or freeze the window with it.
@@ -567,7 +568,7 @@ pub fn run(launch: Launch) -> i32 {
                         wanted.store(question, std::sync::atomic::Ordering::SeqCst);
                         let (proxy, question, wanted) = (proxy.clone(), question, wanted.clone());
                         std::thread::spawn(move || {
-                            let allowed = control::ask(&who, target, move || {
+                            let allowed = control::ask(&who, target, agent, move || {
                                 wanted.load(std::sync::atomic::Ordering::SeqCst) == question
                             });
                             let _ =

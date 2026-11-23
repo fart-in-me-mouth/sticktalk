@@ -30,7 +30,12 @@ Needs the WebView2 Runtime, which ships with Windows 11 and current Windows 10.
   It is only offered while the server's page is sharing, and shares from an
   ordinary browser can't be controlled. The app cannot check the call itself:
   it trusts the server it was pointed at to say who is asking, which is why the
-  question is asked every time and never remembered.
+  question is asked every time and never remembered. The one asking may be a
+  person's AI agent (docs/MCP.md, "Control a shared screen"): the question
+  then says so, and that pictures of what you share are sent to it. All the
+  same limits apply. An agent may also send raw mouse movement (what a game
+  reads to turn its camera), performed only while the shared surface has
+  keyboard focus and the pointer is on it.
 - **Window.** Size, position and maximized state are kept in
   `%LOCALAPPDATA%\StickTalk\window.json` and clamped to a visible monitor. The
   WebView profile is `%LOCALAPPDATA%\StickTalk\WebView`.

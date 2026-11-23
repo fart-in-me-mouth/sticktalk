@@ -170,9 +170,18 @@ async fn token(app: &App, pairs: &[(&str, &str)]) -> Response<Body> {
     .await
 }
 async fn connect(app: &App, user: i64, access: &str) -> (String, String, String) {
+    connect_with(app, user, access, &[]).await
+}
+/// `extra` are further consent form fields, as the person would set them.
+async fn connect_with(
+    app: &App,
+    user: i64,
+    access: &str,
+    extra: &[(&str, &str)],
+) -> (String, String, String) {
     let client_id = register(app).await;
     let cookie = cookie(app, user).await;
-    let location = approve(app, &client_id, &cookie, access, &[]).await;
+    let location = approve(app, &client_id, &cookie, access, extra).await;
     assert_eq!(query_param(&location, "state").as_deref(), Some("xyz"));
     assert_eq!(
         query_param(&location, "iss").as_deref(),
@@ -789,4 +798,132 @@ async fn password_sign_in_on_consent_page() {
     )
     .await;
     assert_eq!(json_body(r).await["scope"], "chat:read");
+}
+
+#[tokio::test]
+async fn screen_control_is_its_own_approval_and_needs_a_call() {
+    let (_dir, app) = fixture().await;
+    let names = |tools: &Value| -> Vec<String> {
+        tools["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    // "Read and send" alone does not include it.
+    let (chat, _, _) = connect(&app, 2, "write").await;
+    let listed = names(&json_body(rpc(&app, &chat, "tools/list", json!({})).await).await);
+    assert!(!listed.iter().any(|n| n.contains("screen")), "{listed:?}");
+    for (name, args) in [
+        ("list_screen_shares", json!({})),
+        ("screen_act", json!({"actions": []})),
+    ] {
+        let refused = tool(&app, &chat, name, args).await;
+        assert_eq!(
+            refused["structuredContent"]["error"]["code"],
+            "screen_control_not_allowed"
+        );
+    }
+    assert_eq!(
+        tool(&app, &chat, "get_me", json!({})).await["structuredContent"]["screen_control"],
+        false
+    );
+
+    // A link cannot tick the box for the person.
+    let client_id = register(&app).await;
+    let session = cookie(&app, 3).await;
+    let query = authorize_query(&client_id, "chat:read screen:control");
+    let page = text(
+        send(
+            &app,
+            Request::get(format!("/oauth/authorize?{query}&st_hop=1&screen=1"))
+                .header("cookie", &session)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await,
+    )
+    .await;
+    assert!(page.contains(r#"name="screen" value="1"><span><b>Control shared screens"#));
+
+    // Ticked, it is granted beside either chat access.
+    let (agent, _, _) = connect_with(&app, 3, "read", &[("screen", "1")]).await;
+    let listed = names(&json_body(rpc(&app, &agent, "tools/list", json!({})).await).await);
+    for name in [
+        "list_screen_shares",
+        "request_screen_control",
+        "screen_screenshot",
+        "screen_act",
+        "release_screen_control",
+    ] {
+        assert!(listed.contains(&name.to_owned()), "{name}");
+    }
+    assert!(!listed.contains(&"send_message".to_owned()));
+    let scope: String = sqlx::query_scalar("SELECT scope FROM mcp_grants WHERE user_id=3")
+        .fetch_one(&app.0.pool)
+        .await
+        .unwrap();
+    assert_eq!(scope, "chat:read screen:control");
+    assert_eq!(
+        tool(&app, &agent, "get_me", json!({})).await["structuredContent"]["screen_control"],
+        true
+    );
+
+    // Outside a call there is nothing to see or control, and the agent is told why.
+    let shares = tool(&app, &agent, "list_screen_shares", json!({})).await;
+    assert_eq!(shares["structuredContent"]["in_call"], false);
+    assert!(shares["structuredContent"]["hint"]
+        .as_str()
+        .unwrap()
+        .contains("join the voice channel"));
+    let code = |v: Value| v["structuredContent"]["error"]["code"].clone();
+    assert_eq!(
+        code(
+            tool(
+                &app,
+                &agent,
+                "request_screen_control",
+                json!({"user_id": "1"})
+            )
+            .await
+        ),
+        "not_in_call"
+    );
+    assert_eq!(
+        code(tool(&app, &agent, "screen_screenshot", json!({})).await),
+        "not_controlling"
+    );
+    assert_eq!(
+        code(
+            tool(
+                &app,
+                &agent,
+                "screen_act",
+                json!({"actions": [{"type": "key", "key": "w"}]})
+            )
+            .await
+        ),
+        "not_controlling"
+    );
+    assert_eq!(
+        tool(&app, &agent, "release_screen_control", json!({})).await["structuredContent"]
+            ["released"],
+        false
+    );
+
+    // A picture nobody is waiting for is refused, from anyone.
+    let frame = |token: Option<&str>| {
+        let mut r =
+            Request::post("/api/v1/voice/control/frames/5").header("content-type", "image/jpeg");
+        if let Some(token) = token {
+            r = r.header("authorization", format!("Bearer {token}"));
+        }
+        r.body(Body::from(vec![0xff, 0xd8, 0xff, 0xd9])).unwrap()
+    };
+    assert_eq!(send(&app, frame(None)).await.status(), 401);
+    let token = session.trim_start_matches("__Host-sticktalk_session=");
+    assert_eq!(send(&app, frame(Some(token))).await.status(), 404);
+    // An MCP token is not a session: it cannot post pictures either.
+    assert_eq!(send(&app, frame(Some(&agent))).await.status(), 401);
 }

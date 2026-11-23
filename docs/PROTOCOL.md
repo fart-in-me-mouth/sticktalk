@@ -1154,9 +1154,9 @@ Sequence numbers are remapped with source ordering preserved and start at ROC 0.
 | speaking | `session,speaking:bool,level_dbov:i8` (negative dBov) |
 | bitrate | `mid:String,bps:u64` upstream encoder ceiling; applies alongside RTCP |
 | codec_required | `mid:String,codec:VideoCodec` |
-| control_requested | `requester:VoiceSession,timeout_ms:u32` (30000) |
+| control_requested | `requester:VoiceSession,timeout_ms:u32,agent:bool` (30000; `agent` is present only when true) |
 | control_denied | `sharer:VoiceSession` |
-| control_granted | `sharer,controller:VoiceSession,grant:u64` |
+| control_granted | `sharer,controller:VoiceSession,grant:u64,agent:bool` (`agent` is present only when true) |
 | control_revoked | `sharer:VoiceSession,grant:u64` |
 | stats | `VoiceStats` below |
 | ack | no data |
@@ -1243,6 +1243,10 @@ logged; only grant/revoke metadata is logged.
 - `button {button:u8,down:bool}`: buttons 0..4.
 - `wheel {x:i16,y:i16}`: bounded -4096..4096 relative deltas.
 - `key {usage:u16,down:bool}`: USB HID usage 4..0xe7, never arbitrary commands/text.
+- `move_by {dx:i16,dy:i16}`: raw mouse movement in device counts, each within
+  -2048..2048. It is what a game reads to turn its camera, not a position on
+  the surface. The sharer performs it only while keyboard focus is on the
+  shared surface and the pointer is inside it.
 
 Sequence strictly increases within a grant; at most 1000 events in each
 server-anchored one-second grant window. Invalid matching-grant input, replay,
@@ -1254,6 +1258,51 @@ buttons on **either** message, local hotkey/physical mouse, stream stop or any
 transport disconnect. It must also ignore already queued input for a revoked
 or mismatched grant. Implementing SendInput, UAC restrictions, local bounds,
 Ctrl+Alt+Shift+S and the always-on-top banner is client work, not SFU work.
+
+### Remote control by an AI agent
+
+A participant's AI app (an MCP connection that person approved with the
+`screen:control` scope, see [MCP.md](MCP.md)) can hold a grant in their place.
+Nothing about the sharer's consent changes: the sharer gets `control_requested`
+with `agent:true`, their Windows app asks them in its own words for an agent,
+and `decide_control` answers it. The differences are all on the controller's
+side:
+
+- **The host asks and acts, never the controller's client.** The server issues
+  the request for the controller's live voice session (`Sfu::agent_request`),
+  so the person must be in the call; the request is refused otherwise. They
+  need not be watching the stream or have a control channel: the agent sees
+  through pictures (below), not through their subscription.
+- **Input comes from the host only.** For a grant with `agent:true` the SFU
+  discards `ControlData::Input` arriving on the controller's own data channel.
+  The host queues a script of steps, each at an offset from now
+  (`Sfu::agent_script`); the SFU performs them on its own clock, assigns the
+  sequence numbers, and applies the same validation, 1,000 events/s limit and
+  revoke-on-failure as for a person. A script has at most 4,096 steps over at
+  most 60 s, and only one runs at a time.
+- **Held input cannot be forgotten.** The SFU tracks which keys and buttons an
+  agent's script left down. If no new script arrives within the time the agent
+  asked for (at most 60 s), it sends `release_all {grant}` and control
+  continues. An agent that stops calling therefore lets go of everything.
+- **Pictures.** Server -> sharer only, on the control channel, a script step may
+  be `capture {grant:u64,id:u64,max:u16,quality:u8}`. The sharer's page takes
+  the newest frame of the track it is sharing, scales it so its longer side is
+  at most `max` pixels (320..1920), encodes a JPEG of `quality` 1..100 and
+  uploads it with its session to `POST /api/v1/voice/control/frames/{id}`
+  (`Content-Type: image/jpeg`, at most 2 MiB). `id` is below 2^53. The server
+  takes a picture only while a call is waiting for that `id` from that sharer
+  (`404` otherwise, `400` if it is not a JPEG), hands it to the waiting MCP
+  call and never stores it. Because the request travels on the ordered control
+  channel after the script's input, the picture shows the screen after that
+  input was delivered. A sharer sends pictures only for a grant with
+  `agent:true` that its own app allowed, and stops when the grant ends.
+- **Ending.** Either person ends it with `revoke_control` (the controller's
+  client shows "Your AI agent is controlling ...'s screen" with Stop), the
+  agent ends it through its connection, and every existing cause still applies:
+  Esc on the sharer's keyboard, stopping or re-offering the share, either
+  person leaving. The controller unsubscribing from the stream does not end an
+  agent's grant. A grant no agent has used for 10 minutes is given back by the
+  server's housekeeping pass.
 
 
 ## 11. Launch roles, profiles, pins, notifications and devices

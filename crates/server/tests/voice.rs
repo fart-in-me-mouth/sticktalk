@@ -1103,3 +1103,409 @@ async fn failed_sfu_negotiation_reports_clean_error_and_other_calls_continue() {
     pc.close().await;
     s.stop().await;
 }
+
+/// An AI app's connection for `username`, approved for screen control through
+/// the real consent page.
+async fn agent_connection(s: &TestServer, username: &str) -> String {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+    use sha2::{Digest, Sha256};
+    let http = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let redirect = "http://127.0.0.1:9999/callback";
+    let verifier = "verifier-verifier-verifier-verifier-verifier";
+    let registered: serde_json::Value = http
+        .post(format!("{}/oauth/register", s.url))
+        .json(&serde_json::json!({"client_name": "Test Agent", "redirect_uris": [redirect], "grant_types": ["authorization_code", "refresh_token"], "token_endpoint_auth_method": "none"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let client_id = registered["client_id"].as_str().unwrap().to_owned();
+    let mut fields: Vec<(&str, String)> = vec![
+        ("response_type", "code".into()),
+        ("client_id", client_id.clone()),
+        ("redirect_uri", redirect.into()),
+        (
+            "code_challenge",
+            URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes())),
+        ),
+        ("code_challenge_method", "S256".into()),
+        ("state", "xyz".into()),
+    ];
+    let page = http
+        .get(format!("{}/oauth/authorize", s.url))
+        .query(&fields)
+        .query(&[("st_login", "1")])
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    let marker = "name=\"csrf\" value=\"";
+    let start = page.find(marker).expect("consent page") + marker.len();
+    let end = start + page[start..].find(char::from(34)).unwrap();
+    let csrf = page[start..end].to_owned();
+    fields.extend([
+        ("csrf", csrf),
+        ("decision", "allow".into()),
+        ("access", "read".into()),
+        ("screen", "1".into()),
+        ("username", username.into()),
+        ("password", "correct horse battery".into()),
+    ]);
+    let r = http
+        .post(format!("{}/oauth/authorize", s.url))
+        .header("origin", "http://localhost")
+        .form(&fields)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 303);
+    let location = reqwest::Url::parse(r.headers()["location"].to_str().unwrap()).unwrap();
+    let code = location
+        .query_pairs()
+        .find(|(k, _)| k == "code")
+        .expect("authorization code")
+        .1
+        .into_owned();
+    let token: serde_json::Value = http
+        .post(format!("{}/oauth/token", s.url))
+        .form(&[
+            ("grant_type", "authorization_code"),
+            ("code", &code),
+            ("redirect_uri", redirect),
+            ("client_id", &client_id),
+            ("code_verifier", verifier),
+        ])
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    token["access_token"]
+        .as_str()
+        .expect("access token")
+        .to_owned()
+}
+async fn mcp(
+    s: &TestServer,
+    token: &str,
+    name: &str,
+    args: serde_json::Value,
+) -> serde_json::Value {
+    let r = reqwest::Client::new()
+        .post(format!("{}/mcp", s.url))
+        .bearer_auth(token)
+        .json(&serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 200);
+    r.json::<serde_json::Value>().await.unwrap()["result"].clone()
+}
+/// The smallest thing with a JPEG's frame header.
+fn jpeg(width: u16, height: u16) -> Vec<u8> {
+    let mut b = vec![0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08];
+    b.extend(height.to_be_bytes());
+    b.extend(width.to_be_bytes());
+    b.extend([3; 10]);
+    b.extend([0xff, 0xd9]);
+    b
+}
+/// What the sharer's app does when asked for a picture.
+async fn upload(s: &TestServer, sharer: &AuthResponse, id: u64, picture: Vec<u8>) -> u16 {
+    reqwest::Client::new()
+        .post(format!("{}/api/v1/voice/control/frames/{id}", s.url))
+        .bearer_auth(&sharer.token)
+        .header("content-type", "image/jpeg")
+        .body(picture)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .as_u16()
+}
+fn error_code(result: &serde_json::Value) -> &str {
+    result["structuredContent"]["error"]["code"]
+        .as_str()
+        .unwrap_or_else(|| panic!("not an error: {result}"))
+}
+
+#[tokio::test]
+async fn an_ai_agent_asks_sees_and_acts_through_the_mcp_connector() {
+    use serde_json::json;
+    let s = TestServer::start().await;
+    let a = s.register("agent_sharer").await;
+    let c = s.register("agent_owner").await;
+    let (mut pa, _) = Peer::connect(&s, &a, None).await;
+    let (mut pc, _) = Peer::connect(&s, &c, None).await;
+    let (_, channel) = guild(&mut pa, &mut [&mut pc]).await;
+    let token = agent_connection(&s, "agent_owner").await;
+    let sharer_id = a.user.user.id.0.to_string();
+    let ask = || {
+        mcp(
+            &s,
+            &token,
+            "request_screen_control",
+            json!({"user_id": sharer_id}),
+        )
+    };
+    // The agent's person has to be in the call.
+    assert_eq!(error_code(&ask().await), "not_in_call");
+    let mut ma = pa.join(a.user.user.id, channel).await;
+    let mut mc = pc.join(c.user.user.id, channel).await;
+    let shares = mcp(&s, &token, "list_screen_shares", json!({})).await;
+    assert_eq!(shares["structuredContent"]["in_call"], true);
+    let listed = &shares["structuredContent"]["screens"];
+    assert_eq!(listed.as_array().unwrap().len(), 1, "{listed}");
+    assert_eq!(listed[0]["user"]["id"], sharer_id);
+    assert_eq!(listed[0]["sharing"], "window");
+    assert_eq!(listed[0]["you_control"], false);
+
+    // The person sharing is asked, told it is an agent, and may say no.
+    let asked = |e: &VoiceEvent| matches!(e, VoiceEvent::ControlRequested { agent: true, .. });
+    let (refused, _) = tokio::join!(ask(), async {
+        pa.voice(asked).await;
+        pa.ack(VoiceSignal::DecideControl {
+            requester: mc.session,
+            allow: false,
+        })
+        .await;
+    });
+    assert_eq!(error_code(&refused), "declined");
+    assert_eq!(
+        error_code(&mcp(&s, &token, "screen_screenshot", json!({})).await),
+        "not_controlling"
+    );
+
+    // They say yes: control is on and the agent gets its first picture.
+    let first = jpeg(1280, 720);
+    let (granted, grant) = tokio::join!(ask(), async {
+        pa.voice(asked).await;
+        pa.ack(VoiceSignal::DecideControl {
+            requester: mc.session,
+            allow: true,
+        })
+        .await;
+        let VoiceEvent::ControlGranted {
+            grant,
+            controller,
+            agent,
+            ..
+        } = pa
+            .voice(|e| matches!(e, VoiceEvent::ControlGranted { .. }))
+            .await
+        else {
+            panic!()
+        };
+        assert!(agent && controller == mc.session);
+        let MediaEvent::Data(ControlData::Capture {
+            grant: asked_for,
+            id,
+            max,
+            quality,
+        }) = ma
+            .wait(|e| matches!(e, MediaEvent::Data(ControlData::Capture { .. })))
+            .await
+        else {
+            panic!()
+        };
+        assert_eq!((asked_for, max, quality), (grant, 1280, 70));
+        // Only the person whose screen it is can deliver the picture, once.
+        assert_eq!(upload(&s, &c, id, first.clone()).await, 404);
+        assert_eq!(upload(&s, &a, id, b"not a picture".to_vec()).await, 400);
+        assert_eq!(upload(&s, &a, id + 1, first.clone()).await, 404);
+        assert_eq!(upload(&s, &a, id, first.clone()).await, 204);
+        assert_eq!(upload(&s, &a, id, first.clone()).await, 404);
+        grant
+    });
+    assert_eq!(granted["isError"], false, "{granted}");
+    assert_eq!(granted["content"][0]["type"], "image");
+    assert_eq!(granted["content"][0]["mimeType"], "image/jpeg");
+    {
+        use base64::Engine;
+        let sent = base64::engine::general_purpose::STANDARD
+            .decode(granted["content"][0]["data"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(sent, first);
+    }
+    assert_eq!(
+        granted["structuredContent"]["screenshot"],
+        json!({"width": 1280, "height": 720})
+    );
+    let shares = mcp(&s, &token, "list_screen_shares", json!({})).await;
+    assert_eq!(
+        shares["structuredContent"]["screens"][0]["you_control"],
+        true
+    );
+    // The person's own control channel cannot drive their agent's grant.
+    mc.data(input(ma.session, grant, 50)).await;
+    ma.no_input().await;
+
+    // Actions arrive at the sharer in order, as input, and then a picture is
+    // asked for at the size the agent wants.
+    let act = mcp(
+        &s,
+        &token,
+        "screen_act",
+        json!({
+            "actions": [
+                {"type": "key_down", "key": "w"},
+                {"type": "look", "dx": 300, "dy": -20, "ms": 40},
+                {"type": "click", "x": 640, "y": 360},
+                {"type": "key_up", "key": "w"},
+            ],
+            "max_size": 800,
+        }),
+    );
+    let (acted, performed) = tokio::join!(act, async {
+        let mut performed = vec![];
+        loop {
+            match ma.wait(|e| matches!(e, MediaEvent::Data(_))).await {
+                MediaEvent::Data(ControlData::Input {
+                    sharer,
+                    grant: g,
+                    input,
+                    ..
+                }) => {
+                    assert_eq!((sharer, g), (ma.session, grant));
+                    performed.push(input);
+                }
+                MediaEvent::Data(ControlData::Capture { id, max, .. }) => {
+                    assert_eq!(max, 800);
+                    assert_eq!(upload(&s, &a, id, jpeg(800, 450)).await, 204);
+                    return performed;
+                }
+                other => panic!("{other:?}"),
+            }
+        }
+    });
+    assert_eq!(acted["isError"], false, "{acted}");
+    assert_eq!(acted["structuredContent"]["actions"], 4);
+    assert_eq!(
+        acted["structuredContent"]["screenshot"],
+        json!({"width": 800, "height": 450})
+    );
+    let w = |down| ControlInput::Key { usage: 26, down };
+    assert_eq!(performed.first(), Some(&w(true)));
+    assert_eq!(performed.last(), Some(&w(false)));
+    let turned = performed.iter().fold((0, 0), |sum, input| match input {
+        ControlInput::MoveBy { dx, dy } => (sum.0 + i32::from(*dx), sum.1 + i32::from(*dy)),
+        _ => sum,
+    });
+    assert_eq!(turned, (300, -20));
+    let rest: Vec<_> = performed
+        .iter()
+        .filter(|i| !matches!(i, ControlInput::MoveBy { .. } | ControlInput::Key { .. }))
+        .collect();
+    assert!(
+        matches!(
+            rest.as_slice(),
+            [
+                ControlInput::Move {
+                    x: 32_700..=32_900,
+                    y: 32_700..=32_900
+                },
+                ControlInput::Button {
+                    button: 0,
+                    down: true
+                },
+                ControlInput::Button {
+                    button: 0,
+                    down: false
+                },
+            ]
+        ),
+        "{rest:?}"
+    );
+
+    // Places are pixels of the newest picture (now 800 x 450), and a key left
+    // down is let go for the agent after the time it asked for.
+    let outside = mcp(
+        &s,
+        &token,
+        "screen_act",
+        json!({"actions": [{"type": "click", "x": 1000, "y": 10}]}),
+    )
+    .await;
+    assert_eq!(error_code(&outside), "invalid_arguments");
+    let held = mcp(
+        &s,
+        &token,
+        "screen_act",
+        json!({
+            "actions": [{"type": "move", "x": 799, "y": 449}, {"type": "key_down", "key": "shift"}],
+            "screenshot": false,
+            "keep_held_ms": 200,
+        }),
+    )
+    .await;
+    assert_eq!(held["isError"], false, "{held}");
+    assert_eq!(held["structuredContent"]["still_held_for_ms"], 200);
+    let corner = ControlInput::Move { x: 65535, y: 65535 };
+    let shift = ControlInput::Key {
+        usage: 0xe1,
+        down: true,
+    };
+    for expected in [corner, shift] {
+        ma.wait(
+            |e| matches!(e, MediaEvent::Data(ControlData::Input { input, .. }) if *input == expected),
+        )
+        .await;
+    }
+    ma.wait(|e| matches!(e, MediaEvent::Data(ControlData::ReleaseAll { grant: g }) if *g == grant))
+        .await;
+
+    // The agent gives control back.
+    let released = mcp(&s, &token, "release_screen_control", json!({})).await;
+    assert_eq!(released["structuredContent"]["released"], true);
+    ma.wait(|e| matches!(e, MediaEvent::Data(ControlData::ReleaseAll { grant: g }) if *g == grant))
+        .await;
+    pc.voice(|e| matches!(e, VoiceEvent::ControlRevoked { grant: g, .. } if *g == grant))
+        .await;
+    assert_eq!(
+        error_code(&mcp(&s, &token, "screen_act", json!({"actions": []})).await),
+        "not_controlling"
+    );
+
+    // The person sharing can take it back at any moment.
+    let (again, grant) = tokio::join!(ask(), async {
+        pa.voice(asked).await;
+        pa.ack(VoiceSignal::DecideControl {
+            requester: mc.session,
+            allow: true,
+        })
+        .await;
+        let MediaEvent::Data(ControlData::Capture { id, grant, .. }) = ma
+            .wait(|e| matches!(e, MediaEvent::Data(ControlData::Capture { .. })))
+            .await
+        else {
+            panic!()
+        };
+        assert_eq!(upload(&s, &a, id, jpeg(1280, 720)).await, 204);
+        grant
+    });
+    assert_eq!(again["isError"], false, "{again}");
+    pa.ack(VoiceSignal::RevokeControl).await;
+    pc.voice(|e| matches!(e, VoiceEvent::ControlRevoked { grant: g, .. } if *g == grant))
+        .await;
+    assert_eq!(
+        error_code(&mcp(&s, &token, "screen_screenshot", json!({})).await),
+        "not_controlling"
+    );
+    assert_eq!(
+        mcp(&s, &token, "release_screen_control", json!({})).await["structuredContent"]["released"],
+        false
+    );
+    mc.clear();
+    pa.close().await;
+    pc.close().await;
+    drop((ma, mc));
+    s.stop().await;
+}

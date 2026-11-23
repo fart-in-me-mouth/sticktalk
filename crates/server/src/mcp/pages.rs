@@ -88,6 +88,7 @@ pub(crate) struct Consent<'a> {
     pub csrf: &'a str,
     pub params: &'a AuthorizeParams,
     pub write: bool,
+    pub screen: bool,
     pub error: Option<&'a str>,
     pub server: &'a str,
 }
@@ -151,11 +152,15 @@ pub(crate) fn consent(c: Consent) -> Response {
 <label class=\"choice\"><input type=\"radio\" name=\"access\" value=\"read\"{read_checked}><span><b>Read only</b><br><span class=\"muted\">See your servers, channels, DMs and messages, and search them.</span></span></label>\
 <label class=\"choice\"><input type=\"radio\" name=\"access\" value=\"write\"{write_checked}><span><b>Read and send</b><br><span class=\"muted\">Also send, edit and delete your messages, react, and mark channels read.</span></span></label>\
 </fieldset>\
+<fieldset><legend>Optional</legend>\
+<label class=\"choice\"><input type=\"checkbox\" name=\"screen\" value=\"1\"{screen_checked}><span><b>Control shared screens</b><br><span class=\"muted\">While you are in a call, ask to see and control a screen someone there is sharing. They are asked on their own PC every time, and either of you can stop it.</span></span></label>\
+</fieldset>\
 <p class=\"muted small\">You'll return to {dest}. Disconnect any time: Settings › Devices › Log out.</p>\
 <div class=\"actions\"><button class=\"primary\" name=\"decision\" value=\"allow\">Allow</button><button class=\"secondary\" name=\"decision\" value=\"deny\">Cancel</button></div>\
 </form>",
         name = esc(c.client_name),
         dest = esc(&redirect_label(c.redirect_uri)),
+        screen_checked = if c.screen { " checked" } else { "" },
     );
     page(
         StatusCode::OK,

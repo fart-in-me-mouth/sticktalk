@@ -19,6 +19,8 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 
 pub(crate) const SCOPE_READ: &str = "chat:read";
 pub(crate) const SCOPE_WRITE: &str = "chat:write";
+/// Ask to see and control a screen shared in a call the user is in.
+pub(crate) const SCOPE_SCREEN: &str = "screen:control";
 /// Connections a user may approve at once; they do not use the five sign-in slots.
 pub(crate) const MAX_GRANTS_PER_USER: i64 = 10;
 pub(crate) const ACCESS_TTL_MS: u64 = 3_600_000;

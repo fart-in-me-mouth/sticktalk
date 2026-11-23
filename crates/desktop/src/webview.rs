@@ -98,8 +98,10 @@ pub fn build(window: &Window, context: &mut WebContext, config: Config) -> Resul
         })
         // Remote control of a shared screen (see `control`). The page can only
         // ask; the person at this PC is asked by Windows before anything happens.
+        // `control`: 1 is remote control by a person; 2 adds requests from AI
+        // agents and raw mouse movement.
         .with_initialization_script(
-            "Object.defineProperty(window,'__sticktalkHost',{value:Object.freeze({control:1,ptt:1,theme:1,icon:1})});",
+            "Object.defineProperty(window,'__sticktalkHost',{value:Object.freeze({control:2,ptt:1,theme:1,icon:1})});",
         )
         .with_ipc_handler({
             let (shared, proxy) = (shared.clone(), proxy.clone());

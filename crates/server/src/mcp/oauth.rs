@@ -2,7 +2,7 @@
 //! metadata, RFC 7591 dynamic registration (stateless signed client IDs, as in
 //! T3 Code), PKCE S256 authorization codes, rotating refresh tokens, RFC 7009
 //! revocation. Public clients only.
-use super::{pages, sign, verify, SCOPE_READ, SCOPE_WRITE};
+use super::{pages, sign, verify, SCOPE_READ, SCOPE_SCREEN, SCOPE_WRITE};
 use crate::{
     db,
     error::{Error, Result},
@@ -33,7 +33,7 @@ pub(crate) async fn resource_metadata(State(app): State<App>) -> Response {
     Json(json!({
         "resource": super::resource(&app),
         "authorization_servers": [super::issuer(&app)],
-        "scopes_supported": [SCOPE_READ, SCOPE_WRITE],
+        "scopes_supported": [SCOPE_READ, SCOPE_WRITE, SCOPE_SCREEN],
         "bearer_methods_supported": ["header"],
         "resource_name": "StickTalk",
         "resource_documentation": format!("{}/mcp", super::issuer(&app)),
@@ -54,7 +54,7 @@ pub(crate) async fn server_metadata(State(app): State<App>) -> Response {
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
         "revocation_endpoint_auth_methods_supported": ["none"],
-        "scopes_supported": [SCOPE_READ, SCOPE_WRITE],
+        "scopes_supported": [SCOPE_READ, SCOPE_WRITE, SCOPE_SCREEN],
         "authorization_response_iss_parameter_supported": true,
         "service_documentation": format!("{issuer}/mcp"),
     }))
@@ -291,6 +291,8 @@ pub(crate) struct AuthorizeParams {
     pub csrf: Option<String>,
     pub decision: Option<String>,
     pub access: Option<String>,
+    /// "1" when the "control shared screens" box is ticked.
+    pub screen: Option<String>,
     pub username: Option<String>,
     pub password: Option<String>,
 }
@@ -465,6 +467,7 @@ async fn render(
         csrf: &csrf,
         params: p,
         write,
+        screen: p.screen.as_deref() == Some("1"),
         error,
         server: &super::issuer(app),
     })
@@ -475,6 +478,8 @@ pub(crate) async fn authorize_page(State(app): State<App>, r: Request<Body>) -> 
     else {
         return pages::error(StatusCode::BAD_REQUEST, "This sign-in link is malformed.");
     };
+    // A link cannot tick "Control shared screens" for the person: only they can.
+    let p = AuthorizeParams { screen: None, ..p };
     let Ok(key) = super::secret(&app).await else {
         return pages::error(StatusCode::SERVICE_UNAVAILABLE, "Try again later.");
     };
@@ -608,11 +613,15 @@ pub(crate) async fn authorize_decision(State(app): State<App>, r: Request<Body>)
     } else {
         return render(&app, &key, &v, &p, session, Some("Sign in to continue.")).await;
     };
-    let scope = if p.access.as_deref() == Some("write") {
+    let mut scope = if p.access.as_deref() == Some("write") {
         format!("{SCOPE_READ} {SCOPE_WRITE}")
     } else {
         SCOPE_READ.to_owned()
     };
+    // Never preselected and never taken from what the client asked for.
+    if p.screen.as_deref() == Some("1") {
+        scope = format!("{scope} {SCOPE_SCREEN}");
+    }
     let code = state::token();
     let issued = async {
         let mut c = app.0.pool.acquire().await?;
