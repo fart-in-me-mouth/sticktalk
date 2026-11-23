@@ -346,6 +346,11 @@ pub struct Report {
     pub action: Option<String>,
     pub created_at: UnixMillis,
     pub resolved_at: Option<UnixMillis>,
+    /// The reported message is in a channel this moderator cannot read now:
+    /// `evidence` carries who was reported, not what was said. Omitted when
+    /// false (older servers never set it).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub evidence_hidden: bool,
 }
 
 /// A report as the person who filed it sees it.

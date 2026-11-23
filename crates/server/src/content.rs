@@ -145,7 +145,21 @@ pub(crate) async fn mutate(
             mention_ids,
             send_at,
             attachment_ids,
+            attachments,
         } => {
+            // Alt text and spoiler marks go on the uploads before they are
+            // held, exactly as a send stores them (task `qa2`); delivery hands
+            // the same uploads to the send path, which reads them back.
+            if !attachments.is_empty() {
+                let as_sent = MessageDraft {
+                    channel_id,
+                    content: content.clone(),
+                    reply_to: None,
+                    attachment_ids: attachment_ids.clone(),
+                    mention_ids: mention_ids.clone(),
+                };
+                set_meta(c, u, &as_sent, &attachments).await?;
+            }
             let draft = scheduled::Draft {
                 channel_id,
                 content,

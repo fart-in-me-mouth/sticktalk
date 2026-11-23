@@ -14,7 +14,6 @@ mod stickers;
 mod tests;
 
 pub(crate) use library::routes;
-pub(crate) use stickers::asset_response;
 
 use crate::{
     db::*,

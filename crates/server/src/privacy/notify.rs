@@ -215,6 +215,93 @@ pub(crate) async fn decide(
     }))
 }
 
+/// A notification that is not a message (messages use [`decide`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Notice {
+    /// A scheduled event the person is interested in is starting (`channel`:
+    /// where it happens, if in a channel).
+    EventStarting { guild: Id, channel: Option<Id> },
+    /// A reminder they set on a message in `channel`.
+    Reminder { channel: Id },
+    /// A direct or group call in `channel` is ringing them.
+    Ring { channel: Id, caller: Id },
+}
+/// The server-wide settings alone (an event with no channel).
+async fn effective_guild(c: &mut SqliteConnection, u: Id, g: Id) -> Result<Effective> {
+    let (settings, extras) = rows(c, u, Some(g), &[]).await?;
+    let mut e = Effective {
+        level: NotificationLevel::Mentions,
+        muted: false,
+        suppress_everyone: false,
+        suppress_roles: false,
+        mobile_push: true,
+    };
+    let key = ("guild", g.0 as i64);
+    if let Some(s) = settings.get(&key) {
+        e.level = s.level;
+        e.muted = active_mute(s, now());
+    }
+    if let Some((_, push)) = extras.get(&key) {
+        e.mobile_push = *push;
+    }
+    Ok(e)
+}
+/// The single decision for notifications that are not messages, in the same
+/// order as [`decide`]: who it is from (blocked or ignored), a hidden message
+/// request or an unconfirmed age-restricted conversation, Do Not Disturb, then
+/// the mute and level of the conversation (or of the server). A reminder
+/// ignores mutes and levels: the person asked for it. `push` is the mobile
+/// push switch of that server. Used by the event-start notice and its push,
+/// reminder pushes and call-ring pushes. (Stage invitations to speak,
+/// application decisions and report status are state shown where the person
+/// looks, never an alert or a push; AutoMod alerts are messages and go
+/// through [`decide`].)
+pub(crate) async fn notice(c: &mut SqliteConnection, u: Id, n: Notice) -> Result<Option<Decision>> {
+    if let Notice::Ring { caller, .. } = n {
+        if caller == u
+            || blocked(c, u, caller).await?
+            || super::people::ignores(c, u, caller).await?
+        {
+            return Ok(None);
+        }
+    }
+    let ch = match n {
+        Notice::EventStarting { channel, .. } => channel,
+        Notice::Reminder { channel } | Notice::Ring { channel, .. } => Some(channel),
+    };
+    let summary = match ch {
+        Some(ch) => match crate::db::channel(c, ch).await {
+            Ok(channel) => Some(channel.summary),
+            Err(_) => return Ok(None),
+        },
+        None => None,
+    };
+    if let Some(s) = &summary {
+        if s.guild_id.is_none() {
+            if super::requests::hidden(c, s.id).await?.contains(&u) {
+                return Ok(None);
+            }
+        } else if super::gate::age_blocked(c, u, s.id).await? {
+            return Ok(None);
+        }
+    }
+    if me(c, u).await?.desired_presence == PresenceStatus::Dnd {
+        return Ok(None);
+    }
+    let e = match (&summary, n) {
+        (Some(s), _) => effective(c, u, s).await?,
+        (None, Notice::EventStarting { guild, .. }) => effective_guild(c, u, guild).await?,
+        (None, _) => return Ok(None),
+    };
+    if !matches!(n, Notice::Reminder { .. }) && (e.muted || e.level == NotificationLevel::Nothing) {
+        return Ok(None);
+    }
+    Ok(Some(Decision {
+        mentioned: false,
+        push: e.mobile_push,
+    }))
+}
+
 /// A mention was stored (`mentions::persist`, on send and edit): record which
 /// mentioned people must not count it: they ignore the author, or every way
 /// they were mentioned (@everyone/@here, a role) is one they suppress.

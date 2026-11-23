@@ -4,7 +4,7 @@
 //! awards the rest, and creates custom badges, with the offline admin CLI:
 //! `sticktalk-server admin badge ...`.
 use super::*;
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use clap::Subcommand;
 
 const YEAR_MS: u64 = 31_557_600_000;
@@ -139,22 +139,29 @@ pub(crate) async fn icon_endpoint(
     Path(b): Path<String>,
     h: HeaderMap,
 ) -> Result<Response> {
-    let (_core, mut c, _) = rest(&app, &h).await?;
+    let (core, mut c, _) = rest(&app, &h).await?;
+    drop(core);
     let b = http::url_id(&b)?;
     let icon: Vec<u8> = sqlx::query_scalar("SELECT icon FROM badges WHERE id=?")
         .bind(id(b)?)
         .fetch_optional(&mut *c)
         .await?
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
-    Ok((
-        [
-            ("content-type", "image/png"),
-            ("cache-control", "private, max-age=86400, immutable"),
-            ("x-content-type-options", "nosniff"),
-        ],
+    // Any signed-in account may see a badge, and a badge's icon never
+    // changes (a new icon is a new badge).
+    let tag = crate::caching::etag("badge", b.0, 0);
+    if crate::caching::fresh(&h, &tag) {
+        return Ok(crate::caching::not_modified(
+            crate::caching::Policy::Immutable,
+            &tag,
+        ));
+    }
+    Ok(crate::caching::image(
+        crate::caching::Policy::Immutable,
+        &tag,
+        "image/png",
         icon,
-    )
-        .into_response())
+    ))
 }
 
 /// `sticktalk-server admin badge ...`: the instance administrator's badges.

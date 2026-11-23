@@ -135,8 +135,11 @@ async fn blocking_keyword(
     .find(|h| matches!(h.rule.trigger, AutoModTrigger::Keyword { .. }) && h.rule.actions.block))
 }
 
-/// A name `u` gives to something in server `g` (a soundboard sound): refused
-/// when a blocking keyword rule matches it, and logged like a blocked message.
+/// A name `u` gives to something in server `g` (a soundboard sound, a
+/// nickname, an event, a Stage topic, an emoji or sticker): refused when a
+/// blocking keyword rule matches it, and logged like a blocked message.
+/// Manage Server is exempt. Call it before the command's transaction, so the
+/// log entry survives the refusal.
 pub(crate) async fn name_check(
     core: &mut Core,
     c: &mut SqliteConnection,
@@ -153,7 +156,33 @@ pub(crate) async fn name_check(
         return Ok(());
     }
     let roles = acl::role_ids(c, g, u).await?;
-    let Some(h) = blocking_keyword(core, c, g, &roles, &[], text).await? else {
+    screen_name(core, c, u, g, &roles, what, text).await
+}
+/// What someone not yet in server `g` writes to it (application answers):
+/// the server's blocking keyword rules, no exemptions.
+pub(crate) async fn outsider_check(
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    u: Id,
+    g: Id,
+    what: &str,
+    text: &str,
+) -> Result<()> {
+    screen_name(core, c, u, g, &[], what, text).await
+}
+async fn screen_name(
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    u: Id,
+    g: Id,
+    roles: &[Id],
+    what: &str,
+    text: &str,
+) -> Result<()> {
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+    let Some(h) = blocking_keyword(core, c, g, roles, &[], text).await? else {
         return Ok(());
     };
     let mut tx = c.begin().await?;
@@ -303,4 +332,80 @@ pub(crate) async fn call_check(c: &mut SqliteConnection, u: Id, channel: &Channe
         guild_timed_out(c, Id(g as u64), u).await?;
     }
     Ok(())
+}
+
+/// Text members write that is not a message, screened by AutoMod's blocking
+/// keyword rules before the command runs (security review F6): their own
+/// nickname, event names and descriptions, emoji and sticker names, and the
+/// answers of an application to join. (Stage topics are screened where the
+/// Stage signal is handled, uploads in their REST handlers.)
+pub(crate) async fn names(
+    core: &mut Core,
+    c: &mut SqliteConnection,
+    u: Id,
+    cmd: &Command,
+) -> Result<()> {
+    match cmd {
+        Command::Launch(LaunchCommand::SetNickname {
+            guild_id,
+            user_id,
+            nickname: Some(n),
+        }) if *user_id == u => name_check(core, c, u, *guild_id, "nickname", n).await,
+        Command::Launch(LaunchCommand::RenameEmoji { guild_id, name, .. }) => {
+            name_check(core, c, u, *guild_id, "emoji name", name).await
+        }
+        Command::Expression(ExpressionCommand::UpdateSticker {
+            guild_id,
+            name,
+            description,
+            ..
+        }) => {
+            name_check(core, c, u, *guild_id, "sticker name", name).await?;
+            name_check(core, c, u, *guild_id, "sticker description", description).await
+        }
+        Command::Schedule(ScheduleCommand::Create(e)) => {
+            name_check(core, c, u, e.guild_id, "event name", &e.name).await?;
+            name_check(core, c, u, e.guild_id, "event description", &e.description).await
+        }
+        Command::Schedule(ScheduleCommand::Update {
+            event_id, patch, ..
+        }) => {
+            let g: Option<i64> =
+                sqlx::query_scalar("SELECT guild_id FROM scheduled_events WHERE id=?")
+                    .bind(id(*event_id)?)
+                    .fetch_optional(&mut *c)
+                    .await?;
+            let Some(g) = g.map(|g| Id(g as u64)) else {
+                return Ok(());
+            };
+            if let Some(n) = &patch.name {
+                name_check(core, c, u, g, "event name", n).await?;
+            }
+            if let Some(d) = &patch.description {
+                name_check(core, c, u, g, "event description", d).await?;
+            }
+            Ok(())
+        }
+        Command::Community(CommunityCommand::Apply { via, answers, .. }) => {
+            let g = match via {
+                JoinVia::Discovery { guild_id } => Some(*guild_id),
+                JoinVia::Invite { code } if code.len() == 22 => {
+                    let g: Option<i64> =
+                        sqlx::query_scalar("SELECT guild_id FROM invites WHERE code_hash=?")
+                            .bind(crate::state::hash(code.as_bytes()))
+                            .fetch_optional(&mut *c)
+                            .await?;
+                    g.map(|g| Id(g as u64))
+                }
+                JoinVia::Invite { .. } => None,
+            };
+            if let Some(g) = g {
+                for a in answers {
+                    outsider_check(core, c, u, g, "application answer", a).await?;
+                }
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
 }

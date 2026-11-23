@@ -24,7 +24,7 @@ async fn data_export_includes_threads_votes_scheduled_sounds_and_backgrounds() {
          INSERT INTO users(id,username,password_hash,desired_presence,created_at) VALUES(70,'weather-bot','','online',0),(71,'hook-71','','online',0);\
          INSERT INTO apps(id,owner_id,bot_id,name,description,created_at) VALUES(72,1,70,'Weather','Forecasts',11);\
          INSERT INTO app_installs(app_id,guild_id,permissions,installed_by,installed_at) VALUES(72,10,0,1,12);\
-         INSERT INTO webhooks(id,guild_id,channel_id,user_id,name,token_hash,session_hash,creator_id,created_at) VALUES(73,10,11,71,'CI',X'01',X'02',1,13);",
+         INSERT INTO webhooks(id,guild_id,channel_id,user_id,name,token_hash,session_hash,creator_id,created_at) VALUES(73,10,11,71,'CI',X'01',X'02',1,13);         UPDATE users SET status_text='on a walk',status_emoji='🌲',status_clear_at=99999999999999,style='{\"font\":\"serif\"}' WHERE id=1;         INSERT INTO member_profiles VALUES(10,1,'{\"pronouns\":\"she/her\"}');         INSERT INTO profile_looks VALUES(1,'{\"decoration\":\"leaves\"}','[\"early\"]');         INSERT INTO badge_awards VALUES('early',1,3);         INSERT INTO user_themes(id,user_id,name,spec,created_at) VALUES(70,1,'Forest','{}',3),(71,2,'Bobs theme','{}',3);         INSERT INTO theme_settings VALUES(1,'{\"server_themes\":false}');         INSERT INTO global_notifications VALUES(1,'{\"sounds\":false}');         INSERT INTO notification_extras(user_id,scope,target_id,suppress_roles,mobile_push) VALUES(1,'guild',10,1,0);         INSERT INTO dm_privacy VALUES(1,'server_members');         INSERT INTO friend_nicknames VALUES(1,2,'Bobby');         INSERT INTO user_notes VALUES(1,2,'met at the meetup',4),(2,1,'bobs note about alice',4);         INSERT INTO reports(id,reporter_id,queue,guild_id,target,target_key,category,note,evidence,created_at) VALUES(80,1,'guild',10,'message','m:1','spam','looks like spam','{\"content\":\"secret words\"}',5),(81,2,'guild',10,'user','u:1','spam','bobs report','{}',5);",
     )
     .execute(&app.0.pool)
     .await
@@ -91,4 +91,33 @@ async fn data_export_includes_threads_votes_scheduled_sounds_and_backgrounds() {
     assert_eq!(files["camera-backgrounds/60.png"], b"\x89PNG");
     assert!(!files.contains_key("camera-backgrounds/61.png"));
     assert!(text("README.txt").contains("soundboard/"));
+    // Task `qa2`: profiles, cosmetics and badges, themes, notification and
+    // privacy settings, nicknames and notes, reports filed, custom status.
+    let account: Value = serde_json::from_slice(&files["account.json"]).unwrap();
+    assert_eq!(account["user"]["status_emoji"], "🌲");
+    assert_eq!(account["user"]["status_clear_at"], 99999999999999_i64);
+    assert_eq!(account["user"]["name_style"]["font"], "serif");
+    for (table, n) in [
+        ("member_profiles", 1),
+        ("profile_looks", 1),
+        ("badge_awards", 1),
+        ("user_themes", 1),
+        ("theme_settings", 1),
+        ("global_notifications", 1),
+        ("notification_extras", 1),
+        ("dm_privacy", 1),
+        ("friend_nicknames", 1),
+        ("user_notes", 1),
+    ] {
+        assert_eq!(settings[table].as_array().map(Vec::len), Some(n), "{table}");
+    }
+    let settings_text = text("settings.json");
+    assert!(settings_text.contains("Forest") && !settings_text.contains("Bobs theme"));
+    assert!(!settings_text.contains("bobs note"));
+    let reports = text("reports.json");
+    assert!(reports.contains("looks like spam") && !reports.contains("bobs report"));
+    assert!(
+        !reports.contains("secret words"),
+        "the reported content is not yours"
+    );
 }

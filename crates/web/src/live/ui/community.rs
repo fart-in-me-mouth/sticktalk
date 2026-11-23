@@ -312,7 +312,7 @@ fn onboarding_editor(a: &App) -> AnyView {
         .collect();
     roles.sort_by_key(|r| std::cmp::Reverse(r.position));
     let role_options = |chosen: &[Id]| {
-        roles.iter().map(|r| {let bad=r.permissions.intersects(ONBOARDING_FORBIDDEN);view!{<option value=r.id.0.to_string() selected=chosen.contains(&r.id) disabled=bad>{if bad{format!("{} (has moderator rights)",r.name)}else{r.name.clone()}}</option>}}).collect_view()
+        roles.iter().map(|r| {let bad=!onboarding_grantable(r.permissions);view!{<option value=r.id.0.to_string() selected=chosen.contains(&r.id) disabled=bad>{if bad{format!("{} (has more than member rights)",r.name)}else{r.name.clone()}}</option>}}).collect_view()
     };
     let question = |q: &OnboardingQuestion| {
         let p = format!("cm-q{}", q.id);

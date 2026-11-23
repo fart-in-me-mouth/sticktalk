@@ -605,6 +605,57 @@ async fn sharing_posts_a_card_and_event_invites_mark_new_members_interested() {
         serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap())
             .unwrap();
     assert_eq!(preview.event.event_id, e.id);
+    // The Join dialog's preview says there is a card, so the client asks for
+    // it; a plain invite says nothing and the client asks for nothing.
+    let preview_of = |code: String| {
+        let app = app.clone();
+        let token = token.clone();
+        async move {
+            let r = crate::http::router(app)
+                .oneshot(
+                    axum::http::Request::builder()
+                        .uri(format!("/api/v1/invites/{code}/preview"))
+                        .header("authorization", format!("Bearer {token}"))
+                        .body(axum::body::Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert!(r.status().is_success());
+            let v: serde_json::Value = serde_json::from_slice(
+                &axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap(),
+            )
+            .unwrap();
+            v["data"].clone()
+        }
+    };
+    assert_eq!(preview_of(invite.code.clone()).await["event"], true);
+    let plain = {
+        let mut core = app.0.core.lock().await;
+        let r = commands::execute(
+            &app,
+            &mut core,
+            &[1u8; 32],
+            Id(1),
+            CommandRequest {
+                nonce: 98,
+                command: Command::CreateInvite {
+                    guild_id: Id(10),
+                    ttl_seconds: 3600,
+                    max_uses: 5,
+                },
+            },
+        )
+        .await
+        .unwrap();
+        let CommandOutcome::Ok(CommandResult::Invite(i)) = r.outcome else {
+            panic!("{:?}", r.outcome)
+        };
+        i.code
+    };
+    let plain = preview_of(plain).await;
+    assert!(plain["name"].is_string());
+    assert!(plain.get("event").is_none(), "{plain}");
     {
         let mut core = app.0.core.lock().await;
         let r = commands::execute(
@@ -750,11 +801,20 @@ async fn cover_images_need_the_manage_right_and_a_real_picture() {
 #[tokio::test]
 async fn start_pushes_respect_do_not_disturb() {
     let (_dir, app) = fixture().await;
+    world(&app).await;
+    let e = event_of(
+        cmd(
+            &app,
+            1,
+            ScheduleCommand::Create(external(now() + DAY, EventRecurrence::None)),
+        )
+        .await,
+    );
     let mut c = app.0.pool.acquire().await.unwrap();
-    assert!(push_allowed(&mut c, Id(2), Id(10)).await.unwrap());
+    assert!(push_allowed(&mut c, Id(2), Id(10), e.id).await.unwrap());
     sqlx::query("UPDATE users SET desired_presence='dnd' WHERE id=2")
         .execute(&mut *c)
         .await
         .unwrap();
-    assert!(!push_allowed(&mut c, Id(2), Id(10)).await.unwrap());
+    assert!(!push_allowed(&mut c, Id(2), Id(10), e.id).await.unwrap());
 }

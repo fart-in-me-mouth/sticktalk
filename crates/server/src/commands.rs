@@ -486,8 +486,7 @@ pub(crate) async fn execute(
                 }
                 return Ok(result);
             }
-            core.rate(format!("cmd:{}",u.0),120.,20.)?;
-            if matches!(req.command,Command::SendMessage(_)) {core.rate(format!("send:{}",u.0),60.,10.)?;}
+            crate::budgets::charge(core,u,&req.command)?;
             let n:i64=sqlx::query_scalar("SELECT COUNT(*) FROM command_receipts WHERE session_hash=? AND expires_at>?").bind(key).bind(now() as i64).fetch_one(&mut *c).await?;require(n<256,ErrorCode::LimitExceeded)?;
         }
         let mut moderation_hook = Box::pin(crate::moderation::precheck(app, core, &mut c, u, &req.command)).await?;
@@ -509,6 +508,8 @@ pub(crate) async fn execute(
         let role_target=if let Command::SetMemberRole{user_id,..}=req.command {Some(user_id)}else{None};
         let deleted_channel=if let Command::DeleteChannel {channel_id}=req.command {Some(channel_id)} else {None};
         let call_acl_changed=crate::calls::acl_changed(&req.command);
+        // Announcement follows are kept only while their creator may (G1).
+        let follows_guild=match &req.command {Command::LeaveGuild{guild_id}|Command::KickMember{guild_id,..}|Command::BanMember{guild_id,..}=>Some(*guild_id),_=>acl_guild};
         let mut revoked_visibility=vec![];
         let mut result=Box::pin(mutate(&mut tx,core,key,u,req.command,&mut out)).await?;
         crate::moderation::record(&mut tx, u, &mut moderation_hook, &result).await?;
@@ -548,6 +549,7 @@ pub(crate) async fn execute(
 
         }
         if voice_acl_changed { crate::voice::reconcile(app, core, &mut c).await?; }
+        if let Some(g)=follows_guild { crate::threads::revalidate_follows(&mut c, g).await?; }
         if let Some(v)=block_pair {core.invalidate(&[u,v]);}
         if let Some(v)=role_target {core.invalidate(&[v]);}
         if call_acl_changed && !voice_acl_changed { crate::voice::reconcile(app, core, &mut c).await?; }

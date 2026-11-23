@@ -443,23 +443,29 @@ pub async fn thumbnail(
 }
 async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Response> {
     let token = bearer(&headers)?;
-    let mut core = app.0.core.lock().await;
     let mut c = app.0.pool.acquire().await?;
     let (_, u) = auth(&mut c, token).await?;
     // Its own budget: a screen of avatars and pictures must not use up the
-    // allowance for the rest of the API, nor the other way round.
-    core.rate(format!("file:{}", u.0), 600., 120.)?;
+    // allowance for the rest of the API, nor the other way round. The global
+    // lock is for the budget only; the checks below just read.
+    app.0
+        .core
+        .lock()
+        .await
+        .rate(format!("file:{}", u.0), 600., 120.)?;
     let row = sqlx::query("SELECT * FROM uploads WHERE id=?")
         .bind(id(a)?)
         .fetch_optional(&mut *c)
         .await?
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+    // Activity sessions live in memory: the lock is held for this look only.
+    let in_activity = crate::activities::file_access(&*app.0.core.lock().await, u, a);
     if let Some(expires) = row.get::<Option<i64>, _>("expires_at") {
         require(
             expires > now() as i64 && row.get::<i64, _>("owner_id") == id(u)?,
             ErrorCode::NotFound,
         )?;
-    } else if !crate::activities::file_access(&core, u, a)
+    } else if !in_activity
         && !crate::content::forwarded_file_access(&mut c, u, a).await?
         && !crate::profiles::file_access(&mut c, u, a).await?
         && !crate::identity::file_access(&mut c, u, a).await?
@@ -487,7 +493,6 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
         }
     }
     drop(c);
-    drop(core);
     serve(&app, a, &row, &headers, thumb).await
 }
 /// Sends upload `a` (its row) to someone already allowed to read it: the
@@ -524,7 +529,9 @@ pub(crate) async fn serve(
     );
     let mut builder = Response::builder()
         .header("etag", &etag)
-        .header("cache-control", "private, max-age=86400, immutable")
+        // Permission-checked: kept by the browser, asked for again before
+        // each use (`caching.rs`).
+        .header("cache-control", crate::caching::Policy::Checked.header())
         .header("x-content-type-options", "nosniff");
     if headers
         .get("if-none-match")
@@ -594,6 +601,7 @@ pub(crate) async fn serve(
     builder = builder
         .header("content-type", mime)
         .header("content-length", length);
+
     let body = app.0.tier.get(app, &key, start, length).await?;
     builder
         .body(body)

@@ -199,6 +199,12 @@ pub(super) async fn forward(
         ErrorCode::InvalidRequest,
     )?;
     text(c, u, source_channel, Permissions::READ_HISTORY).await?;
+    // A snapshot is shown to everyone who can read the destination, so one
+    // from an age-restricted conversation (or a thread inside one) goes only
+    // where readers have confirmed their age too (task `qa2`).
+    let restricted = !crate::moderation::age::roots(c, source_channel)
+        .await?
+        .is_empty();
     let original = message(c, u, source_channel, source_message, false).await?;
     // Forwarding a forward passes its snapshot on.
     let (content, files, created_at) = match &original.extra.forwarded {
@@ -215,6 +221,12 @@ pub(super) async fn forward(
     )?;
     let mut sent = vec![];
     for ch in destinations {
+        if restricted && crate::moderation::age::roots(c, ch).await?.is_empty() {
+            let mut e = Error::new(ErrorCode::Forbidden);
+            e.0.message =
+                "A message from an age-restricted channel can only be forwarded to another age-restricted channel.".into();
+            return Err(e);
+        }
         let (_, recipients) = destination(c, u, ch, !files.is_empty(), out).await?;
         let m = core.id().await?;
         sqlx::query(

@@ -16,6 +16,7 @@ mod announce;
 mod forum;
 #[cfg(test)]
 pub(crate) use announce::deliver_queue as deliver_crossposts;
+pub(crate) use announce::revalidate as revalidate_follows;
 mod routes;
 #[cfg(test)]
 mod tests;

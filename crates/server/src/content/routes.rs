@@ -4,7 +4,7 @@ use crate::http;
 use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,
-    response::{IntoResponse, Response},
+    response::Response,
     routing::get,
 };
 
@@ -79,17 +79,27 @@ async fn embed_image(
         .await
         .rate(format!("file:{}", u.0), 600., 120.)?;
     let (kind, bytes) = previews::image(&mut c, u, Id(ch), Id(m), index).await?;
-    Ok((
-        [
-            ("content-type", kind),
-            ("cache-control", "private, max-age=86400".into()),
-            ("x-content-type-options", "nosniff".into()),
-            (
-                "content-security-policy",
-                "default-src 'none'; sandbox".into(),
-            ),
-        ],
+    // A message's preview images change only when its text does (an edit
+    // fetches them again); the hash of the bytes names this version.
+    let version = {
+        use sha2::Digest;
+        let d = sha2::Sha256::digest(&bytes);
+        d[..8]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    };
+    let tag = crate::caching::etag("embed", m, format!("{index}-{version}"));
+    if crate::caching::fresh(&h, &tag) {
+        return Ok(crate::caching::not_modified(
+            crate::caching::Policy::Checked,
+            &tag,
+        ));
+    }
+    Ok(crate::caching::image(
+        crate::caching::Policy::Checked,
+        &tag,
+        &kind,
         bytes,
-    )
-        .into_response())
+    ))
 }

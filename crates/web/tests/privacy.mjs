@@ -60,7 +60,7 @@ try {
   await shot(alice,'status-menu');
   await alice.locator('[data-live="privacy:status,dnd"]').click();
   await alice.waitForFunction(()=>document.querySelector('.status-trigger')?.getAttribute('aria-label')?.includes('Do Not Disturb'));
-  await bob.waitForFunction(()=>document.querySelector('.friend-row .presence-dot.bg-\\[\\#F25F5C\\]'));
+  await bob.waitForFunction(()=>document.querySelector('.friend-row .presence-dot.bg-dnd'));
   await open(alice,'privacy-status');
   await alice.waitForSelector('.status-option[aria-pressed=true]:has-text("Back to Online")');
   await closeDialog(alice);

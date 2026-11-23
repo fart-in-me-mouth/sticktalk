@@ -102,6 +102,65 @@ function ask(title, body, label) {
     cancel.focus();
   });
 }
+// Links say where they go (security review G2). The app marks each web link
+// with its real host (ASCII, as the browser will use it). A masked link
+// (`[text](url)`), or one to a host this browser has not been told to trust,
+// asks first and names the host; "Always open" remembers the host here.
+const TRUSTED_HOSTS = 'sticktalk-trusted-hosts';
+function trustedHosts() {
+  try { return new Set(JSON.parse(localStorage.getItem(TRUSTED_HOSTS) ?? '[]')); } catch { return new Set(); }
+}
+function trustHost(host) {
+  try { localStorage.setItem(TRUSTED_HOSTS, JSON.stringify([...trustedHosts(), host].slice(-200))); } catch {}
+}
+function askLeaving(host, href, label) {
+  return new Promise((resolve) => {
+    document.getElementById('live-confirm')?.remove();
+    const dialog = document.createElement('dialog');
+    dialog.id = 'live-confirm';
+    dialog.className = 'confirm-dialog leaving-dialog';
+    dialog.setAttribute('aria-labelledby', 'live-confirm-title');
+    const heading = document.createElement('h2');
+    heading.id = 'live-confirm-title';
+    heading.textContent = `Open a link to ${host}?`;
+    const copy = document.createElement('p');
+    copy.textContent = label ? `The link reads “${label}” and goes to:` : 'This link goes to:';
+    const where = document.createElement('p');
+    where.className = 'leaving-url wrap-anywhere font-mono text-sm';
+    where.textContent = href;
+    const row = document.createElement('div');
+    row.className = 'confirm-actions';
+    const button = (text, cls, value) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = `button ${cls}`; b.textContent = text;
+      b.onclick = () => { answer = value; dialog.close(); };
+      return b;
+    };
+    let answer = null;
+    const cancel = button('Cancel', 'secondary', null);
+    row.append(cancel, button(`Always open ${host}`, 'secondary', 'trust'), button('Open Link', 'primary', 'open'));
+    dialog.append(heading, copy, where, row);
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+    dialog.addEventListener('keydown', (e) => e.stopPropagation());
+    dialog.addEventListener('close', () => { asking = null; resolve(answer); setTimeout(() => dialog.remove(), 0); });
+    asking = dialog;
+    placeQuestion();
+    cancel.focus();
+  });
+}
+document.addEventListener('click', async (e) => {
+  const a = e.target.closest?.('a[data-link-host]');
+  if (!a || e.defaultPrevented || e.button !== 0) return;
+  const host = a.dataset.linkHost;
+  if (!host || host === location.hostname || trustedHosts().has(host)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const masked = a.hasAttribute('data-masked');
+  const choice = await askLeaving(host, a.href, masked ? a.textContent.trim().slice(0, 80) : '');
+  if (!choice) return;
+  if (choice === 'trust') trustHost(host);
+  window.open(a.href, '_blank', 'noopener,noreferrer');
+}, true);
 // Everything a person does by click, key or menu goes through here. Actions the
 // app dispatches itself do not, so nothing is asked twice.
 async function request(action) {
@@ -427,6 +486,7 @@ export function beforeRender() {
     anchor: anchor?.dataset.liveMessage,
     anchorOffset: anchor && anchor.getBoundingClientRect().top - list.getBoundingClientRect().top,
     id: focus?.id,
+    focused: focus,
     // A focused button has no id: it is found again by what it does.
     key: focus?.dataset?.live ? ['live', focus.dataset.live] : focus?.dataset?.pick ? ['pick', focus.dataset.pick] : null,
     start: focus?.selectionStart,
@@ -443,7 +503,7 @@ export function beforeRender() {
     ].filter(e=>(e.dataset.dirty==='true'||e.closest('form')?.dataset.dirty==='true')&&!e.closest('[data-profiles-editor]')).map((e) => {
       const selector = e.id ? `#${CSS.escape(e.id)}` :
         ['group-user','member-role','role-bit','settings-search'].map(key => e.hasAttribute(`data-${key}`) ? `[data-${key}="${CSS.escape(e.getAttribute(`data-${key}`))}"]` : null).find(Boolean);
-      return [selector, e.value, e.type === 'checkbox' ? e.checked : null];
+      return [selector, e.value, e.type === 'checkbox' ? e.checked : null, e];
     }),
   };
 }
@@ -632,9 +692,11 @@ function restore() {
   if (saved) {
     if(saved.authUsername && $('#auth-username'))$('#auth-username').value=saved.authUsername;
     if ($(".live-modal")?.dataset.dialog === saved.dialog)
-      for (const [selector, value, checked] of saved.fields) {
+      for (const [selector, value, checked, before] of saved.fields) {
         const e = selector && $('.live-modal')?.querySelector(selector);
-        if (e) {
+        // Only a field the render replaced needs its value back: one that was
+        // kept holds what is typed now, which may be newer than this snapshot.
+        if (e && e !== before) {
           e.value = value;
           if (checked !== null) e.checked = checked;
           e.dataset.dirty='true';
@@ -650,7 +712,10 @@ function restore() {
     // not take the keyboard away. Elsewhere the button may now be off screen.
     const focus = document.getElementById(saved.id) ?? (saved.key &&
       [...($('.live-modal')?.querySelectorAll(`[data-${saved.key[0]}]`) ?? [])].find(e => e.dataset[saved.key[0]] === saved.key[1] && e.offsetParent));
-    if (focus && !composing) {
+    // Only when the render took focus away (the focused element was replaced):
+    // a snapshot restored after a later change must not move focus back.
+    const lost = !document.activeElement || document.activeElement === document.body || !document.contains(saved.focused);
+    if (focus && !composing && lost) {
       focus.focus({ preventScroll: true });
       if (saved.start != null && focus.type !== "color")
         try {
@@ -835,7 +900,9 @@ export function installPlatform() {
           const r=target.getBoundingClientRect();
           if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)return;
         }
-      e.preventDefault();
+      // A checkbox or radio keeps its own toggle (its action reads it): undoing
+      // it here would flip it back after the app had drawn the new state.
+      if (!target.matches('input[type=checkbox],input[type=radio]')) e.preventDefault();
       // Close the sheet and let its history entry go first. An action that opens
       // a dialog is then replayed after that entry is popped (navigation.js);
       // sent earlier, the pop would close the dialog it had just opened.

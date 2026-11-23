@@ -44,6 +44,25 @@ const SETTINGS_TABLES: &[&str] = &[
     "soundboard_favorites",
     "soundboard_entrance",
     "soundboard_entrance_enabled",
+    // Task `qa2`: profiles (per-server profiles, cosmetics and the badges
+    // shown, badges earned), themes and appearance, notification and privacy
+    // settings, friend nicknames, notes and ignores, expression settings,
+    // age confirmations and events you are interested in.
+    "member_profiles",
+    "profile_looks",
+    "badge_awards",
+    "user_themes",
+    "theme_settings",
+    "global_notifications",
+    "notification_extras",
+    "dm_privacy",
+    "dm_privacy_servers",
+    "friend_nicknames",
+    "user_notes",
+    "user_ignores",
+    "expression_settings",
+    "age_confirmations",
+    "event_interest",
 ];
 
 #[derive(Default)]
@@ -602,7 +621,7 @@ pub(super) fn build(
     };
     let now = state::now();
     let me = a
-        .rows(sqlx::query("SELECT id,username,display_name,status_text,desired_presence,created_at,avatar_id,password_hash<>'' AS has_password FROM users WHERE id=?").bind(u))?
+        .rows(sqlx::query("SELECT id,username,display_name,status_text,status_emoji,status_clear_at,style,desired_presence,created_at,avatar_id,password_hash<>'' AS has_password FROM users WHERE id=?").bind(u))?
         .pop()
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
     let username: String = me.get("username");
@@ -642,6 +661,11 @@ pub(super) fn build(
                 "username": username,
                 "display_name": me.get::<Option<String>, _>("display_name"),
                 "status_text": me.get::<Option<String>, _>("status_text"),
+                "status_emoji": me.get::<Option<String>, _>("status_emoji"),
+                "status_clear_at": me.get::<Option<i64>, _>("status_clear_at"),
+                "name_style": me
+                    .get::<Option<String>, _>("style")
+                    .and_then(|s| serde_json::from_str::<Value>(&s).ok()),
                 "presence": me.get::<String, _>("desired_presence"),
                 "created_at": me.get::<i64, _>("created_at"),
             },
@@ -723,6 +747,15 @@ pub(super) fn build(
         .map(|r| json!({"kind": r.get::<String,_>("kind"), "since": r.get::<i64,_>("since"), "user": {"id": big(r.get("id")), "username": r.get::<String,_>("username"), "display_name": r.get::<Option<String>,_>("display_name")}}))
         .collect();
     a.json("relationships.json", &Value::Array(relationships))?;
+
+    // Reports you filed: what you reported and what became of it. The
+    // reported content (`evidence`) is someone else's and stays out.
+    let reports: Vec<Value> = a
+        .rows(sqlx::query("SELECT id,queue,guild_id,target,target_user_id,category,note,status,action,created_at,resolved_at FROM reports WHERE reporter_id=? ORDER BY id").bind(u))?
+        .iter()
+        .map(row_json)
+        .collect();
+    a.json("reports.json", &Value::Array(reports))?;
 
     // Messages: one file per conversation, streamed a page at a time.
     let channels = a.rows(sqlx::query("SELECT c.id,c.kind,c.name,c.guild_id,g.name AS guild_name,(SELECT COUNT(*) FROM messages m WHERE m.channel_id=c.id AND m.author_id=? AND m.deleted_at IS NULL) AS count FROM channels c LEFT JOIN guilds g ON g.id=c.guild_id WHERE c.id IN (SELECT DISTINCT channel_id FROM messages WHERE author_id=? AND deleted_at IS NULL) ORDER BY c.id").bind(u).bind(u))?;
@@ -837,8 +870,9 @@ pub(super) fn build(
     // Human-readable index. Every user-controlled string is HTML-escaped.
     let readme = format!(
         "StickTalk data export for @{username}\nGenerated {now} (Unix milliseconds) by {server}.\n\n\
-account.json        Your account, profile, sign-in methods and active sessions.\n\
-settings.json       Your settings, saved messages, pins, favorites and folders.\n\
+account.json        Your account, profile, custom status, name style, sign-in methods and active sessions.\n\
+settings.json       Your settings (notifications, privacy, appearance and themes, server profiles, cosmetics and badges, friend nicknames, notes, ignored people), saved messages, pins, favorites and folders.\n\
+reports.json        Reports you filed and what became of them.\n\
 servers.json        Servers you are in, and your role in each.\n\
 relationships.json  Friends, friend requests and blocked people.\n\
 messages/           One JSON file per conversation with every message you wrote ({total} in {conversations} conversations). messages/index.json lists them.\n\
@@ -856,7 +890,7 @@ All times are Unix milliseconds (UTC). IDs are strings. Open index.html in a bro
     );
     a.text("README.txt", &readme)?;
     let mut html = format!(
-        "<!doctype html><meta charset=utf-8><title>StickTalk data export</title><style>body{{font:15px system-ui,sans-serif;max-width:760px;margin:32px auto;padding:0 16px;color:#111}}td,th{{padding:4px 12px 4px 0;text-align:left}}</style><h1>StickTalk data for @{}</h1><p>{} messages in {} conversations, {} servers, {} of {} attachments included.</p><h2>Files</h2><ul><li><a href=\"account.json\">account.json</a><li><a href=\"settings.json\">settings.json</a><li><a href=\"servers.json\">servers.json</a><li><a href=\"relationships.json\">relationships.json</a><li><a href=\"messages/index.json\">messages/index.json</a><li><a href=\"attachments/index.json\">attachments/index.json</a><li><a href=\"threads.json\">threads.json</a><li><a href=\"scheduled.json\">scheduled.json</a><li><a href=\"soundboard/index.json\">soundboard/index.json</a><li><a href=\"camera-backgrounds/index.json\">camera-backgrounds/index.json</a></ul><h2>Conversations</h2><table><tr><th>Conversation<th>Server<th>Messages",
+        "<!doctype html><meta charset=utf-8><title>StickTalk data export</title><style>body{{font:15px system-ui,sans-serif;max-width:760px;margin:32px auto;padding:0 16px;color:#111}}td,th{{padding:4px 12px 4px 0;text-align:left}}</style><h1>StickTalk data for @{}</h1><p>{} messages in {} conversations, {} servers, {} of {} attachments included.</p><h2>Files</h2><ul><li><a href=\"account.json\">account.json</a><li><a href=\"settings.json\">settings.json</a><li><a href=\"servers.json\">servers.json</a><li><a href=\"relationships.json\">relationships.json</a><li><a href=\"reports.json\">reports.json</a><li><a href=\"messages/index.json\">messages/index.json</a><li><a href=\"attachments/index.json\">attachments/index.json</a><li><a href=\"threads.json\">threads.json</a><li><a href=\"scheduled.json\">scheduled.json</a><li><a href=\"soundboard/index.json\">soundboard/index.json</a><li><a href=\"camera-backgrounds/index.json\">camera-backgrounds/index.json</a></ul><h2>Conversations</h2><table><tr><th>Conversation<th>Server<th>Messages",
         html_escape(&username),
         total,
         channels.len(),

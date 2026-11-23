@@ -243,8 +243,12 @@ fn inside_options(a: &App, selected: Option<Id>, moving: Option<Id>) -> AnyView 
     }
     view!{<option value="" selected=selected.is_none()>"None (top level)"</option>{options.into_iter().collect_view()}}.into_any()
 }
-/// You are online to yourself; everyone else is as the server last reported.
+/// You are online to yourself; everyone else is as the server last reported,
+/// except someone you ignore, whose presence you do not see (privacy.md).
 fn online(a: &App, user: Id) -> bool {
+    if super::privacy::ignored(user) {
+        return false;
+    }
     match a.model.presences.get(&user) {
         Some(PresenceStatus::Offline | PresenceStatus::Invisible) => false,
         Some(_) => true,
@@ -254,6 +258,7 @@ fn online(a: &App, user: Id) -> bool {
 /// An avatar with its presence dot (UI_SPEC colors): online, idle, do not disturb.
 fn avatar_status(a: &App, u: &UserSummary) -> AnyView {
     let dot = match a.model.presences.get(&u.id) {
+        _ if super::privacy::ignored(u.id) => "",
         Some(PresenceStatus::Idle) => "bg-idle",
         Some(PresenceStatus::Dnd) => "bg-dnd",
         _ if online(a, u.id) => "bg-online",
@@ -546,7 +551,7 @@ fn chat(a: &App, title: &str) -> AnyView {
         }).collect_view()}
         <div style=format!("height:{}px",bottom*88) aria-hidden="true"></div>
         {if bottom==0{apps::ephemeral_list(a,c)}else{().into_any()}}
-        </div><div class="composer-wrap relative px-4 pb-(--safe-bottom) phone:px-2">
+        </div><div class="composer-wrap @container/composer relative px-4 pb-(--safe-bottom) phone:px-2">
         {if let Some(reply)=a.reply{let target=messages.and_then(|m|m.get(&reply));view!{<div class="reply-preview flex items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11"><span class="min-w-0 flex-1 truncate">{format!("Replying to {}",target.map_or("message".into(),|m|a.model.name(m.author_id)))}{target.map(|m|view!{<span class="text-muted-foreground">{format!(" · {}",preview(a,m))}</span>})}</span>{ib_plain("x","Cancel Reply","cancel-reply")}</div>}.into_any()}else{().into_any()}}
         {content::scheduled_bar(a,c)}
         {threads::composer_note(a,c)}
@@ -557,7 +562,7 @@ fn chat(a: &App, title: &str) -> AnyView {
         {if a.completions.is_empty(){().into_any()}else{view!{<div id="live-completions" class="autocomplete absolute inset-x-4 bottom-full z-40 max-h-[min(320px,50vh)] overflow-y-auto rounded-lg border bg-popover p-2 shadow-lg" role="listbox" aria-label="Suggestions">{a.completions.iter().enumerate().map(|(i,(label,insert,kind))|view!{<button class="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-sm aria-selected:bg-secondary touch:min-h-11" id=format!("completion-{i}") role="option" aria-selected=if i==0{"true"}else{"false"} data-completion=insert.clone()><span class="completion-avatar grid size-6 flex-none place-items-center overflow-hidden rounded-full bg-sidebar text-xs [&_.icon]:size-4">{match kind.as_str() {"Role"=>icon("shield"),"Channel"=>icon("hash"),"Emoji"=>view!{<span>{insert.clone()}</span>}.into_any(),"Custom"=>expression::completion_icon(a,insert),_=>view!{<span>{label.chars().take(1).collect::<String>()}</span>}.into_any()}}</span><span>{label.clone()}</span><small class="ml-auto">{if kind=="User"{insert.clone()}else{kind.clone()}}</small></button>}).collect_view()}</div>}.into_any()}}
         {moderation::composer_notice(a,c)}
         {community::composer_notice(a,c)}
-        <div class="composer flex items-end gap-2 rounded-lg bg-muted px-3 py-2 phone:gap-1 phone:px-2 phone:py-1"><button type="button" class="icon-button" title="Add Attachment" aria-label="Add Attachment" data-live="pick-file">{icon("plus-circle")}</button><input type="file" id="live-file" multiple hidden/><label class="composer-input flex min-w-0 flex-1"><span class="sr-only">"Message"</span><textarea class="max-h-[40vh] min-h-8 flex-1 resize-none rounded-none border-0 bg-transparent px-0 py-1 text-[15px] leading-6 shadow-none focus-visible:ring-0 touch:min-h-11 touch:py-2.5 phone:text-base" id="live-input" rows="1" placeholder=placeholder aria-label="Message" role="combobox" aria-autocomplete="list" aria-controls="live-completions" aria-expanded=(!a.completions.is_empty()).to_string()></textarea></label><span id="live-count" class="composer-count" hidden></span><button class="composer-gif inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent touch:min-h-11 touch:min-w-11" data-live="dialog:gif">"GIF"</button>{ib_plain("smile","Emoji Picker","dialog:emoji")}{expression::composer_button()}<button class="composer-kaomoji inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent phone:hidden" aria-label="Kaomoji" title="Kaomoji" data-live="dialog:kaomoji">"(^▽^)"</button>{content::composer_tools(a)}<button class="icon-button composer-send" aria-label="Send Message" title="Send Message" data-live="send-input" disabled={a.uploading||a.preparing_send||!a.ready}>{icon("send")}</button></div>
+        <div class="composer flex items-end gap-2 rounded-lg bg-muted px-3 py-2 phone:gap-1 phone:px-2 phone:py-1 @max-[24rem]/composer:gap-1 @max-[24rem]/composer:px-2"><button type="button" class="icon-button" title="Add Attachment" aria-label="Add Attachment" data-live="pick-file">{icon("plus-circle")}</button><input type="file" id="live-file" multiple hidden/><label class="composer-input flex min-w-0 flex-1"><span class="sr-only">"Message"</span><textarea class="max-h-[40vh] min-h-8 flex-1 resize-none rounded-none border-0 bg-transparent px-0 py-1 text-[15px] leading-6 shadow-none focus-visible:ring-0 touch:min-h-11 touch:py-2.5 phone:text-base" id="live-input" rows="1" placeholder=placeholder aria-label="Message" role="combobox" aria-autocomplete="list" aria-controls="live-completions" aria-expanded=(!a.completions.is_empty()).to_string()></textarea></label><span id="live-count" class="composer-count" hidden></span><button class="composer-gif inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent touch:min-h-11 touch:min-w-11 @max-[32rem]/composer:hidden" data-live="dialog:gif">"GIF"</button>{ib_plain("smile","Emoji Picker","dialog:emoji")}<span class="contents @max-[32rem]/composer:hidden">{expression::composer_button()}</span><button class="composer-kaomoji inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent @max-[32rem]/composer:hidden" aria-label="Kaomoji" title="Kaomoji" data-live="dialog:kaomoji">"(^▽^)"</button>{content::composer_tools(a)}<button class="icon-button composer-send" aria-label="Send Message" title="Send Message" data-live="send-input" disabled={a.uploading||a.preparing_send||!a.ready}>{icon("send")}</button></div>
         <div class="typing-indicator h-6 text-xs leading-6 text-subtle">{expression::typing(a,c)}</div>
         </div></div>}.into_any()
 }
@@ -610,8 +615,13 @@ pub(super) fn invite_text(text: &str, class: &'static str) -> AnyView {
         .into_any()
 }
 /// A link in a message; an invite link is marked for Streamer Mode.
-fn message_link(url: &str, text: &str) -> AnyView {
-    view!{<a class=if invite_url(url){"streamer-invite"}else{""} href=url.to_owned() target="_blank" rel="noopener noreferrer">{text.to_owned()}</a>}.into_any()
+/// A link in a message. `masked`: its text is not its address. The host and
+/// the mark are what the link checks (public/links.js or its successor) read.
+fn message_link(url: &str, text: &str, masked: bool) -> AnyView {
+    let host = sticktalk_client_core::urls::parse(url)
+        .map(|u| u.host)
+        .unwrap_or_default();
+    view!{<a class=if invite_url(url){"streamer-invite"}else{""} href=url.to_owned() target="_blank" rel="noopener noreferrer" title=host.clone() data-link-host=host data-masked=masked.then_some("")>{text.to_owned()}</a>}.into_any()
 }
 fn inline(a: &App, v: &Inline, m: &Message) -> AnyView {
     let style = format!(
@@ -635,7 +645,7 @@ fn inline(a: &App, v: &Inline, m: &Message) -> AnyView {
             ""
         }
     );
-    let body=match &v.target{Some(Target::Mention(u))if m.mention_ids.contains(u)=>view!{<button class="mention" data-live=format!("profile:{}",u.0)>{format!("@{}",a.model.name(*u))}</button>}.into_any(),Some(Target::Auto(url)|Target::Masked(url))if url.starts_with("https://")||url.starts_with("http://")=>message_link(url,&v.text),_ if v.style.code=>view!{<span>{v.text.clone()}</span>}.into_any(),_=>expression::text(a,&v.text)};
+    let body=match &v.target{Some(Target::Mention(u))if m.mention_ids.contains(u)=>view!{<button class="mention" data-live=format!("profile:{}",u.0)>{format!("@{}",a.model.name(*u))}</button>}.into_any(),Some(target@(Target::Auto(url)|Target::Masked(url)))if url.starts_with("https://")||url.starts_with("http://")=>message_link(url,&v.text,matches!(target,Target::Masked(_))),_ if v.style.code=>view!{<span>{v.text.clone()}</span>}.into_any(),_=>expression::text(a,&v.text)};
     if v.spoiler.is_some() {
         view!{<button class="live-spoiler" data-spoiler aria-label="Reveal spoiler">{body}</button>}.into_any()
     } else {
@@ -761,7 +771,7 @@ fn voice(a: &App) -> AnyView {
     people.extend(call_views::people(a));
     people.sort();
     people.dedup();
-    view!{<div class="voice-view flex min-h-0 flex-1 flex-col bg-rail p-4 phone:p-2 phone:pb-[max(8px,var(--safe-bottom))]" data-call-channel=a.voice_channel.map_or(String::new(),|id|id.0.to_string())><ul id="live-call-people" hidden>{people.into_iter().map(|u|view!{<li data-user=u.0.to_string() data-name=a.model.name(u) data-tag=identity::tag_text(a,u) data-avatar=a.model.users.get(&u).and_then(|u|u.avatar_id).map_or(String::new(),|id|format!("/api/v1/files/{}/thumbnail",id.0))></li>}).collect_view()}</ul><button class="call-minimize flex min-h-11 flex-none items-center gap-2 px-2 text-[13px] text-subtle" data-live="media:minimize" aria-label="Minimize call">{icon("chevron-down")}<span>"Minimize call"</span></button>{call_views::ring_list(a)}{activities::banner(a)}{activities::slot(a)}<div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls flex flex-none justify-center gap-3 p-3 phone:gap-2 phone:px-0 [&_.icon-button]:size-12 [&_.icon-button]:rounded-full [&_.icon-button]:bg-muted [&_[data-live='media:leave']]:w-20 [&_[data-live='media:leave']]:rounded-[32px] [&_[data-live='media:leave']]:bg-destructive [&_[data-live='media:leave']]:text-primary-foreground">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share contents">{ib("monitor","Share Screen","media:share")}</span><span class="contents phone:hidden">{ib("volume-2","Audio Devices","media:output")}</span>{call_views::controls(a)}{activities::controls(a)}{call_extras::controls(a)}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection m-0 min-h-4 text-center text-[13px] text-subtle" role="status">"Connecting…"</p></div>}.into_any()
+    view!{<div class="voice-view flex min-h-0 min-w-0 flex-1 flex-col bg-rail p-4 phone:p-2 phone:pb-[max(8px,var(--safe-bottom))]" data-call-channel=a.voice_channel.map_or(String::new(),|id|id.0.to_string())><ul id="live-call-people" hidden>{people.into_iter().map(|u|view!{<li data-user=u.0.to_string() data-name=a.model.name(u) data-tag=identity::tag_text(a,u) data-avatar=a.model.users.get(&u).and_then(|u|u.avatar_id).map_or(String::new(),|id|format!("/api/v1/files/{}/thumbnail",id.0))></li>}).collect_view()}</ul><button class="call-minimize flex min-h-11 flex-none items-center gap-2 px-2 text-[13px] text-subtle" data-live="media:minimize" aria-label="Minimize call">{icon("chevron-down")}<span>"Minimize call"</span></button>{call_views::ring_list(a)}{activities::banner(a)}{activities::slot(a)}<div id="live-media-stage" class="participant-grid" aria-label="Call participants"></div><div class="call-controls flex flex-none flex-wrap justify-center gap-3 p-3 phone:gap-2 phone:px-0 [&_.icon-button]:size-12 [&_.icon-button]:rounded-full [&_.icon-button]:bg-muted [&_[data-live='media:leave']]:w-20 [&_[data-live='media:leave']]:rounded-[32px] [&_[data-live='media:leave']]:bg-destructive [&_[data-live='media:leave']]:text-primary-foreground">{ib("mic","Mute","media:mute")}{ib("headphones","Deafen","media:deafen")}{ib("video","Camera","media:camera")}<span class="desktop-share contents">{ib("monitor","Share Screen","media:share")}</span><span class="contents phone:hidden">{ib("volume-2","Audio Devices","media:output")}</span>{call_views::controls(a)}{activities::controls(a)}{call_extras::controls(a)}{ib("phone-off","Leave Call","media:leave")}</div><p id="live-call-status" class="call-connection m-0 min-h-4 text-center text-[13px] text-subtle" role="status">"Connecting…"</p></div>}.into_any()
 }
 fn form(title: &str, kind: &str, fields: AnyView) -> AnyView {
     form_with(title, kind, fields, "", true)
@@ -986,84 +996,9 @@ fn timestamp(ms: u64) -> String {
     )
 }
 
+use crate::permission_lists::ROLE_PERMISSIONS;
 fn role_permissions(role: &Role) -> AnyView {
-    let groups = [
-        (
-            "General",
-            vec![
-                ("View Channels", Permissions::VIEW_CHANNEL),
-                ("Read History", Permissions::READ_HISTORY),
-                ("Manage Server", Permissions::MANAGE_GUILD),
-                ("Manage Channels", Permissions::MANAGE_CHANNELS),
-                ("Manage Roles", Permissions::MANAGE_ROLES),
-                ("Create Invites", Permissions::CREATE_INVITES),
-                ("Manage Expressions", Permissions::MANAGE_EMOJI),
-            ],
-        ),
-        (
-            "Text",
-            vec![
-                ("Send Messages", Permissions::SEND_MESSAGES),
-                ("Attach Files", Permissions::ATTACH_FILES),
-                ("Add Reactions", Permissions::ADD_REACTIONS),
-                ("Use External Emoji", Permissions::USE_EXTERNAL_EMOJI),
-                ("Use External Stickers", Permissions::USE_EXTERNAL_STICKERS),
-                (
-                    "Send Text-to-Speech Messages",
-                    Permissions::SEND_TTS_MESSAGES,
-                ),
-                ("Manage Messages", Permissions::MANAGE_MESSAGES),
-                ("Publish Messages", Permissions::PUBLISH_MESSAGES),
-            ],
-        ),
-        (
-            "Threads",
-            vec![
-                ("Create Public Threads", Permissions::CREATE_PUBLIC_THREADS),
-                (
-                    "Create Private Threads",
-                    Permissions::CREATE_PRIVATE_THREADS,
-                ),
-                (
-                    "Send Messages in Threads",
-                    Permissions::SEND_MESSAGES_IN_THREADS,
-                ),
-                ("Manage Threads", Permissions::MANAGE_THREADS),
-            ],
-        ),
-        (
-            "Voice & Video",
-            vec![
-                ("Connect", Permissions::CONNECT),
-                ("Speak", Permissions::SPEAK),
-                ("Share Screen", Permissions::STREAM),
-                ("Video", Permissions::VIDEO),
-                ("Voice Activity", Permissions::USE_VOICE_ACTIVITY),
-                ("Use Soundboard", Permissions::USE_SOUNDBOARD),
-                ("Manage Soundboard", Permissions::MANAGE_SOUNDBOARD),
-                ("Use Activities", Permissions::USE_ACTIVITIES),
-                ("Request to Speak", Permissions::REQUEST_TO_SPEAK),
-            ],
-        ),
-        (
-            "Events",
-            vec![
-                ("Create Events", Permissions::CREATE_EVENTS),
-                ("Manage Events", Permissions::MANAGE_EVENTS),
-            ],
-        ),
-        (
-            "Moderation",
-            vec![
-                ("Kick Members", Permissions::KICK_MEMBERS),
-                ("Ban Members", Permissions::BAN_MEMBERS),
-                ("Time Out Members", Permissions::MODERATE_MEMBERS),
-                ("View Audit Log", Permissions::VIEW_AUDIT_LOG),
-                ("Administrator", Permissions::ADMINISTRATOR),
-            ],
-        ),
-    ];
-    view!{{groups.into_iter().map(|(title,permissions)|view!{<section class="permission-group [&+&]:mt-6 [&+&]:border-t [&+&]:pt-6 [&_.live-checkbox]:border-b"><h3 class="category mb-1">{title}</h3>{permissions.into_iter().map(|(label,bit)|view!{<label class="live-checkbox"><span>{label}</span><input type="checkbox" checked=role.permissions.contains(bit) data-role-bit=bit.bits().to_string()/></label>}).collect_view()}</section>}).collect_view()}}.into_any()
+    view!{{ROLE_PERMISSIONS.iter().map(|&(title,permissions)|view!{<section class="permission-group [&+&]:mt-6 [&+&]:border-t [&+&]:pt-6 [&_.live-checkbox]:border-b"><h3 class="category mb-1">{title}</h3>{permissions.iter().map(|&(label,bit)|view!{<label class="live-checkbox"><span>{label}</span><input type="checkbox" checked=role.permissions.contains(bit) data-role-bit=bit.bits().to_string()/></label>}).collect_view()}</section>}).collect_view()}}.into_any()
 }
 
 #[lazy]

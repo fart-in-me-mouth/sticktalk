@@ -388,11 +388,12 @@ pub(crate) fn call(app: &App, user: Id, channel: Id, caller: Id) {
 async fn call_allowed(c: &mut SqliteConnection, user: Id, channel: Id, caller: Id) -> Result<bool> {
     db::enabled(c, user).await?;
     db::access(c, user, channel, Permissions::VIEW_CHANNEL).await?;
-    let dnd: bool = sqlx::query_scalar("SELECT desired_presence='dnd' FROM users WHERE id=?")
-        .bind(db::id(user)?)
-        .fetch_one(&mut *c)
-        .await?;
-    Ok(!dnd && !db::blocked(c, user, caller).await?)
+    // The one notification decision: a blocked or ignored caller, a hidden
+    // message request, Do Not Disturb, a muted conversation.
+    let notice = crate::privacy::notify::Notice::Ring { channel, caller };
+    Ok(crate::privacy::notify::notice(c, user, notice)
+        .await?
+        .is_some_and(|d| d.push))
 }
 async fn deliver_call(app: &App, user: Id, channel: Id, caller: Id) -> Result<()> {
     let mut c = app.0.pool.acquire().await?;
@@ -622,12 +623,13 @@ pub(crate) async fn reminder(app: &App, user: Id, channel: Id, message: Id) -> R
             )
             .await?;
             db::message(&mut c, user, channel, message, false).await?;
-            let dnd: bool =
-                sqlx::query_scalar("SELECT desired_presence='dnd' FROM users WHERE id=?")
-                    .bind(db::id(user)?)
-                    .fetch_one(&mut *c)
-                    .await?;
-            Ok::<bool, Error>(!dnd)
+            // The one notification decision (`privacy::notify::notice`).
+            let notice = crate::privacy::notify::Notice::Reminder { channel };
+            Ok::<bool, Error>(
+                crate::privacy::notify::notice(&mut c, user, notice)
+                    .await?
+                    .is_some_and(|d| d.push),
+            )
         }
     };
     if !allowed(app).await? {
@@ -694,7 +696,7 @@ async fn deliver_event(app: &App, user: Id, guild: Id, event: Id) -> Result<()> 
     }
     let mut c = app.0.pool.acquire().await?;
     db::enabled(&mut c, user).await?;
-    if !crate::schedule::push_allowed(&mut c, user, guild).await? {
+    if !crate::schedule::push_allowed(&mut c, user, guild, event).await? {
         return Ok(());
     }
     let rows=sqlx::query("SELECT p.id,p.endpoint,p.p256dh,p.auth FROM push_subscriptions p JOIN sessions s ON s.token_hash=p.session_hash WHERE s.user_id=? AND s.expires_at>? LIMIT 25").bind(db::id(user)?).bind(state::now() as i64).fetch_all(&mut *c).await?;

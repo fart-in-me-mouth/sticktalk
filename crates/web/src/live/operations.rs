@@ -293,23 +293,26 @@ pub(super) fn action(app: Shared, raw: &str) {
                 Feature::Community,
                 Call::Other("gate", code.clone()),
             );
-            feature(
-                app.clone(),
-                Feature::Stage,
-                Call::Other("invite", code.clone()),
-            );
             spawn_local(async move {
                 let found = http
                     .json::<Snapshot<InvitePreview>>(&format!("/invites/{code}/preview"))
                     .await
                     .map(|p| p.data);
-                let mut a = app.borrow_mut();
-                if a.dialog == "join"
-                    && a.dialog_generation == generation
-                    && a.invite_wanted == code
+                let event = matches!(&found, Ok(p) if p.event);
                 {
-                    a.invite_preview = Some((code, found));
+                    let mut a = app.borrow_mut();
+                    if a.dialog != "join"
+                        || a.dialog_generation != generation
+                        || a.invite_wanted != code
+                    {
+                        return;
+                    }
+                    a.invite_preview = Some((code.clone(), found));
                     a.touch();
+                }
+                // Only an invite to an event has a card to fetch.
+                if event {
+                    feature(app, Feature::Stage, Call::Other("invite", code));
                 }
             });
         }
@@ -995,16 +998,44 @@ fn send_prepared(app: Shared, content: String) {
     a.reply = None;
     media_action(&format!("sent:{}", channel_id.0));
 }
+thread_local! {
+    /// A read marker was sent less than `READ_GAP_MS` ago: the next one waits
+    /// for the end of the gap (see `mark_read`).
+    static READ_WAITING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+const READ_GAP_MS: u64 = 1_000;
+/// Mark the open conversation read up to its newest message, when you can see
+/// it. Called for every message that lands in front of you, so in a busy
+/// conversation the markers are coalesced: the first goes at once, the rest
+/// as one at the end of a one-second gap (the newest message then). Read
+/// markers have their own server budget (`budgets.rs`), and this keeps them
+/// far inside it.
 pub(super) fn mark_read(app: &Shared) {
-    if document().hidden() || !document().has_focus().unwrap_or(false) {
+    if READ_WAITING.with(|w| w.get()) {
         return;
+    }
+    if send_read(app) {
+        READ_WAITING.with(|w| w.set(true));
+        let app = app.clone();
+        spawn_local(async move {
+            Browser.sleep(READ_GAP_MS).await;
+            READ_WAITING.with(|w| w.set(false));
+            // Anything newer that arrived meanwhile (sent only if it is newer
+            // than what the server has).
+            send_read(&app);
+        });
+    }
+}
+fn send_read(app: &Shared) -> bool {
+    if document().hidden() || !document().has_focus().unwrap_or(false) {
+        return false;
     }
     if document()
         .get_element_by_id("live-messages")
         .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
         .is_none_or(|e| e.scroll_height() - e.scroll_top() - e.client_height() > 96)
     {
-        return;
+        return false;
     }
     let mut a = app.borrow_mut();
     if let Some(c) = a.channel {
@@ -1015,11 +1046,17 @@ pub(super) fn mark_read(app: &Shared) {
             .and_then(|m| m.keys().next_back())
             .copied()
         {
-            if let Some(cmd) = a.model.mark_read_command(c, last) {
+            // Not sent twice while the server's answer is on its way.
+            let sent = a.pending.values().any(|(cmd, _)| {
+                matches!(cmd, Command::MarkRead { channel_id, message_id } if *channel_id == c && *message_id >= last)
+            });
+            if let Some(cmd) = a.model.mark_read_command(c, last).filter(|_| !sent) {
                 a.command(cmd);
+                return true;
             }
         }
     }
+    false
 }
 
 pub(super) fn load_channel(app: Shared, c: Id, rank: Option<u64>) {
@@ -2330,8 +2367,17 @@ fn respond(
                     // The authorized InviteUpsert event owns the current code.
                 }
                 CommandResult::Role(r) => {
-                    let _ = r; // RolesUpdated owns the projection.
-                    a.dialog = "roles".into();
+                    // RolesUpdated owns the projection. A saved role's editor
+                    // goes back to the list; a created role leaves the dialog
+                    // as it is (the person may already have opened it: the
+                    // RolesUpdated event can arrive before this answer).
+                    if matches!(
+                        operation,
+                        Some(Command::Launch(LaunchCommand::UpdateRole { .. }))
+                    ) && a.dialog == format!("role:{}", r.id.0)
+                    {
+                        a.dialog = "roles".into();
+                    }
                 }
                 CommandResult::Subscription { presences } => {
                     for p in presences {

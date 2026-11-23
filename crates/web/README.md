@@ -170,11 +170,11 @@ images, emoji PNGs, fixture JS and its stylesheet. To run historical visual test
 
 ```powershell
 $env:STICKTALK_WEB_MOCK = '1'
-trunk --skip-version-check build --release --cargo-profile web-release --features mock
+trunk --skip-version-check build --release --cargo-profile web-release --features mock --public-url ./
 npm run test:mock
 ```
 
-The fixture build still requires `?mock`; all other URLs use the live app. Clear
+`--public-url ./` keeps the entry import relative, as `scripts/split.mjs` expects (Trunk 0.21 writes `/...`). As of task `qa2` the fixture build completes, but the page does not start the WASM (`main` never runs; `#boot` stays, no error): the fixture bootstrap path predates the split loader and is not fixed. The fixture build still requires `?mock`; all other URLs use the live app. Clear
 STICKTALK_WEB_MOCK and rebuild without --features mock before deployment. Old
 root screenshots/reports are historical fixture baselines, not live-flow proof.
 

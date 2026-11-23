@@ -90,6 +90,22 @@ fn fail(app: &Shared, e: String) {
     a.touch();
 }
 
+/// Your global profile changed (`ProfileUpdated`: the About Me form, another
+/// device): the profile editor's copy follows, so opening Profiles right after
+/// a save shows what was saved, not the page fetched before it committed.
+pub(super) fn own_profile_changed(a: &mut App) {
+    let Some(me) = a.model.me.as_ref().map(|m| m.user.id) else {
+        return;
+    };
+    let Some(p) = a.model.settings.profiles.get(&me) else {
+        return;
+    };
+    if let Some(mine) = a.profiles.mine.as_mut() {
+        mine.pronouns = p.pronouns.clone();
+        mine.about_me = p.about_me.clone();
+        mine.banner_color = p.banner_color;
+    }
+}
 /// A dialog opened: the editor loads the person's profiles.
 pub(super) fn opened(app: Shared, name: &str) {
     if name != "profile-edit" {
@@ -115,7 +131,12 @@ fn refresh(app: Shared) {
             return;
         }
         match result {
-            Ok(p) => a.profiles.mine = Some(p),
+            Ok(p) => {
+                a.profiles.mine = Some(p);
+                // A save that committed while this page was on its way is
+                // already in the model (its event came first).
+                own_profile_changed(&mut a);
+            }
             Err(e) => a.error = e,
         }
         a.touch();

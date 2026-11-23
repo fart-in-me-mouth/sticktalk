@@ -97,13 +97,14 @@ pub(super) fn embeds(a: &App, m: &Message) -> AnyView {
         .is_some_and(|me| me.user.id == m.author_id);
     let remove = own || (a.guild.is_some() && settings::can(a, Permissions::MANAGE_MESSAGES));
     view!{<div class="link-embeds mt-1 flex flex-col gap-2">{m.extra.embeds.iter().map(|e|{
-        let host=e.url.split("//").nth(1).and_then(|r|r.split(['/','?','#']).next()).unwrap_or_default().to_owned();
+        let host=sticktalk_client_core::urls::parse(&e.url).map(|u|u.host).unwrap_or_default();
         view!{<article class="link-embed relative grid max-w-[min(100%,432px)] gap-1 rounded-md border-l-4 border-primary bg-card p-3 pr-10">
-            <p class="text-xs text-subtle">{e.site_name.clone().unwrap_or(host)}</p>
-            {e.title.clone().map(|t|view!{<a class="font-semibold text-primary wrap-anywhere hover:underline" href=e.url.clone() target="_blank" rel="noopener noreferrer nofollow">{t}</a>})}
+            // The real host always; a page's own site name only beside it (G2).
+            <p class="text-xs text-subtle">{match e.site_name.clone().filter(|n|!n.trim().is_empty()&&!n.eq_ignore_ascii_case(&host)){Some(n)=>format!("{host} · {n}"),None=>host.clone()}}</p>
+            {e.title.clone().map(|t|view!{<a class="font-semibold text-primary wrap-anywhere hover:underline" href=e.url.clone() target="_blank" rel="noopener noreferrer nofollow" data-link-host=host.clone() title=host.clone()>{t}</a>})}
             {e.description.clone().map(|d|view!{<p class="text-sm text-foreground wrap-anywhere">{d}</p>})}
-            {e.image.clone().map(|i|view!{<a href=e.url.clone() target="_blank" rel="noopener noreferrer nofollow" class="mt-1 block max-w-full overflow-hidden rounded-md" tabindex="-1"><img class="block h-auto max-h-[300px] max-w-full object-contain" src=i.url loading="lazy" width=i.width height=i.height alt=""/></a>})}
-            {if e.video{view!{<a class="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline" href=e.url.clone() target="_blank" rel="noopener noreferrer nofollow">{icon_with("play","icon size-4")}"Watch video"</a>}.into_any()}else{().into_any()}}
+            {e.image.clone().map(|i|view!{<a href=e.url.clone() target="_blank" rel="noopener noreferrer nofollow" data-link-host=host.clone() title=host.clone() class="mt-1 block max-w-full overflow-hidden rounded-md" tabindex="-1"><img class="block h-auto max-h-[300px] max-w-full object-contain" src=i.url loading="lazy" width=i.width height=i.height alt=""/></a>})}
+            {if e.video{view!{<a class="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline" href=e.url.clone() target="_blank" rel="noopener noreferrer nofollow" data-link-host=host.clone() title=host.clone()>{icon_with("play","icon size-4")}"Watch video"</a>}.into_any()}else{().into_any()}}
             {if remove{view!{<button class="link-embed-remove absolute top-2 right-2 grid size-7 place-items-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground touch:size-11" data-live=format!("embeds-remove:{}",m.id.0) aria-label="Remove link previews" title="Remove link previews">{icon_with("x","icon size-4")}</button>}.into_any()}else{().into_any()}}
         </article>}
     }).collect_view()}</div>}.into_any()
@@ -291,6 +292,11 @@ pub(super) fn composer_tools(a: &App) -> AnyView {
     view!{
         <ui-menu class="contents"><ui-menu-trigger><button type="button" class="icon-button composer-more" aria-label="More Options" title="More Options">{icon("more-horizontal")}</button></ui-menu-trigger>
             <ui-menu-content class="menu" side="top" align="end" side-offset="8" hidden=true>
+                // A narrow composer (phones, the chat beside a call) keeps room to
+                // type: these buttons move here from the composer (ui.rs).
+                <ui-menu-item class="menu-item @min-[32rem]/composer:hidden" value="dialog:gif">{icon("image")}"GIFs"</ui-menu-item>
+                <ui-menu-item class="menu-item @min-[32rem]/composer:hidden" value="dialog:stickers">{icon("sticker")}"Stickers"</ui-menu-item>
+                <ui-menu-item class="menu-item @min-[32rem]/composer:hidden" value="dialog:kaomoji">{icon("smile")}"Kaomoji"</ui-menu-item>
                 <ui-menu-item class="menu-item" value="dialog:poll">{icon("chart-column")}"Create Poll"</ui-menu-item>
                 <ui-menu-item class="menu-item" value="dialog:schedule">{icon("clock")}"Send Later…"</ui-menu-item>
                 <ui-menu-item class="menu-item" value="dialog:scheduled">{icon("message-square")}"Scheduled Messages"</ui-menu-item>

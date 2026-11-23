@@ -792,12 +792,27 @@ fn schedule(app: &Shared, at: u64) {
         a.touch();
         return;
     }
+    // Their alt text and spoiler marks go too, as when sending now.
+    let attachments = attachment_ids
+        .iter()
+        .filter_map(|id| {
+            a.content
+                .meta
+                .get(id)
+                .filter(|m| !m.is_empty())
+                .map(|meta| AttachmentMetaPatch {
+                    attachment_id: *id,
+                    meta: meta.clone(),
+                })
+        })
+        .collect();
     a.command(Command::Content(ContentCommand::ScheduleMessage {
         channel_id,
         content,
         mention_ids,
         send_at: at,
         attachment_ids,
+        attachments,
     }));
 }
 

@@ -34,6 +34,35 @@ async function saveForm(page, kind) {
   await page.waitForSelector(`[data-live-form="${kind}"] .form-saved`);
 }
 const card = (page) => page.locator('.live-modal .profile-card');
+// The lowest WCAG contrast of the card's name against both ends of the card's
+// own background (its gradient after the scrim), as rendered (task qa2).
+const nameContrast = (page) => page.evaluate(() => {
+  const el = document.querySelector('.live-modal .profile-card');
+  const name = el.querySelector('[data-pv="name"] > span');
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.trim().slice(i, i + 2), 16));
+  const rgb = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+  const lum = (c) => c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+    .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const cs = getComputedStyle(el);
+  const scrim = Number(cs.getPropertyValue('--card-scrim') || 0);
+  const ends = ['--card-p', '--card-a'].map((v) => hex(cs.getPropertyValue(v)).map((c) => c * (1 - scrim)));
+  const ns = getComputedStyle(name);
+  const clipped = ns.webkitTextFillColor === 'rgba(0, 0, 0, 0)';
+  const fills = clipped
+    ? ['--name-c1', '--name-c2'].map((v) => ns.getPropertyValue(v)).filter((v) => v.trim()).map(hex)
+    : [rgb(ns.color)];
+  return Math.min(...fills.flatMap((f) => ends.map((e) => ratio(f, e))));
+});
+async function legible(page, label) {
+  const ratio = await nameContrast(page);
+  assert.ok(ratio >= 4.5, `${label}: the name is ${ratio.toFixed(2)}:1 on its card`);
+  return ratio;
+}
+async function themeBase(page, theme) {
+  await act(page, `appearance:theme,${theme}`);
+  await page.waitForFunction((t) => document.documentElement.dataset.themeBase === t, theme);
+}
 let alice, bob;
 try {
   alice = await h.phone(1440, 900); bob = await h.phone(1440, 900);
@@ -144,7 +173,29 @@ try {
   assert.equal(await card(bob).locator('.profile-frame.frame-neon').count(), 1);
   assert.equal(await card(bob).locator('[data-pv="about"] span[style*="font-weight"]').first().textContent(), 'things');
   await both(bob, 'profile-card');
+  // A pale styled name on a light card is drawn in the card's text color, in
+  // the dark and the light theme; on a dark card it keeps its colors.
+  await legible(bob, 'light card, dark theme');
+  await themeBase(bob, 'light');
+  await legible(bob, 'light card, light theme');
+  await both(bob, 'profile-card-light-theme');
   await act(bob, 'close');
+  await act(alice, 'dialog:profile-edit'); await act(alice, 'profiles:tab,user');
+  await alice.waitForSelector('[data-live-form="profiles-user"]');
+  await alice.locator('#pf-primary').fill('#1b1b3a');
+  await alice.locator('#pf-accent').fill('#2a1e4f');
+  await alice.waitForSelector('.profile-save-bar:not([hidden])');
+  await saveForm(alice, 'profiles-user');
+  await act(alice, 'close');
+  await act(bob, `profile:${aliceId}`);
+  await bob.waitForSelector('.live-modal .profile-card.tinted:not(.dark-text)');
+  assert.match(await card(bob).locator('[data-pv="name"] > span').getAttribute('class'), /name-effect-gradient/, 'readable there: kept');
+  await legible(bob, 'dark card, light theme');
+  await both(bob, 'profile-card-dark-light-theme');
+  await themeBase(bob, 'dark');
+  await legible(bob, 'dark card, dark theme');
+  await act(bob, 'close');
+  checks.push('a styled name stays readable on light and dark profile cards in the light and dark themes');
 
   // ---- Per-server profile, from the server menu: nickname, look, server avatar.
   await act(alice, `profiles:open-server,${guild}`);

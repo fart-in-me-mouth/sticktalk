@@ -1479,29 +1479,41 @@ async fn announce(app: &App, core: &mut Core, c: &mut SqliteConnection, e: Id) -
     .into_iter()
     .map(|v| Id(v as u64))
     .collect();
+    let channel = view.location.channel();
     let mut told = vec![];
+    let mut pushed = vec![];
     for u in interested {
-        if visible(c, u, &s).await.is_ok() {
+        if visible(c, u, &s).await.is_err() {
+            continue;
+        }
+        // The one notification decision (`privacy::notify::notice`).
+        let notice = crate::privacy::notify::Notice::EventStarting {
+            guild: s.guild,
+            channel,
+        };
+        if let Some(d) = crate::privacy::notify::notice(c, u, notice).await? {
             told.push(u);
+            if d.push {
+                pushed.push(u);
+            }
         }
     }
     core.emit(&told, Event::Schedule(ScheduleUpdate::Starting(view)))?;
-    for u in told {
+    for u in pushed {
         crate::push::event_starting(app, u, s.guild, s.id);
     }
     Ok(())
 }
 
-/// Whether the guild's notification settings let event pushes through to `u`.
-pub(crate) async fn push_allowed(c: &mut SqliteConnection, u: Id, g: Id) -> Result<bool> {
-    let settings = crate::launch::notifications(c, u).await?;
-    let blocked = settings
-        .iter()
-        .filter(|s| s.channel_id.is_none() && s.guild_id == Some(g))
-        .any(|s| {
-            s.level == NotificationLevel::Nothing
-                || (s.muted && s.mute_until.is_none_or(|t| t > now()))
-        });
-    let presence = db::me(c, u).await?.desired_presence;
-    Ok(!blocked && !matches!(presence, PresenceStatus::Dnd))
+/// Whether the start of event `e` may be pushed to `u` (asked again when the
+/// push goes out: settings can change in between).
+pub(crate) async fn push_allowed(c: &mut SqliteConnection, u: Id, g: Id, e: Id) -> Result<bool> {
+    let channel = match load(c, e).await {
+        Ok(s) => s.view(c, now()).await?.location.channel(),
+        Err(_) => return Ok(false),
+    };
+    let notice = crate::privacy::notify::Notice::EventStarting { guild: g, channel };
+    Ok(crate::privacy::notify::notice(c, u, notice)
+        .await?
+        .is_some_and(|d| d.push))
 }

@@ -290,7 +290,9 @@ pub(crate) async fn boundary(
             set_cookie(&mut response, SESSION, "", 0, true, false);
             set_cookie(&mut response, CSRF, "", 0, false, false);
         }
-        if api {
+        // Images that chose their own policy (`caching.rs`) keep it; every
+        // other answer under /api holds account data and is never stored.
+        if api && !response.headers().contains_key("cache-control") {
             no_store(&mut response);
         }
         Ok::<_, Error>(response)

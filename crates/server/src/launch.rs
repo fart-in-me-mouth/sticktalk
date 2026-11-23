@@ -723,10 +723,17 @@ pub(crate) async fn snapshot(
                 .bind(id(i.guild_id)?)
                 .fetch_one(&mut *c)
                 .await?;
+            // The same rows `GET /invites/{code}/event` answers from.
+            let event: Option<i64> =
+                sqlx::query_scalar("SELECT 1 FROM invite_events WHERE invite_id=? LIMIT 1")
+                    .bind(found)
+                    .fetch_optional(&mut *c)
+                    .await?;
             snap!(InvitePreview {
                 name: r.get("name"),
                 member_count: r.get::<i64, _>("n") as u32,
                 joined: crate::db::role(c, u, i.guild_id).await.is_ok(),
+                event: event.is_some(),
             })
         }
         ["guilds", g, "preview"] => {

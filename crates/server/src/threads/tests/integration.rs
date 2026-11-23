@@ -432,3 +432,170 @@ async fn crossposts_are_screened_by_the_receiving_servers_automod() {
     );
     assert_eq!(audit(&app, 20, AuditAction::AutomodBlock).await.len(), 2);
 }
+
+/// Security review F6: AutoMod screens member-written text that is not a
+/// message: your own nickname, event names and descriptions, emoji and
+/// sticker names, and application answers. Each refusal is logged.
+#[tokio::test]
+async fn nicknames_events_and_expression_names_are_screened_by_automod() {
+    let (_dir, app) = world().await;
+    ok(run(&app, 1, 1, blocks(10, "heck")).await);
+    everyone(
+        &app,
+        Permissions::CHANGE_NICKNAME | Permissions::CREATE_EVENTS | Permissions::MANAGE_EMOJI,
+        Permissions::empty(),
+    )
+    .await;
+    let nick = |n: &str| {
+        Command::Launch(LaunchCommand::SetNickname {
+            guild_id: Id(10),
+            user_id: Id(3),
+            nickname: Some(n.into()),
+        })
+    };
+    refused(&run(&app, 3, 2, nick("heck yes")).await, "automod");
+    ok(run(&app, 3, 3, nick("Sunny")).await);
+    let event = |name: &str, description: &str| {
+        Command::Schedule(ScheduleCommand::Create(NewEvent {
+            guild_id: Id(10),
+            name: name.into(),
+            description: description.into(),
+            start_at: now() + 86_400_000,
+            end_at: Some(now() + 90_000_000),
+            location: EventLocation::External {
+                place: "the park".into(),
+            },
+            recurrence: EventRecurrence::None,
+            time_zone: "UTC".into(),
+        }))
+    };
+    refused(&run(&app, 3, 4, event("heck fest", "")).await, "automod");
+    refused(
+        &run(&app, 3, 5, event("Picnic", "bring heck")).await,
+        "automod",
+    );
+    sql(&app, "INSERT INTO guild_emoji(id,guild_id,name,animated,content_type,data,preview,creator_id,created_at) VALUES(600,10,'smile',0,'image/png',x'00',x'',1,0)").await;
+    refused(
+        &run(
+            &app,
+            3,
+            6,
+            Command::Launch(LaunchCommand::RenameEmoji {
+                guild_id: Id(10),
+                emoji_id: Id(600),
+                name: "heck".into(),
+            }),
+        )
+        .await,
+        "automod",
+    );
+    // The server owner (Manage Server) is exempt, as for soundboard names.
+    ok(run(&app, 1, 7, nick_of(1, "heck")).await);
+    let logged = audit(&app, 10, AuditAction::AutomodBlock).await;
+    for what in ["nickname", "event name", "event description", "emoji name"] {
+        assert!(
+            logged.iter().any(|(_, c)| c.contains(what)),
+            "{what}: {logged:?}"
+        );
+    }
+}
+fn nick_of(u: u64, n: &str) -> Command {
+    Command::Launch(LaunchCommand::SetNickname {
+        guild_id: Id(10),
+        user_id: Id(u),
+        nickname: Some(n.into()),
+    })
+}
+
+/// Security review G1: a follow is kept only while the person who made it can
+/// read the announcement channel and manage the channel it posts in. A ban,
+/// or the channel made unreadable to them, stops new copies (removals still
+/// reach the copies) and both servers' audit logs say so.
+#[tokio::test]
+async fn follows_stop_when_their_creator_loses_access() {
+    let (_dir, app) = world().await;
+    second_server(&app).await;
+    let news = make_announcements(&app, 1).await;
+    let follow = |nonce| {
+        let app = app.clone();
+        async move {
+            ok(thread_cmd(
+                &app,
+                3,
+                nonce,
+                ThreadCommand::Follow {
+                    source_channel_id: news,
+                    target_channel_id: Id(21),
+                },
+            )
+            .await)
+        }
+    };
+    let publish = |nonce: u64, text: &'static str| {
+        let app = app.clone();
+        async move {
+            let m = message_of(ok(send(&app, 1, nonce, news, text).await));
+            ok(thread_cmd(
+                &app,
+                1,
+                nonce + 1,
+                ThreadCommand::Publish {
+                    channel_id: news,
+                    message_id: m.id,
+                },
+            )
+            .await);
+            announce::deliver_queue(&app).await.unwrap();
+            m
+        }
+    };
+    follow(2).await;
+    publish(3, "first").await;
+    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM crossposts").await, 1);
+    // #news made unreadable to the follow's creator (3): at the next
+    // delivery the follow is gone and nothing new is copied.
+    sql(
+        &app,
+        &format!(
+            "INSERT INTO permission_overwrites VALUES({},'member',3,0,{})",
+            news.0,
+            Permissions::VIEW_CHANNEL.bits()
+        ),
+    )
+    .await;
+    publish(5, "secret plans").await;
+    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM crossposts").await, 1);
+    assert_eq!(
+        scalar(&app, "SELECT COUNT(*) FROM channel_follows").await,
+        0
+    );
+    assert_eq!(audit(&app, 20, AuditAction::ChannelUnfollow).await.len(), 1);
+    assert_eq!(audit(&app, 10, AuditAction::ChannelUnfollow).await.len(), 1);
+    // Readable again, followed again; a ban removes it at once.
+    sql(
+        &app,
+        &format!(
+            "DELETE FROM permission_overwrites WHERE channel_id={}",
+            news.0
+        ),
+    )
+    .await;
+    follow(7).await;
+    ok(run(
+        &app,
+        1,
+        8,
+        Command::BanMember {
+            guild_id: Id(10),
+            user_id: Id(3),
+            reason: None,
+        },
+    )
+    .await);
+    assert_eq!(
+        scalar(&app, "SELECT COUNT(*) FROM channel_follows").await,
+        0
+    );
+    publish(9, "after the ban").await;
+    assert_eq!(scalar(&app, "SELECT COUNT(*) FROM crossposts").await, 1);
+}

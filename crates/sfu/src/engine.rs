@@ -2159,6 +2159,12 @@ impl Sfu {
                 && matches!(packet.payload.first().map(|b| b & 31), Some(7 | 8));
             if route.waiting_keyframe && !keyframe && !config_packet {
                 self.peers.get_mut(&to).unwrap().gated_packets += 1;
+                // Ask the publisher again while this viewer waits (at most
+                // once a second per source, `keyframe`): the request sent when
+                // the route was made can be lost while the publisher's encoder
+                // starts, and the viewer then never got video (task qa2,
+                // `live.mjs` two-browser video, about one run in three).
+                self.keyframe(key, mid, rid, KeyframeRequestKind::Pli)?;
                 continue;
             }
             let peer = self.peers.get_mut(&to).unwrap();

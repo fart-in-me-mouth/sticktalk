@@ -4,7 +4,7 @@ members = ["crates/proto", "crates/server", "crates/client", "crates/client-core
 default-members = ["crates/proto", "crates/server", "crates/client", "crates/client-core", "crates/media", "crates/sfu", "crates/desktop-platform", "crates/emoji", "crates/web", "crates/desktop"]
 resolver = "2"
 # Vendored dependencies are not first-party workspace test/example targets.
-exclude = ["crates/server/vendor/tract-nnef", "crates/server/vendor/sqlx-sqlite", "crates/server/vendor/cryoglyph", "crates/media/vendor/neteq", "crates/media/vendor/webrtc-audio-processing", "crates/media/vendor/webrtc-audio-processing-sys"]
+exclude = ["crates/server/vendor/tract-nnef", "crates/server/vendor/sqlx-sqlite", "crates/server/vendor/cryoglyph", "crates/web/vendor/tachys", "crates/media/vendor/neteq", "crates/media/vendor/webrtc-audio-processing", "crates/media/vendor/webrtc-audio-processing-sys"]
 
 [workspace.package]
 version = "0.3.0"
@@ -60,4 +60,9 @@ strip = "debuginfo"
 [patch.crates-io]
 sqlx-sqlite = { path = "crates/server/vendor/sqlx-sqlite" }
 cryoglyph = { path = "crates/server/vendor/cryoglyph" }
+# 0.2.19 (the newest 0.2) compares a custom element's tag with the DOM's
+# upper-case tagName, so every render rebuilt every <ui-*> element (QA task
+# qa2, docs/features/integration.md). One line changed; remove once upstream
+# compares case-insensitively.
+tachys = { path = "crates/web/vendor/tachys" }
 tract-nnef = { path = "crates/server/vendor/tract-nnef" }

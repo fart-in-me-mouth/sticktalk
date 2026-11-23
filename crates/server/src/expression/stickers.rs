@@ -5,8 +5,8 @@ use crate::{http, state::App};
 use axum::{
     body::{to_bytes, Body},
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Response},
+    http::HeaderMap,
+    response::Response,
 };
 use image::{AnimationDecoder, ImageDecoder};
 use sqlx::Connection;
@@ -393,6 +393,18 @@ pub(super) async fn upload(
     let (_, current) = auth(&mut c, http::bearer(&h)?).await?;
     require(current == u, ErrorCode::Unauthenticated)?;
     manage(&mut c, u, g).await?;
+    // AutoMod screens the name and description (security review F6).
+    crate::moderation::coverage::name_check(&mut core, &mut c, u, g, "sticker name", &edit.name)
+        .await?;
+    crate::moderation::coverage::name_check(
+        &mut core,
+        &mut c,
+        u,
+        g,
+        "sticker description",
+        &edit.description,
+    )
+    .await?;
     let mut tx = c.begin().await?;
     let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM guild_stickers WHERE guild_id=?")
         .bind(id(g)?)
@@ -477,32 +489,27 @@ async fn serve(app: App, s: Id, h: HeaderMap, still: bool) -> Result<Response> {
         may_see(&mut c, u, "sticker", s, g).await?,
         ErrorCode::NotFound,
     )?;
+    // A sticker's image never changes (only its name, emoji and description).
+    let tag = crate::caching::etag("sticker", s.0, if still { "still" } else { "image" });
+    if crate::caching::fresh(&h, &tag) {
+        return Ok(crate::caching::not_modified(
+            crate::caching::Policy::Checked,
+            &tag,
+        ));
+    }
     let format = StickerFormat::parse(&r.get::<String, _>("format")).unwrap_or(StickerFormat::Png);
     let (kind, bytes): (&str, Vec<u8>) = if still && r.get::<bool, _>("animated") {
         ("image/png", r.get("still"))
     } else {
         (format.content_type(), r.get("data"))
     };
-    Ok(asset_response(kind, bytes))
-}
-/// Image bytes this server checked: cached privately, never sniffed or run.
-pub(crate) fn asset_response(kind: &str, bytes: Vec<u8>) -> Response {
-    (
-        StatusCode::OK,
-        [
-            ("content-type", kind.to_owned()),
-            ("cache-control", "private, max-age=86400".into()),
-            ("x-content-type-options", "nosniff".into()),
-            (
-                "content-security-policy",
-                "default-src 'none'; sandbox".into(),
-            ),
-        ],
+    Ok(crate::caching::image(
+        crate::caching::Policy::Checked,
+        &tag,
+        kind,
         bytes,
-    )
-        .into_response()
+    ))
 }
-
 pub(super) struct Media {
     pub data: Vec<u8>,
     pub still: Vec<u8>,

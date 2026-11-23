@@ -84,6 +84,18 @@ pub(crate) async fn admit(c: &mut SqliteConnection, user: Id, ch: &Channel) -> R
                 .find(|v| **v != user)
                 .ok_or_else(|| Error::new(ErrorCode::Internal))?;
             require(!db::blocked(c, user, peer).await?, ErrorCode::Blocked)?;
+            // A message request the other person has not accepted (pending,
+            // spam or ignored) cannot be called: a call would ring them and
+            // show them the conversation (security review F2). Which of the
+            // three it is stays unsaid.
+            if crate::privacy::requests::hidden(c, ch.summary.id)
+                .await?
+                .contains(&peer)
+            {
+                let mut e = Error::new(ErrorCode::Forbidden);
+                e.0.message = "You can call them once they accept your message request.".into();
+                return Err(e);
+            }
             crate::moderation::coverage::call_check(c, user, ch).await
         }
         ChannelKind::GroupDm => Ok(()),
@@ -139,6 +151,29 @@ async fn members(c: &mut SqliteConnection, ch: Id) -> Result<Vec<Id>> {
     }
 }
 
+/// Who a call from `caller` in `ch` may ring: not someone who blocked or is
+/// blocked by them, ignores them, or still holds the conversation as an
+/// unaccepted message request (privacy.md; security review F2).
+async fn ringable(
+    c: &mut SqliteConnection,
+    caller: Id,
+    ch: Id,
+    candidates: impl IntoIterator<Item = Id>,
+) -> Result<Vec<Id>> {
+    let hidden = crate::privacy::requests::hidden(c, ch).await?;
+    let mut out = vec![];
+    for v in candidates {
+        if v != caller
+            && !hidden.contains(&v)
+            && !db::blocked(c, caller, v).await?
+            && !crate::privacy::people::ignores(c, v, caller).await?
+        {
+            out.push(v);
+        }
+    }
+    Ok(out)
+}
+
 /// Sends the call's current state to every member of its conversation.
 pub(crate) async fn publish(core: &mut Core, c: &mut SqliteConnection, ch: Id) -> Result<()> {
     if !core.calls.live.contains_key(&ch) {
@@ -171,10 +206,8 @@ pub(crate) async fn joining(
     let channel = db::channel(c, ch).await?;
     let t = now();
     let mut ringing = BTreeMap::new();
-    for v in channel.summary.recipient_ids.iter().filter(|v| **v != user) {
-        if !db::blocked(c, user, *v).await? {
-            ringing.insert(*v, t + CALL_RING_TIMEOUT_MS);
-        }
+    for v in ringable(c, user, ch, channel.summary.recipient_ids.iter().copied()).await? {
+        ringing.insert(v, t + CALL_RING_TIMEOUT_MS);
     }
     let offline: Vec<Id> = ringing
         .keys()
@@ -358,7 +391,13 @@ async fn reveal(core: &mut Core, c: &mut SqliteConnection, ch: &Channel) -> Resu
             .bind(db::id(ch.summary.id)?)
             .fetch_all(&mut *c)
             .await?;
-    for v in hidden.into_iter().map(|v| Id(v as u64)) {
+    // A message request stays hidden until it is accepted, call or not.
+    let requests = crate::privacy::requests::hidden(c, ch.summary.id).await?;
+    for v in hidden
+        .into_iter()
+        .map(|v| Id(v as u64))
+        .filter(|v| !requests.contains(v))
+    {
         if db::dm_quota(c, v, Some(ch.summary.id)).await.is_err() {
             continue;
         }
@@ -421,12 +460,13 @@ pub(crate) async fn ring(
         )?;
     }
     let deadline = now() + CALL_RING_TIMEOUT_MS;
-    let mut rung = vec![];
-    for v in targets {
-        if !present.contains(v) && !db::blocked(c, user, *v).await? {
-            rung.push(*v);
-        }
-    }
+    let rung = ringable(
+        c,
+        user,
+        ch,
+        targets.iter().copied().filter(|v| !present.contains(v)),
+    )
+    .await?;
     if let Some(call) = core.calls.live.get_mut(&ch) {
         for v in &rung {
             call.ringing.insert(*v, deadline);

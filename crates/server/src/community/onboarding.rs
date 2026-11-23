@@ -19,14 +19,37 @@ async fn channel_ids(c: &mut SqliteConnection, g: Id) -> Result<HashSet<Id>> {
             .collect(),
     )
 }
-/// A role onboarding may grant: it exists, is not @everyone, has no
-/// dangerous right, and (with a ceiling) is below it.
+/// A role onboarding may grant: it exists, is not @everyone, holds only
+/// ordinary member rights (`ONBOARDING_ALLOWED`), and (with a ceiling) is
+/// below it. `roles` carry their channel overwrites' allows too
+/// (`with_overwrites`).
 fn grantable(roles: &HashMap<Id, Role>, g: Id, r: Id, ceiling: Option<u16>) -> bool {
     roles.get(&r).is_some_and(|role| {
         r != g
-            && !role.permissions.intersects(ONBOARDING_FORBIDDEN)
+            && onboarding_grantable(role.permissions)
             && ceiling.is_none_or(|top| role.position < top)
     })
+}
+/// Each role's rights including what its channel overwrites in this server
+/// allow: a role that gains a forbidden right in one channel is refused too
+/// (security review G4).
+async fn with_overwrites(
+    c: &mut SqliteConnection,
+    g: Id,
+    mut roles: HashMap<Id, Role>,
+) -> Result<HashMap<Id, Role>> {
+    let rows: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT o.target_id,o.allow FROM permission_overwrites o JOIN channels ch ON ch.id=o.channel_id WHERE ch.guild_id=? AND o.kind='role'",
+    )
+    .bind(id(g)?)
+    .fetch_all(&mut *c)
+    .await?;
+    for (r, allow) in rows {
+        if let Some(role) = roles.get_mut(&Id(r as u64)) {
+            role.permissions |= Permissions::from_bits_retain(allow as u64);
+        }
+    }
+    Ok(roles)
 }
 fn ids<T: Copy + Eq + std::hash::Hash>(list: &[T], max: usize) -> Result<()> {
     let unique: HashSet<&T> = list.iter().collect();
@@ -63,6 +86,7 @@ pub(super) async fn validate(
         .into_iter()
         .map(|r| (r.id, r))
         .collect();
+    let roles = with_overwrites(c, g, roles).await?;
     let channels = channel_ids(c, g).await?;
     let channel =
         |ch: &Id| -> Result<()> { require(channels.contains(ch), ErrorCode::InvalidRequest) };
@@ -89,7 +113,7 @@ pub(super) async fn validate(
                     let name = roles.get(r).map_or("That role".into(), |r| r.name.clone());
                     return Err(invalid(
                         "roles",
-                        format!("{name} can’t be given by onboarding. Choose roles below your highest role, without moderator or admin rights."),
+                        format!("{name} can’t be given by onboarding. Choose roles below your highest role, with only ordinary member rights (here and in every channel)."),
                     ));
                 }
             }
@@ -282,6 +306,7 @@ pub(super) async fn respond(
         .into_iter()
         .map(|r| (r.id, r))
         .collect();
+    let roles = with_overwrites(c, g, roles).await?;
     // Checked again now: the person who configured it may have lost rank.
     let configured_by: Option<i64> = sqlx::query_scalar::<_, Option<i64>>(
         "SELECT configured_by FROM community_settings WHERE guild_id=?",

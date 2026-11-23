@@ -322,6 +322,91 @@ async fn delete_copies(
     Ok(())
 }
 
+/// The follow's creator can still read the source and still manages the
+/// target (security review G1: a follow is permission, not a subscription).
+async fn still_allowed(c: &mut SqliteConnection, f: &ChannelFollow) -> Result<bool> {
+    Ok(announcement(
+        c,
+        f.created_by,
+        f.source_channel_id,
+        Permissions::READ_HISTORY,
+    )
+    .await
+    .is_ok()
+        && crate::db::text(
+            c,
+            f.created_by,
+            f.source_channel_id,
+            Permissions::READ_HISTORY,
+        )
+        .await
+        .is_ok()
+        && target_manager(c, f.created_by, f.target_channel_id)
+            .await
+            .is_ok())
+}
+/// Remove a follow whose creator lost access, in both servers' audit logs.
+async fn lapse(c: &mut SqliteConnection, f: &ChannelFollow) -> Result<()> {
+    sqlx::query("DELETE FROM channel_follows WHERE id=?")
+        .bind(id(f.id)?)
+        .execute(&mut *c)
+        .await?;
+    let reason = Some(
+        "Stopped: the person who set it up can no longer read the announcement channel or manage the channel it posts in."
+            .to_owned(),
+    );
+    for (g, ch, name) in [
+        (
+            f.target_guild_id,
+            f.target_channel_id,
+            &f.target_channel_name,
+        ),
+        (
+            f.source_guild_id,
+            f.source_channel_id,
+            &f.source_channel_name,
+        ),
+    ] {
+        crate::moderation::audit::write(
+            c,
+            f.created_by,
+            crate::moderation::audit::Entry::new(
+                g,
+                AuditAction::ChannelUnfollow,
+                AuditTarget::Channel,
+                Some(ch),
+            )
+            .named(name.clone())
+            .change(
+                "follows",
+                Some(format!(
+                    "#{} ({})",
+                    f.source_channel_name, f.source_guild_name
+                )),
+                None,
+            )
+            .reason(reason.clone()),
+        )
+        .await?;
+    }
+    Ok(())
+}
+/// Drop every follow into or out of server `g` whose creator no longer may
+/// keep it: after a ban, kick, leave, role or overwrite change there.
+pub(crate) async fn revalidate(c: &mut SqliteConnection, g: Id) -> Result<()> {
+    let ids: Vec<i64> = sqlx::query_scalar("SELECT f.id FROM channel_follows f JOIN channels s ON s.id=f.source_channel_id JOIN channels t ON t.id=f.target_channel_id WHERE s.guild_id=?1 OR t.guild_id=?1 LIMIT 1000")
+        .bind(id(g)?)
+        .fetch_all(&mut *c)
+        .await?;
+    for f in ids {
+        let f = follow_row(c, Id(f as u64)).await?;
+        if !still_allowed(c, &f).await? {
+            lapse(c, &f).await?;
+        }
+    }
+    Ok(())
+}
+
 async fn deliver(
     c: &mut SqliteConnection,
     core: &mut Core,
@@ -331,6 +416,11 @@ async fn deliver(
     out: &mut Deliveries,
 ) -> Result<()> {
     let f = follow_row(c, follow).await?;
+    // Removals always reach the copies; anything new only while the follow's
+    // creator may still keep it.
+    if action != "delete" && !still_allowed(c, &f).await? {
+        return lapse(c, &f).await;
+    }
     let copies: Vec<i64> = sqlx::query_scalar(
         "SELECT message_id FROM crossposts WHERE source_message_id=? AND follow_id=?",
     )

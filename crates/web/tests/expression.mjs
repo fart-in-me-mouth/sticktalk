@@ -259,6 +259,10 @@ try {
   await toast(friend,'Typing indicator saved');
   await friend.waitForSelector('.typing-preview .typing-custom');
   await both(friend,'typing-settings');
+  // The animation switch is in Accessibility with the other motion settings
+  // (themes); Expression links there.
+  await friend.locator('[data-live="dialog:accessibility"]').first().click();
+  await friend.waitForFunction(()=>document.querySelector('[data-dialog]')?.dataset.dialog==='accessibility');
   await friend.locator('input[data-preference=superReactions]').uncheck();
   assert.equal(await friend.evaluate(()=>document.documentElement.dataset.superReactions),'false');
   await friend.locator('input[data-preference=superReactions]').check();

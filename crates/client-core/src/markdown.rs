@@ -153,9 +153,78 @@ fn closing(source: &str, delimiter: &str) -> Option<usize> {
     }
     None
 }
+/// Characters that reorder how text reads (right-to-left overrides and
+/// isolates): a link containing one can read differently from where it goes.
+fn bidi(c: char) -> bool {
+    matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{200E}' | '\u{200F}' | '\u{061C}')
+}
+/// A web link that says where it goes (security review G2): http or https, a
+/// host, no `user@` part (`https://paypal.com@evil.example`), no bidi controls.
 fn safe_url(s: &str) -> bool {
-    crate::urls::parse(s)
-        .is_some_and(|u| matches!(u.scheme.as_str(), "https" | "http") && !u.host.is_empty())
+    !s.chars().any(bidi)
+        && crate::urls::parse(s).is_some_and(|u| {
+            matches!(u.scheme.as_str(), "https" | "http") && !u.host.is_empty() && !u.credentials
+        })
+}
+/// The host a masked link's label names, if it names one: a URL, or a word
+/// shaped like a domain (`accounts.google.com`).
+fn named_host(label: &str) -> Option<String> {
+    if let Some(at) = label.find("://") {
+        let rest = &label[at + 3..];
+        let host = rest
+            .split(|c: char| matches!(c, '/' | '?' | '#' | ':' | '@') || c.is_whitespace())
+            .next()
+            .unwrap_or_default();
+        return Some(host.to_lowercase());
+    }
+    label
+        .split(|c: char| c.is_whitespace() || matches!(c, '(' | ')' | '<' | '>' | ',' | '"' | '\''))
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
+        .find(|w| {
+            let parts: Vec<&str> = w.split('.').collect();
+            parts.len() >= 2
+                && parts
+                    .iter()
+                    .all(|p| !p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '-'))
+                && parts
+                    .last()
+                    .is_some_and(|t| t.chars().count() >= 2 && t.chars().all(char::is_alphabetic))
+        })
+        .map(str::to_lowercase)
+}
+fn same_site(a: &str, b: &str) -> bool {
+    let bare = |h: &str| {
+        h.trim_start_matches("www.")
+            .trim_end_matches('.')
+            .to_owned()
+    };
+    bare(a) == bare(b)
+}
+/// A masked link may show a label that names another site: then it is not a
+/// link, and the Markdown is shown as typed (with the real URL linked).
+fn honest_label(label: &str, url: &str) -> bool {
+    match named_host(label) {
+        None => true,
+        Some(named) => crate::urls::parse(url).is_some_and(|u| same_site(&named, &u.host)),
+    }
+}
+/// What an autolink shows: as typed, except a host in another script is shown
+/// in the ASCII (punycode) form the link really uses.
+fn shown_url(url: &str) -> String {
+    let Some(at) = url.find("://") else {
+        return url.into();
+    };
+    let start = at + 3;
+    let end = url[start..]
+        .find(['/', '?', '#', ':'])
+        .map_or(url.len(), |e| start + e);
+    if url[start..end].is_ascii() {
+        return url.into();
+    }
+    match crate::urls::parse(url) {
+        Some(u) => format!("{}{}{}", &url[..start], u.host, &url[end..]),
+        None => url.into(),
+    }
 }
 fn inline(
     mut s: &str,
@@ -222,10 +291,12 @@ fn inline(
                 }
                 if let Some(n) = finish {
                     let url = &after[..n];
-                    if safe_url(url) {
+                    let label = &rest[..end];
+                    if safe_url(url) && honest_label(label, url) {
                         let mut labels = Vec::new();
-                        inline(&rest[..end], style, hidden, next, depth + 1, &mut labels);
+                        inline(label, style, hidden, next, depth + 1, &mut labels);
                         for value in &mut labels {
+                            value.text.retain(|c| !bidi(c));
                             value.target = Some(Target::Masked(url.into()));
                         }
                         out.extend(labels);
@@ -261,7 +332,7 @@ fn inline(
                     if safe_url(url) {
                         push(
                             out,
-                            url.into(),
+                            shown_url(url),
                             style,
                             Some(Target::Auto(url.into())),
                             hidden,
@@ -273,12 +344,15 @@ fn inline(
             }
         }
         if s.starts_with("https://") || s.starts_with("http://") {
-            let end = s.find(char::is_whitespace).unwrap_or(s.len());
+            // A bidi control ends the link (and is never part of one).
+            let end = s
+                .find(|c: char| c.is_whitespace() || bidi(c))
+                .unwrap_or(s.len());
             let url = s[..end].trim_end_matches(['.', ',', '!', ';', ')', ']']);
             if safe_url(url) {
                 push(
                     out,
-                    url.into(),
+                    shown_url(url),
                     style,
                     Some(Target::Auto(url.into())),
                     hidden,
@@ -321,6 +395,57 @@ fn inline(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn links(text: &str) -> Vec<(String, Option<Target>)> {
+        let d = parse(text);
+        let mut out = vec![];
+        for b in &d.blocks {
+            if let Block::Paragraph(p) = b {
+                for i in p {
+                    if i.target.is_some() {
+                        out.push((i.text.clone(), i.target.clone()));
+                    }
+                }
+            }
+        }
+        out
+    }
+    /// Security review G2: a link's text never names another site.
+    #[test]
+    fn links_show_where_they_go() {
+        // A label naming another site is not a link; the real URL is.
+        // (Shown as typed: each URL in it is a link to exactly where it reads.)
+        let honest = |l: &[(String, Option<Target>)]| {
+            l.iter()
+                .all(|(text, t)| matches!(t, Some(Target::Auto(u)) if u == text))
+        };
+        let l =
+            links("[https://accounts.google.com/signin](https://accounts-google.example/signin)");
+        assert!(honest(&l), "{l:?}");
+        let l = links("[accounts.google.com](https://evil.example)");
+        assert!(
+            l.iter().all(|(_, t)| !matches!(t, Some(Target::Masked(_)))),
+            "{l:?}"
+        );
+        // A label naming the same site, or no site, is fine.
+        assert!(matches!(
+            &links("[the docs](https://example.com/docs)")[0].1,
+            Some(Target::Masked(_))
+        ));
+        assert!(matches!(
+            &links("[example.com](https://www.example.com)")[0].1,
+            Some(Target::Masked(_))
+        ));
+        // A login part is not a link.
+        assert!(links("https://www.paypal.com@evil.example/").is_empty());
+        assert!(links("[pay](https://paypal.com@evil.example/)").is_empty());
+        // A right-to-left override ends a link and never sits inside one.
+        let l = links("https://example.com/\u{202E}fdp.exe");
+        assert_eq!(l.len(), 1);
+        assert!(!l[0].0.contains('\u{202E}'));
+        let l = links("<https://example.com/\u{202E}x>");
+        assert!(l.iter().all(|(text, t)| !text.contains('\u{202E}')
+            && !matches!(t, Some(Target::Auto(u) | Target::Masked(u)) if u.contains('\u{202E}'))));
+    }
     #[test]
     fn discord_subset_and_escapes() {
         let d=parse("# Header\n## Two\n### Three\n> quote\n- item\n```rust\nlet x = 1;\n```\n**bold** *italic* _also_ __underline__ ~~strike~~ `code` ||hidden|| [label](https://example.com) https://example.org <@1> \\*literal\\*");

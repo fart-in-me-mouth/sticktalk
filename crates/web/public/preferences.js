@@ -76,8 +76,16 @@ let serverTheme = null;
 // Turned on by a screen share ("enable automatically"), to be turned off after.
 let streamerByShare = false;
 const STORE = 'sticktalk-appearance', BOOT = 'sticktalk-boot';
-const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-const prefersLight = matchMedia('(prefers-color-scheme: light)');
+// Asked for on first use, not at import: the module is also imported where
+// there is no window (the Node platform tests import `normalizePreferences`).
+const queries = new Map();
+function media(q) {
+  let m = queries.get(q);
+  if (!m) queries.set(q, (m = globalThis.matchMedia?.(q) ?? { matches: false, addEventListener() {} }));
+  return m;
+}
+const reduced = () => media('(prefers-reduced-motion: reduce)');
+const prefersLight = () => media('(prefers-color-scheme: light)');
 const sheet = globalThis.__sticktalkThemeSheet ?? (() => {
   try { const s = new CSSStyleSheet(); document.adoptedStyleSheets = [...document.adoptedStyleSheets, s]; return s; } catch { return null; }
 })();
@@ -107,8 +115,8 @@ export function loadPreferences() {
       theme = { css: boot.css, color: String(boot.color ?? ''), dark: boot.dark !== false, gradient: boot.gradient === true };
   } catch {}
   // The OS settings are followed live: these fire only when they change.
-  reduced.addEventListener('change', () => applyPreferences());
-  prefersLight.addEventListener('change', () => {
+  reduced().addEventListener('change', () => applyPreferences());
+  prefersLight().addEventListener('change', () => {
     instant(document.documentElement);
     applyPreferences();
     // "Sync with system" with derived tokens (saturation, contrast boost).
@@ -117,7 +125,7 @@ export function loadPreferences() {
   install();
   applyPreferences();
 }
-export function systemLight() { return prefersLight.matches; }
+export function systemLight() { return prefersLight().matches; }
 // Text to speech (themes.rs): speech.js is imported with the first thing
 // spoken, not with the page.
 let speech = null;
@@ -185,7 +193,7 @@ const attrs = () => {
   a.plainNames = String(p.plainNames);
   a.reduceCosmetics = String(p.reduceCosmetics);
   a.themeBase = ['preset', 'custom', 'shared'].includes(p.theme) ? (theme.dark ? 'dark' : 'light') : p.theme;
-  a.motion = p.motion === 'on' || (p.motion === 'system' && reduced.matches) ? 'reduce' : 'full';
+  a.motion = p.motion === 'on' || (p.motion === 'system' && reduced().matches) ? 'reduce' : 'full';
   a.roleColors = p.roleColors;
   a.focusAlways = String(p.focusAlways);
   a.chatFont = p.chatFont;
@@ -193,7 +201,7 @@ const attrs = () => {
   for (const k of ['Gifs', 'Emoji', 'Stickers', 'Avatars', 'Effects']) a[`autoplay${k}`] = p[`autoplay${k}`];
   // Role names are kept readable on light themes, with saturation and boost.
   const effective = serverTheme ?? theme;
-  const light = a.themeBase === 'light' || (a.themeBase === 'system' && prefersLight.matches) || !effective.dark && !!effective.css;
+  const light = a.themeBase === 'light' || (a.themeBase === 'system' && prefersLight().matches) || !effective.dark && !!effective.css;
   a.roleAdjust = String(light || p.saturation < 100 || p.contrastBoost);
   a.themeGradient = String(!!effective.gradient);
   a.streamer = String(p.streamer);
@@ -221,7 +229,7 @@ let painted = null, paintedColor = '';
 function paintTheme() {
   const t = serverTheme ?? theme;
   const root = document.documentElement;
-  const key = `${t.css}|${root.dataset.themeBase}|${prefersLight.matches}`;
+  const key = `${t.css}|${root.dataset.themeBase}|${prefersLight().matches}`;
   if (key === painted) return paintedColor;
   painted = key;
   if (sheet) { try { sheet.replaceSync(t.css ? `:root:root:root{${t.css}}` : ''); } catch {} }
@@ -229,7 +237,7 @@ function paintTheme() {
   // "Sync with system" and the static bases: the rail color of what is shown.
   const color = t.css ? t.color : getComputedStyle(root).getPropertyValue('--bg-rail').trim() || t.color;
   if (meta && color) meta.content = color;
-  tellShell(color, t.css ? t.dark : !(root.dataset.themeBase === 'light' || (root.dataset.themeBase === 'system' && prefersLight.matches)));
+  tellShell(color, t.css ? t.dark : !(root.dataset.themeBase === 'light' || (root.dataset.themeBase === 'system' && prefersLight().matches)));
   paintedColor = color;
   return color;
 }
@@ -252,7 +260,7 @@ export function applyPreferences() {
   const root = document.documentElement;
   const a = attrs();
   const t = serverTheme ?? theme;
-  if (painted !== null && (root.dataset.themeBase !== a.themeBase || `${t.css}|${a.themeBase}|${prefersLight.matches}` !== painted)) instant(root);
+  if (painted !== null && (root.dataset.themeBase !== a.themeBase || `${t.css}|${a.themeBase}|${prefersLight().matches}` !== painted)) instant(root);
   for (const [k, v] of Object.entries(a)) if (root.dataset[k] !== v) root.dataset[k] = v;
   if (!preferences.streamer) for (const k of ['streamerAccount', 'streamerInvites', 'streamerNotes', 'streamerRequests', 'streamerPreviews']) if (k in root.dataset) delete root.dataset[k];
   const v = vars();

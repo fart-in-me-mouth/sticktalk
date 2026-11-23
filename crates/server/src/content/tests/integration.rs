@@ -9,6 +9,7 @@ fn schedule_files(ch: u64, text: &str, at: u64, files: Vec<Id>) -> ContentComman
         mention_ids: vec![],
         send_at: at,
         attachment_ids: files,
+        attachments: vec![],
     }
 }
 async fn count(app: &App, q: &'static str) -> i64 {
@@ -201,4 +202,64 @@ async fn scheduled_messages_hold_their_files_until_sent_or_cancelled() {
         1
     );
     assert!(collect(&app).await.is_empty());
+}
+
+/// Alt text and spoiler marks survive scheduling (task `qa2`): stored with the
+/// files when scheduled, listed with them, and on the delivered message.
+#[tokio::test]
+async fn scheduled_files_keep_their_alt_text_and_spoiler_marks() {
+    let (_dir, app) = world().await;
+    for f in [511, 512] {
+        upload(&app, f, 2, 11, "image/png").await;
+    }
+    let meta = |description: &str, spoiler| AttachmentMeta {
+        description: (!description.is_empty()).then(|| description.into()),
+        spoiler,
+        ..Default::default()
+    };
+    let mut cmd = schedule_files(11, "look", now() + 3_600_000, vec![Id(511), Id(512)]);
+    if let ContentCommand::ScheduleMessage { attachments, .. } = &mut cmd {
+        *attachments = vec![
+            AttachmentMetaPatch {
+                attachment_id: Id(511),
+                meta: meta("A red square", false),
+            },
+            AttachmentMetaPatch {
+                attachment_id: Id(512),
+                meta: meta("", true),
+            },
+        ];
+    }
+    let s = match ok(content(&app, 2, 1, cmd).await) {
+        CommandResult::Content(ContentResult::Scheduled(s)) => s,
+        other => panic!("{other:?}"),
+    };
+    let shown = |files: &[Attachment]| {
+        files
+            .iter()
+            .map(|a| (a.id, a.meta.description.clone(), a.meta.spoiler))
+            .collect::<Vec<_>>()
+    };
+    let expected = vec![
+        (Id(511), Some("A red square".to_owned()), false),
+        (Id(512), None, true),
+    ];
+    assert_eq!(shown(&s.attachments), expected);
+    // A patch for a file that is not in the message is refused.
+    let mut stray = schedule_files(11, "x", now() + 3_600_000, vec![]);
+    if let ContentCommand::ScheduleMessage { attachments, .. } = &mut stray {
+        *attachments = vec![AttachmentMetaPatch {
+            attachment_id: Id(511),
+            meta: meta("nope", false),
+        }];
+    }
+    assert!(code(&content(&app, 2, 2, stray).await).is_some());
+    let sent = message_of(ok(content(
+        &app,
+        2,
+        3,
+        ContentCommand::SendScheduledNow { id: s.id },
+    )
+    .await));
+    assert_eq!(shown(&sent.attachments), expected);
 }

@@ -190,6 +190,7 @@ async fn prepare(app: &App, path: &str) -> Option<(Id, Id)> {
                     mention_ids: vec![Id(2)],
                     send_at: at,
                     attachment_ids: vec![],
+                    attachments: vec![],
                 }),
             )
             .await;

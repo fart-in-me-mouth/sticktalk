@@ -230,6 +230,22 @@ async fn server_themes_need_manage_server_and_reach_members() {
     library(run(&app, 2, 7, set(10, custom)).await);
     let lib = library(run(&app, 2, 8, set(10, None)).await);
     assert!(lib.servers.is_empty());
+    // Every change is in the server's audit log, with what it was before.
+    let rows: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT actor_id,changes FROM audit_log WHERE guild_id=10 AND action='guild_update' ORDER BY id",
+    )
+    .fetch_all(&app.0.pool)
+    .await
+    .unwrap();
+    let themes: Vec<_> = rows.iter().filter(|(_, c)| c.contains("theme")).collect();
+    assert_eq!(themes.len(), 3, "{rows:?}");
+    assert_eq!(themes[0].0, 1);
+    assert!(themes[0].1.contains("preset ocean"));
+    assert!(themes[1].0 == 2 && themes[1].1.contains("custom"));
+    assert!(
+        themes[2].1.contains("custom"),
+        "the removal names what was removed"
+    );
 }
 
 #[tokio::test]

@@ -29,6 +29,22 @@ fn json<T: serde::Serialize>(v: &T) -> Result<String> {
     serde_json::to_string(v).map_err(|_| Error::new(ErrorCode::Internal))
 }
 
+/// A server theme as the audit log names it.
+fn theme_summary(t: &ThemeChoice) -> String {
+    match t {
+        ThemeChoice::Preset(id) => format!("preset {id}"),
+        ThemeChoice::Custom(spec) => format!(
+            "custom {:?}, accent #{:06x}{}",
+            spec.base,
+            spec.accent,
+            if spec.colors.is_empty() {
+                String::new()
+            } else {
+                format!(", gradient of {}", spec.colors.len())
+            }
+        ),
+    }
+}
 /// Everything about themes that belongs to `u`.
 pub(crate) async fn library(c: &mut SqliteConnection, u: Id) -> Result<ThemeLibrary> {
     let themes =
@@ -179,6 +195,14 @@ pub(crate) async fn mutate(
         SetServerTheme { guild_id, theme } => {
             core.rate(format!("themes:{}", u.0), 30., 10.)?;
             guild_perm(c, u, guild_id, Permissions::MANAGE_GUILD).await?;
+            let before: Option<String> =
+                sqlx::query_scalar("SELECT theme FROM guild_themes WHERE guild_id=?")
+                    .bind(id(guild_id)?)
+                    .fetch_optional(&mut *c)
+                    .await?;
+            let before = before
+                .and_then(|t| serde_json::from_str::<ThemeChoice>(&t).ok())
+                .map(|t| theme_summary(&t));
             match &theme {
                 Some(t) => {
                     t.validate().map_err(|m| invalid(m, "theme"))?;
@@ -197,6 +221,19 @@ pub(crate) async fn mutate(
                         .await?;
                 }
             }
+            // In the audit log like the other server settings (task `qa2`).
+            crate::moderation::audit::write(
+                c,
+                u,
+                crate::moderation::audit::Entry::new(
+                    guild_id,
+                    AuditAction::GuildUpdate,
+                    AuditTarget::Guild,
+                    Some(guild_id),
+                )
+                .change("theme", before, theme.as_ref().map(theme_summary)),
+            )
+            .await?;
             out.push((
                 guild_users(c, guild_id).await?,
                 Event::Appearance(AppearanceEvent::ServerTheme { guild_id, theme }),
