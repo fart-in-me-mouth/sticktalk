@@ -893,6 +893,8 @@ function applyState() {
   const voice = publications.get("audio");
   if (voice) voice.track.enabled = !muted && !deafened;
   extras.deafen(deafened);
+  // Text-to-speech stays quiet while you are deafened (speech.js).
+  globalThis.__sticktalkDeafened = deafened;
   for (const e of elements.values()) applyAudio(e);
   signal("state", { muted, deafened });
   mount();
@@ -984,6 +986,7 @@ async function unshare() {
   }
   elements.get("self-screen")?.tile.remove();
   elements.delete("self-screen");
+  dispatchEvent(new CustomEvent('sticktalk-sharing', { detail: false }));
   await negotiate();
   extras.streamsChanged();
   mount();
@@ -1043,6 +1046,8 @@ function showShareOptions() {
       for (const audio of stream.getAudioTracks())
         await publish(audio, "system_audio", stream);
       track.onended = () => enqueue(unshare);
+      // Streamer Mode can turn on while you share (preferences.js).
+      dispatchEvent(new CustomEvent('sticktalk-sharing', { detail: true }));
       // In the Windows app the shared screen can be controlled, with your consent.
       if (host()) controlChannelReady();
       enqueue(negotiate);
@@ -1384,6 +1389,7 @@ function stop(notify) {
   levelsTimer = null;
   pendingAnswer?.reject(new Error('Call ended.'));
   pendingAnswer = null;
+  if (publications.has('screen')) dispatchEvent(new CustomEvent('sticktalk-sharing', { detail: false }));
   for (const p of publications.values())
     p.stream.getTracks().forEach((t) => t.stop());
   publications.clear();

@@ -75,6 +75,8 @@ pub enum UserEvent {
     ControlEscape,
     /// The page started or ended a call with push-to-talk keys.
     Ptt(ptt::Message),
+    /// The page's theme or chosen app icon (see `appearance`).
+    Appearance(crate::appearance::Message),
     /// A push-to-talk or push-to-mute key went down or up, in any app.
     PttKey {
         which: ptt::Which,
@@ -719,6 +721,24 @@ pub fn run(launch: Launch) -> i32 {
                 {
                     last_external = Some(now);
                     open_external(&url);
+                }
+            }
+            Event::UserEvent(UserEvent::Appearance(message)) => {
+                // Only the server's own pages may restyle the window.
+                if webview
+                    .url()
+                    .is_ok_and(|url| lock(&shared).policy.is_server(&url))
+                {
+                    match message {
+                        crate::appearance::Message::Theme { dark, caption } => {
+                            crate::appearance::apply_theme(hwnd, dark, caption)
+                        }
+                        crate::appearance::Message::Icon { size, rgba } => {
+                            if let Ok(icon) = Icon::from_rgba(rgba, size, size) {
+                                window.set_window_icon(Some(icon));
+                            }
+                        }
+                    }
                 }
             }
             Event::UserEvent(UserEvent::Title(title)) => {

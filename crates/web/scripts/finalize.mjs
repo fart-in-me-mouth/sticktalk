@@ -20,27 +20,52 @@ const spec = await readFile(
   new URL("../../../docs/UI_SPEC.md", import.meta.url),
   "utf8",
 );
-let tokens = "/* Generated from docs/UI_SPEC.md. */\n:root {\n";
-for (const line of spec
-  .split(/\r?\n/)
-  .filter((line) => line.startsWith("| "))) {
-  const cols = line.split("|").map((col) => col.trim());
-  if (cols.length < 4) continue;
-  const [key, value] = cols.slice(1, 3);
-  if (key === "online / idle / dnd / offline") {
-    const colors = value.split(" / ");
-    key.split(" / ").forEach((name, i) => {
-      tokens += `  --${name}: ${colors[i]};\n`;
-    });
-  } else if (value.startsWith("#")) {
-    tokens += `  --${key.replaceAll(".", "-")}: ${key === "mention.bg" ? "rgb(242 184 75 / 8%)" : value};\n`;
+// Each "### Color (...)" table becomes one block of custom properties: the
+// default dark one on :root, the additions (themes task) under the theme base
+// attribute that `public/theme-boot.js` sets before first paint. "Sync with
+// system" follows the OS live through the media query, with no script.
+function palette(section) {
+  let block = "";
+  for (const line of section
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("| "))) {
+    const cols = line.split("|").map((col) => col.trim());
+    if (cols.length < 4) continue;
+    const [key, value] = cols.slice(1, 3);
+    if (key === "online / idle / dnd / offline") {
+      const colors = value.split(" / ");
+      key.split(" / ").forEach((name, i) => {
+        block += `  --${name}: ${colors[i]};\n`;
+      });
+    } else if (value.startsWith("#")) {
+      const alpha = value.match(/^#([0-9a-f]{6}) @ (\d+)% alpha$/i);
+      const css = alpha
+        ? `rgb(${[0, 2, 4].map((i) => parseInt(alpha[1].slice(i, i + 2), 16)).join(" ")} / ${alpha[2]}%)`
+        : value;
+      block += `  --${key.replaceAll(".", "-")}: ${css};\n`;
+    }
   }
+  return block;
 }
+const sections = Object.fromEntries(
+  spec
+    .split(/\r?\n### Color \(/)
+    .slice(1)
+    .map((part) => [part.slice(0, part.indexOf(")")), part.split(/\r?\n#/)[0]]),
+);
+const lightScheme = "  color-scheme: light; --name-l-min: 0; --name-l-max: 0.48;\n";
+let tokens = "/* Generated from docs/UI_SPEC.md. */\n:root {\n";
+tokens += palette(sections["dark, default"]);
 for (const size of [4, 8, 12, 16, 24, 32])
   tokens += `  --space-${size}: ${size}px;\n`;
-tokens += "  --radius-small: 4px; --radius: 8px; --radius-modal: 12px;\n}\n";
+tokens += "  --radius-small: 4px; --radius: 8px; --radius-modal: 12px;\n";
+tokens += "  --name-l-min: 0.7; --name-l-max: 1; --saturation: 1;\n}\n";
 tokens +=
   ":root { --text-muted: #A0A0AA; } /* Lead-approved WCAG AA override. */\n";
+const light = palette(sections["light"]);
+tokens += `:root[data-theme-base="light"] {\n${lightScheme}${light}}\n`;
+tokens += `@media (prefers-color-scheme: light) {\n:root[data-theme-base="system"] {\n${lightScheme}${light}}\n}\n`;
+tokens += `:root[data-theme-base="darker"] {\n${palette(sections["darker"])}}\n`;
 const tokenAsset = await hashedAsset("ui-tokens", "css", tokens);
 let html = await readFile(join(dist, "index.html"), "utf8");
 for (const match of [
@@ -169,6 +194,8 @@ const paths = sizes
       !p.includes("/public/vendor/") &&
       !p.includes("/vendor/") &&
       !p.includes("expression.js") &&
+      // Themes: alternative app icons and chat fonts load only when chosen.
+      !/\/(app-icons|fonts\/chat)\//.test(p) &&
       !p.includes("/stickers/") &&
       !(p.endsWith(".wasm") && !p.endsWith("_bg.wasm")) &&
       !p.includes("__wasm_split_manifest"),

@@ -40,6 +40,7 @@ mod stage;
 pub mod storage_node;
 #[cfg(test)]
 mod storage_tests;
+mod themes;
 mod threads;
 mod tier;
 pub use mentions::Notification;

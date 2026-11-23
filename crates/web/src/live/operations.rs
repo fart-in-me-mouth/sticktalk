@@ -348,6 +348,7 @@ pub(super) fn action(app: Shared, raw: &str) {
         "submit" if super::stage::FORMS.contains(&arg) => super::stage::submit(app, arg),
         "submit" if super::profiles::FORMS.contains(&arg) => super::profiles::submit(app, arg),
         "privacy" => super::privacy::action(app, arg),
+        "appearance" => super::themes::action(app, arg),
         "submit" if arg.starts_with("privacy-") => super::privacy::submit(app, arg),
         "cm" => super::community::action(app, arg),
         "submit" if arg.starts_with("cm-") => super::community::submit(app, arg),
@@ -897,7 +898,7 @@ fn send_prepared(app: Shared, content: String) {
         attachment_ids,
         mention_ids,
     };
-    let cmd = super::content::send_command(&mut a, draft);
+    let cmd = super::themes::tts_command(super::content::send_command(&mut a, draft));
     a.command(cmd);
     a.reply = None;
     media_action(&format!("sent:{}", channel_id.0));
@@ -1991,6 +1992,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
                     || sticktalk_client_core::http::error_text(&error),
                     str::to_owned,
                 ),
+                (Some(Command::Appearance(c)), code) => super::themes::refused(c, code)
+                    .map_or_else(
+                        || sticktalk_client_core::http::error_text(&error),
+                        str::to_owned,
+                    ),
                 _ => sticktalk_client_core::http::error_text(&error),
             };
             a.touch();
@@ -2084,6 +2090,14 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             }
             if let Some(Command::Privacy(op)) = &operation {
                 super::privacy::answered(&mut a, op, &result);
+                a.touch();
+                return;
+            }
+            if let Some(Command::Appearance(op)) = operation
+                .as_ref()
+                .filter(|op| !matches!(op, Command::Appearance(AppearanceCommand::SendTts(_))))
+            {
+                super::themes::answered(&mut a, op, &result);
                 a.touch();
                 return;
             }

@@ -303,9 +303,9 @@ fn play(a: &App, alert: &Alert) {
             AlertKind::Reaction => g.sound_reaction,
         };
     let desktop = g.desktop && !focused;
-    if !sound && !desktop {
-        return;
-    }
+    // Streamer Mode can turn popups and sounds off (themes.rs).
+    let (popups, sounds) = super::themes::alerts_allowed();
+    let (sound, desktop) = (sound && sounds, desktop && popups);
     let who = a.model.name(alert.user_id);
     let place = a
         .model
@@ -343,6 +343,10 @@ fn play(a: &App, alert: &Alert) {
         AlertKind::Direct => "direct",
         AlertKind::Reaction => "reaction",
     };
+    super::themes::alert_spoken(a, alert.channel_id, &title, &body);
+    if !sound && !desktop {
+        return;
+    }
     js_alert(
         kind,
         &title,

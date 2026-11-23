@@ -60,6 +60,9 @@ bitflags::bitflags! {
         const CREATE_EVENTS = 1 << 53;
         /// Raise your hand on a Stage (granted to @everyone by default).
         const REQUEST_TO_SPEAK = 1 << 54;
+        /// Send messages read aloud to the people viewing the channel (`/tts`,
+        /// `themes.rs`); on for @everyone by default.
+        const SEND_TTS_MESSAGES = 1 << 56;
     }
 }
 

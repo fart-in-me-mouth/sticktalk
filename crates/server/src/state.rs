@@ -168,6 +168,8 @@ pub(crate) struct Stream {
     pub expression_features: bool,
     /// Sent a `ScheduleCommand`: receives `Event::Schedule`.
     pub schedule_features: bool,
+    /// Sent `AppearanceCommand::Subscribe`: receives `Event::Appearance`.
+    pub appearance_features: bool,
 }
 impl Drop for Connection {
     fn drop(&mut self) {
@@ -195,6 +197,7 @@ impl Stream {
             thread_features: false,
             expression_features: false,
             schedule_features: false,
+            appearance_features: false,
         }
     }
     pub fn cursor(&self) -> ResumeCursor {
@@ -358,6 +361,9 @@ impl Core {
                 continue;
             }
             if !s.schedule_features && matches!(&event, Event::Schedule(_)) {
+                continue;
+            }
+            if !s.appearance_features && matches!(&event, Event::Appearance(_)) {
                 continue;
             }
             if !s.launch_features

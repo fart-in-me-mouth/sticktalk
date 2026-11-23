@@ -1,0 +1,32 @@
+[
+  {
+    "file": "index.html",
+    "contains": "name=\"theme-color\"",
+    "reason": "the browser UI color before any script runs; theme-boot.js and preferences.js set it from the theme"
+  },
+  {
+    "file": "styles/app.css",
+    "contains": "@apply bg-black;",
+    "reason": "a shared screen's letterbox (media, not themed)"
+  },
+  {
+    "file": "styles/profiles.css",
+    "contains": "name-c1) 0 40%, #ffffff 50%",
+    "reason": "the shimmer band of a person's name style (their cosmetic, not UI)"
+  },
+  {
+    "file": "src/live/ui/content.rs",
+    "contains": "attachment-spoiler",
+    "reason": "SPOILER label over a blurred image (media overlay)"
+  },
+  {
+    "file": "public/authsec-login.js",
+    "contains": "setAttribute('fill'",
+    "reason": "QR code modules: black on white so every scanner reads them"
+  },
+  {
+    "file": "public/backgrounds.js",
+    "contains": "",
+    "reason": "camera background scenes are pictures, not UI"
+  }
+]

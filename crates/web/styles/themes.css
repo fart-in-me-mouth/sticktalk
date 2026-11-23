@@ -1,0 +1,302 @@
+/* Themes, appearance and accessibility (docs/features/themes.md).
+   Everything here keys off attributes and custom properties that
+   public/preferences.js sets on <html>, so a change is a style recalculation
+   only. Colors come only from tokens (var(--...)); no rule here names a color.
+   Unlayered on purpose: these must win over the utilities they adjust. */
+
+/* ---- Chat fonts (public/fonts/chat/NOTICE.md), fetched only when chosen -- */
+@font-face { font-family: "ST OpenDyslexic"; src: url("/public/fonts/chat/opendyslexic-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "ST OpenDyslexic"; src: url("/public/fonts/chat/opendyslexic-latin-700-normal.woff2") format("woff2"); font-weight: 600 900; font-display: swap; }
+@font-face { font-family: "ST Atkinson"; src: url("/public/fonts/chat/atkinson-hyperlegible-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "ST Atkinson"; src: url("/public/fonts/chat/atkinson-hyperlegible-latin-700-normal.woff2") format("woff2"); font-weight: 600 900; font-display: swap; }
+:root[data-chat-font="system"] { --chat-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+:root[data-chat-font="serif"] { --chat-font: Georgia, "Times New Roman", serif; }
+:root[data-chat-font="mono"] { --chat-font: "JetBrains Mono", ui-monospace, monospace; }
+:root[data-chat-font="atkinson"] { --chat-font: "ST Atkinson", Inter, system-ui, sans-serif; }
+:root[data-chat-font="dyslexic"] { --chat-font: "ST OpenDyslexic", Inter, system-ui, sans-serif; }
+:root[data-chat-font]:not([data-chat-font="inter"]) :is(.markdown, .appearance-preview, .composer textarea, #live-input) {
+  font-family: var(--chat-font);
+}
+/* OpenDyslexic is wide and tall: a little more air between lines. */
+:root[data-chat-font="dyslexic"] .markdown p { line-height: 1.6; }
+
+/* ---- Gradient themes ----------------------------------------------------
+   The three large surfaces show one viewport-sized gradient each, so nested
+   surfaces of the same kind line up seamlessly. Only themes with background
+   colors set data-theme-gradient. */
+:root[data-theme-gradient="true"] .bg-rail { background-image: var(--surface-rail); background-attachment: fixed; }
+:root[data-theme-gradient="true"] :is(.bg-sidebar, .bg-card) { background-image: var(--surface-sidebar); background-attachment: fixed; }
+:root[data-theme-gradient="true"] .bg-background { background-image: var(--surface-chat); background-attachment: fixed; }
+
+/* ---- Role colors --------------------------------------------------------
+   A role-colored name carries its color twice: `color` (the default dark
+   theme, unchanged) and `--rc`. On light themes, with less saturation or with
+   contrast boost, the name's lightness is kept in the theme's readable range
+   and its chroma scaled. Inline color wins over rules, hence !important. */
+:root[data-role-adjust="true"] .role-color {
+  color: oklch(from var(--rc) clamp(var(--name-l-min), l, var(--name-l-max)) calc(c * var(--role-saturation)) h) !important;
+}
+:root[data-role-adjust="true"] .styled-name {
+  color: oklch(from var(--name-c1) clamp(var(--name-l-min), l, var(--name-l-max)) calc(c * var(--role-saturation)) h);
+}
+:root[data-role-adjust="true"] :is(.name-effect-gradient, .name-effect-shimmer) {
+  background-image: linear-gradient(90deg,
+    oklch(from var(--name-c1) clamp(var(--name-l-min), l, var(--name-l-max)) calc(c * var(--role-saturation)) h),
+    oklch(from var(--name-c2, var(--name-c1)) clamp(var(--name-l-min), l, var(--name-l-max)) calc(c * var(--role-saturation)) h));
+}
+:root[data-role-colors="off"] .role-color { color: var(--text-primary) !important; }
+:root[data-role-colors="dot"] .role-color { -webkit-text-fill-color: var(--text-primary); }
+:root[data-role-colors="dot"] .role-color .styled-name:not(.name-effect-gradient, .name-effect-shimmer) { -webkit-text-fill-color: currentColor; }
+:root[data-role-colors="dot"] .role-color[style*="--rc"]::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.4em;
+  border-radius: 9999px;
+  background: currentColor;
+  vertical-align: 0.1em;
+}
+
+/* ---- Message spacing ---------------------------------------------------- */
+.message.continuation { margin-top: var(--message-spacing, 2px); }
+.message.group-head { margin-top: var(--group-spacing, 16px); }
+:root[data-density="compact"] .message.group-head { margin-top: calc(var(--group-spacing, 16px) / 2); }
+
+/* ---- Links and focus ---------------------------------------------------- */
+:root[data-focus-always="true"] :is(button, a, input, textarea, select, [tabindex]):focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+:root[data-underline-links="true"] :is(.markdown a, .link-button, a.text-primary) { text-decoration: underline; }
+
+/* ---- Composer send button: "Show send button" off hides it where Enter
+   sends (a mouse and keyboard); touch screens always keep it. */
+@media (hover: hover) and (pointer: fine) {
+  :root[data-send-button="false"] .composer-send { display: none; }
+}
+/* "Speak Message" lives in the message menu, not the hover bar. */
+.message-actions .menu-only { display: none; }
+
+/* While a theme changes (one frame), nothing transitions from the old colors. */
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after { transition: none !important; }
+
+/* ---- Reduced motion ------------------------------------------------------
+   data-motion is "reduce" when the setting is on, or follows the device.
+   Every animation and transition in the app honors it, including ones added
+   later (see the checklist in docs/features/themes.md). */
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  animation-delay: 0s !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+/* ---- Autoplay ------------------------------------------------------------
+   Animated emoji and stickers: "hover" shows the still frame until the
+   message or button is hovered or focused (the moving image is a lazy image
+   that is not fetched until then); "never" always shows the still frame. */
+:root:is([data-autoplay-emoji="hover"], [data-autoplay-emoji="never"]) .custom-emoji.animated > .emoji-still,
+:root:is([data-autoplay-stickers="hover"], [data-autoplay-stickers="never"]) .sticker.animated > .emoji-still { display: block; }
+:root:is([data-autoplay-emoji="hover"], [data-autoplay-emoji="never"]) .custom-emoji.animated > .emoji-motion,
+:root:is([data-autoplay-stickers="hover"], [data-autoplay-stickers="never"]) .sticker.animated > .emoji-motion { display: none; }
+:root[data-autoplay-emoji="hover"] :is(.message:hover, .message:focus-within, button:hover, button:focus-visible) .custom-emoji.animated > .emoji-motion,
+:root[data-autoplay-stickers="hover"] :is(.message:hover, .message:focus-within, button:hover, button:focus-visible) .sticker.animated > .emoji-motion { display: block; }
+:root[data-autoplay-emoji="hover"] :is(.message:hover, .message:focus-within, button:hover, button:focus-visible) .custom-emoji.animated > .emoji-still,
+:root[data-autoplay-stickers="hover"] :is(.message:hover, .message:focus-within, button:hover, button:focus-visible) .sticker.animated > .emoji-still { display: none; }
+/* Animated avatars: lists already animate only on hover; "always" animates
+   them everywhere, "never" nowhere (the profile card too). */
+:root[data-autoplay-avatars="always"] .avatar-anim { background-image: var(--anim); opacity: 1; }
+:root[data-autoplay-avatars="never"] .avatar-anim { display: none !important; }
+/* Profile effects: "hover" plays only while the card is hovered; "never" hides them. */
+:root[data-autoplay-effects="hover"] .profile-card:not(:hover) .profile-effect::before { animation-play-state: paused; }
+:root[data-autoplay-effects="never"] .profile-effect { display: none !important; }
+/* GIFs: preferences.js pauses autoplaying GIF videos and plays them on hover
+   ("hover") or never ("never"). */
+
+/* ---- Streamer Mode -------------------------------------------------------
+   While on, chosen kinds of private details are covered. A covered value is
+   revealed once by clicking it (public/live.js adds .revealed). */
+:root[data-streamer-invites="true"] :is(.streamer-invite, .markdown a[href*="invite="]):not(.revealed),
+:root[data-streamer-account="true"] .streamer-account:not(.revealed),
+:root[data-streamer-account="true"] section[aria-labelledby="authsec-email-title"] :is(p, strong, code):not(.revealed),
+:root[data-streamer-notes="true"] :is(.streamer-note, #p-note):not(.revealed),
+:root[data-streamer-requests="true"] :is(.streamer-request, .request-messages):not(.revealed),
+:root[data-streamer-account="true"] section[aria-labelledby="authsec-passkeys-title"] li:not(.revealed) {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  user-select: none;
+  cursor: pointer;
+  border-radius: 4px;
+  background: var(--bg-control);
+}
+:root[data-streamer-notes="true"] :is(.streamer-note, #p-note):not(.revealed)::placeholder { color: transparent; }
+:root[data-streamer-invites="true"] .streamer-invite:not(.revealed) *,
+:root[data-streamer-account="true"] .streamer-account:not(.revealed) *,
+:root[data-streamer-requests="true"] :is(.streamer-request, .request-messages):not(.revealed) * { visibility: hidden; }
+:root[data-streamer="true"] :is(.streamer-invite, .streamer-account, .streamer-note, .streamer-request, .request-messages):not(.revealed) { position: relative; }
+:root[data-streamer-invites="true"] .streamer-invite:not(.revealed)::after,
+:root[data-streamer-account="true"] .streamer-account:not(.revealed)::after,
+:root[data-streamer-requests="true"] :is(.streamer-request, .request-messages):not(.revealed)::after {
+  content: "Hidden (Streamer Mode) · click to reveal";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  -webkit-text-fill-color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  visibility: visible;
+}
+:root[data-streamer-previews="blur"] :is(.streamer-preview, .nav-card .wrap-anywhere, .nav-unread .markdown) { filter: blur(6px); }
+:root[data-streamer-previews="hide"] :is(.streamer-preview, .nav-card .wrap-anywhere, .nav-unread .markdown) { visibility: hidden; }
+.streamer-indicator {
+  position: fixed;
+  top: calc(var(--safe-top) + 6px);
+  left: 50%;
+  z-index: 90;
+  transform: translateX(-50%);
+  border: 1px solid var(--accent);
+  border-radius: 9999px;
+  background: var(--bg-elevated);
+  padding: 2px 10px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.streamer-indicator::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 9999px;
+  background: var(--dnd);
+}
+@media (max-width: 767px) {
+  .streamer-indicator { top: auto; bottom: calc(var(--safe-bottom) + 72px); }
+}
+
+/* ---- Theme picker and editor (src/live/ui/themes.rs) --------------------- */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 12px;
+}
+.theme-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.theme-option input { position: absolute; opacity: 0; pointer-events: none; }
+.theme-option:has(input:checked) { color: var(--text-primary); }
+.theme-option:has(input:checked) .theme-swatch { box-shadow: 0 0 0 2px var(--bg-chat), 0 0 0 4px var(--accent); }
+.theme-option:has(input:focus-visible) .theme-swatch { outline: 2px solid var(--accent); outline-offset: 4px; }
+/* A miniature window drawn with the option's own tokens (style attribute). */
+.theme-swatch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px 30px 1fr;
+  height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--sw-divider, var(--divider));
+  border-radius: 8px;
+  background: var(--sw-chat-img, var(--sw-chat));
+}
+.theme-swatch > i:nth-child(1) { background: var(--sw-rail-img, var(--sw-rail)); }
+.theme-swatch > i:nth-child(2) { background: var(--sw-sidebar-img, var(--sw-sidebar)); }
+.theme-swatch > span {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 8px;
+}
+.theme-swatch > span > b { display: block; height: 5px; border-radius: 3px; background: var(--sw-text); opacity: 0.85; }
+.theme-swatch > span > b:nth-child(2) { width: 70%; background: var(--sw-muted); }
+.theme-swatch > span > b:nth-child(3) { width: 40%; height: 10px; border-radius: 4px; background: var(--sw-accent); opacity: 1; }
+.theme-option .theme-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: none;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.theme-option:has(input:checked) .theme-check { display: grid; }
+.theme-option .theme-check .icon { width: 12px; height: 12px; stroke-width: 3; }
+.color-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.color-chips input[type="color"] { width: 44px; height: 36px; padding: 2px; }
+.theme-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .theme-editor-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.theme-preview {
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+  border: 1px solid var(--pv-divider);
+  border-radius: 12px;
+  background: var(--pv-chat-img, var(--pv-chat));
+  color: var(--pv-text);
+}
+.theme-preview .pv-head { border-bottom: 1px solid var(--pv-divider); padding: 10px 12px; font-weight: 600; }
+.theme-preview .pv-body { display: flex; flex-direction: column; gap: 10px; padding: 12px; font-size: 14px; }
+.theme-preview .pv-muted { color: var(--pv-muted); font-size: 12px; }
+.theme-preview .pv-link { color: var(--pv-accent); text-decoration: underline; }
+.theme-preview .pv-composer { border-radius: 8px; background: var(--pv-elevated); padding: 8px 10px; color: var(--pv-muted); }
+.theme-preview .pv-button { align-self: flex-start; border-radius: 6px; background: var(--pv-accent); padding: 6px 12px; color: var(--pv-accent-text); font-weight: 600; }
+.theme-warning {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.app-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 12px; }
+.app-icon-option { position: relative; display: grid; justify-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+.app-icon-option input { position: absolute; opacity: 0; pointer-events: none; }
+.app-icon-option img { width: 56px; height: 56px; border-radius: 14px; }
+.app-icon-option:has(input:checked) img { box-shadow: 0 0 0 2px var(--bg-chat), 0 0 0 4px var(--accent); }
+.app-icon-option:has(input:focus-visible) img { outline: 2px solid var(--accent); outline-offset: 4px; }
+.app-icon-option:has(input:checked) { color: var(--text-primary); }
+.range-field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; margin: 16px 0; }
+.range-field > span:first-child { grid-column: 1 / -1; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+.range-field input[type="range"] { height: 4px; width: 100%; cursor: pointer; border: 0; background: transparent; padding: 0; box-shadow: none; accent-color: var(--accent); }
+.range-field output { min-width: 48px; text-align: right; font-size: 14px; color: var(--text-secondary); }
+.choice-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+.choice-row label { display: inline-flex; min-height: 36px; align-items: center; gap: 8px; border: 1px solid var(--divider); border-radius: 8px; background: var(--bg-sidebar); padding: 0 12px; cursor: pointer; font-size: 14px; }
+.choice-row label:has(input:checked) { border-color: var(--accent); color: var(--text-primary); box-shadow: 0 0 0 1px var(--accent); }
+.choice-row input { accent-color: var(--accent); }
+@media (max-width: 767px), (pointer: coarse) {
+  .choice-row label { min-height: 44px; }
+}

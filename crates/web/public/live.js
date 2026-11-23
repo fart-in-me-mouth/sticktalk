@@ -13,6 +13,7 @@ const confirmations = [
   [/^logout-others$/, 'Log out all other devices?', 'Every other device signed in to your account is signed out.', 'Log Out Devices'],
   [/^device-revoke:/, 'Log out that device?', 'It will have to sign in again.', 'Log Out'],
   [/^role-delete:/, 'Delete this role?', 'Members who have it lose its permissions. This can’t be undone.', 'Delete Role'],
+  [/^appearance:delete,/, 'Delete this theme?', 'It is removed from all your devices. This can’t be undone.', 'Delete Theme'],
   [/^expr-emoji-delete:/, 'Delete this emoji?', 'Messages that used it will show its :name: instead. This can’t be undone.', 'Delete Emoji'],
   [/^expr-sticker-delete:/, 'Delete this sticker?', 'Messages that carried it will show its name instead. This can’t be undone.', 'Delete Sticker'],
   [/^friend:block,/, 'Block this person?', 'They won’t be able to message you or add you as a friend.', 'Block'],

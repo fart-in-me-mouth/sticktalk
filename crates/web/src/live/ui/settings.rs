@@ -38,6 +38,7 @@ pub(super) fn is_server_page(page: &str) -> bool {
         || super::expression::is_server_page(page)
         || super::privacy::is_server_page(page)
         || super::community::is_server_page(page)
+        || super::themes::is_server_page(page)
         || [
             "role:",
             "channel-edit:",
@@ -93,6 +94,13 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             "Stickers",
             "server-stickers",
             can(a, Permissions::MANAGE_EMOJI),
+        ),
+        // Themes (themes.rs): the server's theme.
+        (
+            "palette",
+            "Theme",
+            "server-theme",
+            can(a, Permissions::MANAGE_GUILD),
         ),
     ];
     // Moderation, as its own group.
@@ -167,6 +175,7 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
                 "channel-perms" => "Channel Permissions",
                 "emoji-edit" => "Edit Emoji",
                 "sticker-edit" => "Edit Sticker",
+                "server-theme-editor" => "Theme",
                 _ => "Server Settings",
             },
             |(_, label, _, _)| *label,
@@ -184,6 +193,7 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
         "channel-perms" => ("Back to Channels", "dialog:server-channels"),
         "emoji-edit" => ("Back to Emoji", "dialog:server-emoji"),
         "sticker-edit" => ("Back to Stickers", "dialog:server-stickers"),
+        "server-theme-editor" => ("Back to Theme", "dialog:server-theme"),
         _ => ("Back to Server Settings", "dialog:server"),
     };
     settings_page(
@@ -314,7 +324,7 @@ pub(super) fn invites(a: &App) -> AnyView {
         .collect::<Vec<_>>();
     view!{{form("Invites","invite",view!{<p class="muted-copy">"Create a link valid for 7 days, for up to 100 people."</p><fieldset disabled=!allowed><input id="f-name" type="hidden"/></fieldset>}.into_any())}
         {if !a.admin_busy&&invites.is_empty(){view!{<p class="muted-copy">"No active invites."</p>}.into_any()}else{().into_any()}}
-        {invites.into_iter().map(|i|view!{<div class="settings-list-row flex flex-wrap items-center gap-3 border-b py-4"><span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere"><code>{i.code.clone()}</code><small>{format!("{} / {} uses",i.uses,i.max_uses)}</small></span><button class="button secondary" data-copy=format!("{}/?invite={}",a.origin,i.code)>"Copy Link"</button>{button("Revoke",&format!("dialog:invite-revoke:{}",i.code),"danger-text")}</div>}).collect_view()}{more(a)}
+        {invites.into_iter().map(|i|view!{<div class="settings-list-row flex flex-wrap items-center gap-3 border-b py-4"><span class="settings-row-copy flex min-w-24 flex-1 flex-col gap-1 wrap-anywhere"><code class="streamer-invite self-start">{i.code.clone()}</code><small>{format!("{} / {} uses",i.uses,i.max_uses)}</small></span><button class="button secondary" data-copy=format!("{}/?invite={}",a.origin,i.code)>"Copy Link"</button>{button("Revoke",&format!("dialog:invite-revoke:{}",i.code),"danger-text")}</div>}).collect_view()}{more(a)}
     }.into_any()
 }
 pub(super) fn bans(a: &App) -> AnyView {
@@ -375,17 +385,6 @@ pub(super) fn member_roles(a: &App) -> AnyView {
         {a.roles.values().filter(|r|Some(r.guild_id)==a.guild&&r.id!=r.guild_id).map(|r|view!{<label class="live-checkbox"><span>{r.name.clone()}</span><input type="checkbox" checked=assigned.contains(&r.id) data-member-role=r.id.0.to_string()/></label>}).collect_view()}
         <p class="muted-copy">"Replaces all roles for this member."</p>
     }.into_any())
-}
-pub(super) fn appearance() -> AnyView {
-    view!{<h2>"Appearance"</h2><p class="muted-copy">"Saved on this device."</p><h3>"Theme"</h3><p>"Dark"</p>
-        <label class="field"><span>"Message Display"</span><select data-preference="density"><option value="cozy">"Cozy"</option><option value="compact">"Compact"</option></select></label>
-        <label class="field"><span>"Chat Font Scaling"</span><select data-preference="fontScale"><option value="0.8">"80%"</option><option value="0.9">"90%"</option><option value="1">"100%"</option><option value="1.1">"110%"</option><option value="1.25">"125%"</option><option value="1.5">"150%"</option></select></label>
-        <label class="live-checkbox"><span>"Always underline links"</span><input type="checkbox" data-preference="underlineLinks"/></label>
-        <label class="live-checkbox"><span>"Show website previews for links"</span><input type="checkbox" data-preference="linkPreviews"/></label>
-        <h3 class="mt-6">"Profiles"</h3><label class="live-checkbox"><span class="flex flex-col"><span>"Show plain names"</span><small class="text-xs text-subtle">"Other people’s name fonts, colors and effects are turned off. Role colors stay."</small></span><input type="checkbox" data-preference="plainNames"/></label>
-        <label class="live-checkbox"><span class="flex flex-col"><span>"Reduce cosmetics"</span><small class="text-xs text-subtle">"Hide other people’s avatar decorations, nameplates, profile effects and frames."</small></span><input type="checkbox" data-preference="reduceCosmetics"/></label>
-        <div class="settings-divider"></div><h3>"Preview"</h3><p class="appearance-preview rounded-lg border bg-card p-4">"This is how your messages will look."</p><p class="muted-copy">"StickTalk respects your device’s reduced motion setting."</p>
-    }.into_any()
 }
 pub(super) fn privacy(a: &App) -> AnyView {
     super::privacy::privacy_page(a)

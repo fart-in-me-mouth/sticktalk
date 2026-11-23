@@ -26,6 +26,7 @@ fn channel_of(e: &Event) -> Option<Id> {
         Event::ChannelUpsert(ch) => ch.summary.id,
         Event::Content(ContentEvent::PollUpdated { channel_id, .. })
         | Event::Content(ContentEvent::EmbedsUpdated { channel_id, .. }) => *channel_id,
+        Event::Appearance(AppearanceEvent::Tts { channel_id, .. }) => *channel_id,
         _ => return None,
     })
 }
@@ -39,6 +40,7 @@ fn carries_content(e: &Event) -> bool {
             | Event::Typing { .. }
             | Event::Content(ContentEvent::PollUpdated { .. })
             | Event::Content(ContentEvent::EmbedsUpdated { .. })
+            | Event::Appearance(AppearanceEvent::Tts { .. })
     )
 }
 pub(crate) async fn filter(c: &mut SqliteConnection, users: &mut Vec<Id>, e: &Event) -> Result<()> {
