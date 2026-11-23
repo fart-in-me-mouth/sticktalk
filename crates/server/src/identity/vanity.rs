@@ -115,7 +115,7 @@ pub(super) async fn set(
         None => None,
     };
     if current.as_ref().map(|v| &v.code) == wanted.as_ref() {
-        return Ok(CommandResult::Identity(IdentityResult::Vanity(current)));
+        return Ok(CommandResult::Ack);
     }
     if let Some(w) = &wanted {
         if reserved_vanity(w) {
@@ -200,9 +200,7 @@ pub(super) async fn set(
             .change("vanity_code", current.map(|v| v.code), wanted),
     )
     .await?;
-    Ok(CommandResult::Identity(IdentityResult::Vanity(
-        info(c, g).await?,
-    )))
+    Ok(CommandResult::Ack)
 }
 
 /// The usable invite a code names, and its server.

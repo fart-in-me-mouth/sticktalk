@@ -340,7 +340,6 @@ pub enum CommandResult {
     Expression(ExpressionResult),
     Privacy(PrivacyResult),
     Community(CommunityResult),
-    Identity(IdentityResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -38,11 +38,13 @@ Every check runs on the server and has a test in `identity/tests.rs`.
   when `icon.id == icon_id`), and whether other servers' tags are hidden here.
 - `Role.look` (`RoleLook {style?, icon?}`, boxed, omitted when empty):
   `RoleStyle {paint: gradient|holographic, color2?, color3?}` (a gradient
-  starts at `Role.color`), `RoleIcon: image{rev} | emoji{emoji} |
-  custom{emoji_id, name}`. `UpdateRole` ignores it (an older client cannot
-  clear it).
-- `Command::Identity(IdentityCommand)`, `CommandResult::Identity(IdentityResult)`.
-  No new events: changes travel as `SelfUpdated`/`UserUpdated`/`MemberUpsert`
+  starts at `Role.color`), `RoleIcon {rev?, emoji_id?, emoji}`: an uploaded
+  picture (`rev`), a custom emoji of the server (`emoji_id`, its name in
+  `emoji`) or a Unicode emoji (`emoji`). Plain structs, not enums, keep the
+  snapshot decoder in the web app's first load small. `UpdateRole` ignores it
+  (an older client cannot clear it).
+- `Command::Identity(IdentityCommand)`, every one answered with `Ack`.
+  No new result type and no new events: changes travel as `SelfUpdated`/`UserUpdated`/`MemberUpsert`
   (tags), `GuildUpsert` (server look) and `RolesUpdated` (role look).
 - `AuditAction::ServerTagUpdate` (`server_tag_update`) and `VanityUpdate`
   (`vanity_update`), appended. Role styles and icons are `role_update`
@@ -57,7 +59,7 @@ Every check runs on the server and has a test in `identity/tests.rs`.
 | `SetImage {guild_id, slot: icon\|banner\|invite_background, image?: ImageRef {id, crop?}}` | `image` is the person's own fresh avatar upload (or one this server already uses). |
 | `SetRoleStyle {guild_id, role_id, style?}` | |
 | `SetRoleIcon {guild_id, role_id, icon?: emoji{emoji} \| custom{emoji_id}}` | A picture is uploaded with the REST route below. |
-| `SetVanity {guild_id, code?}` | Answers `IdentityResult::Vanity(Option<Vanity {code, uses, claimed_at}>)`. None releases. |
+| `SetVanity {guild_id, code?}` | None releases. `GET .../identity` has the result (`Vanity {code, uses, claimed_at}`). |
 
 ## REST routes (cookie or bearer)
 
@@ -153,9 +155,12 @@ background is only served through an invite.
   fetched once when on screen and kept in a 32-entry cache; the card has its
   final size while loading. The join screen shows the invite background (or
   the banner) behind the card on a scrim.
-- **Invite codes** render through `ui::identity::invite_code` (`.invite-code`)
-  on the identity pages, so Streamer Mode can hide them in one place. The
-  tag's invite picker shows only the last four characters of secret codes.
+- **Invite codes** render through `ui::identity::invite_code`
+  (`.invite-code.streamer-invite`) on the identity pages, so Streamer Mode
+  (themes work, `.streamer-invite`) hides them. The tag's invite picker shows
+  only the last four characters of secret codes. Note for the merge: Streamer
+  Mode's message rule matches `a[href*="invite="]`; vanity links in messages
+  have the form `/invite/<code>` and need `a[href*="/invite/"]` added there.
 - **Tag card.** Clicking a tag in a message (or on a profile, invite or join
   card) opens the card; in member, DM and friend rows the tag is a static chip
   because the row itself opens the profile.
@@ -194,6 +199,13 @@ background is only served through an invite.
   and `identity.css` are small.
 - No timers: vanity holds are checked when a code is next claimed; the vanity
   rate limit reads the audit log.
+- Measured against the parent commit (`b957ccf`), same build script, Brotli:
+  core WASM 1,097,215 → 1,118,006 bytes (+20.8 KB: the decoders for the new
+  snapshot fields and the list renderers), `sizes.json` firstLoadBytes
+  1,402,930 → 1,427,634 (+24.7 KB, with the CSS), the lazy dialog chunk
+  +23 KB. The `id:` actions, settings loaders, invite-card renderer and its
+  decoder are `#[lazy]` split modules. `RoleIcon` is a struct and no
+  `IdentityResult` exists precisely to keep the snapshot decoder small.
 
 ## Admin CLI
 

@@ -748,7 +748,7 @@ async fn role_icons_are_emoji_server_emoji_or_validated_pictures_for_members() {
     let (s, body) = request(&app, 1, "POST", &path, png.get_ref().clone()).await;
     assert_eq!(s, 200, "{}", String::from_utf8_lossy(&body));
     let look: RoleLook = serde_json::from_slice(&body).unwrap();
-    assert_eq!(look.icon, Some(RoleIcon::Image { rev: 1 }));
+    assert_eq!(look.icon, Some(RoleIcon::image(1)));
     let (s, body) = get(&app, 2, &format!("{path}?v=1")).await;
     assert_eq!(s, 200);
     let back = image::load_from_memory(&body).unwrap();
@@ -876,10 +876,15 @@ async fn vanity_links_are_unique_held_rate_limited_and_join_like_invites() {
             "{bad}"
         );
     }
-    match ok(&run(&app, 1, set(10, Some("Sticks"))).await) {
-        CommandResult::Identity(IdentityResult::Vanity(Some(v))) => assert_eq!(v.code, "sticks"),
-        r => panic!("{r:?}"),
-    }
+    ok(&run(&app, 1, set(10, Some("Sticks"))).await);
+    assert_eq!(
+        scalar(
+            &app,
+            "SELECT COUNT(*) FROM vanity_codes WHERE code='sticks' AND guild_id=10"
+        )
+        .await,
+        1
+    );
     assert_eq!(
         err(&run(&app, 3, set(20, Some("STICKS"))).await).code,
         ErrorCode::AlreadyExists

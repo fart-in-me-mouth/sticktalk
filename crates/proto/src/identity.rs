@@ -244,15 +244,40 @@ pub struct RoleStyle {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color3: Option<u32>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum RoleIcon {
-    /// An uploaded picture at `/api/v1/guilds/{guild}/roles/{role}/icon?v={rev}`.
-    Image { rev: u32 },
-    /// One Unicode emoji.
-    Emoji { emoji: String },
-    /// A custom emoji of this server.
-    Custom { emoji_id: Id, name: String },
+/// A role's icon: an uploaded picture (`rev`), a custom emoji of this server
+/// (`emoji_id`, with its name in `emoji`) or one Unicode emoji (`emoji`).
+/// A plain struct rather than an enum: it is in every role list snapshot,
+/// and this keeps its decoder in the web app's first load small.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct RoleIcon {
+    /// The picture at `/api/v1/guilds/{guild}/roles/{role}/icon?v={rev}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rev: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub emoji_id: Option<Id>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub emoji: String,
+}
+impl RoleIcon {
+    pub fn image(rev: u32) -> Self {
+        Self {
+            rev: Some(rev),
+            ..Default::default()
+        }
+    }
+    pub fn unicode(emoji: String) -> Self {
+        Self {
+            emoji,
+            ..Default::default()
+        }
+    }
+    pub fn custom(emoji_id: Id, name: String) -> Self {
+        Self {
+            emoji_id: Some(emoji_id),
+            emoji: name,
+            ..Default::default()
+        }
+    }
 }
 /// A role's style and icon, in the role list snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -317,18 +342,13 @@ pub enum IdentityCommand {
         role_id: RoleId,
         icon: Option<RoleIconRef>,
     },
-    /// Manage Server. None releases the code (held 30 days).
+    /// Manage Server. None releases the code (held 30 days). Answered with
+    /// `Ack`; `GET .../identity` has the result.
     SetVanity {
         guild_id: GuildId,
         code: Option<String>,
     },
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "data", rename_all = "snake_case")]
-pub enum IdentityResult {
-    Vanity(Option<Vanity>),
-}
-
 /// A server's vanity link, for its admins.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Vanity {
@@ -465,9 +485,7 @@ mod tests {
         let text = String::from_utf8_lossy(&rmp_serde::to_vec_named(&look).unwrap()).into_owned();
         assert!(!text.contains("hide_tags"));
         let r = RoleLook {
-            icon: Some(RoleIcon::Emoji {
-                emoji: "⭐".into()
-            }),
+            icon: Some(RoleIcon::unicode("⭐".into())),
             ..Default::default()
         };
         let back: RoleLook = rmp_serde::from_slice(&rmp_serde::to_vec_named(&r).unwrap()).unwrap();

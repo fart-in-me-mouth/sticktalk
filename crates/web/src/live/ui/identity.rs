@@ -86,7 +86,7 @@ pub(super) fn tag_text(a: &App, user: Id) -> String {
 }
 
 /// The highest of the member's roles in the open server that `pick` accepts.
-fn top_role<'a>(a: &'a App, user: Id, pick: impl Fn(&Role) -> bool) -> Option<&'a Role> {
+fn top_role(a: &App, user: Id, pick: impl Fn(&Role) -> bool) -> Option<&Role> {
     let m = a
         .model
         .members
@@ -147,11 +147,13 @@ pub(super) fn role_name(a: &App, user: Id, shown: &str, inner: AnyView) -> AnyVi
 }
 fn role_icon_view(g: Id, r: &Role, icon: &RoleIcon, class: &'static str) -> AnyView {
     let label = r.name.clone();
-    match icon {
-        RoleIcon::Image { rev } => view!{<img class=class src=format!("/api/v1/guilds/{}/roles/{}/icon?v={rev}",g.0,r.id.0) alt=label.clone() title=label width="16" height="16" loading="lazy" decoding="async"/>}.into_any(),
-        RoleIcon::Emoji { emoji } => view!{<span class=format!("{class} role-icon-emoji") role="img" aria-label=label.clone() title=label>{emoji.clone()}</span>}.into_any(),
+    if let Some(rev) = icon.rev {
+        return view!{<img class=class src=format!("/api/v1/guilds/{}/roles/{}/icon?v={rev}",g.0,r.id.0) alt=label.clone() title=label width="16" height="16" loading="lazy" decoding="async"/>}.into_any();
+    }
+    match icon.emoji_id {
         // The still preview: nothing moves in a list.
-        RoleIcon::Custom { emoji_id, .. } => view!{<img class=class src=format!("/api/v1/emoji/{}/preview",emoji_id.0) alt=label.clone() title=label width="16" height="16" loading="lazy" decoding="async"/>}.into_any(),
+        Some(e) => view!{<img class=class src=format!("/api/v1/emoji/{}/preview",e.0) alt=label.clone() title=label width="16" height="16" loading="lazy" decoding="async"/>}.into_any(),
+        None => view!{<span class=format!("{class} role-icon-emoji") role="img" aria-label=label.clone() title=label>{icon.emoji.clone()}</span>}.into_any(),
     }
 }
 /// The icon of the member's highest role that has one, after their name.
@@ -282,10 +284,11 @@ fn invite_codes(origin: &str, text: &str) -> Vec<String> {
     }
     out
 }
-/// An invite code as text. Every place that shows one uses this, so Streamer
-/// Mode can hide them all (`.invite-code`).
+/// An invite code as text. Every place here that shows one uses this, so
+/// Streamer Mode hides them all (`.streamer-invite`, themes.css).
 pub(super) fn invite_code(code: &str) -> AnyView {
-    view! {<code class="invite-code" data-invite-code="">{code.to_owned()}</code>}.into_any()
+    view! {<code class="invite-code streamer-invite" data-invite-code="">{code.to_owned()}</code>}
+        .into_any()
 }
 fn counts(c: &InviteCard) -> String {
     format!(
@@ -326,7 +329,7 @@ fn invite_card(a: &App, code: &str) -> AnyView {
     match cached {
         None => {
             crate::live::identity::want_invite(a, code);
-            view!{<div class="invite-card is-loading" role="status" aria-label="Loading invite"><div class="invite-card-banner"></div><div class="invite-card-body"><span class="invite-card-icon bg-muted"></span><span class="h-4 w-40 rounded-sm bg-muted"></span></div></div>}.into_any()
+            invite_placeholder()
         }
         Some(None) => view!{<div class="invite-card is-invalid"><div class="invite-card-body"><span class="invite-card-icon grid place-items-center bg-muted">{icon("link")}</span><div class="min-w-0"><strong class="block">"Invite unavailable"</strong><small class="text-subtle">"This invite has expired or is not valid."</small></div></div></div>}.into_any(),
         Some(Some(c)) => {
@@ -348,7 +351,17 @@ pub(super) fn invite_cards(a: &App, m: &Message) -> AnyView {
     if codes.is_empty() {
         return ().into_any();
     }
-    view! {<div class="invite-cards mt-2 grid gap-2">{codes.iter().map(|c|invite_card(a,c)).collect_view()}</div>}.into_any()
+    // The card renderer is a split module; until it arrives each card is a
+    // placeholder of the same size.
+    let render = crate::live::identity::invite_view(a);
+    view! {<div class="invite-cards mt-2 grid gap-2">{codes.iter().map(|c|match render{Some(r)=>r(a,c),None=>invite_placeholder()}).collect_view()}</div>}.into_any()
+}
+fn invite_placeholder() -> AnyView {
+    view!{<div class="invite-card is-loading" role="status" aria-label="Loading invite"><div class="invite-card-banner"></div><div class="invite-card-body"><span class="invite-card-icon bg-muted"></span></div></div>}.into_any()
+}
+#[lazy]
+pub(in crate::live) fn load_invite_view() -> fn(&App, &str) -> AnyView {
+    invite_card
 }
 
 // ----------------------------------------------------- dialogs (lazy)
@@ -501,7 +514,7 @@ pub(super) fn role_controls(a: &App, r: &Role) -> AnyView {
     let g = r.guild_id;
     let emoji = a.model.launch.emoji.get(&g).cloned().unwrap_or_default();
     let current_emoji = match &look.icon {
-        Some(RoleIcon::Emoji { emoji }) => emoji.clone(),
+        Some(i) if i.rev.is_none() && i.emoji_id.is_none() => i.emoji.clone(),
         _ => String::new(),
     };
     view!{<fieldset class="role-identity mt-8" disabled=!allowed>

@@ -10,6 +10,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, VecDeque};
 use sticktalk_client_core::http::decode_json;
 
+/// Draws one invite card (a split module, see `invite_view`).
+pub(super) type InviteView = fn(&App, &str) -> AnyView;
 /// Invite cards remembered (each a few hundred bytes).
 const INVITE_CARDS: usize = 32;
 
@@ -28,6 +30,10 @@ pub(super) struct State {
     fetching: Cell<bool>,
     /// The banner of the server open in the directory preview.
     pub directory: Option<(Id, DirectoryArt)>,
+    /// The invite card renderer, a split module loaded with the first
+    /// invite link on screen.
+    pub invite_view: Cell<Option<InviteView>>,
+    loading_view: Cell<bool>,
     /// Where the image on its way goes, and its crop.
     upload: Option<(Id, GuildImageSlot, Option<Crop>)>,
 }
@@ -74,8 +80,21 @@ pub(super) fn admin_page(page: &str) -> bool {
     matches!(page, "id-tags" | "id-appearance" | "id-vanity")
 }
 
-/// A dialog opened: load what it shows.
+/// A dialog opened: load what it shows. The loading code (and the decoders
+/// of what it loads) is a split module, out of the first load.
 pub(super) fn opened(app: Shared, name: &str) {
+    if admin_page(name)
+        || name == "profile-edit"
+        || name.starts_with("discover:")
+        || name.starts_with("join:")
+    {
+        let name = name.to_owned();
+        spawn_local(async move { opened_lazy(app, name).await });
+    }
+}
+#[lazy]
+fn opened_lazy(app: Shared, name: String) {
+    let name = name.as_str();
     let guild = app.borrow().guild;
     if admin_page(name) {
         if let Some(g) = guild {
@@ -169,6 +188,11 @@ fn load_tag(app: Shared, g: Id) {
 
 /// Called while rendering: an invite link is on screen. Its card is fetched
 /// once, after this render, and kept in a small cache.
+// Decoding an invite card is only needed once one is on screen.
+#[lazy]
+fn invite_decoder() -> fn(sticktalk_client_core::http::HttpResponse) -> Result<InviteCard, String> {
+    decode_json::<InviteCard>
+}
 pub(super) fn want_invite(a: &App, code: &str) {
     let s = &a.identity;
     if s.invites.borrow().contains_key(code) {
@@ -193,9 +217,17 @@ pub(super) fn want_invite(a: &App, code: &str) {
                     }
                 }
             };
+            let decode = invite_decoder().await;
             let result = http
-                .json::<InviteCard>(&format!("/invites/{}/card", encode(&code)))
-                .await;
+                .execute(
+                    "GET",
+                    &format!("/api/v1/invites/{}/card", encode(&code)),
+                    Body::Empty,
+                    vec![],
+                    30_000,
+                )
+                .await
+                .and_then(decode);
             let a = app.borrow();
             if a.epoch != epoch {
                 a.identity.fetching.set(false);
@@ -221,13 +253,35 @@ fn encode(code: &str) -> String {
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
         .collect()
 }
+/// The invite card renderer, if loaded; asks for it otherwise.
+pub(super) fn invite_view(a: &App) -> Option<InviteView> {
+    let view = a.identity.invite_view.get();
+    if view.is_none() && !a.identity.loading_view.replace(true) {
+        let owner = a.owner.clone();
+        spawn_local(async move {
+            let render = super::ui::load_invite_view().await;
+            if let Some(app) = owner.upgrade() {
+                let a = app.borrow();
+                a.identity.invite_view.set(Some(render));
+                a.touch();
+            }
+        });
+    }
+    view
+}
 /// A joined server's invite card says you are in it.
 pub(super) fn forget_invites(a: &App) {
     a.identity.invites.borrow_mut().clear();
     a.identity.order.borrow_mut().clear();
 }
 
+/// `id:` actions. Their code is a split module, loaded on first use.
 pub(super) fn action(app: Shared, arg: &str) {
+    let arg = arg.to_owned();
+    spawn_local(async move { action_lazy(app, arg).await });
+}
+#[lazy]
+fn action_lazy(app: Shared, arg: String) {
     let mut parts = arg.split(',');
     let verb = parts.next().unwrap_or_default();
     let rest: Vec<&str> = parts.collect();
@@ -436,6 +490,12 @@ pub(super) fn action(app: Shared, arg: &str) {
 }
 
 pub(super) fn submit(app: Shared, form: &str) {
+    let form = form.to_owned();
+    spawn_local(async move { submit_lazy(app, form).await });
+}
+#[lazy]
+fn submit_lazy(app: Shared, form: String) {
+    let form = form.as_str();
     let mut a = app.borrow_mut();
     let Some(g) = a.guild else { return };
     match form {
@@ -531,11 +591,6 @@ pub(super) fn answered(app: Shared, cmd: Command, result: CommandResult) {
         if !notice.is_empty() {
             a.notice = notice.into();
             a.error = a.notice.clone();
-        }
-        if let (Some(admin), CommandResult::Identity(IdentityResult::Vanity(v))) =
-            (a.identity.admin.as_mut(), &result)
-        {
-            admin.vanity = v.clone();
         }
         a.touch();
         (

@@ -11,6 +11,7 @@ mod community;
 mod content;
 mod expression;
 mod identity;
+pub(super) use identity::load_invite_view;
 mod moderation;
 mod navui;
 mod privacy;

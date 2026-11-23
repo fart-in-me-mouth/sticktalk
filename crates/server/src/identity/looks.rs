@@ -233,10 +233,14 @@ fn style_text(s: &Option<RoleStyle>) -> Option<String> {
     })
 }
 fn icon_text(i: &Option<RoleIcon>) -> Option<String> {
-    i.as_ref().map(|i| match i {
-        RoleIcon::Image { .. } => "picture".into(),
-        RoleIcon::Emoji { emoji } => emoji.clone(),
-        RoleIcon::Custom { name, .. } => format!(":{name}:"),
+    i.as_ref().map(|i| {
+        if i.rev.is_some() {
+            "picture".into()
+        } else if i.emoji_id.is_some() {
+            format!(":{}:", i.emoji)
+        } else {
+            i.emoji.clone()
+        }
     })
 }
 async fn role_audit(
@@ -347,7 +351,7 @@ pub(super) async fn set_role_icon(
         Some(RoleIconRef::Emoji { emoji }) => {
             let emoji = emoji.trim().to_owned();
             require(unicode_emoji(&emoji), ErrorCode::InvalidRequest)?;
-            Some(RoleIcon::Emoji { emoji })
+            Some(RoleIcon::unicode(emoji))
         }
         Some(RoleIconRef::Custom { emoji_id }) => {
             let name: Option<String> =
@@ -357,7 +361,7 @@ pub(super) async fn set_role_icon(
                     .fetch_optional(&mut *c)
                     .await?;
             let name = name.ok_or_else(|| invalid("icon", "Choose an emoji of this server."))?;
-            Some(RoleIcon::Custom { emoji_id, name })
+            Some(RoleIcon::custom(emoji_id, name))
         }
         None => None,
     };
@@ -487,7 +491,7 @@ pub(super) async fn upload_icon(
         .await?;
     let mut look = role.look.as_deref().cloned().unwrap_or_default();
     let before = icon_text(&look.icon);
-    look.icon = Some(RoleIcon::Image { rev: rev as u32 });
+    look.icon = Some(RoleIcon::image(rev as u32));
     save_role_look(&mut tx, g, r, &look).await?;
     role_audit(&mut tx, u, &role, "icon", before, icon_text(&look.icon)).await?;
     let users = guild_users(&mut tx, g).await?;

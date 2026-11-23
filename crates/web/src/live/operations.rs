@@ -2500,8 +2500,9 @@ pub(super) fn upload(
         a.uploading = false;
         match result {
             Ok(file) => {
-                if super::profiles::uploaded(&mut a, purpose, &file) {
-                } else if super::identity::uploaded(&mut a, purpose, &file) {
+                if super::profiles::uploaded(&mut a, purpose, &file)
+                    || super::identity::uploaded(&mut a, purpose, &file)
+                {
                 } else if purpose == UploadPurpose::Avatar {
                     a.command(Command::UpdateProfile(ProfilePatch {
                         avatar_id: Patch::Set(file.id),
