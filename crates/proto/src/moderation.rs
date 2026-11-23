@@ -114,6 +114,14 @@ pub enum AuditAction {
     SoundDelete,
     PollEnd,
     EmbedsRemove,
+    ApplicationApprove,
+    ApplicationReject,
+    AdmissionUpdate,
+    OnboardingUpdate,
+    ListingUpdate,
+    TemplateCreate,
+    TemplateUpdate,
+    TemplateDelete,
 }
 impl AuditAction {
     pub const ALL: &'static [AuditAction] = &[
@@ -170,6 +178,14 @@ impl AuditAction {
         Self::SoundDelete,
         Self::PollEnd,
         Self::EmbedsRemove,
+        Self::ApplicationApprove,
+        Self::ApplicationReject,
+        Self::AdmissionUpdate,
+        Self::OnboardingUpdate,
+        Self::ListingUpdate,
+        Self::TemplateCreate,
+        Self::TemplateUpdate,
+        Self::TemplateDelete,
     ];
     /// Stable snake_case name, as used on the wire and in the `action` filter.
     pub fn name(self) -> &'static str {
@@ -227,6 +243,14 @@ impl AuditAction {
             Self::SoundDelete => "sound_delete",
             Self::PollEnd => "poll_end",
             Self::EmbedsRemove => "embeds_remove",
+            Self::ApplicationApprove => "application_approve",
+            Self::ApplicationReject => "application_reject",
+            Self::AdmissionUpdate => "admission_update",
+            Self::OnboardingUpdate => "onboarding_update",
+            Self::ListingUpdate => "listing_update",
+            Self::TemplateCreate => "template_create",
+            Self::TemplateUpdate => "template_update",
+            Self::TemplateDelete => "template_delete",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -288,6 +312,14 @@ impl AuditAction {
             Self::SoundDelete => "Deleted a sound",
             Self::PollEnd => "Ended a poll",
             Self::EmbedsRemove => "Removed link previews",
+            Self::ApplicationApprove => "Approved an application",
+            Self::ApplicationReject => "Rejected an application",
+            Self::AdmissionUpdate => "Changed rules screening or applications",
+            Self::OnboardingUpdate => "Changed onboarding",
+            Self::ListingUpdate => "Changed the directory listing",
+            Self::TemplateCreate => "Created a server template",
+            Self::TemplateUpdate => "Synced a server template",
+            Self::TemplateDelete => "Deleted a server template",
         }
     }
 }

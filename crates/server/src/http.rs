@@ -32,6 +32,7 @@ pub fn router(app: App) -> axum::Router {
         .merge(crate::threads::routes())
         .merge(crate::profiles::routes())
         .merge(crate::privacy::routes())
+        .merge(crate::community::routes())
         .route(
             "/api/v1/users/@me/server-folders",
             get(crate::folders::endpoint),

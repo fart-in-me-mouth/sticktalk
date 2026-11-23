@@ -292,6 +292,8 @@ pub enum Command {
     Expression(ExpressionCommand),
     /// Status, nicknames, notes, ignore, requests, notifications, reports (`privacy.rs`).
     Privacy(PrivacyCommand),
+    /// Admission, onboarding, discovery, templates (`community.rs`).
+    Community(CommunityCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -335,6 +337,7 @@ pub enum CommandResult {
     Threads(ThreadResult),
     Expression(ExpressionResult),
     Privacy(PrivacyResult),
+    Community(CommunityResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -454,6 +457,8 @@ pub enum Event {
     Expression(ExpressionEvent),
     /// Only sent to streams that sent `PrivacyCommand::Subscribe`.
     Privacy(PrivacyEvent),
+    /// Only sent to streams that sent `CommunityCommand::Subscribe`.
+    Community(CommunityEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

@@ -477,12 +477,10 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
                     .bind(id(a)?)
                     .fetch_optional(&mut *c)
                     .await?;
-                role(
-                    &mut c,
-                    u,
-                    Id(g.ok_or_else(|| Error::new(ErrorCode::NotFound))? as u64),
-                )
-                .await?;
+                let g = Id(g.ok_or_else(|| Error::new(ErrorCode::NotFound))? as u64);
+                if !crate::community::listed_icon(&mut c, g).await? {
+                    role(&mut c, u, g).await?;
+                }
             }
         }
     }

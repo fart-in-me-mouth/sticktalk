@@ -229,15 +229,10 @@ async fn serve(app: App, e: Id, h: HeaderMap, preview: bool) -> Result<Response>
         .await?
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
     // Members of its server, or readers of a conversation it was used in.
+    let g = Id(r.get::<i64, _>("guild_id") as u64);
     require(
-        crate::expression::may_see(
-            &mut c,
-            u,
-            "emoji",
-            e,
-            Id(r.get::<i64, _>("guild_id") as u64),
-        )
-        .await?,
+        crate::expression::may_see(&mut c, u, "emoji", e, g).await?
+            || crate::community::featured_emoji(&mut c, g, e).await?,
         ErrorCode::NotFound,
     )?;
     let bytes: Vec<u8> = r.get(if preview && r.get::<bool, _>("animated") {

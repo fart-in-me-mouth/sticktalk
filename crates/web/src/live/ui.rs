@@ -7,6 +7,7 @@ use super::*;
 mod authsec;
 mod call_extras;
 mod call_views;
+mod community;
 mod content;
 mod expression;
 mod moderation;
@@ -335,12 +336,14 @@ fn shell(a: &App) -> AnyView {
         <div class=format!("left-panel flex w-[312px] flex-none touch-pan-y bg-sidebar xl:w-[344px] 2xl:w-[384px] phone:absolute phone:top-(--safe-top) phone:bottom-0 phone:left-0 phone:z-30 phone:w-[min(340px,90vw)] {}",if a.panel=="left"{"phone:translate-x-0"}else{"phone:-translate-x-full"})><nav class="server-rail flex w-[72px] flex-none touch-pan-y flex-col items-center gap-2 overflow-y-auto overscroll-contain bg-rail p-3" aria-label="Servers"><button class="server-icon brand relative grid size-12 min-h-12 place-items-center rounded-2xl" data-live="home" aria-label="Home"><img class="rounded-2xl" src="/public/icons/icon-192.png" alt="" width="48" height="48"/>{request_badge("live-unread absolute -right-1 -bottom-1 ml-0 border-2 border-rail")}</button><div class="rail-divider min-h-0.5 w-8 bg-border"></div>
             {navui::rail(a)}
             {ib("plus","Add a Server","dialog:create")}
+            {community::discover_button(a)}
         </nav><aside class="channel-sidebar flex min-h-0 min-w-0 flex-1 flex-col"><div class="sidebar-header flex h-12 min-h-12 items-center gap-1 border-b px-3 py-2">{if a.guild.is_some()&&!a.nav.favorites{view!{
                 <ui-menu class="contents"><ui-menu-trigger><button class="server-heading flex h-8 min-w-0 flex-1 items-center gap-1 rounded-md px-1 hover:bg-sidebar-accent" aria-label=format!("{guild_name} menu") title=guild_name.clone()><strong class="min-w-0 flex-1 truncate text-base font-semibold">{guild_name.clone()}</strong>{icon_with("chevron-down","icon size-4 text-muted-foreground")}</button></ui-menu-trigger>
                 <ui-menu-content class="menu" side="bottom" align="start" side-offset="6" hidden=true>
                     <ui-menu-item class="menu-item" value="dialog:invite">{icon("user-plus")}"Invite People"</ui-menu-item>
                     <ui-menu-item class="menu-item" value=a.guild.map_or(String::new(),|g|format!("dialog:target-notifications:guild:{}",g.0))>{icon("bell")}"Notification Settings"</ui-menu-item>
                     <ui-menu-item class="menu-item" value=a.guild.map_or(String::new(),|g|format!("profiles:open-server,{}",g.0))>{icon("user-round")}"Edit Server Profile"</ui-menu-item>
+                    {community::menu_items(a)}
                     {if manage_channels{view!{<ui-menu-separator class="menu-separator"></ui-menu-separator><ui-menu-item class="menu-item" value="dialog:channel">{icon("hash")}"Create Channel"</ui-menu-item><ui-menu-item class="menu-item" value="dialog:category">{icon("folder")}"Create Category"</ui-menu-item>}.into_any()}else{().into_any()}}
                     {if admin{view!{<ui-menu-separator class="menu-separator"></ui-menu-separator><ui-menu-item class="menu-item" value="dialog:server">{icon("settings")}"Server Settings"</ui-menu-item>}.into_any()}else{().into_any()}}
                     {if owner{().into_any()}else{view!{<ui-menu-separator class="menu-separator"></ui-menu-separator><ui-menu-item class="menu-item danger-text" value="leave-guild">{icon("log-out")}"Leave Server"</ui-menu-item>}.into_any()}}
@@ -348,8 +351,9 @@ fn shell(a: &App) -> AnyView {
                 {if manage_channels{ib("plus","Create Channel","dialog:channel")}else{().into_any()}}{if admin{ib("settings","Server Settings","dialog:server")}else{().into_any()}}}.into_any()}else{view!{<strong class="min-w-0 flex-1 truncate px-1 text-base font-semibold">{guild_name}</strong>{if a.nav.favorites{ib("settings","Manage Favorites","nav-menu:favorites-manage")}else{ib("users","New Group Message","dialog:group")}}}.into_any()}}</div>
             <nav class="channel-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2" aria-label="Channels">
             {navui::sidebar_top(a)}
+            {community::sidebar_rows(a)}
             {if a.nav.favorites{().into_any()}else{view!{<button class="nav-row flex w-full items-center justify-start gap-2 rounded-md p-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground touch:min-h-11 phone:text-base" data-live="home">{icon_with("users","icon text-muted-foreground")}"Friends"{request_badge("live-unread")}</button>{privacy::requests_row(a)}}.into_any()}}
-            {channel_tree(a).into_iter().filter(|(c,_)|!a.nav.favorites&&!super::privacy::hidden(a,c)).map(|(c,depth)|{
+            {community::shown(a,channel_tree(a)).into_iter().filter(|(c,_)|!a.nav.favorites&&!super::privacy::hidden(a,c)).map(|(c,depth)|{
                 let label=a.model.channel_name(c);
                 if c.kind==ChannelKind::Category{return view!{<div class=format!("category-row flex min-h-7 items-center gap-1 pr-1 pl-2 {}",if depth>0{"nested mt-2"}else{"mt-4"}) style=indent(depth,12) data-depth=depth.to_string()><h2 class="category min-w-0 flex-1 truncate" title=label.clone()>{label.clone()}</h2>{if manage_channels{create_inside(c,&label,"grid size-6 flex-none place-items-center rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground touch:size-11")}else{().into_any()}}</div>}.into_any()}
                 let selected=a.channel==Some(c.id);
@@ -540,6 +544,7 @@ fn chat(a: &App, title: &str) -> AnyView {
         {if a.uploading{view!{<div class="live-upload mb-2 flex items-center justify-between gap-4 rounded-lg bg-muted p-2 text-xs" role="status">{a.upload_progress.clone()}{button("Pause","upload-cancel","secondary")}</div>}.into_any()}else{().into_any()}}
         {if a.completions.is_empty(){().into_any()}else{view!{<div id="live-completions" class="autocomplete absolute inset-x-4 bottom-full z-40 max-h-[min(320px,50vh)] overflow-y-auto rounded-lg border bg-popover p-2 shadow-lg" role="listbox" aria-label="Suggestions">{a.completions.iter().enumerate().map(|(i,(label,insert,kind))|view!{<button class="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-sm aria-selected:bg-secondary touch:min-h-11" id=format!("completion-{i}") role="option" aria-selected=if i==0{"true"}else{"false"} data-completion=insert.clone()><span class="completion-avatar grid size-6 flex-none place-items-center overflow-hidden rounded-full bg-sidebar text-xs [&_.icon]:size-4">{match kind.as_str() {"Role"=>icon("shield"),"Channel"=>icon("hash"),"Emoji"=>view!{<span>{insert.clone()}</span>}.into_any(),"Custom"=>expression::completion_icon(a,insert),_=>view!{<span>{label.chars().take(1).collect::<String>()}</span>}.into_any()}}</span><span>{label.clone()}</span><small class="ml-auto">{if kind=="User"{insert.clone()}else{kind.clone()}}</small></button>}).collect_view()}</div>}.into_any()}}
         {moderation::composer_notice(a,c)}
+        {community::composer_notice(a,c)}
         <div class="composer flex items-end gap-2 rounded-lg bg-muted px-3 py-2 phone:gap-1 phone:px-2 phone:py-1"><button type="button" class="icon-button" title="Add Attachment" aria-label="Add Attachment" data-live="pick-file">{icon("plus-circle")}</button><input type="file" id="live-file" multiple hidden/><label class="composer-input flex min-w-0 flex-1"><span class="sr-only">"Message"</span><textarea class="max-h-[40vh] min-h-8 flex-1 resize-none rounded-none border-0 bg-transparent px-0 py-1 text-[15px] leading-6 shadow-none focus-visible:ring-0 touch:min-h-11 touch:py-2.5 phone:text-base" id="live-input" rows="1" placeholder=placeholder aria-label="Message" role="combobox" aria-autocomplete="list" aria-controls="live-completions" aria-expanded=(!a.completions.is_empty()).to_string()></textarea></label><span id="live-count" class="composer-count" hidden></span><button class="composer-gif inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent touch:min-h-11 touch:min-w-11" data-live="dialog:gif">"GIF"</button>{ib_plain("smile","Emoji Picker","dialog:emoji")}{expression::composer_button()}<button class="composer-kaomoji inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent phone:hidden" aria-label="Kaomoji" title="Kaomoji" data-live="dialog:kaomoji">"(^▽^)"</button>{content::composer_tools(a)}<button class="icon-button" aria-label="Send Message" title="Send Message" data-live="send-input" disabled={a.uploading||a.preparing_send||!a.ready}>{icon("send")}</button></div>
         <div class="typing-indicator h-6 text-xs leading-6 text-subtle">{expression::typing(a,c)}</div>
         </div></div>}.into_any()
@@ -832,6 +837,9 @@ fn dialog(a: &App) -> AnyView {
     if let Some(view) = expression::dialog(a) {
         return view;
     }
+    if let Some(view) = community::dialog(a) {
+        return view;
+    }
     let body=match a.dialog.as_str(){
         "settings"|"account"=>account(a),
         "server"|"server-overview"=>settings::server_overview(a),
@@ -847,8 +855,8 @@ fn dialog(a: &App) -> AnyView {
         "group" if a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend).count()<2=>view!{<h2>"New Group Message"</h2><div class=SETTINGS_EMPTY>{icon("users")}<p>"Add at least two friends to start a group message."</p>{button("Add Friends","dialog:friend","primary")}</div>}.into_any(),
         "group"=>form("New Group Message","group",view!{{field("f-name","Group Name (optional)","","text")}<fieldset class="group-recipients my-4"><legend class="text-[13px] font-medium text-subtle">"Friends"</legend>{a.model.relationships.values().filter(|r|r.kind==RelationshipKind::Friend).map(|r|view!{<label class="live-checkbox">{avatar(&r.user,"small")}<span class="mr-auto">{name(&r.user)}</span><input type="checkbox" data-group-user=r.user.id.0.to_string()/></label>}).collect_view()}</fieldset><input id="f-value" type="hidden"/><p class="muted-copy">"Choose 2 to 15 friends."</p>}.into_any()),
         "friend"=>form("Add Friend","friend",view!{{field("f-name","Username","","text")}<p class="muted-copy">"Enter their username exactly, for example alex_m."</p>}.into_any()),
-        "create"=>view!{{form("Create a Server","create",field("f-name","Server Name","","text"))}<div class="-mx-4 mt-2">{button("Join a Server","dialog:join","link-button")}</div>}.into_any(),
-        "join"=>form("Join a Server","join",view!{{field("f-name","Invite Link or Code","","text")}{match &a.invite_preview{Some((_,Ok(p)))=>view!{<p class="invite-preview" role="status"><strong>{p.name.clone()}</strong>{format!(" · {} member{}{}",p.member_count,if p.member_count==1{""}else{"s"},if p.joined{" · You’re already a member"}else{""})}</p>}.into_any(),Some((_,Err(e)))=>view!{<p class="invite-preview muted-copy" role="status">{e.clone()}</p>}.into_any(),None=>().into_any()}}}.into_any()),
+        "create"=>view!{{form("Create a Server","create",field("f-name","Server Name","","text"))}<div class="-mx-4 mt-2">{button("Join a Server","dialog:join","link-button")}</div>{community::create_extra(a)}}.into_any(),
+        "join"=>form("Join a Server","join",view!{{field("f-name","Invite Link or Code","","text")}{match &a.invite_preview{Some((_,Ok(p)))=>view!{<p class="invite-preview" role="status"><strong>{p.name.clone()}</strong>{format!(" · {} member{}{}",p.member_count,if p.member_count==1{""}else{"s"},if p.joined{" · You’re already a member"}else{""})}</p>}.into_any(),Some((_,Err(e)))=>view!{<p class="invite-preview muted-copy" role="status">{e.clone()}</p>}.into_any(),None=>().into_any()}}{community::join_note(a)}}.into_any()),
         "kaomoji"=>view!{<h2>"Kaomoji"</h2><div class="picker-tabs mb-3 flex gap-2">{button("Emoji","dialog:emoji","link-button")}<button class="button secondary" aria-pressed="true">"Kaomoji"</button></div>{crate::kaomoji::GROUPS.iter().map(|(group,faces)|view!{<h3 class="category mt-4 mb-2">{*group}</h3><div class="kaomoji-grid">{faces.iter().map(|face|view!{<button class="kaomoji" data-live=format!("emoji:{face}")>{*face}</button>}).collect_view()}</div>}).collect_view()}}.into_any(),
         "channel"=>channel_form(a,"text",None),
         "category"=>channel_form(a,"category",None),

@@ -11,6 +11,7 @@ mod callextras;
 mod calls;
 mod capacity;
 mod commands;
+mod community;
 mod content;
 mod custom_emoji;
 mod db;

@@ -122,6 +122,7 @@ pub(crate) struct Core {
     pub limits: HashMap<String, Bucket>,
     pub moderation: crate::moderation::Runtime,
     pub privacy: crate::privacy::Runtime,
+    pub(crate) community: crate::community::Runtime,
     last_id: u64,
     worker: u16,
 }
@@ -346,6 +347,9 @@ impl Core {
             if !s.expression_features && matches!(&event, Event::Expression(_)) {
                 continue;
             }
+            if matches!(&event, Event::Community(_)) && !self.community.subscribed.contains(&s.id) {
+                continue;
+            }
             if !s.launch_features
                 && matches!(
                     &event,
@@ -503,6 +507,7 @@ impl App {
                 limits: HashMap::new(),
                 moderation: Default::default(),
                 privacy: Default::default(),
+                community: Default::default(),
                 last_id,
                 worker,
             }),
@@ -730,6 +735,7 @@ mod tests {
             limits: HashMap::new(),
             moderation: Default::default(),
             privacy: Default::default(),
+            community: Default::default(),
             last_id: 0,
             worker: 0,
         }

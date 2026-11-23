@@ -281,6 +281,7 @@ pub(super) fn action(app: Shared, raw: &str) {
             {
                 return;
             }
+            super::community::invite_gate(app.clone(), code.clone());
             spawn_local(async move {
                 let found = http
                     .json::<Snapshot<InvitePreview>>(&format!("/invites/{code}/preview"))
@@ -345,6 +346,8 @@ pub(super) fn action(app: Shared, raw: &str) {
         "submit" if super::profiles::FORMS.contains(&arg) => super::profiles::submit(app, arg),
         "privacy" => super::privacy::action(app, arg),
         "submit" if arg.starts_with("privacy-") => super::privacy::submit(app, arg),
+        "cm" => super::community::action(app, arg),
+        "submit" if arg.starts_with("cm-") => super::community::submit(app, arg),
         "submit" if arg.starts_with("mod-") => super::moderation::submit(app, arg),
         "pins-refresh" => {
             let (epoch, generation) = {
@@ -393,6 +396,7 @@ pub(super) fn action(app: Shared, raw: &str) {
                 if let Some(c) = c {
                     load_channel(app.clone(), c, None);
                 }
+                super::community::guild_opened(app.clone(), g);
                 load_members(app, g, None);
             }
         }
@@ -1073,6 +1077,7 @@ pub(super) fn load_history(
         });
     }
     super::moderation::channel_opened(app.clone(), c);
+    super::community::channel_opened(app.clone(), c);
     if super::moderation::gated(&app.borrow(), c) {
         // Age-restricted: nothing is fetched until the viewer confirms.
         app.borrow_mut().history_busy = false;
@@ -1251,6 +1256,7 @@ fn open_dialog(app: Shared, name: &str) {
     }
     super::content::opened(app.clone(), name);
     super::expression::opened(app.clone(), name);
+    super::community::opened(app.clone(), name);
     let epoch = app.borrow().epoch;
     let generation = app.borrow().dialog_generation;
     super::moderation::opened(app.clone(), name);
@@ -1930,6 +1936,7 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             let operation = pending.as_ref().map(|(c, _)| c);
             super::moderation::failed(operation);
             super::profiles::failed(operation);
+            super::community::failed(operation);
             // A refused save is no longer waiting for its answer.
             if let Some(form) = operation.and_then(saved_form) {
                 media_action(&format!("form-failed:{form}"));
@@ -1987,6 +1994,11 @@ pub(super) fn response(app: Shared, response: CommandResponse) {
             {
                 drop(a);
                 super::moderation::answered(app, op, result);
+                return;
+            }
+            if let Some(op) = operation.clone().filter(super::community::owns) {
+                drop(a);
+                super::community::answered(app, op, result);
                 return;
             }
             if let Some(op) = operation.clone().filter(super::expression::owns) {
@@ -2195,6 +2207,7 @@ pub(super) fn ready(app: Shared) {
     drop(a);
     super::content::ready(app.clone());
     super::threads::ready(app.clone());
+    super::community::ready(app.clone());
     super::expression::ready(app);
 }
 /// While the server cannot be reached and nobody is signed in, look again.

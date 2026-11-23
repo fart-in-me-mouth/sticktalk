@@ -156,11 +156,13 @@ pub(crate) async fn restrict(
     u: Id,
     p: Permissions,
 ) -> Result<Permissions> {
-    Ok(if timeout(c, g, u).await?.is_some() {
-        p & TIMED_OUT_KEEPS
-    } else {
-        p
-    })
+    Ok(
+        if timeout(c, g, u).await?.is_some() || crate::community::pending(c, g, u).await? {
+            p & TIMED_OUT_KEEPS
+        } else {
+            p
+        },
+    )
 }
 pub(crate) async fn timeout(c: &mut SqliteConnection, g: Id, u: Id) -> Result<Option<TimeoutInfo>> {
     let r = sqlx::query(
@@ -361,6 +363,20 @@ pub(crate) async fn precheck(
         }
         Command::Launch(LaunchCommand::SetSlowmode { channel_id, .. }) => {
             hook.slowmode = Some(*channel_id);
+        }
+        // Joining from the server directory is paused and counted like an invite.
+        Command::Community(cmd) => {
+            if let Some(g) = crate::community::joining(cmd) {
+                if role(c, u, g).await.is_err() {
+                    if safety(c, g).await?.invites_paused_until.is_some() {
+                        return Err(denied(
+                            "invites_paused",
+                            "This server has paused invites. Try again later.",
+                        ));
+                    }
+                    hook.join = Some(g);
+                }
+            }
         }
         Command::Content(cmd) => content_check(app, core, c, u, cmd).await?,
         // Sticker messages get the same checks as `SendMessage`.
@@ -600,6 +616,9 @@ async fn screen(
             ),
         ));
     }
+    if let Some(e) = crate::community::talk_gate(c, g, u).await? {
+        return Err(e);
+    }
     if send {
         if let Some(until) = verification_wait(c, g, u).await? {
             return Err(verification_error(c, g, until).await?);
@@ -677,6 +696,9 @@ pub(crate) async fn dm_pair(c: &mut SqliteConnection, u: Id, peer: Id) -> Result
         }
         if let Some(until) = verification_wait(c, g, u).await? {
             return Err(verification_error(c, g, until).await?);
+        }
+        if let Some(e) = crate::community::talk_gate(c, g, u).await? {
+            return Err(e);
         }
     }
     Ok(())

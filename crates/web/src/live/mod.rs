@@ -1,6 +1,7 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
 mod authsec;
 mod calls;
+mod community;
 mod content;
 mod expression;
 mod history_cache;
@@ -164,6 +165,8 @@ struct App {
     profiles: profiles::State,
     /// Status, nicknames, notes, ignore, requests, notifications, reports.
     privacy: privacy::State,
+    /// Rules screening, applications, onboarding, Discover, templates, insights.
+    community: community::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -233,6 +236,7 @@ impl App {
         self.expression = Default::default();
         self.privacy = Default::default();
         privacy::reset();
+        self.community = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -398,6 +402,7 @@ pub fn mount() {
             expression: Default::default(),
             profiles: Default::default(),
             privacy: Default::default(),
+            community: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -792,6 +797,7 @@ async fn socket(app: Shared, epoch: u64) {
                                         Event::Expression(e) => {
                                             expression::event(&mut a, e.clone())
                                         }
+                                        Event::Community(e) => community::event(&mut a, e),
                                         _ => {}
                                     }
                                 }

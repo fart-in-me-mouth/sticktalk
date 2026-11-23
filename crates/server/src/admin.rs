@@ -105,6 +105,11 @@ pub enum AdminCommand {
         #[command(subcommand)]
         command: ReportAdmin,
     },
+    /// The server directory: list, feature, hide or delist servers, or turn it off.
+    Directory {
+        #[command(subcommand)]
+        command: DirectoryAdmin,
+    },
 }
 /// `sticktalk-server admin reports ...`: the instance administrator's queue
 /// (direct messages, people, servers, and reports left by deleted servers).
@@ -121,6 +126,18 @@ pub enum ReportAdmin {
     Dismiss { id: u64 },
     /// Disable the reported account (signs it out everywhere) and close the report.
     DisableUser { id: u64 },
+}
+#[derive(Subcommand, Clone, Debug)]
+pub enum DirectoryAdmin {
+    List,
+    Enable,
+    Disable,
+    Feature { guild_id: u64 },
+    Unfeature { guild_id: u64 },
+    Hide { guild_id: u64 },
+    Unhide { guild_id: u64 },
+    Delist { guild_id: u64 },
+    Relist { guild_id: u64 },
 }
 pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     if matches!(command, AdminCommand::Backup) {
@@ -183,6 +200,9 @@ pub async fn run(config: &Config, command: &AdminCommand) -> Result<()> {
     }
     if let AdminCommand::Reports { command } = command {
         return crate::privacy::reports::admin(&mut c, command).await;
+    }
+    if let AdminCommand::Directory { command } = command {
+        return crate::community::admin_cli(&mut c, command).await;
     }
     if matches!(command, AdminCommand::ListUsers) {
         let mut after = 0;
