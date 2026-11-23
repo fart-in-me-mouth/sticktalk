@@ -1,13 +1,111 @@
-# Web first load, idle memory and server stack depth (task `perf`)
+# Web first load, idle memory and server stack depth (tasks `perf`, `lazy`)
 
 Ten feature branches roughly doubled the web app's first load and idle
 memory. This file records what the cost was, the structure that removes it,
 the rules that keep a new feature out of the core, and the server's stack
 depth work. Numbers are from headless Chromium on the owner's PC.
 
-## Results
+**Feature engineers converting a branch:** read "The structure", then follow
+"Converting a feature branch" below step by step.
 
-Before: the integration tree as handed over (`2abf70c`). After: this branch.
+## The combined tree (task `lazy`)
+
+The integration branch merged three more features in the eager style while
+task `perf` was done (community; Stage channels and scheduled events; themes,
+accessibility, text-to-speech, Streamer Mode, app icons). Task `lazy` merged
+the two lines and converted the three features ("Converting a feature
+branch" below records how, for the branches still in progress).
+
+Before: the integration tree as found (`8db8f6f`). After: this branch. Same
+method as below: release web build, headless Chromium, a real local server,
+one server binary for both; memory and CPU from `tests/idle.mjs` (60 s on the
+authenticated Friends screen, private bytes of the Chromium tree minus a
+blank browser); latency from `tests/perf.mjs` (median of 3, each in a fresh
+browser context).
+
+| | Before (`8db8f6f`) | After | Target |
+| --- | ---: | ---: | ---: |
+| Core WASM, Brotli | 1,185,435 B | **471,007 B** | 490,000 B |
+| First load (installable shell inventory) | 1,504,834 B | **637,224 B** | 650,000 B |
+| First screen's JavaScript, Brotli | 112,244 B | 59,757 B | |
+| WASM loaded at idle | 6,313,420 B in 14 modules | 1,837,393 B in 12 modules | |
+| Script loaded at idle | 411,760 B | 356,898 B | |
+| Idle private memory over a blank browser | 85.4 MiB | **51.9 MiB** | 45 MiB |
+| Idle CPU, one logical core | 0.064% | 0.063% | not higher |
+
+The integration tree also loaded the 546 KB voice module at idle: the empty
+Stage list sent after every Ready went through it. It now goes to the stage
+feature, and only when it is not empty.
+
+### First-open latency (combined tree)
+
+| Feature | Before, press | After, press | Before, intent | After, intent |
+| --- | ---: | ---: | ---: | ---: |
+| User Settings | 103 ms | 74 ms | 113 ms | 61 ms |
+| Emoji picker | 1,068 ms | **69 ms** | 1,023 ms | **164 ms** |
+| Inbox | 93 ms | 90 ms | 82 ms | 72 ms |
+| Profile card | 116 ms | 95 ms | 77 ms | 77 ms |
+| Server menu | 39 ms | **41 ms** | 17 ms | 18 ms |
+
+The 150 ms goal for the picker is met on a press (all three samples 69-72
+ms) and missed by about 15 ms with the pointer resting on the button first
+(161-164 ms): the first frame of 128 color emoji costs about 100 ms of main
+thread in headless Chromium's software rendering. Drawing fewer up front
+would meet it, at the cost of a second render as soon as the sentinel is in
+view; not done.
+
+- **Server menu:** the menu's behavior (UI SDK `menu.js`) is defined when
+  the browser is first idle after a menu is in the page (`public/ui.js`), so
+  a press with no hover first no longer waits for it (task `perf` measured
+  84 ms against 38 ms before; now as before).
+- **Emoji picker:** it drew a whole category (up to 400 emoji) and, after
+  every render, checked every one with a canvas probe (`canDraw` in
+  `public/live.js`): about 1.5 ms per color emoji in software, plus a one-off
+  200 ms font search for the "missing glyph" reference. Now it draws the
+  first 128 (sixteen rows: what the picker shows and two rows more), and more
+  as the end comes within two rows of view (an `IntersectionObserver` on a
+  sentinel, `expr-more`; no scroll handler). Category buttons and search are
+  unchanged and reset the window. The glyph checks run when the browser is
+  idle, eight at a time, the reference alone; emoji already checked are
+  hidden at once. And `dialog_data` no longer draws the whole app a second
+  time when a dialog has nothing to fetch (it did for the picker, ~170 ms).
+
+### Idle memory: where it goes
+
+Measured on the combined tree (`idle.mjs` now reports these):
+
+| Part (over a blank browser) | Before | After |
+| --- | ---: | ---: |
+| Renderer process | +65.5 MiB | +43.6 MiB |
+| - JS heap (used) | 4.1 MiB | 3.8 MiB |
+| - WASM linear memory (its size is the high-water mark) | | 1.6 MiB |
+| - DOM | 1,195 nodes | 1,195 nodes, 251 listeners |
+| - decoded images | | 36,864 px (the 192 px logo) |
+| - fonts | not measured | Inter ×3 (JetBrains Mono was loaded too, see below) |
+| - the rest: compiled code of the loaded WASM and scripts, styles, Blink | | about 38 MiB |
+| Browser process (headless contexts keep the HTTP and worker caches in memory) | +15.8 MiB | +5.8 MiB |
+| Network service | +3.8 MiB | +2.4 MiB |
+| GPU | +0.2 MiB | +0.1 MiB |
+
+- Linear memory is 1.6 MiB and never grew past it on this screen: decoding
+  the Ready (MessagePack rewritten as JSON, then decoded) peaks well below
+  it for a normal account, so there is no startup peak to avoid here. (For a
+  large account the transient JSON copy is about 1.5x the Ready frame.)
+- Taken: no voice module at idle (above); the "Ctrl K" hint on the sidebar
+  no longer pulls the 28 KB JetBrains Mono font (it is a shortcut label, now
+  in Inter); device preferences reach Rust without a JSON decoder.
+- Not cheap: what is left is mostly the compiled code of 1.8 MB of WASM in 12
+  modules, the first screen's scripts and the one stylesheet. The 45 MiB
+  aspiration needs fewer or smaller idle modules: the state modules loaded
+  at sign-in by the features' Ready handling (expression 59 KB, privacy
+  41 KB, content 25 KB, threads 24 KB, nav 4 KB, uncompressed). Loading each
+  when its first surface appears, instead of at Ready, is the next step; it
+  changes when those features subscribe and fetch, so it was left for a task
+  of its own.
+
+## Results of task `perf`
+
+Before: the integration tree as handed over (`2abf70c`). After: that branch.
 Both measured the same way on the owner's PC: release web build, headless
 Chromium, a real local server. Memory and CPU come from `tests/idle.mjs`
 (authenticated idle Friends screen, 60 s; private bytes of the whole Chromium
@@ -237,7 +335,9 @@ core talks to a feature only through `Call`s: `Action`, `Submit`, `Opened`,
 
 - Views that are not on the first screen are `ui::LazyView`s (the forum view,
   search results), like the dialog and call views already were.
-- The UI SDK's dialog, menu and tooltip are defined on first use (`ui.js`):
+- The UI SDK's dialog and tooltip are defined on first use (`ui.js`), the menu
+  when the browser is idle after a menu is first in the page (task `lazy`:
+  a press on the server menu with no hover first waited ~46 ms for it):
   pointing at, focusing or pressing one downloads it; a press that arrives
   first is held and replayed. Avatars stay eager. Their content is rendered
   `hidden`, and icon buttons carry their own `aria-label`, so nothing shows or
@@ -258,7 +358,9 @@ kind of action (`public/live.js`). The app maps the action to the module it
 will need with the same rules as the action router (`operations::prefetch_for`)
 and downloads it with the feature's `prefetch()`. Never on a metered,
 data-saver or slower-than-4G connection (`features::fast_connection`). There
-is no idle-time prefetch: it would put every feature in idle memory.
+is no idle-time prefetch of feature modules: it would put every feature in
+idle memory. The one exception is the UI SDK's menu behavior (a few KB,
+used on every server screen; skipped with Data Saver).
 
 ## Checklist: keeping a new feature out of the core
 
@@ -340,6 +442,186 @@ core. After:
   path uses them on every message), and the message views that draw polls and
   embeds.
 
+## Converting a feature branch (for the feature engineers)
+
+Branches written before this structure (eager style) put their events and
+results in the core's decoders, their actions and dialogs in the core's
+router, and their views in the core or the shared dialog module. Community,
+Stage/events and themes were converted this way (task `lazy`); follow the same
+steps. Merge the integration branch first, then do them in this order: it
+compiles at every step.
+
+### 1. Route the wire (`src/inbound.rs`)
+
+- Your `Event` variant: one line in `routes! { route_event ... features { "<tag>" => <Feature>, } }`.
+  Your `CommandResult` variant: the same in `route_result`. The tag is serde's
+  (snake_case of the variant name).
+- New feature: add a variant to `inbound::Feature`, and `inbound::owner` (test
+  only, exhaustive: it does not compile until every `Event` variant is classified).
+- Decoders for your own enums: one `crate::decode_tagged!` block per enum in
+  `inbound::feature` (variant by variant; fields with `#[serde(default)]` keep it).
+  Add each to the list in `every_variant_is_listed_with_its_serde_tag`.
+- The test **`inbound::tests::every_variant_is_listed_with_its_serde_tag`**
+  compares both routing tables and every `decode_tagged!` table with serde's own
+  variant names (read from serde's "unknown variant" error). A variant added to
+  the protocol and not routed, or routed under a wrong tag, fails it.
+  `feature_decoders_read_what_the_server_writes` round-trips samples; add yours.
+
+### 2. Two entry points (`src/live/<feature>.rs`)
+
+```rust
+#[leptos::wasm_split::wasm_split(<name>, wasm_split_path = ::leptos::wasm_split, fallible, preload(prefetch))]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome { ... }   // pages, forms, actions
+
+#[leptos::wasm_split::wasm_split(<name>_state, wasm_split_path = ::leptos::wasm_split, fallible)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome { ... } // events, answers, Ready
+```
+
+- `features.rs`: the `Feature` in `from_name`, `dispatch` (both arms) and `prefetch`.
+- `state` gets `Call::Event(raw)`, `Call::Ready`, `Call::Answer(op, reply)` and
+  `Call::State(name, arg)`; `run` gets `Call::Action`, `Call::Submit`,
+  `Call::Opened` and `Call::Other(name, arg)`.
+- Make the functions behind them private (`fn event`, `fn answered`,
+  `fn action`, `fn submit`, `fn opened`): the compiler then shows every call
+  from the core you still have to turn into a `Call`.
+- From the state module, a page refresh goes to `run` with
+  `features::defer(app, Feature::X, Call::Other("queue", g))`; from the core,
+  something that keeps state current goes to `state` with
+  `features::spawn(app, Feature::X, Call::State("guild", g))` (`defer` when
+  the app is borrowed: while rendering, in an event handler).
+- What stays in the core: small synchronous helpers that render or decide
+  (`community::shown`, `stage::is_stage`, `themes::role_style`, `themes::logo`),
+  and hooks that only check something cheap before handing over
+  (`themes::message_created` checks the TTS setting and the open channel).
+
+### 3. Route actions, forms, dialogs, answers (`src/live/operations.rs`)
+
+- `action`: `"<kind>" => feature(app, Feature::X, Call::Action(kind.into(), arg.into()))`,
+  `"submit" if <yours> => feature(app, Feature::X, Call::Submit(arg.into()))`.
+- `open_dialog`: add `(x::owns_dialog(name), Feature::X)` to `owners`.
+- `respond`: `Some(op) if x::owns(op) => Some(Feature::X)` in the first
+  `handler` match if your answer must run before the generic handling (saved
+  forms, notices), or `(_, Some(Feature::X))` in the second one if after it.
+- `prefetch_for`: the same rules for `"dialog"` and your action kinds, and
+  your view module's `__preload_*` (below).
+- `ready` / the socket's Ready: what you do after every Ready must not load
+  your module unless the first screen needs it (step 5).
+
+### 4. Views (`src/live/ui.rs`)
+
+- Rows, badges and buttons on the first screen stay in the core, reading the
+  feature's state (`a.<feature>`, which is a core struct). Keep them small.
+- **Pages and dialogs go in the feature's own view module**, not in the
+  shared dialog module: add a `LazyView` to `LazyViews`, a `#[lazy] fn
+  load_<x>_dialog()` returning your `dialog` function, and a branch in
+  `feature_dialog` (or a body function like `themes_page` for a settings page).
+  The dialog module (`load_dialog`) is what User Settings and every other
+  dialog wait for on first open: each feature page added there slows them all.
+
+### 5. Nothing at idle (sign-in, Ready)
+
+The idle screen must not load your module. What a feature does after every
+Ready, and how it was made free:
+
+| After Ready | Before | Now |
+| --- | --- | --- |
+| `<Feature>Command::Subscribe` | the command encoder module | written by hand: `wire::encode_small` (add yours, and to its test) |
+| The subscription's answer (`Ack`) | the feature's state module | skipped in `respond`, like moderation's |
+| An empty list answer (events summary) | the stage state module | compared with `wire::EMPTY_EVENT_SUMMARY` in the core |
+| An empty voice snapshot (Stages) | the voice module and stage | compared with `wire::EMPTY_STAGE_SNAPSHOT` |
+| The theme library | the themes module (derivation, presets) | kept **undecoded** (`themes::subscribed`) when it holds nothing to paint; decoded when the module loads for anything else |
+| `?template=`, `?event=`, `?theme=` links | parsed eagerly | the core reads the address; the module loads only when there is one |
+
+If your answer or event is only sometimes needed, keep the `Raw` in your core
+state and decode it when your module next runs. Add a `wire` constant (with a
+test that `rmp_serde` writes those bytes) for an empty payload you can skip.
+
+### 6. Scripts and styles
+
+- **`#[wasm_bindgen(raw_module = "...")]` imports load with the core**: the
+  glue imports them statically. A feature script must be imported on use
+  (`import('/public/x.js')`) from a script that is already loaded; themes'
+  `speech.js` is now imported by `preferences.js` on the first thing spoken.
+- Not imported at startup: add it to the lazy list in `scripts/finalize.mjs`
+  (the service worker then caches it when first used) and to `modules` in
+  `scripts/version-runtime.mjs` (fingerprinting; `loading.mjs` checks the count).
+- Fonts, icons, art: by URL when shown; keep them out of the precache
+  (`finalize.mjs`, as `fonts/chat/` and `app-icons/`).
+
+### 7. Budgets
+
+`npm run test:sizes` lists every split module. A new module without a budget
+fails ("has no budget"); a removed one fails too ("which the build no longer
+has"). Add `"<name>": <measured Brotli + ~10%>` to `modules` in
+`scripts/budgets.json` (the name is the split point: `community`,
+`community_state`, `load_community_dialog`). Raise `core`, `firstLoad` or a
+module's budget only with the measured cost in the commit message. The
+490,000 B line in `tests/loading.mjs` is the owner's and is never raised.
+
+### Common mistakes (all made converting the three features)
+
+- **A dialog's views left in `load_dialog`.** It compiles and works, and adds
+  every page of the feature to the first open of User Settings.
+- **The state module loaded at sign-in by an answer**: a subscription's `Ack`,
+  an empty list, a snapshot. Check `wasm loaded at idle` in `idle.mjs`'s
+  report: it lists every module the idle screen downloaded.
+- **`raw_module` script imports** (above): they never show up as WASM size,
+  only as first-screen JavaScript.
+- **Calling a now-private function from `ui/`**: views run in the core or in
+  the dialog module; a view that needs a fetch must ask for it with a `Call`.
+- **`Call::Other` from the state module for something the state module
+  does itself** sends it to `run` and loads the page module: use
+  `Call::State`.
+- **Parsing a float in the core** (`"1.5".parse::<f64>()`) brings Rust's
+  float parser and its power-of-five tables: 13 KB uncompressed, which showed
+  up as read-only data segments, not as a function. serde_json has its own;
+  pass whole numbers across the JS boundary instead (`themes::reload_prefs`).
+  Find such surprises by diffing `twiggy top` of two builds (the "Measuring"
+  commands below).
+- **Serde attributes on enum fields**: a `decode_tagged!` `fields` entry needs
+  the same `#[serde(default)]` as the protocol's field, or old servers'
+  frames stop decoding.
+- **Feature events from the voice envelope** (`VoiceEvent::Stage`): they have
+  no sequence number; the socket hands them to the feature with a tag of
+  their own (`stage::VOICE_TAG`) before the voice module sees the payload.
+- **PowerShell string escapes** in scripted edits turned `` `r `` into a
+  carriage return in a doc comment. Use an editor.
+
+### Verify
+
+```powershell
+cargo test -p sticktalk-web inbound          # routing tables, decoders
+cargo clippy -p sticktalk-web --target wasm32-unknown-unknown --profile web-release --all-targets -- -D warnings
+./scripts/build.ps1                          # release web build
+npm run test:sizes                           # every module against budgets.json
+node tests/loading.mjs                       # core <= 490,000 B
+npm run test:idle                            # memory, CPU, what loads at idle
+npm run test:perf                            # first-open latency
+cargo test -p sticktalk-server stack_tests   # add your deepest command paths to PATHS
+```
+
+Measuring what is in the core (names kept; the sizes are the production ones
+without the name section):
+
+```powershell
+$t = $env:CARGO_TARGET_DIR; $s = "$t/names-split"; mkdir $s
+& "$t/tools/bin/wasm-split-cli.exe" "$t/wasm32-unknown-unknown/web-release/sticktalk-web.wasm" $s --out-name core --target web --cost-model binary --request-cost 16384
+& $env:WASM_BINDGEN "$s/core.wasm" --out-dir $s --out-name core --target web --keep-lld-exports --no-demangle --keep-debug
+& $env:WASM_OPT "$s/core_bg.wasm" -Oz -g --enable-bulk-memory --enable-nontrapping-float-to-int -o "$s/core_named.wasm"
+twiggy top -n 100000 -f csv "$s/core_named.wasm" > core.csv   # grep it for your feature's paths
+```
+
+### Pattern changes made here (and why)
+
+- **`Call::State(name, arg)`** (new): calls into the state module named by
+  the feature. Community fetches a server's state when it opens, themes
+  paints a server theme and speaks; with only `Call::Other` (which goes to
+  `run`) these loaded the page module. Expression's `"resolve"` moved to it.
+- **Feature dialog views in their own modules** (`ui::LazyViews`,
+  `feature_dialog`): see step 4.
+- **Raw answers kept in the core** (`themes::State::unread`): an answer that
+  is usually not needed is not decoded, and its decoder is not loaded.
+
 ## Scripts and styles
 
 - The service worker precaches only what the first screen loads: the core,
@@ -402,3 +684,33 @@ Threads: tokio workers and blocking threads (4 MiB), `sticktalk-main`
 (4 MiB), sqlx's SQLite connection threads (they run SQLite, not command
 futures), and the export builder's `spawn_blocking` + `block_on` (a blocking
 thread, 4 MiB).
+
+### The combined tree (task `lazy`)
+
+The integration branch's community, schedule and appearance commands are
+dispatched by `commands::mutate` with the other features (boxed, the
+appearance one built in a frame of its own by `themes::boxed`), and
+`core_mutate` refuses them. Their deepest paths are in `stack_tests::PATHS`:
+a `/tts` message (the send path through `themes::mutate`), sharing an event
+into a channel (`schedule::share` sends a message through `commands::mutate`),
+an event starting (the schedule timer, `schedule::tick`) and a server built
+from a starter template (`CreateFromTemplate`). Every server test passes with
+the default 2 MiB test stack; `RUST_MIN_STACK` stays removed.
+
+| Path (debug build, `stack_tests::measure`) | Task `perf` | Combined tree |
+| --- | ---: | ---: |
+| Create a forum post | 903 KiB | 1,031 KiB |
+| Share an event into a channel | | 1,031 KiB |
+| Send a `/tts` message | | 903 KiB |
+| Send a message with mentions | 775 KiB | 839 KiB |
+| Scheduled message delivery (timer) | 711 KiB | 775 KiB |
+| Publish an announcement + crosspost delivery | 391 KiB | 455 KiB |
+| Build a server from a template | | 455 KiB |
+| Opening the server (migrations, timers) | 263 KiB | 271 KiB |
+| An event starts (timer) | | 199 KiB |
+
+The send path grew by one 64 KiB step since task `perf` (most likely the merged
+features' hooks on it, such as `community::observe` on every event; not
+bisected). All paths stay
+under the 2 MiB debug budget (release was not re-measured: its paths were
+65-192 KiB, far under its 1 MiB budget).
