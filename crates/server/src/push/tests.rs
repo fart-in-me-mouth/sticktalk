@@ -464,6 +464,7 @@ async fn committed_mentions_coalesce_rate_limit_and_dm_hook() {
         mention_ids: vec![],
         call: None,
         reactions: vec![],
+        extra: Default::default(),
     };
     message(&app, &mut c, &[Id(1), Id(2)], &m).await;
     drop(c);

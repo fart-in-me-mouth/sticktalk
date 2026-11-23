@@ -473,6 +473,7 @@ pub fn attachment_row(r: &SqliteRow) -> Attachment {
                 byte_size: r.get::<i64, _>("thumbnail_size") as u32,
                 content_type: r.get("thumbnail_type"),
             }),
+        meta: crate::content::attachment_meta(r),
     }
 }
 pub async fn message(
@@ -503,8 +504,8 @@ pub async fn message(
     .map(|v| Id(v as u64))
     .collect();
     let call = crate::calls::summary(c, m).await?;
-    let reactions=sqlx::query("SELECT emoji,COUNT(*) AS n,MAX(user_id=?) AS me FROM reactions WHERE message_id=? GROUP BY emoji ORDER BY emoji").bind(id(u)?).bind(id(m)?).fetch_all(c).await?.into_iter().map(|r|ReactionSummary {emoji:r.get("emoji"),count:r.get::<i64,_>("n") as u32,me:r.get::<i64,_>("me")!=0}).collect();
-    Ok(Message {
+    let reactions=sqlx::query("SELECT emoji,COUNT(*) AS n,MAX(user_id=?) AS me FROM reactions WHERE message_id=? GROUP BY emoji ORDER BY emoji").bind(id(u)?).bind(id(m)?).fetch_all(&mut *c).await?.into_iter().map(|r|ReactionSummary {emoji:r.get("emoji"),count:r.get::<i64,_>("n") as u32,me:r.get::<i64,_>("me")!=0}).collect();
+    let mut message = Message {
         id: m,
         channel_id: ch,
         author_id: Id(r.get::<i64, _>("author_id") as u64),
@@ -516,7 +517,10 @@ pub async fn message(
         mention_ids,
         reactions,
         call,
-    })
+        extra: Default::default(),
+    };
+    crate::content::decorate(c, u, &mut message).await?;
+    Ok(message)
 }
 pub async fn read(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<ReadState> {
     let r=sqlx::query("SELECT last_read_id,unread_count,mention_count,(SELECT MAX(id) FROM messages WHERE channel_id=? AND deleted_at IS NULL) AS latest FROM read_states WHERE user_id=? AND channel_id=?").bind(id(ch)?).bind(id(u)?).bind(id(ch)?).fetch_one(c).await?;
@@ -672,7 +676,7 @@ pub async fn ban(c: &mut SqliteConnection, g: Id, u: Id) -> Result<Ban> {
     })
 }
 pub async fn gc_uploads(c: &mut SqliteConnection) -> Result<Vec<String>> {
-    let rows=sqlx::query("SELECT id,storage_key,thumbnail_key FROM uploads u WHERE expires_at IS NULL AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=u.id) AND NOT EXISTS(SELECT 1 FROM guilds WHERE icon_id=u.id) LIMIT 100").fetch_all(&mut *c).await?;
+    let rows=sqlx::query("SELECT id,storage_key,thumbnail_key FROM uploads u WHERE expires_at IS NULL AND NOT EXISTS(SELECT 1 FROM message_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM forwarded_attachments WHERE attachment_id=u.id) AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=u.id) AND NOT EXISTS(SELECT 1 FROM guilds WHERE icon_id=u.id) LIMIT 100").fetch_all(&mut *c).await?;
     let mut keys = vec![];
     for r in rows {
         keys.push(r.get("storage_key"));

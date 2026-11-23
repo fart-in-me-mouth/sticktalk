@@ -8,6 +8,7 @@ pub mod blob;
 pub mod browser;
 mod calls;
 mod commands;
+mod content;
 mod custom_emoji;
 mod db;
 mod error;
@@ -48,6 +49,7 @@ pub fn router(app: App) -> axum::Router {
     voice::spawn(&app);
     push::spawn(&app);
     nav::spawn(&app);
+    content::spawn(&app);
     http::router(app)
 }
 #[cfg(test)]

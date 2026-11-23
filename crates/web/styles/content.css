@@ -1,0 +1,45 @@
+/* Rich content: polls, forwarded messages, link previews, attachment spoilers
+ and descriptions, voice messages, GIF favorites. Layout is utility classes
+ in src/live/ui/content.rs and public/content.js; these are the states.
+ Unlayered on purpose: a state must win over the utilities it changes. */
+/* Settings > Appearance > "Show website previews for links". */
+[data-link-previews="false"] .link-embeds {
+  display: none;
+}
+.voice-bar.played {
+  background-color: var(--color-primary);
+}
+.voice-message.is-playing:not(.is-paused) .voice-play {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+.voice-record.is-recording {
+  color: var(--danger);
+}
+.gif-star.is-starred {
+  color: #f2b84b;
+}
+.gif-star.is-starred .icon {
+  fill: currentColor;
+}
+.poll-answer button:disabled {
+  cursor: default;
+}
+.attachment-spoiler .spoiler-content {
+  filter: blur(32px) brightness(0.8);
+}
+/* Phones, as in Discord: the microphone while the message is empty, Send
+   once there is something to send. */
+@media (max-width: 767px) {
+  .composer-wrap:not(:has(.live-upload)) .composer:has(#live-input:placeholder-shown) [data-live="send-input"] {
+    display: none;
+  }
+  #live-input::placeholder {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .composer:not(:has(#live-input:placeholder-shown)) .voice-record,
+  .composer-wrap:has(.live-upload) .voice-record {
+    display: none;
+  }
+}

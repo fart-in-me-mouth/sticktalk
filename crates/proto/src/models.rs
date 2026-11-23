@@ -216,6 +216,9 @@ pub struct Attachment {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub thumbnail: Option<Thumbnail>,
+    /// Description, spoiler flag and voice-message details (`content.rs`).
+    #[serde(default, skip_serializing_if = "crate::AttachmentMeta::is_empty")]
+    pub meta: crate::AttachmentMeta,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,6 +245,9 @@ pub struct Message {
     /// Present on the system message a finished direct or group call leaves.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call: Option<crate::CallSummary>,
+    /// Poll, forwarded snapshot and link previews (`content.rs`).
+    #[serde(default, skip_serializing_if = "crate::MessageExtra::is_empty")]
+    pub extra: crate::MessageExtra,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

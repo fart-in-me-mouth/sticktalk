@@ -5,6 +5,7 @@
 //! hooks for `public/*.js` and the browser tests.
 use super::*;
 mod call_views;
+mod content;
 mod navui;
 mod settings;
 use sticktalk_client_core::markdown::{Block, Inline, Target};
@@ -446,8 +447,19 @@ fn day_label(ms: u64) -> String {
 /// One line of a message, for a reply preview: names for mentions, spoilers hidden.
 fn preview(a: &App, m: &Message) -> String {
     let text = crate::wire::snippet(&a.model.content(m));
-    if text.is_empty() && !m.attachments.is_empty() {
+    if !text.is_empty() {
+        text
+    } else if m.attachments.iter().any(|f| f.meta.voice()) {
+        "Voice message".into()
+    } else if !m.attachments.is_empty() {
         "Attachment".into()
+    } else if let Some(f) = &m.extra.forwarded {
+        let inner = crate::wire::snippet(&f.content);
+        if inner.is_empty() {
+            "Forwarded message".into()
+        } else {
+            format!("Forwarded: {inner}")
+        }
     } else {
         text
     }
@@ -497,10 +509,11 @@ fn chat(a: &App, title: &str) -> AnyView {
         <div style=format!("height:{}px",bottom*88) aria-hidden="true"></div>
         </div><div class="composer-wrap relative px-4 pb-(--safe-bottom) phone:px-2">
         {if let Some(reply)=a.reply{let target=messages.and_then(|m|m.get(&reply));view!{<div class="reply-preview flex items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11"><span class="min-w-0 flex-1 truncate">{format!("Replying to {}",target.map_or("message".into(),|m|a.model.name(m.author_id)))}{target.map(|m|view!{<span class="text-muted-foreground">{format!(" · {}",preview(a,m))}</span>})}</span>{ib_plain("x","Cancel Reply","cancel-reply")}</div>}.into_any()}else{().into_any()}}
-        {a.attachments.iter().enumerate().map(|(i,f)|view!{<div class="live-upload mb-2 flex items-center gap-3 rounded-lg bg-muted p-2 text-xs"><span class="min-w-0 flex-1 truncate" title=f.filename.clone()>{f.filename.clone()}</span><small class="flex-none text-xs">{crate::wire::file_size(f.byte_size)}</small>{ib_plain("x","Remove Attachment",&format!("remove-attachment:{i}"))}</div>}).collect_view()}
+        {content::scheduled_bar(a,c)}
+        {a.attachments.iter().enumerate().map(|(i,f)|content::attachment_chip(a,i,f)).collect_view()}
         {if a.uploading{view!{<div class="live-upload mb-2 flex items-center justify-between gap-4 rounded-lg bg-muted p-2 text-xs" role="status">{a.upload_progress.clone()}{button("Pause","upload-cancel","secondary")}</div>}.into_any()}else{().into_any()}}
         {if a.completions.is_empty(){().into_any()}else{view!{<div id="live-completions" class="autocomplete absolute inset-x-4 bottom-full z-40 max-h-[min(320px,50vh)] overflow-y-auto rounded-lg border bg-popover p-2 shadow-lg" role="listbox" aria-label="Suggestions">{a.completions.iter().enumerate().map(|(i,(label,insert,kind))|view!{<button class="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-sm aria-selected:bg-secondary touch:min-h-11" id=format!("completion-{i}") role="option" aria-selected=if i==0{"true"}else{"false"} data-completion=insert.clone()><span class="completion-avatar grid size-6 flex-none place-items-center overflow-hidden rounded-full bg-sidebar text-xs [&_.icon]:size-4">{match kind.as_str() {"Role"=>icon("shield"),"Channel"=>icon("hash"),"Emoji"=>view!{<span>{insert.clone()}</span>}.into_any(),_=>view!{<span>{label.chars().take(1).collect::<String>()}</span>}.into_any()}}</span><span>{label.clone()}</span><small class="ml-auto">{if kind=="User"{insert.clone()}else{kind.clone()}}</small></button>}).collect_view()}</div>}.into_any()}}
-        <div class="composer flex items-end gap-2 rounded-lg bg-muted px-3 py-2 phone:gap-1 phone:px-2 phone:py-1"><button type="button" class="icon-button" title="Add Attachment" aria-label="Add Attachment" data-live="pick-file">{icon("plus-circle")}</button><input type="file" id="live-file" multiple hidden/><label class="composer-input flex min-w-0 flex-1"><span class="sr-only">"Message"</span><textarea class="max-h-[40vh] min-h-8 flex-1 resize-none rounded-none border-0 bg-transparent px-0 py-1 text-[15px] leading-6 shadow-none focus-visible:ring-0 touch:min-h-11 touch:py-2.5 phone:text-base" id="live-input" rows="1" placeholder=placeholder aria-label="Message" role="combobox" aria-autocomplete="list" aria-controls="live-completions" aria-expanded=(!a.completions.is_empty()).to_string()></textarea></label><span id="live-count" class="composer-count" hidden></span><button class="composer-gif inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent touch:min-h-11 touch:min-w-11" data-live="dialog:gif">"GIF"</button>{ib_plain("smile","Emoji Picker","dialog:emoji")}<button class="composer-kaomoji inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent phone:hidden" aria-label="Kaomoji" title="Kaomoji" data-live="dialog:kaomoji">"(^▽^)"</button><button class="icon-button" aria-label="Send Message" title="Send Message" data-live="send-input" disabled={a.uploading||a.preparing_send||!a.ready}>{icon("send")}</button></div>
+        <div class="composer flex items-end gap-2 rounded-lg bg-muted px-3 py-2 phone:gap-1 phone:px-2 phone:py-1"><button type="button" class="icon-button" title="Add Attachment" aria-label="Add Attachment" data-live="pick-file">{icon("plus-circle")}</button><input type="file" id="live-file" multiple hidden/><label class="composer-input flex min-w-0 flex-1"><span class="sr-only">"Message"</span><textarea class="max-h-[40vh] min-h-8 flex-1 resize-none rounded-none border-0 bg-transparent px-0 py-1 text-[15px] leading-6 shadow-none focus-visible:ring-0 touch:min-h-11 touch:py-2.5 phone:text-base" id="live-input" rows="1" placeholder=placeholder aria-label="Message" role="combobox" aria-autocomplete="list" aria-controls="live-completions" aria-expanded=(!a.completions.is_empty()).to_string()></textarea></label><span id="live-count" class="composer-count" hidden></span><button class="composer-gif inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent touch:min-h-11 touch:min-w-11" data-live="dialog:gif">"GIF"</button>{ib_plain("smile","Emoji Picker","dialog:emoji")}<button class="composer-kaomoji inline-flex h-8 flex-none items-center justify-center rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent phone:hidden" aria-label="Kaomoji" title="Kaomoji" data-live="dialog:kaomoji">"(^▽^)"</button>{content::composer_tools(a)}<button class="icon-button" aria-label="Send Message" title="Send Message" data-live="send-input" disabled={a.uploading||a.preparing_send||!a.ready}>{icon("send")}</button></div>
         <div class="typing-indicator h-6 text-xs leading-6 text-subtle">{crate::wire::typing_label(&a.model.typing.iter().filter(|((channel,_),expiry)|*channel==c&&**expiry>Browser.unix_ms()).map(|((_,u),_)|a.model.name(*u)).take(3).collect::<Vec<_>>())}</div>
         </div></div>}.into_any()
 }
@@ -570,12 +583,23 @@ fn inline(a: &App, v: &Inline, m: &Message) -> AnyView {
         view! {<span style=style>{body}</span>}.into_any()
     }
 }
+/// Message text as markdown: escaped DOM text, never HTML.
+fn markdown(a: &App, m: &Message, text: &str) -> AnyView {
+    let document = sticktalk_client_core::markdown::parse(text);
+    let line = |v: &Vec<Inline>| v.iter().map(|v| inline(a, v, m)).collect_view();
+    view!{<div class="markdown">{document.blocks.iter().map(|b|match b{
+            Block::Code{text,..}=>view!{<pre><code>{text.clone()}</code></pre>}.into_any(),
+            Block::Header(level,v)=>view!{<p class=match *level{1=>"md-h1",2=>"md-h2",_=>"md-h3"}>{line(v)}</p>}.into_any(),
+            Block::Quote(v)=>view!{<blockquote>{line(v)}</blockquote>}.into_any(),
+            Block::List(v)=>view!{<p class="md-item">{line(v)}</p>}.into_any(),
+            Block::Paragraph(v) if v.is_empty()=>view!{<p class="md-blank"></p>}.into_any(),
+            Block::Paragraph(v)=>view!{<p>{line(v)}</p>}.into_any()}).collect_view()}</div>}.into_any()
+}
 fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
     if let Some(record) = call_views::record(a, m) {
         return record;
     }
     let author = a.model.users.get(&m.author_id).cloned().unwrap_or_default();
-    let document = sticktalk_client_core::markdown::parse(&m.content);
     let own = a
         .model
         .me
@@ -588,21 +612,25 @@ fn message(a: &App, m: &Message, continuation: bool) -> AnyView {
         .is_some_and(|me| m.mention_ids.contains(&me.user.id));
     // In a server, pinning and deleting other people's messages need Manage Messages.
     let moderator = a.guild.is_some() && settings::can(a, Permissions::MANAGE_MESSAGES);
-    let line = |v: &Vec<Inline>| v.iter().map(|v| inline(a, v, m)).collect_view();
+    let rich = m.extra.poll.is_some()
+        || m.extra.forwarded.is_some()
+        || m.extra.gif.is_some()
+        || m.attachments.iter().any(|f| f.meta.voice());
+    let body = if let Some(p) = &m.extra.poll {
+        content::poll(a, m, p)
+    } else if let Some(f) = &m.extra.forwarded {
+        view! {{if m.content.trim().is_empty(){().into_any()}else{markdown(a,m,&m.content)}}{content::forwarded(a,m,f)}}.into_any()
+    } else {
+        content::gif(a, m).unwrap_or_else(|| markdown(a, m, &m.content))
+    };
     view!{<article class=format!("message group/message relative flex gap-4 px-4 hover:bg-accent {} {}",if continuation{"continuation mt-0.5"}else{"group-head mt-4 in-data-[density=compact]:mt-2"},if mention{"mentioned border-l-2 border-warning bg-warning/8"}else{""}) data-live-message=m.id.0.to_string() tabindex="0" aria-label=format!("Message from {}",name(&author))>
         <div class="avatar-gutter flex w-10 flex-none items-start justify-center self-start">{if continuation{view!{<time class="gutter-time invisible text-xs leading-[21px] whitespace-nowrap group-focus-within/message:visible group-hover/message:visible">{short_time(m.created_at)}</time>}.into_any()}else{view!{<button class="touch:grid touch:min-h-11 touch:min-w-11 touch:place-items-center touch:p-0.5" data-live=format!("profile:{}",m.author_id.0) aria-label=format!("{}'s profile",name(&author))>{avatar(&author,"message-avatar")}</button>}.into_any()}}</div>
         <div class="message-content min-w-0 flex-1 wrap-anywhere">{if continuation{().into_any()}else{view!{<div class="message-meta flex min-h-[21px] items-baseline gap-2 phone:flex-wrap phone:gap-x-2 phone:gap-y-1"><button class="author max-w-[min(60%,360px)] truncate p-0 font-semibold" style=format!("color:{}",color(a,m.author_id)) title=name(&author) data-live=format!("profile:{}",m.author_id.0)>{name(&author)}</button><time class="text-xs">{timestamp(m.created_at)}</time></div>}.into_any()}}
         {if let Some(reply)=m.reply_to{view!{<button class="reply-preview flex max-w-full items-center gap-2 py-1 text-[13px] text-subtle touch:min-h-11" data-live=format!("seek-message:{}",reply.0)>{icon_with("reply","icon size-4")}<span class="min-w-0 truncate">{a.model.messages.get(&m.channel_id).and_then(|ms|ms.get(&reply)).map_or("Original message".into(),|m|format!("{}: {}",a.model.name(m.author_id),preview(a,m)))}</span></button>}.into_any()}else{().into_any()}}
-        <div class="markdown">{document.blocks.iter().map(|b|match b{
-            Block::Code{text,..}=>view!{<pre><code>{text.clone()}</code></pre>}.into_any(),
-            Block::Header(level,v)=>view!{<p class=match *level{1=>"md-h1",2=>"md-h2",_=>"md-h3"}>{line(v)}</p>}.into_any(),
-            Block::Quote(v)=>view!{<blockquote>{line(v)}</blockquote>}.into_any(),
-            Block::List(v)=>view!{<p class="md-item">{line(v)}</p>}.into_any(),
-            Block::Paragraph(v) if v.is_empty()=>view!{<p class="md-blank"></p>}.into_any(),
-            Block::Paragraph(v)=>view!{<p>{line(v)}</p>}.into_any()}).collect_view()}</div>
-        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{m.attachments.iter().map(attachment).collect_view()}
+        {body}
+        {if m.edited_at.is_some(){view!{<small class="edited">"(edited)"</small>}.into_any()}else{().into_any()}}{content::attachments(a,&m.attachments)}{content::embeds(a,m)}
         <div class="reactions mt-1 flex flex-wrap gap-1 empty:hidden">{m.reactions.iter().map(|r|view!{<button class=if r.me{"reaction mine rounded-lg border border-primary bg-primary/15 px-2 py-1 text-sm text-foreground touch:min-h-11 touch:min-w-11"}else{"reaction rounded-lg border border-transparent bg-muted px-2 py-1 text-sm text-foreground touch:min-h-11 touch:min-w-11"} data-live=format!("react:{},{}",m.id.0,r.emoji) aria-label=format!("React with {}",r.emoji) aria-pressed=r.me.to_string()>{r.emoji.clone()}" "{r.count}</button>}).collect_view()}</div></div>
-        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
+        <div class="message-actions absolute -top-3 right-4 hidden rounded-lg border bg-popover shadow-sm group-focus-within/message:flex group-hover/message:flex touch:hidden!">{ib_plain("smile","Add Reaction",&format!("dialog:emoji-react:{}",m.id.0))}{ib_plain("reply","Reply",&format!("reply:{}",m.id.0))}{ib_plain("forward","Forward",&format!("forward:{}",m.id.0))}{if a.guild.is_none()||moderator{ib_plain("pin","Pin Message",&format!("pin:{}",m.id.0))}else{().into_any()}}{if own&&!rich{ib_plain("pencil","Edit Message",&format!("edit:{}",m.id.0))}else{().into_any()}}{navui::message_actions(m)}{if own||moderator{ib_plain("trash-2","Delete Message",&format!("delete:{}",m.id.0))}else{().into_any()}}</div>
     </article>}.into_any()
 }
 /// A message as its author typed it: mentions are "@username" again.
@@ -626,12 +654,12 @@ fn attachment(f: &Attachment) -> AnyView {
     };
     if f.content_type.starts_with("image/") {
         if let Some(t) = &f.thumbnail {
-            view!{<button class="attachment-image mt-2 block max-w-full overflow-hidden rounded-lg p-0" data-view-image=original data-filename=f.filename.clone() data-bytes=f.byte_size.to_string() aria-label=format!("Open {}",f.filename)><img class="block h-auto max-h-[350px] max-w-full object-contain" src=thumb.clone() srcset=format!("{thumb} 1x") loading="lazy" width=t.width height=t.height alt=f.filename.clone()/></button>}.into_any()
+            view!{<button class="attachment-image mt-2 block max-w-full overflow-hidden rounded-lg p-0" data-view-image=original data-filename=f.filename.clone() data-bytes=f.byte_size.to_string() aria-label=format!("Open {}",f.filename)><img class="block h-auto max-h-[350px] max-w-full object-contain" src=thumb.clone() srcset=format!("{thumb} 1x") loading="lazy" width=t.width height=t.height alt=f.meta.description.clone().unwrap_or_else(||f.filename.clone())/></button>}.into_any()
         } else {
             view!{<button class="button secondary" data-view-image=original data-filename=f.filename.clone()>{format!("View {}",f.filename)}</button>}.into_any()
         }
     } else if crate::wire::video_hint(&f.content_type, &f.filename) {
-        view! {<div class="attachment-video mt-2 max-w-full"><video class="block max-h-[400px] max-w-full rounded-lg" controls playsinline preload="none" src=original.clone() aria-label=f.filename.clone()></video><a class="inline-flex min-h-11 max-w-full items-center text-sm wrap-anywhere" href=original download=f.filename.clone()>{format!("Download {}",f.filename)}</a></div>}
+        view! {<div class="attachment-video mt-2 max-w-full"><video class="block max-h-[400px] max-w-full rounded-lg" controls playsinline preload="none" src=original.clone() aria-label=f.meta.description.clone().unwrap_or_else(||f.filename.clone())></video><a class="inline-flex min-h-11 max-w-full items-center text-sm wrap-anywhere" href=original download=f.filename.clone()>{format!("Download {}",f.filename)}</a></div>}
             .into_any()
     } else {
         view!{<a class="file-card mt-2 flex max-w-[min(100%,420px)] items-center gap-4 rounded-lg bg-muted p-3 text-foreground no-underline" href=original download=f.filename.clone() title=f.filename.clone()>{icon("file")}<span class="min-w-0 flex-1"><span class="block truncate">{f.filename.clone()}</span><small>{crate::wire::file_size(f.byte_size)}</small></span>{icon("download")}</a>}.into_any()
@@ -753,6 +781,9 @@ const DEVICE_ROW: &str =
     "device-row my-4 flex items-center justify-between gap-4 phone:items-start";
 const SETTINGS_EMPTY: &str = "settings-empty flex flex-col items-start gap-4 pt-6 pb-2 [&>.icon]:size-8 [&>.icon]:text-subtle";
 fn dialog(a: &App) -> AnyView {
+    if let Some((body, label, class)) = content::dialog(a) {
+        return modal(a, class, label, body);
+    }
     let body=match a.dialog.as_str(){
         "settings"|"account"=>account(a),
         "server"|"server-overview"=>settings::server_overview(a),

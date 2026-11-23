@@ -114,8 +114,12 @@ pub async fn create(State(app): State<App>, r: Request<Body>) -> Result<Response
     let _io = app.0.upload_io.lock().await;
     disk_guard(&app, req.byte_size + 65536).await?;
     let mut core = app.0.core.lock().await;
-    // A message holds up to four attachments; let them be added together.
-    core.rate(format!("upload:{}", u.0), 20., 4.)?;
+    // A message holds up to ten attachments; let two sets be added together.
+    core.rate(
+        format!("upload:{}", u.0),
+        20.,
+        2. * MAX_MESSAGE_ATTACHMENTS as f64,
+    )?;
     let mut c = app.0.pool.acquire().await?;
     let (_, current) = auth(&mut c, bearer(&headers)?).await?;
     require(current == u, ErrorCode::Unauthenticated)?;

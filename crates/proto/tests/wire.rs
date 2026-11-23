@@ -93,6 +93,7 @@ fn attachment() -> Attachment {
             byte_size: 512,
             content_type: "image/webp".into(),
         }),
+        meta: Default::default(),
     }
 }
 
@@ -113,6 +114,7 @@ fn message() -> Message {
             count: 2,
             me: true,
         }],
+        extra: Default::default(),
     }
 }
 

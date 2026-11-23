@@ -133,6 +133,7 @@ pub(crate) fn prepare(
         )?;
         Ok(Media {
             mime: video_mime(&head[..n])
+                .or_else(|| crate::content::audio_mime(&head[..n]))
                 .unwrap_or("application/octet-stream")
                 .into(),
             width: None,
@@ -251,7 +252,11 @@ pub async fn upload(
     let reservation = stream_id();
     {
         let mut core = app.0.core.lock().await;
-        core.rate(format!("upload:{}", u.0), 20., 4.)?;
+        core.rate(
+            format!("upload:{}", u.0),
+            20.,
+            2. * MAX_MESSAGE_ATTACHMENTS as f64,
+        )?;
         let mut c = app.0.pool.acquire().await?;
         let mut tx = c.begin().await?;
         crate::upload_accounting::admit(&mut tx, u).await?;
@@ -454,7 +459,7 @@ async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Re
             expires > now() as i64 && row.get::<i64, _>("owner_id") == id(u)?,
             ErrorCode::NotFound,
         )?;
-    } else {
+    } else if !crate::content::forwarded_file_access(&mut c, u, a).await? {
         let ch:Option<i64>=sqlx::query_scalar("SELECT m.channel_id FROM message_attachments ma JOIN messages m ON ma.message_id=m.id WHERE ma.attachment_id=? AND m.deleted_at IS NULL").bind(id(a)?).fetch_optional(&mut *c).await?;
         if let Some(ch) = ch {
             text(&mut c, u, Id(ch as u64), Permissions::READ_HISTORY).await?;

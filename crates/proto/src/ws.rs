@@ -284,6 +284,8 @@ pub enum Command {
         guild_id: Option<GuildId>,
         presence_user_ids: Vec<UserId>,
     },
+    /// Polls, forwarding, scheduled messages and rich attachments (`content.rs`).
+    Content(ContentCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -320,6 +322,7 @@ pub enum CommandResult {
     Reaction(ReactionUpdate),
     ReadState(ReadState),
     Subscription { presences: Vec<Presence> },
+    Content(ContentResult),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -427,6 +430,8 @@ pub enum Event {
     SavedUpdated(SavedSummary),
     /// A reminder's time has come. `message` is None when it may no longer be read.
     ReminderDue(SavedMessage),
+    /// Sent only to connections that sent `ContentCommand::Subscribe`.
+    Content(ContentEvent),
 }
 
 /// Stable outer voice envelope. Version 1 bodies are named MessagePack maps:

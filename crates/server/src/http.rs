@@ -24,6 +24,7 @@ pub fn router(app: App) -> axum::Router {
         .merge(crate::custom_emoji::routes())
         .merge(crate::mcp::routes())
         .merge(crate::nav::routes())
+        .merge(crate::content::routes())
         .route(
             "/api/v1/users/@me/server-folders",
             get(crate::folders::endpoint),
@@ -100,8 +101,10 @@ async fn bounded_requests(
     let mut permits = vec![permit];
     // Per-IP/user download limits are for API file transfers. The web app fetches
     // ~20 hashed chunks at once; over a real network they overlap and would 409.
+    // Thumbnails are small (at most 64 KiB); a grid of ten loads them together.
     if transfer
         && path.starts_with("/api/")
+        && !path.ends_with("/thumbnail")
         && matches!(
             *r.method(),
             axum::http::Method::GET | axum::http::Method::HEAD

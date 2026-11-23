@@ -3,6 +3,7 @@
    whose own small layer must sit below everything here. */
 @layer ui-sdk;
 @import "tailwindcss" source(none);
+@import "./content.css";
 @source "../src/live";
 @source "../index.html";
 @source "../public/*.js";

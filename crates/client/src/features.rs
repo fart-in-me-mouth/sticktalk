@@ -566,6 +566,7 @@ pub fn update(app: &mut App, e: Event) -> Task<Msg> {
                 width: None,
                 height: None,
                 thumbnail: None,
+                meta: Default::default(),
             }];
             app.features.picker = Picker::None;
             return Task::batch([load_viewer(app), crate::focus_button::focus_dialog()]);
@@ -1502,6 +1503,7 @@ mod tests {
             width: None,
             height: None,
             thumbnail: None,
+            meta: Default::default(),
         };
         let _ = app.update(Msg::feature(Event::Upload(uploads::Event::Complete(
             42,
@@ -1534,6 +1536,7 @@ mod tests {
                 mention_ids: vec![],
                 call: None,
                 reactions: vec![],
+                extra: Default::default(),
             },
         );
         assert!(app.features.uploads.is_empty());
@@ -1638,6 +1641,7 @@ mod picker_lifecycle_tests {
             width: None,
             height: None,
             thumbnail: None,
+            meta: Default::default(),
         };
         app.features.uploads.get_mut(&42).unwrap().job.attachment = Some(a);
         app.state.pending.insert(

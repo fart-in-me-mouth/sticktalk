@@ -192,6 +192,7 @@ mod tests {
                         width: None,
                         height: None,
                         thumbnail: None,
+                        meta: Default::default(),
                     },
                 }))
             })

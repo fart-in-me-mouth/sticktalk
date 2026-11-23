@@ -50,6 +50,7 @@ impl Mock {
             width: None,
             height: None,
             thumbnail: None,
+            meta: Default::default(),
         };
         if let Ok(reader) = image::ImageReader::open(path).and_then(|v| v.with_guessed_format()) {
             if matches!(

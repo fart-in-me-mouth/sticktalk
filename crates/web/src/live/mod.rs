@@ -1,5 +1,6 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
 mod calls;
+mod content;
 mod nav;
 mod operations;
 use crate::wire::{decode_signal, stringify_ids};
@@ -143,6 +144,8 @@ struct App {
     loading_dialog: std::cell::Cell<bool>,
     loading_voice: std::cell::Cell<bool>,
     nav: nav::NavState,
+    /// Polls, forwarding, scheduled messages, voice messages, GIF favorites.
+    content: content::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -200,6 +203,7 @@ impl App {
         self.preparing_send = false;
         self.uploading = false;
         self.upload_progress.clear();
+        self.content = Default::default();
         self.dialog.clear();
         self.panel.clear();
         self.screen = "home".into();
@@ -362,6 +366,7 @@ pub fn mount() {
             loading_dialog: std::cell::Cell::new(false),
             loading_voice: std::cell::Cell::new(false),
             nav: Default::default(),
+            content: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -739,6 +744,7 @@ async fn socket(app: Shared, epoch: u64) {
                                         Event::NavUpdated(_)
                                         | Event::SavedUpdated(_)
                                         | Event::ReminderDue(_) => nav::event(&mut a, &event.event),
+                                        Event::Content(e) => content::event(&mut a, e.clone()),
                                         _ => {}
                                     }
                                 }

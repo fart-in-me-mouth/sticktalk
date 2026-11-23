@@ -667,6 +667,7 @@ mod tests {
             mention_ids: vec![],
             call: None,
             reactions: vec![],
+            extra: Default::default(),
         }
     }
     #[test]

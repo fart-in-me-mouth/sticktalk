@@ -603,6 +603,7 @@ pub fn fixture(app: &mut App, screen: &str) {
         width: Some(1920),
         height: Some(1080),
         thumbnail: None,
+        meta: Default::default(),
     };
     let key = attachment_key(&a);
     let mut clip = Clip::new(false, Some(a.clone()));

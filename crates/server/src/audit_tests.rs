@@ -512,6 +512,7 @@ async fn slow_initial_replay_has_one_deadline() {
                         mention_ids: vec![],
                         call: None,
                         reactions: vec![],
+                        extra: Default::default(),
                     },
                     author: UserSummary {
                         id: Id(2),

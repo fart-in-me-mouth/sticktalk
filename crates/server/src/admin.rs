@@ -34,6 +34,8 @@ pub struct OperationsConfig {
     pub update_public_key: Option<String>,
     #[arg(long, env = "STICKTALK_RELEASE_TOKEN", hide_env_values = true)]
     pub release_token: Option<String>,
+    #[command(flatten)]
+    pub content: crate::content::ContentOptions,
     #[command(subcommand)]
     pub command: Option<Operation>,
 }
@@ -62,6 +64,7 @@ impl Default for OperationsConfig {
             backup_recipient: None,
             update_public_key: None,
             release_token: None,
+            content: Default::default(),
             command: None,
         }
     }

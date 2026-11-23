@@ -109,6 +109,7 @@ pub(crate) struct Inner {
     pub dummy_hash: String,
     pub google: crate::google::Verifier,
     pub gifs: crate::gifs::GifService,
+    pub(crate) content: crate::content::Content,
     pub shutdown: tokio_util::sync::CancellationToken,
     pub nav: crate::nav::Nav,
 }
@@ -150,6 +151,8 @@ pub(crate) struct Stream {
     pub interests: Vec<Id>,
     pub launch_features: bool,
     pub text_features: bool,
+    /// Sent `ContentCommand::Subscribe`: receives `Event::Content`.
+    pub content_features: bool,
 }
 impl Drop for Connection {
     fn drop(&mut self) {
@@ -173,6 +176,7 @@ impl Stream {
             interests: vec![],
             launch_features: false,
             text_features: false,
+            content_features: false,
         }
     }
     pub fn cursor(&self) -> ResumeCursor {
@@ -316,6 +320,9 @@ impl Core {
             {
                 continue;
             }
+            if !s.content_features && matches!(&event, Event::Content(_)) {
+                continue;
+            }
             if !s.launch_features
                 && matches!(
                     &event,
@@ -456,6 +463,7 @@ impl App {
         let browser = crate::browser::Browser::new(&config)?;
         let push = crate::push::Push::new(&config).await?;
         let tier = crate::tier::Tier::new(&config)?;
+        let content = crate::content::Content::configured(&config.operations.content, config.bind)?;
         let app = Self(Arc::new(Inner {
             tier,
             browser,
@@ -484,6 +492,7 @@ impl App {
             dummy_hash,
             google,
             gifs,
+            content,
             shutdown: tokio_util::sync::CancellationToken::new(),
             nav: Default::default(),
         }));
