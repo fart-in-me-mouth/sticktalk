@@ -35,7 +35,10 @@ const output = join(dist,folder);
 await mkdir(output,{recursive:true});
 const scratch = join(target,'web-split',entry);
 await mkdir(scratch,{recursive:true});
-run(split, [join(target,'wasm32-unknown-unknown','web-release','sticktalk-web.wasm'), scratch, '--out-name', entry, '--target','web','--cost-model','none']);
+// Merge the splitter's tiny shared chunks (one request and one WebAssembly
+// instance each) into the modules that use them: its cost model weighs a request
+// at 16 KiB (docs/features/perf.md).
+run(split, [join(target,'wasm32-unknown-unknown','web-release','sticktalk-web.wasm'), scratch, '--out-name', entry, '--target','web','--cost-model','binary','--request-cost',process.env.STICKTALK_SPLIT_REQUEST_COST??String(16*1024)]);
 run(bindgen, [join(scratch,`${entry}.wasm`),'--out-dir',scratch,'--out-name',entry,'--target','web','--keep-lld-exports','--no-demangle']);
 await rm(join(scratch,`${entry}.wasm`));
 for (const name of await readdir(scratch)) {

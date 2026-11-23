@@ -40,8 +40,11 @@ try {
   await page.waitForFunction(() => !document.querySelector('.live-modal'));
   await page.locator('.server-rail [data-live^="guild:"]').click();
   await page.waitForSelector('.server-heading');
-  await page.waitForFunction(() => customElements.get('ui-dialog') && customElements.get('ui-menu') && customElements.get('ui-tooltip') && customElements.get('ui-avatar'));
+  // Avatars are defined at startup, a dialog once one has opened; menus and
+  // tooltips only when first pointed at, focused or pressed (docs/features/perf.md).
+  await page.waitForFunction(() => customElements.get('ui-dialog') && customElements.get('ui-avatar'));
   check('UI SDK elements are registered', true);
+  check('the menu behavior is not loaded before a menu is used', await page.evaluate(() => !customElements.get('ui-menu')));
 
   // ---- DropdownMenu (ui-menu): server menu -> Create Category ---------------
   await page.locator('.server-heading').click();

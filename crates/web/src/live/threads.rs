@@ -285,7 +285,11 @@ pub(super) fn event(a: &mut App, e: ThreadEvent) {
                 .is_some_and(|(c, _)| *c == channel_id)
             {
                 later(a, move |app| {
-                    spawn_local(async move { load_follows(app, channel_id).await });
+                    features::spawn(
+                        app,
+                        features::Feature::Threads,
+                        features::Call::Other("follows", channel_id.0.to_string()),
+                    );
                 });
             }
         }
@@ -403,7 +407,11 @@ pub(super) fn answered(app: Shared, cmd: Option<&Command>, result: ThreadResult)
                 let t = a.threads.members.as_ref().map(|(t, ..)| *t);
                 drop(a);
                 if let Some(t) = t {
-                    spawn_local(async move { load_members(app, t, false).await });
+                    features::spawn(
+                        app,
+                        features::Feature::Threads,
+                        features::Call::Other("members", t.0.to_string()),
+                    );
                 }
                 return;
             }
@@ -442,8 +450,11 @@ pub(super) fn open_special(app: &Shared, c: Id) -> bool {
         a.window_ids.clear();
         a.touch();
     }
-    let app = app.clone();
-    spawn_local(async move { load_forum(app, c, false).await });
+    features::spawn(
+        app.clone(),
+        features::Feature::Threads,
+        features::Call::Other("forum", c.0.to_string()),
+    );
     true
 }
 
@@ -1163,4 +1174,65 @@ pub(super) fn submit(app: Shared, form: &str) {
         }
         _ => {}
     }
+}
+
+/// The threads feature's one entry point (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    threads,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    match call {
+        Call::Action(kind, arg) => action(app, &kind, &arg),
+        Call::Submit(form) => submit(app, &form),
+        Call::Other("follows", c) => {
+            if let Some(c) = id(&c) {
+                spawn_local(async move { load_follows(app, c).await });
+            }
+        }
+        Call::Other("members", t) => {
+            if let Some(t) = id(&t) {
+                spawn_local(async move { load_members(app, t, false).await });
+            }
+        }
+        Call::Other("forum", c) => {
+            if let Some(c) = id(&c) {
+                spawn_local(async move { load_forum(app, c, false).await });
+            }
+        }
+
+        _ => {}
+    }
+    Ok(true)
+}
+
+/// The threads feature's state: its events, the answers to its commands.
+/// A separate, small split entry: keeping a feature's state current does not
+/// load its pages and forms (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    threads_state,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible
+)]
+pub(super) fn state(app: Shared, call: features::Call) -> features::Outcome {
+    use features::{Call, Reply};
+    match call {
+        Call::Event(raw) => {
+            let Ok(e) = crate::inbound::feature::thread_event(&raw.data) else {
+                return Ok(false);
+            };
+            event(&mut app.borrow_mut(), e);
+        }
+        Call::Answer(op, Reply::Raw(raw)) => {
+            let Ok(result) = crate::inbound::feature::thread_result(&raw.data) else {
+                return Ok(false);
+            };
+            answered(app, op.as_ref(), result);
+        }
+        _ => {}
+    }
+    Ok(true)
 }

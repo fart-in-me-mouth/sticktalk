@@ -30,6 +30,8 @@ pub struct Model {
     pub nicknames: BTreeMap<Id, String>,
     lru: VecDeque<Id>,
     journal: VecDeque<EventEnvelope>,
+    /// The encoded size of each journal entry, in the same order.
+    journal_sizes: VecDeque<usize>,
     floor: EventSeq,
     journal_bytes: usize,
     trim_newest: std::collections::BTreeSet<Id>,
@@ -73,6 +75,13 @@ impl Model {
     }
 
     pub fn apply(&mut self, envelope: EventEnvelope) -> bool {
+        let bytes = event_bytes(&envelope);
+        self.apply_sized(envelope, bytes)
+    }
+
+    /// `apply`, for a host that knows the event's encoded size (the bytes it
+    /// received), so it need not encode the event again to bound the journal.
+    pub fn apply_sized(&mut self, envelope: EventEnvelope, bytes: usize) -> bool {
         let Some(cursor) = self.cursor.as_mut() else {
             return false;
         };
@@ -81,16 +90,30 @@ impl Model {
         }
         cursor.seq = envelope.seq;
         self.reduce(envelope.event.clone());
-        self.journal_bytes += event_bytes(&envelope);
+        self.journal_bytes += bytes;
         self.journal.push_back(envelope);
+        self.journal_sizes.push_back(bytes);
         while self.journal.len() > JOURNAL_LIMIT || self.journal_bytes > 2 * 1024 * 1024 {
             if let Some(old) = self.journal.pop_front() {
                 self.floor = old.seq;
-                self.journal_bytes = self.journal_bytes.saturating_sub(event_bytes(&old));
+                let size = self.journal_sizes.pop_front().unwrap_or_default();
+                self.journal_bytes = self.journal_bytes.saturating_sub(size);
             }
         }
         self.enforce_bounds();
         true
+    }
+
+    /// An event this projection does not keep (a web feature's event, decoded
+    /// by that feature): only the cursor moves. False when already seen.
+    pub fn advance(&mut self, seq: EventSeq) -> bool {
+        match self.cursor.as_mut() {
+            Some(cursor) if seq > cursor.seq => {
+                cursor.seq = seq;
+                true
+            }
+            _ => false,
+        }
     }
 
     pub fn reduce(&mut self, event: Event) {
@@ -466,8 +489,15 @@ impl Model {
         self.settings
             .notifications
             .retain(|(_, c), _| *c != Some(id));
-        self.journal.retain(|e| event_channel(&e.event) != Some(id));
-        self.journal_bytes = self.journal.iter().map(event_bytes).sum();
+        let mut sizes = std::mem::take(&mut self.journal_sizes).into_iter();
+        let (journal, kept): (VecDeque<_>, VecDeque<_>) = std::mem::take(&mut self.journal)
+            .into_iter()
+            .zip(sizes.by_ref())
+            .filter(|(e, _)| event_channel(&e.event) != Some(id))
+            .unzip();
+        self.journal = journal;
+        self.journal_bytes = kept.iter().sum();
+        self.journal_sizes = kept;
         self.channels.remove(&id);
         self.topics.remove(&id);
         self.messages.remove(&id);
@@ -823,5 +853,25 @@ mod tests {
             model.journal_bytes,
             model.journal.iter().map(event_bytes).sum::<usize>()
         );
+        assert_eq!(model.journal.len(), model.journal_sizes.len());
+        // A purge keeps the sizes of the entries it keeps.
+        let channel = model.journal.back().and_then(|e| event_channel(&e.event));
+        if let Some(c) = channel {
+            model.purge_channel(c);
+        }
+        assert_eq!(model.journal.len(), model.journal_sizes.len());
+        assert_eq!(
+            model.journal_bytes,
+            model.journal.iter().map(event_bytes).sum::<usize>()
+        );
+    }
+
+    #[test]
+    fn feature_events_only_move_the_cursor() {
+        let mut m = model();
+        assert!(m.advance(1));
+        assert!(!m.advance(1), "an event already seen is not applied again");
+        assert_eq!(m.cursor.as_ref().unwrap().seq, 1);
+        assert!(m.journal.is_empty());
     }
 }

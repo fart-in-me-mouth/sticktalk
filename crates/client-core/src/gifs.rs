@@ -15,19 +15,18 @@ impl Autoplay {
     }
 }
 pub fn validate_media(m: &GifMedia) -> Result<(), String> {
-    let url = url::Url::parse(&m.url).map_err(|_| "Invalid GIF URL")?;
+    let url = crate::urls::parse(&m.url).ok_or("Invalid GIF URL")?;
     if !matches!(
-        url.host_str(),
-        Some("static.klipy.com" | "static1.klipy.com" | "static2.klipy.com")
-    ) || url.port().is_some()
-        || url.fragment().is_some()
+        url.host.as_str(),
+        "static.klipy.com" | "static1.klipy.com" | "static2.klipy.com"
+    ) || url.port.is_some()
+        || url.fragment
         || !matches!(
             m.content_type.as_str(),
             "video/mp4" | "video/webm" | "image/webp" | "image/gif"
         )
-        || url.scheme() != "https"
-        || !url.username().is_empty()
-        || url.password().is_some()
+        || url.scheme != "https"
+        || url.credentials
         || m.url.len() > 2048
         || m.width == 0
         || m.height == 0

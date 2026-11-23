@@ -74,3 +74,5 @@ pub fn router(app: App) -> axum::Router {
 mod launch_tests;
 #[cfg(test)]
 mod security_tests;
+#[cfg(test)]
+mod stack_tests;

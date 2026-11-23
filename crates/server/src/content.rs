@@ -11,6 +11,8 @@ mod previews;
 mod routes;
 mod scheduled;
 #[cfg(test)]
+pub(crate) use scheduled::deliver_due as deliver_scheduled;
+#[cfg(test)]
 mod tests;
 
 pub(crate) use routes::routes;

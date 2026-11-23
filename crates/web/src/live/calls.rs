@@ -137,8 +137,10 @@ pub(super) fn leaving(a: &mut App) {
     }
 }
 
-/// `call:<verb>,<channel>[,<arg>]` actions from call surfaces.
-pub(super) fn action(app: Shared, arg: &str) {
+/// `call:<verb>,<channel>[,<arg>]` actions from call surfaces. Loaded on the
+/// first use: it brings the voice signal encoder.
+#[lazy]
+pub(super) fn action(app: Shared, arg: String) {
     let mut parts = arg.split(',');
     let verb = parts.next().unwrap_or_default();
     let channel = parts.next().and_then(id);

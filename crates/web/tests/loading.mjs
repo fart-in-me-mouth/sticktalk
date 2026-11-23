@@ -1,6 +1,6 @@
 import {readFile,writeFile,mkdtemp,rm} from 'node:fs/promises';
 import {join,resolve,dirname} from 'node:path';
-import {hostGraphFingerprint} from '../scripts/version-runtime.mjs';
+import {hostGraphFingerprint,modules as runtimeModules} from '../scripts/version-runtime.mjs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +15,7 @@ assert(core && chunks.length>=2, 'production must contain a core and actual lazy
 // friend requests, day and "New" dividers and quoted/list/heading text.
 assert(core.brotli<=490000, `core WASM exceeds 490 KB Brotli: ${core.brotli} B`);
 const runtime=inventory.assets.filter(a=>/^public\/runtime\/[a-f0-9]{20}\/.*\.js$/.test(a.file));
-assert.equal(runtime.length,9,'all runtime JS modules are release-fingerprinted');
+assert.equal(runtime.length,runtimeModules.length,'all runtime JS modules are release-fingerprinted');
 const alias=await readFile(join(dist,'public/media.js'),'utf8');
 assert.match(alias,/export \* from '\.\/runtime\/[a-f0-9]{20}\/media\.js'/);
 const liveRuntime=runtime.find(a=>a.file.endsWith('/live.js'));
@@ -26,8 +26,8 @@ assert.notEqual(core.file.split('/')[1],core.file.match(/sticktalk-web-([a-f0-9]
   'package loader URL fingerprints the host graph, not only the unchanged WASM');
 const graphFixture=await mkdtemp(join(resolve(process.env.CARGO_TARGET_DIR),'graph-unit-'));
 try {
-  for(const name of ['gifs','live','media','message-menu','navigation','preferences','push','ui','viewer'])
-    await writeFile(join(graphFixture,name+'.js'),`export const fixture='${name}';`);
+  for(const file of runtimeModules)
+    await writeFile(join(graphFixture,file),`export const fixture='${file}';`);
   const wasm=Buffer.from('unchanged core');
   const first=await hostGraphFingerprint(wasm,graphFixture);
   assert.equal(await hostGraphFingerprint(wasm,graphFixture),first,'stable module graph URL');

@@ -6,6 +6,23 @@ import {installNav, navBeforeRender, navRestore} from './nav.js';
 const emit = (action) =>
   window.dispatchEvent(new CustomEvent("sticktalk-live", { detail: action }));
 const $ = (s) => document.querySelector(s);
+// Intent: pointing at or focusing a control downloads the module its action
+// needs (the app decides which, from the action), so the first press does not
+// wait for it. Once per kind of action; never on a metered or slow connection.
+const prefetched = new Set();
+let pointed = null;
+const prefetch = (event) => {
+  const control = event.target instanceof Element ? event.target.closest('[data-live]') : null;
+  if (!control || control === pointed) return;
+  pointed = control;
+  const action = control.dataset.live;
+  const kind = action.split(':')[0] === 'dialog' ? action.split(',')[0] : action.split(/[:,]/)[0];
+  if (prefetched.has(kind)) return;
+  prefetched.add(kind);
+  emit(`prefetch-for:${action}`);
+};
+document.addEventListener('pointerover', prefetch, { capture: true, passive: true });
+document.addEventListener('focusin', prefetch, { capture: true });
 // Things that cannot be taken back ask first, in the app's own dialog.
 const confirmations = [
   [/^delete:/, 'Delete this message?', 'This can’t be undone.', 'Delete'],

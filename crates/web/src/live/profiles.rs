@@ -409,3 +409,23 @@ pub(super) fn answered(app: Shared, cmd: Command) {
         refresh(app);
     }
 }
+
+/// The profiles feature's one entry point (`features.rs`).
+#[leptos::wasm_split::wasm_split(
+    profiles,
+    wasm_split_path = ::leptos::wasm_split,
+    fallible,
+    preload(prefetch)
+)]
+pub(super) fn run(app: Shared, call: features::Call) -> features::Outcome {
+    use features::Call;
+    match call {
+        Call::Action(_, arg) => action(app, &arg),
+        Call::Submit(form) => submit(app, &form),
+        Call::Opened(name) => opened(app, &name),
+        Call::Answer(Some(op), _) => answered(app, op),
+        Call::Other("card", user) => card_requested(app, &user),
+        _ => {}
+    }
+    Ok(true)
+}
