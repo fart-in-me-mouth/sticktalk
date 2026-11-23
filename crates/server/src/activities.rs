@@ -200,10 +200,10 @@ fn announce(core: &mut Core, channel: Id) {
         return;
     };
     let mut out = vec![];
-    let shared = encode(ActivityEvent::Session(s.view(None))).ok();
+    let shared = encode(ActivityEvent::Session(Box::new(s.view(None)))).ok();
     for (voice, key) in call(core, channel) {
         let payload = match s.pid(voice) {
-            Some(you) => encode(ActivityEvent::Session(s.view(Some(you)))).ok(),
+            Some(you) => encode(ActivityEvent::Session(Box::new(s.view(Some(you))))).ok(),
             None => shared.clone(),
         };
         if let Some(p) = payload {
@@ -901,7 +901,7 @@ pub(crate) async fn end(
     if let Ok(payload) = encode(ActivityEvent::Ended {
         session_id: s.id,
         channel_id: channel,
-        summary,
+        summary: Box::new(summary),
     }) {
         for key in keys {
             let _ = voice::send_payload(core, &key, payload.clone(), false);
@@ -919,7 +919,7 @@ pub(crate) fn joined(core: &mut Core, voice: VoiceSession) {
     let Some(s) = core.activities.sessions.get(&channel) else {
         return;
     };
-    if let Ok(p) = encode(ActivityEvent::Session(s.view(None))) {
+    if let Ok(p) = encode(ActivityEvent::Session(Box::new(s.view(None)))) {
         let _ = voice::send_payload(core, &key, p, false);
     }
 }

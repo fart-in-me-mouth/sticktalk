@@ -1,4 +1,5 @@
 //! Browser host. Protocol DTOs and bounded projections belong to client-core.
+mod activities;
 mod authsec;
 mod calls;
 mod community;
@@ -173,6 +174,8 @@ struct App {
     stage: stage::State,
     /// Custom and server themes, the theme editor, shared themes.
     themes: themes::State,
+    /// Shared activities in the call (`activities.rs`).
+    activities: activities::State,
 }
 impl App {
     fn clear_account(&mut self) {
@@ -245,6 +248,7 @@ impl App {
         self.community = Default::default();
         self.stage = Default::default();
         self.themes = Default::default();
+        self.activities = Default::default();
     }
     fn http(&self) -> Http<CookieFetch> {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
@@ -413,6 +417,7 @@ pub fn mount() {
             community: Default::default(),
             stage: Default::default(),
             themes: Default::default(),
+            activities: Default::default(),
         }));
         app.borrow_mut().owner = Rc::downgrade(&app);
         let actions = app.clone();
@@ -1113,6 +1118,15 @@ fn forward_voice(app: Shared, epoch: u64, payload: VoicePayload) {
         // Stage state is for the channel list and the Stage view, not the media host.
         if let VoiceEvent::Stage(e) = event {
             stage::voice_event(&app, e);
+            return;
+        }
+        if let VoiceEvent::Activities(e) = event {
+            activities::voice_event(&app, e);
+            return;
+        }
+        if matches!(event, VoiceEvent::Ack | VoiceEvent::Error { .. })
+            && activities::answer(&app, payload.nonce, &event)
+        {
             return;
         }
         if matches!(

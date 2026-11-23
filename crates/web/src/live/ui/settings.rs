@@ -39,6 +39,7 @@ pub(super) fn is_server_page(page: &str) -> bool {
         || super::privacy::is_server_page(page)
         || super::community::is_server_page(page)
         || super::themes::is_server_page(page)
+        || super::activities::is_server_page(page)
         || [
             "role:",
             "channel-edit:",
@@ -100,6 +101,13 @@ pub(super) fn server_layout(a: &App, body: AnyView) -> AnyView {
             "palette",
             "Theme",
             "server-theme",
+            can(a, Permissions::MANAGE_GUILD),
+        ),
+        // Activities (activities.rs): which ones members can start.
+        (
+            "sparkles",
+            "Activities",
+            "server-activities",
             can(a, Permissions::MANAGE_GUILD),
         ),
     ];

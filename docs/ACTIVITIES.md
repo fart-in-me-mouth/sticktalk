@@ -60,6 +60,13 @@ What follows from this:
   that. Sound a registered activity plays itself goes to the device's default
   output (see 6. Sound).
 
+**What your server must send.** Your page is framed by the shell, whose
+origin is opaque: do not send `X-Frame-Options`, and do not send a
+`frame-ancestors` directive (no source, not even `*`, matches an opaque
+origin). If you send a Content Security Policy, name your own origin
+explicitly (`script-src https://games.example`): in the sandbox, `'self'`
+is the opaque origin and matches nothing.
+
 ## 3. The SDK
 
 Include `sdk.js` before your own script. Built-in activities use

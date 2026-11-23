@@ -204,4 +204,17 @@ sessions).
 
 ## Measurements
 
-From `crates/web/tests/activities.mjs` (see the results file the test writes).
+From `crates/web/tests/activities.mjs` (2026-11-23, three headless Chromium
+pages, a real server and SFU on loopback, debug server build):
+
+| What | Result |
+|---|---|
+| Activity code at sign-in, and after joining a call | none loaded (`activities.js` and frames load on first use) |
+| Frame isolation (checked inside the frame) | origin `null`; cookies, `localStorage`, `parent.document` and `fetch` all blocked |
+| Watch Together, two viewers of one WebM | 0.01 s apart after 1.5 s of playback |
+| Whiteboard stroke (30 moves) | one key; live cursor and stroke messages arrived before it |
+| Layout changes, browsing chat in mini mode | the frame never reloaded |
+
+Server tests: `cargo test -p sticktalk-server activities` (24 tests: every
+signal, key mode, limit, permission, AutoMod, timeout, report, cards,
+routes, frame policies, the games' rules).

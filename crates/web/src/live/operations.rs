@@ -692,6 +692,9 @@ pub(super) fn action(app: Shared, raw: &str) {
             });
         }
         "call" => super::calls::action(app, arg),
+        "activity" => super::activities::action(app, arg),
+        "activity-signal" => super::activities::signal(app, arg),
+        "activity-send-file" => super::activities::send_file(app, arg),
         "media" => media_action(arg),
         "media-error" => fail(&app, arg.into()),
         "upload" | "avatar-upload" | "guild-icon-upload" => {

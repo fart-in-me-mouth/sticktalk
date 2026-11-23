@@ -826,6 +826,7 @@ export function event(event) {
     }
     case "speaking":
       retainSpeaking(speaking, key(data.session), data.speaking);
+      extras.speaking(data);
       for (const entry of elements.values())
         if (entry.tile.dataset.participant === key(data.session) && entry.kind !== "screen")
           entry.tile.classList.toggle("is-speaking", data.speaking);

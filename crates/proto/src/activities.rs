@@ -203,13 +203,14 @@ pub enum ActivitySignal {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum ActivityEvent {
-    /// Started or changed. To everyone in the call.
-    Session(ActivitySession),
+    /// Started or changed. To everyone in the call. (Boxed: keeps every
+    /// `VoiceEvent` small; the same on the wire.)
+    Session(Box<ActivitySession>),
     /// Over. To everyone in the call.
     Ended {
         session_id: Id,
         channel_id: ChannelId,
-        summary: ActivitySummary,
+        summary: Box<ActivitySummary>,
     },
     /// The document, to participants: the whole of it after joining
     /// (`reset`, in parts until `done`), then each change.

@@ -1,0 +1,13 @@
+#app { display: flex; flex-direction: column; height: 100%; overflow: auto; }
+.table-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.seat { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; }
+.seat.turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.seat small { font-size: 12px; }
+.table-tools { margin-left: auto; }
+.table-board { flex: 1; display: grid; place-items: center; min-height: 0; padding: 8px; }
+.status { text-align: center; }
+/* theme-lint: artwork */
+.disc { display: inline-block; width: 14px; height: 14px; border-radius: 50%; }
+.disc-0 { background: #ff5d5d; }
+.disc-1 { background: #ffd24a; }
+/* theme-lint: end */

@@ -280,6 +280,11 @@ const contentModule = () => content ??= import('/public/content.js');
 let profiles;
 const profilesModule = () => profiles ??= import('/public/profiles.js');
 export function contentAction(action) { if (content) void content.then((m) => m.action(action)); }
+// Shared activities (public/activities.js), loaded the first time one is seen or launched.
+let activities;
+const activitiesModule = () => activities ??= import('/public/activities.js');
+export function activityEvent(raw) { void activitiesModule().then((m) => m.event(JSON.parse(raw), emit)).catch(() => {}); }
+export function activityAction(action) { void activitiesModule().then((m) => m.action(action, emit)).catch(() => {}); }
 export async function recoverSession() {
   const pending = globalThis.__sticktalkSession;
   delete globalThis.__sticktalkSession;
@@ -631,6 +636,7 @@ function restore() {
     const url=new URL(location.href);url.searchParams.delete('invite');history.replaceState(history.state,'',url);
   }
   media?.mount();
+  if (activities || $('[data-activity-settings]')) void activitiesModule().then(m => m.mount(emit)).catch(() => {});
   if (authsec || $('[data-authsec-root]') || globalThis.__sticktalkLink) void authsecModule().then(m => m.mount(emit)).catch(() => {});
   if (profiles || $('[data-profiles-root]')) void profilesModule().then(m => m.mount(emit)).catch(() => {});
   syncProfile();
@@ -687,13 +693,13 @@ export function installPlatform() {
         (r) =>
           (r.type === 'attributes' && (r.target.matches('.live-shell,[data-role-id]') || r.target.id==='sticktalk')) ||
           r.type === "childList" &&
-          !r.target.closest?.('#live-media-stage,#live-device-settings,#live-viewer,[data-authsec-root],#authsec-dialog') &&
+          !r.target.closest?.('#live-media-stage,#live-device-settings,#live-viewer,[data-authsec-root],#authsec-dialog,#live-activity-layer,.activity-dialog') &&
           [...r.addedNodes,...r.removedNodes].some(
             (n) =>
               n.nodeType === 1 &&
               (!n.closest ||
                 !n.closest(
-                  "#live-media-stage,#live-device-settings,#live-viewer,[data-authsec-root] *,#authsec-dialog",
+                  "#live-media-stage,#live-device-settings,#live-viewer,[data-authsec-root] *,#authsec-dialog,#live-activity-layer,.activity-dialog",
                 )),
           ),
       )

@@ -713,6 +713,7 @@ pub(super) const CHANNEL_PERMISSIONS: &[(&str, &[(&str, Permissions)])] = &[
             ("Share Screen", Permissions::STREAM),
             ("Voice Activity", Permissions::USE_VOICE_ACTIVITY),
             ("Use Soundboard", Permissions::USE_SOUNDBOARD),
+            ("Use Activities", Permissions::USE_ACTIVITIES),
             ("Priority Speaker", Permissions::PRIORITY_SPEAKER),
             ("Mute Members", Permissions::MUTE_MEMBERS),
             ("Deafen Members", Permissions::DEAFEN_MEMBERS),
@@ -731,6 +732,7 @@ pub(super) fn applies(bit: Permissions, kind: ChannelKind) -> bool {
         | Permissions::STREAM
         | Permissions::USE_VOICE_ACTIVITY
         | Permissions::USE_SOUNDBOARD
+        | Permissions::USE_ACTIVITIES
         | Permissions::PRIORITY_SPEAKER
         | Permissions::MUTE_MEMBERS
         | Permissions::DEAFEN_MEMBERS
