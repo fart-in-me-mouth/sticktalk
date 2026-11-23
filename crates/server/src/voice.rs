@@ -137,6 +137,29 @@ pub(crate) struct Entry {
     self_muted: bool,
     self_deafened: bool,
 }
+impl Entry {
+    /// A direct or group call: its room is a DM channel, not a guild voice channel.
+    pub fn dm(&self) -> bool {
+        self.state.guild_id.0 == 0
+    }
+}
+/// What a session may do: guild roles and overwrites, or a DM member's fixed rights.
+async fn rights(c: &mut SqliteConnection, user: Id, guild: Id, channel: Id) -> Result<Permissions> {
+    if guild.0 == 0 {
+        Ok(crate::calls::rights())
+    } else {
+        crate::permissions::evaluate(c, user, guild, Some(channel)).await
+    }
+}
+/// Sends a session's current state to whoever can see that room.
+async fn publish(core: &mut Core, c: &mut SqliteConnection, session: VoiceSession) -> Result<()> {
+    let state = core.voice[&session].state.clone();
+    if state.guild_id.0 == 0 {
+        crate::calls::publish(core, c, state.channel_id).await
+    } else {
+        broadcast(core, c, state.guild_id, &VoiceEvent::GuildState(state)).await
+    }
+}
 impl Voice {
     pub fn new(options: &VoiceOptions, http: SocketAddr) -> Result<Self> {
         let advertised = advertised_ip(
@@ -198,6 +221,7 @@ pub(crate) fn spawn(app: &App) {
     else {
         return;
     };
+    crate::calls::spawn(app);
     let (tx, mut rx) = mpsc::channel::<SignalOut>(128);
     let (revoked_tx, mut revoked_rx) = mpsc::channel::<ControlOut>(128);
     let stop = app.0.shutdown.clone();
@@ -262,7 +286,7 @@ pub(crate) fn spawn(app: &App) {
         }
     });
 }
-fn send(core: &mut Core, key: &[u8], nonce: u64, event: &VoiceEvent) -> Result<()> {
+pub(crate) fn send(core: &mut Core, key: &[u8], nonce: u64, event: &VoiceEvent) -> Result<()> {
     let critical = matches!(
         event,
         VoiceEvent::Left { .. } | VoiceEvent::ControlRevoked { .. }
@@ -321,6 +345,11 @@ pub(crate) async fn allowed(c: &mut SqliteConnection, user: Id, channel: Id) -> 
         Permissions::VIEW_CHANNEL | Permissions::CONNECT,
     )
     .await?;
+    // A direct or group call: guild ID 0 marks a DM room throughout this module.
+    if ch.summary.guild_id.is_none() {
+        crate::calls::admit(c, user, &ch).await?;
+        return Ok(Id(0));
+    }
     require(
         ch.summary.kind == ChannelKind::Voice,
         ErrorCode::InvalidRequest,
@@ -349,7 +378,9 @@ pub(crate) async fn remove(
         // ACL denial above is synchronous even if the actor has stopped.
         let _ = app.0.voice.cleanup.try_send(session);
         send(core, &entry.key, 0, &VoiceEvent::Left { session })?;
-        if entry.joined {
+        if entry.dm() {
+            crate::calls::left(app, core, c, &entry.key, entry.state.channel_id).await?;
+        } else if entry.joined {
             broadcast(
                 core,
                 c,
@@ -402,11 +433,11 @@ pub(crate) async fn reconcile(app: &App, core: &mut Core, c: &mut SqliteConnecti
             remove(app, core, c, session).await?;
         } else {
             let entry = &core.voice[&session];
-            let rights = crate::permissions::evaluate(
+            let rights = rights(
                 c,
                 session.user_id,
                 entry.state.guild_id,
-                Some(entry.state.channel_id),
+                entry.state.channel_id,
             )
             .await?;
             let changed = {
@@ -455,8 +486,7 @@ async fn refresh(
         .participant
         .tracks
         .retain(|t| permissions.contains(track_permission(t.kind)));
-    let state = entry.state.clone();
-    broadcast(core, c, state.guild_id, &VoiceEvent::GuildState(state)).await
+    publish(core, c, session).await
 }
 fn track_permission(kind: TrackKind) -> Permissions {
     match kind {
@@ -477,6 +507,8 @@ async fn moderate(
         .voice
         .get(&session)
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
+    // Nobody moderates anybody in a direct or group call.
+    require(!target.dm(), ErrorCode::Forbidden)?;
     let guild = target.state.guild_id;
     let channel = target.state.channel_id;
     let required = match action {
@@ -651,6 +683,21 @@ async fn signal_inner(
         moderate(app, core, &mut c, user, session, action).await?;
         return send(core, key, nonce, &VoiceEvent::Ack);
     }
+    match &signal {
+        VoiceSignal::Ring {
+            channel_id,
+            user_ids,
+        } => {
+            crate::calls::ring(app, core, &mut c, user, *channel_id, user_ids).await?;
+            return send(core, key, nonce, &VoiceEvent::Ack);
+        }
+        VoiceSignal::DeclineCall { channel_id } => {
+            core.rate(format!("call-decline:{}", user.0), 60., 10.)?;
+            crate::calls::decline(core, &mut c, user, *channel_id).await?;
+            return send(core, key, nonce, &VoiceEvent::Ack);
+        }
+        _ => {}
+    }
     let existing = core
         .voice
         .iter()
@@ -676,15 +723,19 @@ async fn signal_inner(
             user_id: user,
             connection_id: core.id().await?,
         };
-        let rights = crate::permissions::evaluate(&mut c, user, guild_id, Some(channel_id)).await?;
-        let (server_muted, server_deafened) = sqlx::query_as::<_, (bool, bool)>(
-            "SELECT muted,deafened FROM guild_voice_moderation WHERE guild_id=? AND user_id=?",
-        )
-        .bind(db::id(guild_id)?)
-        .bind(db::id(user)?)
-        .fetch_optional(&mut *c)
-        .await?
-        .unwrap_or_default();
+        let rights = rights(&mut c, user, guild_id, channel_id).await?;
+        let (server_muted, server_deafened) = if guild_id.0 == 0 {
+            (false, false)
+        } else {
+            sqlx::query_as::<_, (bool, bool)>(
+                "SELECT muted,deafened FROM guild_voice_moderation WHERE guild_id=? AND user_id=?",
+            )
+            .bind(db::id(guild_id)?)
+            .bind(db::id(user)?)
+            .fetch_optional(&mut *c)
+            .await?
+            .unwrap_or_default()
+        };
         app.0
             .voice
             .acl
@@ -739,6 +790,9 @@ async fn signal_inner(
             remove(app, core, &mut c, session).await?;
             return Err(e);
         }
+        if guild_id.0 == 0 {
+            crate::calls::joining(app, core, &mut c, user, channel_id).await?;
+        }
     } else {
         let session = existing.ok_or_else(|| Error::new(ErrorCode::Forbidden))?;
         if matches!(signal, VoiceSignal::Leave) {
@@ -781,9 +835,13 @@ async fn output(
     // Process authoritative own-session state exactly once, not once/recipient.
     match &event {
         VoiceEvent::Joined { .. } => {
-            core.voice.get_mut(&signal.session).unwrap().joined = true;
-            let state = core.voice[&signal.session].state.clone();
-            broadcast(core, c, state.guild_id, &VoiceEvent::GuildState(state)).await?;
+            let entry = core.voice.get_mut(&signal.session).unwrap();
+            entry.joined = true;
+            if entry.dm() {
+                let channel = entry.state.channel_id;
+                crate::calls::connected(core, channel, signal.session.user_id);
+            }
+            publish(core, c, signal.session).await?;
         }
         VoiceEvent::Participant(p) if p.session == signal.session => {
             let entry = core.voice.get_mut(&signal.session).unwrap();
@@ -806,8 +864,7 @@ async fn output(
                     .participant
                     .tracks
                     .retain(|t| rights.contains(track_permission(t.kind)));
-                let state = entry.state.clone();
-                broadcast(core, c, state.guild_id, &VoiceEvent::GuildState(state)).await?;
+                publish(core, c, signal.session).await?;
             }
         }
         // SFU fatal failures send a sanitized correlated Error BEFORE Left.
@@ -837,11 +894,11 @@ async fn output(
         if let Some(entry) = core.voice.get(&p.session) {
             p.muted = entry.server_muted || entry.self_muted;
             p.deafened = entry.server_deafened || entry.self_deafened;
-            let rights = crate::permissions::evaluate(
+            let rights = rights(
                 c,
                 p.session.user_id,
                 entry.state.guild_id,
-                Some(entry.state.channel_id),
+                entry.state.channel_id,
             )
             .await?;
             p.tracks
@@ -880,7 +937,7 @@ pub(crate) async fn snapshot(
     user: Id,
 ) -> Result<()> {
     let mut states = vec![];
-    for entry in core.voice.values().filter(|v| v.joined) {
+    for entry in core.voice.values().filter(|v| v.joined && !v.dm()) {
         if db::access(c, user, entry.state.channel_id, Permissions::VIEW_CHANNEL)
             .await
             .is_ok()

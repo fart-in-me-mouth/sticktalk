@@ -510,6 +510,7 @@ async fn slow_initial_replay_has_one_deadline() {
                         reply_to: None,
                         attachments: vec![],
                         mention_ids: vec![],
+                        call: None,
                         reactions: vec![],
                     },
                     author: UserSummary {

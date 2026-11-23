@@ -462,6 +462,7 @@ async fn committed_mentions_coalesce_rate_limit_and_dm_hook() {
         reply_to: None,
         attachments: vec![],
         mention_ids: vec![],
+        call: None,
         reactions: vec![],
     };
     message(&app, &mut c, &[Id(1), Id(2)], &m).await;

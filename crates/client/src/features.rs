@@ -1532,6 +1532,7 @@ mod tests {
                 reply_to: None,
                 attachments: vec![attachment],
                 mention_ids: vec![],
+                call: None,
                 reactions: vec![],
             },
         );

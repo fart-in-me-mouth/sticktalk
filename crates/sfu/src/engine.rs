@@ -690,7 +690,10 @@ impl Sfu {
                     return Err(Error::Forbidden);
                 }
             }
-            VoiceSignal::Moderate { .. } => return Err(Error::Forbidden),
+            // Host-authorized call signaling; never forwarded as untrusted SFU input.
+            VoiceSignal::Moderate { .. }
+            | VoiceSignal::Ring { .. }
+            | VoiceSignal::DeclineCall { .. } => return Err(Error::Forbidden),
             VoiceSignal::Stats => {
                 return self.send(
                     key,

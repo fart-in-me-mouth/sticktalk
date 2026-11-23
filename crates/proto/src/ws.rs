@@ -544,6 +544,15 @@ pub enum VoiceSignal {
         action: VoiceModeration,
     },
     Stats,
+    /// Ring members of a direct or group call again. Host-handled; caller must be in the call.
+    Ring {
+        channel_id: ChannelId,
+        user_ids: Vec<UserId>,
+    },
+    /// Stop ringing this user's devices for that conversation's call.
+    DeclineCall {
+        channel_id: ChannelId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -654,6 +663,15 @@ pub enum VoiceEvent {
     Error {
         code: ErrorCode,
         message: String,
+    },
+    /// Ephemeral full replacement, sent to every member of the conversation.
+    CallState(DmCall),
+    CallEnded {
+        channel_id: ChannelId,
+    },
+    /// Sent after Ready and Resumed: the calls in this user's conversations.
+    CallSnapshot {
+        calls: Vec<DmCall>,
     },
 }
 

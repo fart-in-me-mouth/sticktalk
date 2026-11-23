@@ -156,7 +156,7 @@ async fn joined(c: &mut SqliteConnection, out: &mut Deliveries, g: Id, u: Id) ->
     let detail = detail(c, u, g).await?;
     let mut reads = vec![];
     for ch in &detail.channels {
-        if ch.kind == ChannelKind::Text {
+        if matches!(ch.kind, ChannelKind::Text | ChannelKind::Voice) {
             init_read(c, u, ch.id, true).await?;
             reads.push(read(c, u, ch.id).await?);
         }
@@ -467,6 +467,7 @@ pub(crate) async fn execute(
         let voice_snapshot=matches!(req.command,Command::JoinGuild{..});
         let role_target=if let Command::SetMemberRole{user_id,..}=req.command {Some(user_id)}else{None};
         let deleted_channel=if let Command::DeleteChannel {channel_id}=req.command {Some(channel_id)} else {None};
+        let call_acl_changed=crate::calls::acl_changed(&req.command);
         let mut revoked_visibility=vec![];
         let mut result=mutate(&mut tx,core,key,u,req.command,&mut out).await?;
         if let CommandResult::Channel(ch)=&mut result {*ch=access(&mut tx,u,ch.summary.id,Permissions::VIEW_CHANNEL).await?;}
@@ -479,7 +480,7 @@ pub(crate) async fn execute(
                     let newly_visible=!old.iter().any(|o|o.id==ch.id);
                     let mut full=channel(&mut tx,ch.id).await?;full.summary=ch.clone();
                     out.push((vec![*v],Event::ChannelUpsert(full)));
-                    if newly_visible && ch.kind==ChannelKind::Text {init_read(&mut tx,*v,ch.id,true).await?;out.push((vec![*v],Event::ReadStateUpdated(read(&mut tx,*v,ch.id).await?)));}
+                    if newly_visible && matches!(ch.kind,ChannelKind::Text|ChannelKind::Voice) {init_read(&mut tx,*v,ch.id,true).await?;out.push((vec![*v],Event::ReadStateUpdated(read(&mut tx,*v,ch.id).await?)));}
                 }
             }
         }
@@ -505,6 +506,7 @@ pub(crate) async fn execute(
         if voice_acl_changed { crate::voice::reconcile(app, core, &mut c).await?; }
         if let Some(v)=block_pair {core.invalidate(&[u,v]);}
         if let Some(v)=role_target {core.invalidate(&[v]);}
+        if call_acl_changed && !voice_acl_changed { crate::voice::reconcile(app, core, &mut c).await?; }
         if needs_file_gc || !orphaned.is_empty() {app.0.tier.wake.notify_one();let app=app.clone();tokio::spawn(async move{let _=app.collect_orphan_files().await;});}
         // Access revocation invalidates old body-bearing replay before admitting removal events.
         for (users,e) in &out {if matches!(e,Event::GuildRemoved{..}|Event::ChannelRemoved{..}|Event::RelationshipRemoved{..}|Event::MessageDeleted{..}) {core.invalidate(users);}}
@@ -1569,13 +1571,13 @@ async fn mutate(
             let pos = append_position(c, g, p).await?;
             let ch = core.id().await?;
             sqlx::query("INSERT INTO channels(id,kind,guild_id,parent_id,name,topic,position,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id(ch)?).bind(enum_str(kind)).bind(id(g)?).bind(opt(p)?).bind(s).bind(topic).bind(pos).bind(now() as i64).execute(&mut *c).await?;
-            if kind == ChannelKind::Text {
+            if matches!(kind, ChannelKind::Text | ChannelKind::Voice) {
                 for v in guild_users(c, g).await? {
                     init_read(c, v, ch, true).await?;
                 }
             }
             let ch = channel_event(c, out, ch).await?;
-            if kind == ChannelKind::Text {
+            if matches!(kind, ChannelKind::Text | ChannelKind::Voice) {
                 reads_event(c, out, ch.summary.id).await?;
             }
             Ok(CommandResult::Channel(ch))
@@ -1867,6 +1869,7 @@ async fn mutate(
             )
             .await?;
             require(old.author_id == u, ErrorCode::Forbidden)?;
+            require(old.call.is_none(), ErrorCode::Forbidden)?;
             let channel = channel(c, e.channel_id).await?;
             let expanded =
                 crate::mentions::resolve(c, core, u, &channel, &e.content, &e.mention_ids).await?;

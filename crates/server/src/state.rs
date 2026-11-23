@@ -114,6 +114,7 @@ pub(crate) struct Inner {
 pub(crate) struct Core {
     pub streams: HashMap<Vec<u8>, Stream>,
     pub voice: HashMap<VoiceSession, crate::voice::Entry>,
+    pub calls: crate::calls::Calls,
     pub limits: HashMap<String, Bucket>,
     last_id: u64,
     worker: u16,
@@ -465,6 +466,7 @@ impl App {
             core: Mutex::new(Core {
                 streams: HashMap::new(),
                 voice: HashMap::new(),
+                calls: Default::default(),
                 limits: HashMap::new(),
                 last_id,
                 worker,
@@ -685,6 +687,7 @@ mod tests {
         Core {
             streams: HashMap::new(),
             voice: HashMap::new(),
+            calls: Default::default(),
             limits: HashMap::new(),
             last_id: 0,
             worker: 0,

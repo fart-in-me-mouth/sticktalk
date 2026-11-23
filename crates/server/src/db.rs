@@ -294,10 +294,11 @@ pub async fn visible_parent(
 }
 pub async fn text(c: &mut SqliteConnection, u: Id, ch: Id, p: Permissions) -> Result<Channel> {
     let channel = access(c, u, ch, p).await?;
+    // A voice channel keeps its own text chat, under the same permission bits.
     require(
         matches!(
             channel.summary.kind,
-            ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm
+            ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm | ChannelKind::Voice
         ),
         ErrorCode::InvalidRequest,
     )?;
@@ -501,6 +502,7 @@ pub async fn message(
     .into_iter()
     .map(|v| Id(v as u64))
     .collect();
+    let call = crate::calls::summary(c, m).await?;
     let reactions=sqlx::query("SELECT emoji,COUNT(*) AS n,MAX(user_id=?) AS me FROM reactions WHERE message_id=? GROUP BY emoji ORDER BY emoji").bind(id(u)?).bind(id(m)?).fetch_all(c).await?.into_iter().map(|r|ReactionSummary {emoji:r.get("emoji"),count:r.get::<i64,_>("n") as u32,me:r.get::<i64,_>("me")!=0}).collect();
     Ok(Message {
         id: m,
@@ -513,6 +515,7 @@ pub async fn message(
         attachments,
         mention_ids,
         reactions,
+        call,
     })
 }
 pub async fn read(c: &mut SqliteConnection, u: Id, ch: Id) -> Result<ReadState> {
@@ -544,6 +547,9 @@ pub async fn read_states(c: &mut SqliteConnection, u: Id) -> Result<Vec<ReadStat
             ch.kind,
             ChannelKind::Text | ChannelKind::Direct | ChannelKind::GroupDm
         ) {
+            out.push(read(c, u, ch.id).await?);
+        } else if ch.kind == ChannelKind::Voice {
+            init_read(c, u, ch.id, true).await?;
             out.push(read(c, u, ch.id).await?);
         }
     }
@@ -631,7 +637,7 @@ pub async fn ready(c: &mut SqliteConnection, core: &mut Core, key: &[u8], u: Id)
             .voice
             .values()
             .filter(|v| visible_channels.contains(&v.state.channel_id))
-            .filter(|v| v.joined)
+            .filter(|v| v.joined && !v.dm())
             .map(|v| v.state.clone())
             .collect(),
     })

@@ -375,6 +375,68 @@ pub(crate) async fn message(app: &App, c: &mut SqliteConnection, users: &[Id], m
         }
     }
 }
+/// A direct or group call is ringing `user`, who has no live connection. One
+/// notification per ring, to their subscribed devices; never to someone in Do
+/// Not Disturb, disabled, or blocked by or blocking the caller.
+pub(crate) fn call(app: &App, user: Id, channel: Id, caller: Id) {
+    let app = app.clone();
+    tokio::spawn(async move {
+        let stop = app.0.shutdown.clone();
+        tokio::select! {_=stop.cancelled()=>{},_=deliver_call(&app,user,channel,caller)=>{}}
+    });
+}
+async fn call_allowed(c: &mut SqliteConnection, user: Id, channel: Id, caller: Id) -> Result<bool> {
+    db::enabled(c, user).await?;
+    db::access(c, user, channel, Permissions::VIEW_CHANNEL).await?;
+    let dnd: bool = sqlx::query_scalar("SELECT desired_presence='dnd' FROM users WHERE id=?")
+        .bind(db::id(user)?)
+        .fetch_one(&mut *c)
+        .await?;
+    Ok(!dnd && !db::blocked(c, user, caller).await?)
+}
+async fn deliver_call(app: &App, user: Id, channel: Id, caller: Id) -> Result<()> {
+    let mut c = app.0.pool.acquire().await?;
+    if !call_allowed(&mut c, user, channel, caller).await? {
+        return Ok(());
+    }
+    let rows=sqlx::query("SELECT p.endpoint,p.p256dh,p.auth FROM push_subscriptions p JOIN sessions s ON s.token_hash=p.session_hash WHERE s.user_id=? AND s.expires_at>? LIMIT 25").bind(db::id(user)?).bind(state::now() as i64).fetch_all(&mut *c).await?;
+    drop(c);
+    let payload = serde_json::to_vec(&PushPayload {
+        url: format!("/?channel={}", channel.0),
+        channel_id: channel,
+        message_id: channel,
+        count: 1,
+        title: "StickTalk".into(),
+        body: "Incoming call".into(),
+    })
+    .map_err(|_| crypto_error())?;
+    let topic = URL_SAFE_NO_PAD
+        .encode(&state::hash(format!("call:{}:{}", user.0, channel.0).as_bytes())[..16]);
+    for row in rows {
+        let endpoint = app.0.push.endpoint(&row.get::<String, _>("endpoint"))?;
+        let body = encrypt(
+            &decode(&row.get::<String, _>("p256dh"), 65)?,
+            &decode(&row.get::<String, _>("auth"), 16)?,
+            &payload,
+        )?;
+        // A ring is stale after its timeout; "high" wakes a sleeping phone.
+        let _ = app
+            .0
+            .push
+            .client
+            .post(endpoint.clone())
+            .header("authorization", app.0.push.authorization(&endpoint)?)
+            .header("content-encoding", "aes128gcm")
+            .header("content-type", "application/octet-stream")
+            .header("ttl", (CALL_RING_TIMEOUT_MS / 1000).to_string())
+            .header("urgency", "high")
+            .header("topic", topic.clone())
+            .body(body)
+            .send()
+            .await;
+    }
+    Ok(())
+}
 fn focused(core: &crate::state::Core, u: Id) -> bool {
     core.streams.values().any(|s| {
         s.user == u

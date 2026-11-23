@@ -107,6 +107,7 @@ fn message() -> Message {
         reply_to: Some(Id(4)),
         attachments: vec![attachment()],
         mention_ids: vec![Id(7)],
+        call: None,
         reactions: vec![ReactionSummary {
             emoji: "👍🏽".into(),
             count: 2,

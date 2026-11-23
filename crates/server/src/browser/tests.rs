@@ -539,7 +539,8 @@ async fn history_extent_exact_counts_gaps_acl_and_index_plans() {
         )
         .await
         .status(),
-        StatusCode::BAD_REQUEST
+        // A voice channel keeps its own text chat, so it has a history.
+        StatusCode::OK
     );
     sqlx::query("DELETE FROM channels WHERE id=11")
         .execute(&app.0.pool)

@@ -240,6 +240,7 @@ impl Mock {
                     reply_to: if n == 79 { Some(Id(id.0 - 2)) } else { None },
                     attachments: vec![],
                     mention_ids: if n % 8 == 5 { vec![Id(1)] } else { vec![] },
+                    call: None,
                     reactions: if n % 8 == 6 {
                         vec![ReactionSummary {
                             emoji: "🌱".into(),
@@ -870,6 +871,7 @@ impl Mock {
                     reply_to: v.reply_to,
                     attachments,
                     mention_ids: v.mention_ids,
+                    call: None,
                     reactions: vec![],
                 };
                 events.push(Event::MessageCreated {

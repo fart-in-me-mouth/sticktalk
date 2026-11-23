@@ -17,7 +17,8 @@ self.addEventListener("push", (event) => {
       }
       if (url.origin !== self.location.origin) return;
       await self.registration.showNotification("StickTalk", {
-        body: "You have unread messages.",
+        // Only a ring says what it is; message text never leaves the server.
+        body: payload.body === "Incoming call" ? "Incoming call" : "You have unread messages.",
         icon: "/public/icons/icon-192.png",
         tag: url.pathname + url.search,
         data: { url: url.href },

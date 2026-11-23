@@ -239,6 +239,9 @@ pub struct Message {
     pub attachments: Vec<Attachment>,
     pub mention_ids: Vec<UserId>,
     pub reactions: Vec<ReactionSummary>,
+    /// Present on the system message a finished direct or group call leaves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub call: Option<crate::CallSummary>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
