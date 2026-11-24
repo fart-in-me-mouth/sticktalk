@@ -290,7 +290,9 @@ impl App {
         Http::new(&self.origin, "", CookieFetch(self.csrf.clone())).expect("same origin HTTP")
     }
     fn touch(&self) {
+        // The expression picker has its own frame and module (`ui/picker.rs`).
         if !self.dialog.is_empty()
+            && !ui::picker::owns(&self.dialog)
             && self.dialog_render.is_none()
             && !self.loading_dialog.replace(true)
         {

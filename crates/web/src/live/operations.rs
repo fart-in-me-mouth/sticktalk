@@ -650,6 +650,8 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.touch();
         }
         "gif-search" => {
+            // A search shows its results, also from Favorites.
+            app.borrow_mut().content.gif_tab = "search".into();
             let epoch = app.borrow().epoch;
             let query = arg.to_owned();
             spawn_local(async move {
@@ -2544,7 +2546,11 @@ fn prefetch_for(action: &str) {
     let (kind, arg) = action.split_once(':').unwrap_or((action, ""));
     let owner = match kind {
         "dialog" => {
-            spawn_local(super::ui::__preload_load_dialog());
+            if super::ui::picker::owns(arg) {
+                spawn_local(super::ui::picker::__preload_load_picker_body());
+            } else {
+                spawn_local(super::ui::__preload_load_dialog());
+            }
             spawn_local(__preload_dialog_data());
             // A feature's pages are in its own view module.
             if super::community::owns_dialog(arg) && arg != "create" {

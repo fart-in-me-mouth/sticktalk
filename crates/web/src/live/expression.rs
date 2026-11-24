@@ -40,10 +40,6 @@ pub(super) struct State {
     pub bursts: Vec<(Id, String, u64)>,
     /// The reaction picker adds Super Reactions.
     pub super_mode: bool,
-    /// Picker: "emoji" or "stickers".
-    pub tab: String,
-    /// The bundled category shown when not searching.
-    pub category: String,
     pub recent: Vec<String>,
     pub recent_stickers: Vec<Id>,
     /// Stickers picked for one message (at most three).
@@ -53,9 +49,10 @@ pub(super) struct State {
     /// Server settings: (server, its emoji and stickers).
     pub admin: Option<(Id, GuildExpressionAdmin)>,
     pub busy: bool,
-    /// How much of the picker's emoji grid is drawn, for (category, query):
-    /// the first rows, then more as it scrolls (`ui::expression::PICKER_WINDOW`).
-    pub window: (String, String, usize),
+    /// How much of each bundled section of the emoji picker is drawn, for a
+    /// search: (query, [(section, emoji drawn)]). The first rows show at once,
+    /// the rest as the list scrolls near them (`ui::expression::PICKER_WINDOW`).
+    pub drawn: (String, Vec<(String, usize)>),
 }
 
 pub(super) const ACTIONS: &[&str] = &[
@@ -64,8 +61,6 @@ pub(super) const ACTIONS: &[&str] = &[
     "expr-super-picker",
     "expr-super-mode",
     "super-react",
-    "expr-tab",
-    "expr-category",
     "expr-more",
     "expr-sticker",
     "expr-sticker-tray",
@@ -236,12 +231,7 @@ fn refresh_admin(a: &App, guild: Id) {
 pub(super) fn opened(app: Shared, name: &str) {
     let mut a = app.borrow_mut();
     if name == "emoji" || name == "stickers" || name.starts_with("emoji-react:") {
-        a.expression.tab = if name == "stickers" {
-            "stickers"
-        } else {
-            "emoji"
-        }
-        .into();
+        a.expression.drawn = Default::default();
         // The sparkles button turns Super Reaction on after opening.
         a.expression.super_mode = false;
         a.expression.tray.clear();
@@ -639,20 +629,22 @@ pub(super) fn action(app: Shared, kind: &str, arg: &str) {
                 }
             }
         }
-        "expr-tab" => {
-            a.expression.tab = arg.into();
-            a.query.clear();
-            a.touch();
-        }
-        "expr-category" => {
-            a.expression.category = arg.into();
-            a.touch();
-        }
-        // The end of the drawn part of the picker's grid scrolled near: draw more.
+        // A section's undrawn part scrolled near: draw more of it ("key,count").
         "expr-more" => {
-            let shown = arg.parse().unwrap_or(0);
-            a.expression.window = (a.expression.category.clone(), a.query.clone(), shown);
-            a.touch();
+            if let Some((key, n)) = arg.split_once(',') {
+                let n = n.parse::<usize>().unwrap_or(0);
+                if a.expression.drawn.0 != a.query {
+                    a.expression.drawn = (a.query.clone(), vec![]);
+                }
+                let sections = &mut a.expression.drawn.1;
+                if let Some((_, shown)) = sections.iter_mut().find(|(k, _)| k == key) {
+                    *shown = (*shown).max(n);
+                } else if sections.len() < 16 {
+                    // Bounded: the bundled categories and the search results.
+                    sections.push((key.into(), n));
+                }
+                a.touch();
+            }
         }
         // Send one sticker now.
         "expr-sticker" | "expr-sticker-send" => {

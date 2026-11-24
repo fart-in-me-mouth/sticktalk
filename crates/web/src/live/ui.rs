@@ -16,6 +16,7 @@ mod identity;
 pub(super) use identity::load_invite_view;
 mod moderation;
 mod navui;
+pub(super) mod picker;
 mod privacy;
 mod profiles;
 mod settings;
@@ -142,7 +143,7 @@ pub(super) fn app(a: &App) -> AnyView {
     view!{<div id="sticktalk" data-live-app data-screen=a.screen.clone() data-self-id=a.model.me.as_ref().map(|me|me.user.id.0.to_string())>
         {if a.model.me.is_none(){auth(a)}else{shell(a)}}
         {if a.model.me.is_some(){call_views::incoming(a)}else{().into_any()}}
-        {if a.dialog.is_empty(){error_toast(a)}else{a.dialog_render.map_or_else(||loading_dialog(a), |render|render(a))}}
+        {if a.dialog.is_empty(){error_toast(a)}else if let Some(picker)=picker::view(a){picker}else{a.dialog_render.map_or_else(||loading_dialog(a), |render|render(a))}}
 
     </div>}.into_any()
 }
@@ -861,12 +862,7 @@ fn dialog_label(dialog: &str) -> &'static str {
         "mod-ban" => "Ban Member",
         "pins" => "Pinned Messages",
         "edit" => "Edit Message",
-        "emoji" => "Emoji",
-        "emoji-react" => "Add Reaction",
-        "stickers" => "Stickers",
         "emoji-info" => "Emoji",
-        "kaomoji" => "Kaomoji",
-        "gif" => "GIFs",
         "friend" => "Add Friend",
         "group" => "New Group Message",
         "group-members" => "Group Members",
@@ -927,7 +923,6 @@ fn dialog(a: &App) -> AnyView {
         "friend"=>form("Add Friend","friend",view!{{field("f-name","Username","","text")}<p class="muted-copy">"Enter their username exactly, for example alex_m."</p>}.into_any()),
         "create"=>view!{{form("Create a Server","create",field("f-name","Server Name","","text"))}<div class="-mx-4 mt-2">{button("Join a Server","dialog:join","link-button")}</div>{community::create_extra(a)}}.into_any(),
         "join"=>form("Join a Server","join",view!{{field("f-name","Invite Link or Code","","text")}{match &a.invite_preview{Some((_,Ok(p)))=>view!{<p class="invite-preview" role="status"><strong>{p.name.clone()}</strong>{format!(" · {} member{}{}",p.member_count,if p.member_count==1{""}else{"s"},if p.joined{" · You’re already a member"}else{""})}</p>}.into_any(),Some((_,Err(e)))=>view!{<p class="invite-preview muted-copy" role="status">{e.clone()}</p>}.into_any(),None=>().into_any()}}{identity::join_card(a)}{community::join_note(a)}{stage::invite_event(a)}}.into_any()),
-        "kaomoji"=>view!{<h2>"Kaomoji"</h2><div class="picker-tabs mb-3 flex gap-2">{button("Emoji","dialog:emoji","link-button")}<button class="button secondary" aria-pressed="true">"Kaomoji"</button></div>{crate::kaomoji::GROUPS.iter().map(|(group,faces)|view!{<h3 class="category mt-4 mb-2">{*group}</h3><div class="kaomoji-grid">{faces.iter().map(|face|view!{<button class="kaomoji" data-live=format!("emoji:{face}")>{*face}</button>}).collect_view()}</div>}).collect_view()}}.into_any(),
         "channel"=>channel_form(a,"text",None),
         "category"=>channel_form(a,"category",None),
         value if value.starts_with("channel-in:")=>channel_form(a,"text",id(value.trim_start_matches("channel-in:"))),
@@ -946,9 +941,6 @@ fn dialog(a: &App) -> AnyView {
         "private"=>form("Private Channel","private",view!{<p>"Restrict this channel to one role. The owner retains access."</p><label class="field">"Allowed Role"<select id="f-name">{a.roles.values().filter(|r|Some(r.guild_id)==a.guild&&r.id!=r.guild_id).map(|r|view!{<option value=r.id.0.to_string()>{r.name.clone()}</option>}).collect_view()}</select></label>}.into_any()),
         "pins"=>view!{<h2>"Pinned Messages"</h2>{if a.pins.is_empty(){view!{<div class=SETTINGS_EMPTY>{icon("pin")}<p>"No pinned messages yet."</p><small>"Open a message’s actions and choose Pin Message to keep it here."</small></div>}.into_any()}else{a.pins.iter().map(|m|view!{<div class="pinned-message border-b pb-3">{message(a,m,false)}<div class="mt-2 flex gap-2 pl-14">{button("Jump",&format!("jump:{}",m.id.0),"secondary")}{if a.guild.is_none()||settings::can(a,Permissions::MANAGE_MESSAGES){button("Unpin",&format!("unpin:{}",m.id.0),"danger-text")}else{().into_any()}}</div></div>}).collect_view().into_any()}}}.into_any(),
         "edit"=>{let text=a.channel.and_then(|c|a.model.messages.get(&c)).and_then(|ms|a.editing.and_then(|m|ms.get(&m))).map_or(String::new(),|m|editable(a,m));form("Edit Message","edit",view!{<label class="field"><span>"Message"</span><textarea id="f-name" rows="5" aria-describedby="edit-help">{text}</textarea><small id="edit-help">"Enter saves. Shift+Enter adds a line."</small></label>}.into_any())},
-        value if value=="emoji"||value.starts_with("emoji-react:")=>{let react=value.strip_prefix("emoji-react:").map(str::to_owned);let emojis=if a.query.is_empty(){sticktalk_emoji::all().take(240).collect()}else{sticktalk_emoji::search(&a.query,240)};view!{<h2>{if react.is_some(){"Add Reaction"}else{"Emoji"}}</h2>{if react.is_some(){().into_any()}else{view!{<div class="picker-tabs mb-3 flex gap-2"><button class="button secondary" aria-pressed="true">"Emoji"</button>{button("Kaomoji","dialog:kaomoji","link-button")}</div>}.into_any()}}<label class="search flex"><span class="sr-only">"Search Emoji"</span><input class="w-full" id="emoji-query" type="search" value=a.query.clone() placeholder="Search all emoji" data-emoji-query/></label>{if emojis.is_empty(){view!{<p class="muted-copy">"No emoji match that search."</p>}.into_any()}else{().into_any()}}<div class="emoji-grid mt-4 grid grid-cols-8 gap-2 phone:grid-cols-6 touch:grid-cols-[repeat(auto-fit,minmax(44px,1fr))]">{emojis.into_iter().map(|e|view!{<button class="min-h-10 rounded-md text-center text-[28px] hover:bg-accent touch:min-h-11" title=e.name() aria-label=e.name() data-live=match &react{Some(message)=>format!("react-pick:{message},{}",e.emoji()),None=>format!("emoji:{}",e.emoji())}>{e.emoji()}</button>}).collect_view()}</div>}.into_any()},
-        "gif" if !a.gif_capability.enabled()=>view!{<h2>"GIFs"</h2><p class="muted-copy">"GIF search is not enabled on this server. You can still upload an image or use emoji."</p><div class="empty-actions mt-6 flex flex-wrap gap-3 phone:[&>.button]:flex-1">{button("Upload an Image","pick-image","primary")}{button("Choose Emoji","dialog:emoji","secondary")}</div>}.into_any(),
-        "gif"=>view!{<h2>"GIFs"</h2><form data-gif-search><label class="field"><span>"Search GIFs"</span><input id="gif-query" type="search"/></label><button class="button secondary" type="submit">"Search"</button></form><div class="live-gif-results mt-4 grid grid-cols-2 gap-3 [&_video]:max-w-full">{a.gifs.iter().map(|g|view!{<button data-live=format!("gif-send:{}",g.id)><video src=g.preview.url.clone() preload="none" muted loop playsinline controls width=g.preview.width height=g.preview.height aria-label=g.title.clone()></video><span>{g.title.clone()}</span></button>}).collect_view()}</div>}.into_any(),
         "profile"=>profiles::card(a),
         value if value.starts_with("role:")=>{let r=id(value.trim_start_matches("role:")).and_then(|id|a.roles.get(&id));if let Some(r)=r{view!{{form_with("Edit Role","role-save",view!{<fieldset disabled=!settings::can(a,Permissions::MANAGE_ROLES)>{field("f-name","Role Name",&r.name,"text")}{field("f-value","Color",&format!("#{:06x}",r.color),"color")}<input id="f-permissions" type="hidden" value=r.permissions.bits().to_string()/><div class="live-permissions my-4">{role_permissions(r)}</div><label class="live-checkbox"><input id="f-hoist" type="checkbox" checked=r.hoist/>"Display role members separately"</label><label class="live-checkbox"><input id="f-mentionable" type="checkbox" checked=r.mentionable/>"Allow anyone to mention this role"</label><input id="f-extra" type="hidden" value=r.id.0.to_string()/>{if r.id!=r.guild_id{button("Delete Role",&format!("role-delete:{}",r.id.0),"danger-text")}else{().into_any()}}</fieldset>}.into_any(),"dialog:roles",settings::can(a,Permissions::MANAGE_ROLES))}{identity::role_editor(a,r)}}.into_any()}else{().into_any()}},
         value if value.starts_with("channel-edit:")=>settings::channel_editor(a,value),
@@ -1051,6 +1043,8 @@ pub(super) struct LazyViews {
     pub auth: LazyView<fn(&App) -> AnyView>,
     pub poll: LazyView<fn(&App, &Message) -> AnyView>,
     pub apps_picker: LazyView<fn(&App) -> AnyView>,
+    /// The contents of the expression picker's tabs (`ui/picker.rs`).
+    pub picker: LazyView<fn(&App) -> AnyView>,
 }
 type StageDialog = fn(&App) -> Option<(AnyView, &'static str, &'static str)>;
 #[lazy]

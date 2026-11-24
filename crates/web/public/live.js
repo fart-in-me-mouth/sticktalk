@@ -288,24 +288,6 @@ function checkGlyphs() {
     if (checked) checkGlyphs();
   }, { timeout: 1000 });
 }
-// The emoji picker draws its first rows; when the end of what is drawn nears
-// (within a few rows of the visible part) it asks for more. No scroll handler.
-let moreSeen = null, moreObserver = null;
-function watchMore() {
-  const more = $('[data-emoji-more]');
-  if (more === moreSeen) return;
-  moreObserver?.disconnect();
-  moreSeen = more;
-  if (!more) return;
-  let root = more.parentElement;
-  while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) root = root.parentElement;
-  moreObserver = new IntersectionObserver((entries) => {
-    if (!entries.some((e) => e.isIntersecting) || !more.isConnected) return;
-    moreObserver.disconnect();
-    emit(more.dataset.emojiMore);
-  }, { root, rootMargin: '0px 0px 92px 0px' });
-  moreObserver.observe(more);
-}
 let saved,
   installed = false,
   composing = false,
@@ -395,8 +377,8 @@ export async function directItems(key, ids) {
 }
 // Voice recording and playback (public/content.js), loaded on first use.
 let content, forwardTimer;
-// Expression (expression.js): reaction-chip holds, and sticker suggestions for
-// the emoji the composer ends with.
+// Expression (expression.js): reaction-chip holds, the expression picker's
+// behavior, and sticker suggestions for the emoji the composer ends with.
 let expression, stickerHint = '';
 const expressionModule = () => expression ??= import('/public/expression.js');
 const endsWithEmoji = /(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*)\s*$/u;
@@ -756,7 +738,8 @@ function restore() {
   }
   placeQuestion();
   checkGlyphs();
-  watchMore();
+  // The expression picker's tabs, category bar and drawing as it scrolls.
+  if (expression || $('.picker-modal')) void expressionModule().then((m) => m.picker(emit));
   network();
   countMessage(input);
   // A toast is read and then gets out of the way.
