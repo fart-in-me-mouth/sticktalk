@@ -111,6 +111,31 @@ try {
   assert.ok((await fonts(alice)).every((f) => f.includes('press-start-2p')));
   checks.push('profile editor: bio with Markdown and links, pronouns, colors with readable text, name style with legibility check, four cosmetic pickers, live preview, lazy name font');
 
+  // ---- Saving again: the bar goes away each time. A save changes only what the
+  // fields call saved, and the bar used to stay up after every save but the first,
+  // so a working save looked like a dead button.
+  for (const deco of ['crown', 'halo']) {
+    await alice.locator(`[data-profiles="pick,pf-deco,${deco}"]`).click();
+    await alice.waitForSelector('.profile-save-bar:not([hidden])');
+    await alice.locator('[data-live-form="profiles-user"] .profile-save-bar [type=submit]').click();
+    await alice.waitForFunction((deco) => document.querySelector('#pf-deco').dataset.saved === deco, deco);
+    await alice.waitForFunction(() => document.querySelector('[data-live-form="profiles-user"] .profile-save-bar').hidden);
+  }
+  checks.push('saving a second and third time hides the unsaved-changes bar again');
+  // ---- My Account: the decoration sits around the avatar it decorates.
+  await act(alice, 'dialog:account');
+  await alice.waitForSelector('.account-identity .avatar-frame .avatar-deco');
+  const off = await alice.evaluate(() => {
+    const frame = document.querySelector('.account-identity .avatar-frame');
+    const a = frame.querySelector('.avatar').getBoundingClientRect(), d = frame.querySelector('.avatar-deco').getBoundingClientRect();
+    return [Math.abs((a.left + a.right) / 2 - (d.left + d.right) / 2), Math.abs((a.top + a.bottom) / 2 - (d.top + d.bottom) / 2)];
+  });
+  assert.ok(off[0] < 1 && off[1] < 1, `the decoration is centered on the account card's avatar: off by ${off}`);
+  await both(alice, 'account-card-decoration');
+  checks.push('My Account: the avatar decoration is centered on the avatar');
+  await act(alice, 'dialog:profile-edit');
+  await alice.waitForSelector('[data-live-form="profiles-user"]');
+
   // ---- Animated avatar, cropped; banner cropped to 5:2.
   await crop(alice, '#live-avatar', {name: 'moving.gif', mimeType: 'image/gif', buffer: gif}, 160);
   await both(alice, 'profile-crop-avatar');

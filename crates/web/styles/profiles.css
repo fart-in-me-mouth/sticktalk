@@ -78,6 +78,11 @@
   pointer-events: none;
   background: center / 100% 100% no-repeat;
 }
+/* A decorated avatar's place on the page belongs to its frame, not to the face
+   inside it: My Account pulls its avatar up over the banner, and the
+   decoration has to come with it. */
+.account-identity > .avatar-frame { margin-top: -1.5rem; }
+.account-identity > .avatar-frame > .avatar { margin-top: 0; }
 .deco-halo { background-image: url("/public/cosmetics/deco-halo.svg"); }
 .deco-orbit { background-image: url("/public/cosmetics/deco-orbit.svg"); }
 .deco-sprout { background-image: url("/public/cosmetics/deco-sprout.svg"); }

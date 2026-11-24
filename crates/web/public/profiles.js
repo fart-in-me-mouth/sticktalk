@@ -364,6 +364,17 @@ function install() {
   };
   document.addEventListener('input', changed);
   document.addEventListener('change', changed);
+  // A save changes only what the fields say is saved (data-saved): no element
+  // comes or goes, so the page's own after-render pass does not run. Without
+  // this the "unsaved changes" bar stayed up after every save but the first.
+  new MutationObserver((records) => {
+    const forms = new Set();
+    for (const r of records) {
+      const form = r.target.closest?.('form[data-profiles-editor]');
+      if (form) forms.add(form);
+    }
+    for (const form of forms) sync(form);
+  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-saved'] });
   addEventListener('resize', () => { if (crop) draw(); });
 }
 /// After every render: forms re-read their state, a crop dialog is put back.
