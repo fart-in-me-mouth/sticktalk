@@ -46,6 +46,19 @@ REST (cookie or bearer auth):
 - `GET /api/v1/users/@me/scheduled-messages[?channel_id=]` → your list.
 - GIF favorites and categories use the existing `/api/v1/gifs/*` routes.
 
+## GIFs in the picker
+
+The GIFs tab of the expression picker (`ui::content::gif_body`, drawn in the
+picker's frame, `docs/features/expression.md`): a search field (Enter or
+Search), then **Browse** and **Favorites (n)**, which look and work like the
+emoji category bar's choices. Browse lands on the provider's categories (proxy
+mode) or trending (direct mode); a category or a search shows its results,
+also from Favorites. Each result has a star. On a server without GIF search
+the tab is still there, in the same place, and says "GIF search is not
+enabled on this server. You can still upload an image." with an Upload an
+Image button: the picker offers the same four tabs everywhere, so a person
+learns where GIFs are, and the server's setting is explained where they look.
+
 `MAX_MESSAGE_ATTACHMENTS` is now 10.
 
 ## Behavior

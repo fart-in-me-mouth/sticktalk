@@ -2,7 +2,7 @@
   "core": 463000,
   "firstLoad": 608000,
   "largestSharedChunk": 35400,
-  "sharedChunks": 299800,
+  "sharedChunks": 303300,
   "firstScreenJs": 45500,
   "ceilings": {
     "//": "Task `headroom` (docs/features/perf.md): a budget plus every allowance must stay within its ceiling. The core's ceiling stays under the owner's 490,000 B line in tests/loading.mjs.",
@@ -50,6 +50,7 @@
     "load_invite_view": 3000,
     "load_message_encoder": 25000,
     "load_picker": 2400,
+    "load_picker_body": 30600,
     "load_poll": 9200,
     "load_search": 4200,
     "load_stage_card": 8500,

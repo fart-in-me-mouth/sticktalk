@@ -119,12 +119,47 @@ browser boundary):
 
 ## Web app
 
-- **Picker** (`dialog:emoji`, `dialog:emoji-react:{message}`): tabs for Emoji,
-  Stickers, GIFs and Kaomoji; a section per server with its icon (current
-  server first), Recently Used (custom and Unicode, stored on the device),
-  categories for the bundled set, search across both. Custom emoji insert as
-  `:name:` (or the full token when another server's emoji has that name);
-  `:name:` becomes the token when sent, outside code.
+- **Picker** (`ui/picker.rs`, task `picker-tabs`): one dialog for Emoji
+  (`dialog:emoji`), Stickers (`dialog:stickers`), GIFs (`dialog:gif`) and
+  Kaomoji (`dialog:kaomoji`). Wherever it is opened (the composer's buttons,
+  its More Options menu, a link), it shows the same four tabs in that order:
+  a segmented control (`role=tablist`, one tab stop, Left/Right/Home/End move
+  and open, the open tab has its own background; 44 px tall on phones). The
+  composer's emoji button opens Emoji; each other entry opens its own tab.
+  Pressing the open tab again keeps the search and the scroll.
+  - **One frame.** The core draws the dialog at its final size (640 px tall,
+    or less on a short screen; a bottom sheet of the same height on a phone)
+    and the tabs the moment a picker opens. The tabs' contents are one lazily
+    loaded module (`load_picker_body`); until it arrives the frame shows the
+    search field's outline and nothing else. Switching tabs never changes
+    the dialog's size or place: only the list inside scrolls.
+  - **Focus.** Opening a tab by pointer puts focus in its search field (not on
+    touch screens, where the keyboard would cover the list); moving along the
+    tabs with the arrow keys keeps focus on the tabs.
+  - **Emoji**: search, then a category bar (Recently Used, each server's emoji
+    with its icon, the eight bundled categories with icons and names as
+    tooltips) and one list of all of them, as in Discord and Slack. A choice
+    in the bar scrolls its section to the top; the bar marks the section at
+    the top as the list scrolls (`aria-current`). Recently Used holds custom
+    and Unicode emoji (stored on the device); custom emoji insert as `:name:`
+    (or the full token when another server's emoji has that name), and
+    `:name:` becomes the token when sent, outside code. Searching shows one
+    list of matches (custom, then bundled) and hides the bar.
+  - **Drawing as it scrolls.** The first category's first 120 emoji are drawn
+    at once; every other section is drawn when it comes within two rows of
+    view (`IntersectionObserver` on the undrawn part, which keeps the exact
+    height of its rows so nothing moves): 96 more, or the whole section when
+    it is reached from below after a jump. No scroll polling, no timers; a
+    scroll event only re-marks the bar, at most once a frame.
+  - **Add Reaction** (`dialog:emoji-react:{message}`, the sparkles button for
+    a Super Reaction) is the same frame with the title "Add Reaction" in place
+    of the tabs: a reaction is an emoji, so it offers emoji only, with the
+    Super Reaction switch, search and the category bar.
+  - **Stickers** and **GIFs** are described below and in `content.md`;
+    **Kaomoji** lists the text faces by mood.
+  - Script: `public/expression.js` (`picker`), loaded when a picker first
+    shows. With no picker open it holds no listener on the list and no
+    observer.
 - **Completion**: `:sti` lists matching custom emoji with their images before
   bundled ones.
 - **Rendering**: custom emoji inline in messages, reactions, poll answers and
@@ -137,8 +172,9 @@ browser boundary):
   moving image is a lazy image that is not even fetched until then).
 - **Stickers** (`dialog:stickers`, the sticker button beside the emoji button):
   built-in pack and each server, search (name, emoji, description), favorites
-  (synced), recently used (device), click to send, `+` to put up to 3 on one
-  message with the composer text. Typing an emoji that is a sticker's related
+  (synced), recently used (device), the same category bar as Emoji (Favorites,
+  Recently Used, each pack), click to send, `+` to put up to 3 on one message
+  with the composer text. Typing an emoji that is a sticker's related
   emoji shows suggestions above the composer.
 - **Super Reactions**: the sparkles button on a message, or the Super Reaction
   switch in the reaction picker; on an existing chip, Shift/Alt+click or press

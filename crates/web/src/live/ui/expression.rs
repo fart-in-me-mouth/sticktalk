@@ -5,13 +5,21 @@
 use super::*;
 use crate::live::expression::{self as ex, Look};
 
-const GRID: &str = "emoji-grid mt-2 grid grid-cols-8 gap-1 phone:grid-cols-6 touch:grid-cols-[repeat(auto-fill,minmax(44px,1fr))]";
-/// Emoji drawn when the picker opens: sixteen rows of eight (the picker shows
-/// about fourteen at 1440x900, and fewer, of six, on a phone), then
-/// `PICKER_STEP` more each time the end comes within two rows of view.
-pub(super) const PICKER_WINDOW: usize = 128;
-const PICKER_STEP: usize = 64;
-const CELL: &str = "grid min-h-10 place-items-center rounded-md text-center text-[28px] hover:bg-accent focus-visible:bg-accent touch:min-h-11";
+/// The emoji grid: eight columns, six on a phone (`--cols` on the list), rows
+/// of one height (`--row`: a cell and the gap), so the undrawn part of a
+/// section can hold its exact place.
+const GRID: &str = "emoji-grid mt-2 grid grid-cols-[repeat(var(--cols),minmax(0,1fr))] gap-1";
+const LIST: &str = "emoji-scroll [--cols:8] [--row:44px] phone:[--cols:6] touch:[--row:48px]";
+/// What a section has not drawn yet: the height of its rows, so the list
+/// does not move when they are drawn, and a marker `expression.js` watches.
+const SPACER: &str = "emoji-spacer h-[calc((round(up,var(--n)/var(--cols),1)-round(up,var(--d)/var(--cols),1))*var(--row))]";
+/// Emoji drawn when the picker opens: the first category's first fifteen rows
+/// of eight (twenty of six on a phone; the picker shows about nine). A
+/// section's undrawn part asks for `PICKER_STEP` more when it comes within two
+/// rows of view, or for all of it when it is reached from below (after a jump).
+pub(super) const PICKER_WINDOW: usize = 120;
+const PICKER_STEP: usize = 96;
+const CELL: &str = "grid h-10 place-items-center rounded-md text-center text-[28px] hover:bg-accent focus-visible:bg-accent touch:h-11";
 
 /// A custom emoji image. Animated ones carry a still first frame too: with
 /// reduced motion only the still shows, until hovered or focused.
@@ -270,16 +278,21 @@ fn guild_icon(a: &App, g: Option<Id>) -> AnyView {
         None => view!{<span class="grid size-5 place-items-center rounded-md bg-muted text-[10px] font-semibold">{guild_name(a,g).chars().take(2).collect::<String>()}</span>}.into_any(),
     }
 }
-fn section(a: &App, g: Option<Id>, title: &str, body: AnyView) -> AnyView {
-    view!{<section class="picker-section mt-4" aria-label=title.to_owned()><h3 class="category mb-1 flex items-center gap-2 text-xs font-semibold uppercase text-subtle">{guild_icon(a,g)}<span class="truncate">{title.to_owned()}</span></h3>{body}</section>}.into_any()
+fn section(a: &App, g: Option<Id>, title: &str, key: &str, body: AnyView) -> AnyView {
+    view!{<section class="picker-section mt-4 first:mt-3" aria-label=title.to_owned() data-emoji-section=key.to_owned()><h3 class="category mb-1 flex items-center gap-2 text-xs font-semibold uppercase text-subtle">{guild_icon(a,g)}<span class="truncate">{title.to_owned()}</span></h3>{body}</section>}.into_any()
 }
-
-fn tabs(current: &str) -> AnyView {
-    let tab = |label: &str, target: &str, live: &str| {
-        let on = current == target;
-        view!{<button class=if on{"button secondary"}else{"link-button"} role="tab" aria-selected=on.to_string() data-live=live.to_owned()>{label.to_owned()}</button>}.into_any()
-    };
-    view!{<div class="picker-tabs mb-3 flex flex-wrap gap-2" role="tablist" aria-label="Pickers">{tab("Emoji","emoji","dialog:emoji")}{tab("Stickers","stickers","dialog:stickers")}{tab("GIFs","gif","dialog:gif")}<button class="link-button phone:hidden" data-live="dialog:kaomoji">"Kaomoji"</button></div>}.into_any()
+/// A bundled category, or the search results: its first `shown` emoji, then
+/// the place of the rest.
+fn bundled_section(
+    title: &str,
+    key: &str,
+    list: &[sticktalk_emoji::Emoji],
+    shown: usize,
+    react: &Option<String>,
+) -> AnyView {
+    let shown = shown.min(list.len());
+    let rest = (shown < list.len()).then(|| view!{<div class=SPACER style=format!("--n:{};--d:{shown}",list.len()) data-emoji-more=format!("expr-more:{key},{}",shown+PICKER_STEP) data-emoji-all=format!("expr-more:{key},{}",list.len()) aria-hidden="true"></div>});
+    view!{<section class="picker-section mt-4 first:mt-3" aria-label=title.to_owned() data-emoji-section=key.to_owned()><h3 class="category mb-1 text-xs font-semibold uppercase text-subtle">{title.to_owned()}</h3>{(shown>0).then(||view!{<div class=GRID>{list[..shown].iter().map(|e|unicode_cell(e.emoji(),e.name(),react)).collect_view()}</div>})}{rest}</section>}.into_any()
 }
 
 /// A custom emoji in a picker: insert it, or react with it.
@@ -288,17 +301,20 @@ fn custom_cell(e: &GuildEmoji, react: &Option<String>) -> AnyView {
         Some(m) => format!("expr-react:{m},{}", e.token()),
         None => format!("expr-emoji:{}", e.token()),
     };
-    view!{<button class=CELL title=format!(":{}:",e.name) aria-label=format!(":{}:",e.name) data-live=action>{emoji_image(e.id,&e.name,e.animated,"size-8")}</button>}.into_any()
+    view!{<button type="button" class=CELL title=format!(":{}:",e.name) aria-label=format!(":{}:",e.name) data-live=action>{emoji_image(e.id,&e.name,e.animated,"size-8")}</button>}.into_any()
 }
 fn unicode_cell(glyph: &str, name: &str, react: &Option<String>) -> AnyView {
     let action = match react {
         Some(m) => format!("expr-react:{m},{glyph}"),
         None => format!("emoji:{glyph}"),
     };
-    view!{<button class=CELL title=name.to_owned() aria-label=name.to_owned() data-live=action>{glyph.to_owned()}</button>}.into_any()
+    view!{<button type="button" class=CELL title=name.to_owned() aria-label=name.to_owned() data-live=action>{glyph.to_owned()}</button>}.into_any()
 }
 
-fn emoji_picker(a: &App, react: Option<String>) -> AnyView {
+/// The Emoji tab, and Add Reaction (`react`: the message): search, the
+/// category bar, and one list of every section (Recently Used, each server's
+/// emoji, then the bundled categories, drawn as they scroll near).
+pub(super) fn emoji_body(a: &App, react: Option<String>) -> AnyView {
     let query = a.query.to_lowercase();
     let usable = ex::usable(a);
     let mut by_guild: Vec<(Id, Vec<&GuildEmoji>)> = vec![];
@@ -311,17 +327,6 @@ fn emoji_picker(a: &App, react: Option<String>) -> AnyView {
             None => by_guild.push((*g, vec![*e])),
         }
     }
-    let categories = sticktalk_emoji::categories();
-    let category = if categories.contains(&a.expression.category.as_str()) {
-        a.expression.category.as_str()
-    } else {
-        categories[0]
-    };
-    let bundled: Vec<sticktalk_emoji::Emoji> = if query.is_empty() {
-        sticktalk_emoji::by_category(category).take(400).collect()
-    } else {
-        sticktalk_emoji::search(&query, 240)
-    };
     let recent: Vec<AnyView> = if query.is_empty() {
         a.expression
             .recent
@@ -342,30 +347,60 @@ fn emoji_picker(a: &App, react: Option<String>) -> AnyView {
     } else {
         vec![]
     };
-    let nothing = by_guild.is_empty() && bundled.is_empty();
-    let nothing_bundled = bundled.is_empty();
-    // Only the first rows are drawn (a category has up to 400 emoji); more
-    // follow as the grid scrolls (`data-emoji-more`, public/live.js).
-    let w = &a.expression.window;
-    let limit = if w.0 == a.expression.category && w.1 == a.query {
-        w.2.max(PICKER_WINDOW)
-    } else {
-        PICKER_WINDOW
+    // How much of a bundled section is drawn: the first one's first rows at
+    // once, the others as they come near.
+    let drawn = |key: &str, first: bool| {
+        let d = &a.expression.drawn;
+        let found = (d.0 == a.query)
+            .then(|| d.1.iter().find(|(k, _)| k == key).map(|(_, n)| *n))
+            .flatten();
+        found.unwrap_or(if first { PICKER_WINDOW } else { 0 })
     };
-    let more = (bundled.len() > limit).then(|| format!("expr-more:{}", limit + PICKER_STEP));
-    let bundled = bundled.into_iter().take(limit);
+    let mut nav: Vec<(String, String, AnyView)> = vec![];
+    if !recent.is_empty() {
+        nav.push(("recent".into(), "Recently Used".into(), icon("clock")));
+    }
+    for (g, _) in &by_guild {
+        nav.push((
+            format!("g{}", g.0),
+            guild_name(a, *g),
+            guild_icon(a, Some(*g)),
+        ));
+    }
+    let bundled: AnyView = if query.is_empty() {
+        let mut sections = vec![];
+        for (i, c) in sticktalk_emoji::categories().iter().enumerate() {
+            let key = format!("c{i}");
+            let list: Vec<sticktalk_emoji::Emoji> = sticktalk_emoji::by_category(c).collect();
+            sections.push(bundled_section(c, &key, &list, drawn(&key, i == 0), &react));
+            nav.push((key, (*c).to_owned(), super::picker::category_icon(i)));
+        }
+        sections.collect_view().into_any()
+    } else {
+        let found = sticktalk_emoji::search(&query, 240);
+        if found.is_empty() && by_guild.is_empty() {
+            view! {<p class="muted-copy mt-4">"No emoji match that search."</p>}.into_any()
+        } else if found.is_empty() {
+            ().into_any()
+        } else {
+            bundled_section(
+                "Search Results",
+                "search",
+                &found,
+                drawn("search", true),
+                &react,
+            )
+        }
+    };
     view!{
-        <h2>{if react.is_some(){"Add Reaction"}else{"Emoji"}}</h2>
-        {match &react{
-            None=>tabs("emoji"),
-            Some(_)=>view!{<div class="super-toggle mb-3 flex items-center gap-3 rounded-lg border p-2"><button class=if a.expression.super_mode{"button primary"}else{"button secondary"} aria-pressed=a.expression.super_mode.to_string() data-live="expr-super-mode">{icon_with("sparkles","icon size-4")}"Super Reaction"</button><small class="muted-copy">{if a.expression.super_mode{"Your reaction bursts for everyone viewing it."}else{"Turn on to add a Super Reaction."}}</small></div>}.into_any(),
-        }}
-        <label class="search flex"><span class="sr-only">"Search Emoji"</span><input class="w-full" id="emoji-query" type="search" value=a.query.clone() placeholder="Search all emoji" data-emoji-query autocomplete="off"/></label>
-        {if nothing{view!{<p class="muted-copy mt-4">"No emoji match that search."</p>}.into_any()}else{().into_any()}}
-        {by_guild.into_iter().map(|(g,list)|section(a,Some(g),&guild_name(a,g),view!{<div class=GRID>{list.into_iter().map(|e|custom_cell(e,&react)).collect_view()}</div>}.into_any())).collect_view()}
-        {if recent.is_empty(){().into_any()}else{section(a,None,"Recently Used",view!{<div class=GRID>{recent}</div>}.into_any())}}
-        {if query.is_empty(){view!{<nav class="emoji-categories mt-4 flex gap-1 overflow-x-auto" aria-label="Emoji categories">{categories.iter().map(|c|view!{<button class=if *c==category{"button secondary flex-none text-xs"}else{"link-button flex-none text-xs"} aria-pressed=(*c==category).to_string() data-live=format!("expr-category:{c}")>{*c}</button>}).collect_view()}</nav>}.into_any()}else{().into_any()}}
-        {if nothing_bundled{().into_any()}else{view!{<section class="picker-section mt-2" aria-label=if query.is_empty(){category.to_owned()}else{"Search results".to_owned()}><div class=GRID>{bundled.map(|e|unicode_cell(e.emoji(),e.name(),&react)).collect_view()}</div>{more.map(|m|view!{<div class="h-px" data-emoji-more=m aria-hidden="true"></div>})}</section>}.into_any()}}
+        {react.is_some().then(||view!{<div class="super-toggle mx-6 mt-3 flex flex-none items-center gap-3 rounded-lg border p-2 phone:mx-4"><button type="button" class=if a.expression.super_mode{"button primary"}else{"button secondary"} aria-pressed=a.expression.super_mode.to_string() data-live="expr-super-mode">{icon_with("sparkles","icon size-4")}"Super Reaction"</button><small class="muted-copy">{if a.expression.super_mode{"Your reaction bursts for everyone viewing it."}else{"Turn on to add a Super Reaction."}}</small></div>})}
+        <label class=super::picker::SEARCH><span class="sr-only">"Search Emoji"</span><input class="w-full" id="emoji-query" type="search" value=a.query.clone() placeholder="Search all emoji" data-emoji-query autocomplete="off" autofocus=true/></label>
+        {query.is_empty().then(||super::picker::categories(nav))}
+        <div class=format!("{} {LIST}",super::picker::SCROLL)>
+            {(!recent.is_empty()).then(||section(a,None,"Recently Used","recent",view!{<div class=GRID>{recent}</div>}.into_any()))}
+            {by_guild.into_iter().map(|(g,list)|section(a,Some(g),&guild_name(a,g),&format!("g{}",g.0),view!{<div class=GRID>{list.into_iter().map(|e|custom_cell(e,&react)).collect_view()}</div>}.into_any())).collect_view()}
+            {bundled}
+        </div>
     }.into_any()
 }
 
@@ -386,15 +421,17 @@ fn sticker_cell(a: &App, s: &Sticker) -> AnyView {
     let picked = a.expression.tray.contains(&s.id);
     let favorite = a.expression.settings.sticker_favorites.contains(&s.id);
     view!{<div class=format!("sticker-cell group/sticker relative rounded-lg {}",if picked{"ring-2 ring-primary"}else{""})>
-        <button class="sticker-pick block size-24 rounded-lg p-1 hover:bg-accent focus-visible:bg-accent phone:size-[88px]" data-live=format!("expr-sticker:{}",s.id.0) aria-label=format!("Send sticker {}{}",s.name,if s.description.is_empty(){String::new()}else{format!(". {}",s.description)}) title=s.name.clone()>{sticker_thumb(s)}</button>
+        <button type="button" class="sticker-pick block size-24 rounded-lg p-1 hover:bg-accent focus-visible:bg-accent phone:size-[88px]" data-live=format!("expr-sticker:{}",s.id.0) aria-label=format!("Send sticker {}{}",s.name,if s.description.is_empty(){String::new()}else{format!(". {}",s.description)}) title=s.name.clone()>{sticker_thumb(s)}</button>
         <div class="sticker-tools absolute top-0.5 right-0.5 flex gap-0.5">
-            <button class=format!("icon-button size-7 rounded-full bg-popover/90 {}",if favorite{"gif-star is-starred"}else{""}) aria-label=format!("{} {}",if favorite{"Remove from favorites:"}else{"Add to favorites:"},s.name) aria-pressed=favorite.to_string() data-live=format!("expr-sticker-fav:{}",s.id.0)>{icon_with("star","icon size-3.5")}</button>
-            <button class="icon-button size-7 rounded-full bg-popover/90" aria-label=format!("{} {}",if picked{"Take out of this message:"}else{"Add to this message:"},s.name) aria-pressed=picked.to_string() data-live=format!("expr-sticker-tray:{}",s.id.0)>{icon_with(if picked{"check"}else{"plus"},"icon size-3.5")}</button>
+            <button type="button" class=format!("icon-button size-7 rounded-full bg-popover/90 {}",if favorite{"gif-star is-starred"}else{""}) aria-label=format!("{} {}",if favorite{"Remove from favorites:"}else{"Add to favorites:"},s.name) aria-pressed=favorite.to_string() data-live=format!("expr-sticker-fav:{}",s.id.0)>{icon_with("star","icon size-3.5")}</button>
+            <button type="button" class="icon-button size-7 rounded-full bg-popover/90" aria-label=format!("{} {}",if picked{"Take out of this message:"}else{"Add to this message:"},s.name) aria-pressed=picked.to_string() data-live=format!("expr-sticker-tray:{}",s.id.0)>{icon_with(if picked{"check"}else{"plus"},"icon size-3.5")}</button>
         </div>
     </div>}.into_any()
 }
 
-fn sticker_picker(a: &App) -> AnyView {
+/// The Stickers tab: search, the category bar (favorites, recently used, each
+/// pack) and the packs.
+pub(super) fn sticker_body(a: &App) -> AnyView {
     let query = a.query.to_lowercase();
     let sets = usable_stickers(a);
     let matches = |s: &Sticker| {
@@ -422,16 +459,33 @@ fn sticker_picker(a: &App) -> AnyView {
         vec![]
     };
     let grid = "sticker-grid mt-2 grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 phone:grid-cols-[repeat(auto-fill,minmax(88px,1fr))]";
-    let found = sets.iter().any(|(_, l)| l.iter().any(&matches));
+    let packs: Vec<(Option<Id>, &Vec<Sticker>)> = sets
+        .into_iter()
+        .filter(|(_, l)| l.iter().any(&matches))
+        .collect();
     let tray = &a.expression.tray;
+    let pack_key = |g: Option<Id>| g.map_or("pack".to_owned(), |g| format!("g{}", g.0));
+    let pack_name = |g: Option<Id>| g.map_or("StickTalk".to_owned(), |g| guild_name(a, g));
+    let mut nav: Vec<(String, String, AnyView)> = vec![];
+    if !favorites.is_empty() {
+        nav.push(("favorites".into(), "Favorites".into(), icon("star")));
+    }
+    if !recent.is_empty() {
+        nav.push(("recent".into(), "Recently Used".into(), icon("clock")));
+    }
+    for (g, _) in &packs {
+        nav.push((pack_key(*g), pack_name(*g), guild_icon(a, *g)));
+    }
     view!{
-        <h2>"Stickers"</h2>{tabs("stickers")}
-        <label class="search flex"><span class="sr-only">"Search Stickers"</span><input class="w-full" id="emoji-query" type="search" value=a.query.clone() placeholder="Search stickers" data-emoji-query autocomplete="off"/></label>
-        {if tray.is_empty(){view!{<p class="muted-copy mt-2 text-xs">"Choose a sticker to send it. Use + to put up to 3 on one message with what you’ve typed."</p>}.into_any()}else{view!{<div class="sticker-tray sticky top-0 z-[2] mt-3 flex items-center gap-2 rounded-lg border bg-popover p-2" role="status"><span class="flex-1 text-sm">{format!("{} sticker{} on this message",tray.len(),if tray.len()==1{""}else{"s"})}</span><button class="button primary" data-live="expr-sticker-tray:send">{if tray.len()==1{"Send Sticker".to_owned()}else{format!("Send {} Stickers",tray.len())}}</button></div>}.into_any()}}
-        {if !a.expression.loaded{view!{<p class="muted-copy mt-4" role="status">"Loading stickers…"</p>}.into_any()}else if !found{view!{<p class="muted-copy mt-4">"No stickers match that search."</p>}.into_any()}else{().into_any()}}
-        {if favorites.is_empty(){().into_any()}else{section(a,None,"Favorites",view!{<div class=grid>{favorites.into_iter().map(|s|sticker_cell(a,s)).collect_view()}</div>}.into_any())}}
-        {if recent.is_empty(){().into_any()}else{section(a,None,"Recently Used",view!{<div class=grid>{recent.into_iter().map(|s|sticker_cell(a,s)).collect_view()}</div>}.into_any())}}
-        {sets.into_iter().filter(|(_,l)|l.iter().any(&matches)).map(|(g,l)|section(a,g,&g.map_or("StickTalk".into(),|g|guild_name(a,g)),view!{<div class=grid>{l.iter().filter(|s|matches(s)).map(|s|sticker_cell(a,s)).collect_view()}</div>}.into_any())).collect_view()}
+        <label class=super::picker::SEARCH><span class="sr-only">"Search Stickers"</span><input class="w-full" id="emoji-query" type="search" value=a.query.clone() placeholder="Search stickers" data-emoji-query autocomplete="off" autofocus=true/></label>
+        {(query.is_empty()&&nav.len()>1).then(||super::picker::categories(nav))}
+        <div class=super::picker::SCROLL>
+            {if tray.is_empty(){view!{<p class="muted-copy mt-3 mb-0 text-xs">"Choose a sticker to send it. Use + to put up to 3 on one message with what you’ve typed."</p>}.into_any()}else{view!{<div class="sticker-tray sticky top-0 z-[2] mt-3 flex items-center gap-2 rounded-lg border bg-popover p-2" role="status"><span class="flex-1 text-sm">{format!("{} sticker{} on this message",tray.len(),if tray.len()==1{""}else{"s"})}</span><button type="button" class="button primary" data-live="expr-sticker-tray:send">{if tray.len()==1{"Send Sticker".to_owned()}else{format!("Send {} Stickers",tray.len())}}</button></div>}.into_any()}}
+            {if !a.expression.loaded{view!{<p class="muted-copy mt-4" role="status">"Loading stickers…"</p>}.into_any()}else if packs.is_empty(){view!{<p class="muted-copy mt-4">"No stickers match that search."</p>}.into_any()}else{().into_any()}}
+            {(!favorites.is_empty()).then(||section(a,None,"Favorites","favorites",view!{<div class=grid>{favorites.into_iter().map(|s|sticker_cell(a,s)).collect_view()}</div>}.into_any()))}
+            {(!recent.is_empty()).then(||section(a,None,"Recently Used","recent",view!{<div class=grid>{recent.into_iter().map(|s|sticker_cell(a,s)).collect_view()}</div>}.into_any()))}
+            {packs.into_iter().map(|(g,l)|section(a,g,&pack_name(g),&pack_key(g),view!{<div class=grid>{l.iter().filter(|s|matches(s)).map(|s|sticker_cell(a,s)).collect_view()}</div>}.into_any())).collect_view()}
+        </div>
     }.into_any()
 }
 
@@ -610,11 +664,7 @@ pub(super) fn settings_nav(a: &App) -> AnyView {
 /// The dialogs and settings pages of ours, fully wrapped.
 pub(super) fn dialog(a: &App) -> Option<AnyView> {
     let d = a.dialog.as_str();
-    let react = d.strip_prefix("emoji-react:").map(str::to_owned);
     Some(match d {
-        "emoji" => modal(a, "picker-modal", "Emoji", emoji_picker(a, None)),
-        "stickers" => modal(a, "picker-modal", "Stickers", sticker_picker(a)),
-        _ if react.is_some() => modal(a, "picker-modal", "Add Reaction", emoji_picker(a, react)),
         _ if d.starts_with("emoji-info:") => {
             let e = id(d.trim_start_matches("emoji-info:"))?;
             modal(a, "", "Emoji", emoji_info(a, e))

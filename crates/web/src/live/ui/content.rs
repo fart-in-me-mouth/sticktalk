@@ -330,7 +330,6 @@ pub(super) fn dialog(a: &App) -> Option<(AnyView, &'static str, &'static str)> {
         "poll" => (poll_form(a), "Create Poll", ""),
         "schedule" => (schedule_form(), "Send Later", ""),
         "scheduled" => (scheduled_list(a), "Scheduled Messages", ""),
-        "gif" if a.gif_capability.enabled() => (gif_picker(a), "GIFs", "gif-picker"),
         _ if d.starts_with("scheduled-edit:") => (
             scheduled_edit(a, id(&d[15..])?),
             "Edit Scheduled Message",
@@ -519,8 +518,13 @@ fn forward_picker(a: &App, m: Id) -> AnyView {
     </form>}.into_any()
 }
 
-/// GIF picker: browse categories (or trending), your favorites, search.
-fn gif_picker(a: &App) -> AnyView {
+/// The GIFs tab of the expression picker (`ui/picker.rs`): search, browse
+/// (categories or trending) or your favorites. Where the server has no GIF
+/// search, the tab says so and offers an image upload instead.
+pub(super) fn gif_body(a: &App) -> AnyView {
+    if !a.gif_capability.enabled() {
+        return view!{<div class=super::picker::SCROLL><div class=SETTINGS_EMPTY>{icon("image")}<p class="m-0">"GIF search is not enabled on this server. You can still upload an image."</p>{button("Upload an Image","pick-image","primary")}</div></div>}.into_any();
+    }
     let tab = a.content.gif_tab.as_str();
     let favorites = tab == "favorites";
     let items: &[GifItem] = if favorites {
@@ -530,12 +534,16 @@ fn gif_picker(a: &App) -> AnyView {
     };
     let browse = tab.is_empty() && a.gifs.is_empty() && !a.content.gif_categories.is_empty();
     let starred = |g: &GifItem| a.content.gif_favorites.contains(&g.id);
-    view!{<h2>"GIFs"</h2>
-        <div class="picker-tabs mb-3 flex gap-2" role="group" aria-label="GIF sections"><button class=format!("button {}",if favorites{"link-button"}else{"secondary"}) aria-pressed=(!favorites).to_string() data-live="gif-tab:browse">"GIFs"</button><button class=format!("button {}",if favorites{"secondary"}else{"link-button"}) aria-pressed=favorites.to_string() data-live="gif-tab:favorites">{icon_with("star","icon size-4")}{format!("Favorites ({})",a.content.gif_favorites.len())}</button></div>
-        {if favorites{().into_any()}else{view!{<form data-gif-search class="flex items-center gap-2"><label class="min-w-0 flex-1"><span class="sr-only">"Search GIFs"</span><input class="w-full" id="gif-query" type="search" placeholder="Search KLIPY"/></label><button class="button secondary flex-none" type="submit">"Search"</button></form>}.into_any()}}
-        {if browse{view!{<div class="gif-categories mt-4 grid grid-cols-2 gap-2">{a.content.gif_categories.iter().map(|c|view!{<button class="gif-category relative aspect-[16/9] overflow-hidden rounded-md bg-card" data-live=format!("gif-category:{}",c.query) aria-label=format!("{} GIFs",c.title)><video class="absolute inset-0 size-full object-cover opacity-70" src=c.preview.url.clone() autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video><span class="relative z-[1] grid size-full place-items-center bg-black/30 px-2 text-sm font-semibold text-white">{c.title.clone()}</span></button>}).collect_view()}</div>}.into_any()}else{().into_any()}}
-        {if favorites&&a.content.gif_busy{view!{<p class="muted-copy mt-4" role="status">"Loading favorites…"</p>}.into_any()}else if favorites&&items.is_empty(){view!{<div class=SETTINGS_EMPTY>{icon("star")}<p>"No favorites yet."</p><small>"Star a GIF to keep it here."</small></div>}.into_any()}else{().into_any()}}
-        <div class="live-gif-results mt-4 grid grid-cols-2 gap-2 [&_video]:max-w-full">{items.iter().map(|g|view!{<div class="gif-result group/gif relative overflow-hidden rounded-md bg-card"><button class="block w-full" data-live=format!("gif-send:{}",g.id) aria-label=format!("Send {}",g.title)><video class="block w-full" src=g.preview.url.clone() preload="metadata" autoplay muted loop playsinline width=g.preview.width height=g.preview.height aria-hidden="true"></video></button>{star(&g.id,starred(g),"absolute top-1 right-1 grid")}</div>}).collect_view()}</div>
-        <p class="mt-4 text-right text-xs text-subtle">"Powered by KLIPY"</p>
+    // Browse and Favorites look and work like the emoji category bar's choices.
+    let choice = |label: AnyView, on: bool, action: &str| view! {<button type="button" class="gif-section inline-flex h-9 flex-none items-center gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:bg-secondary aria-pressed:text-foreground touch:h-11" aria-pressed=on.to_string() data-live=action.to_owned()>{label}</button>};
+    view!{
+        <form data-gif-search class=format!("{} items-center gap-2",super::picker::SEARCH)><label class="min-w-0 flex-1"><span class="sr-only">"Search GIFs"</span><input class="w-full" id="gif-query" type="search" placeholder="Search KLIPY" autocomplete="off" autofocus=true/></label><button class="button secondary flex-none" type="submit">"Search"</button></form>
+        <div class="picker-nav mx-6 mt-3 flex flex-none gap-1 phone:mx-4" role="group" aria-label="GIF sections">{choice(view!{"Browse"}.into_any(),!favorites,"gif-tab:browse")}{choice(view!{{icon_with("star","icon size-4")}{format!("Favorites ({})",a.content.gif_favorites.len())}}.into_any(),favorites,"gif-tab:favorites")}</div>
+        <div class=super::picker::SCROLL>
+            {if browse{view!{<div class="gif-categories mt-3 grid grid-cols-2 gap-2">{a.content.gif_categories.iter().map(|c|view!{<button type="button" class="gif-category relative aspect-[16/9] overflow-hidden rounded-md bg-card" data-live=format!("gif-category:{}",c.query) aria-label=format!("{} GIFs",c.title)><video class="absolute inset-0 size-full object-cover opacity-70" src=c.preview.url.clone() autoplay muted loop playsinline preload="metadata" aria-hidden="true"></video><span class="relative z-[1] grid size-full place-items-center bg-black/30 px-2 text-sm font-semibold text-white">{c.title.clone()}</span></button>}).collect_view()}</div>}.into_any()}else{().into_any()}}
+            {if favorites&&a.content.gif_busy{view!{<p class="muted-copy mt-4" role="status">"Loading favorites…"</p>}.into_any()}else if favorites&&items.is_empty(){view!{<div class=SETTINGS_EMPTY>{icon("star")}<p>"No favorites yet."</p><small>"Star a GIF to keep it here."</small></div>}.into_any()}else{().into_any()}}
+            <div class="live-gif-results mt-3 grid grid-cols-2 gap-2 [&_video]:max-w-full">{items.iter().map(|g|view!{<div class="gif-result group/gif relative overflow-hidden rounded-md bg-card"><button type="button" class="block w-full" data-live=format!("gif-send:{}",g.id) aria-label=format!("Send {}",g.title)><video class="block w-full" src=g.preview.url.clone() preload="metadata" autoplay muted loop playsinline width=g.preview.width height=g.preview.height aria-hidden="true"></video></button>{star(&g.id,starred(g),"absolute top-1 right-1 grid")}</div>}).collect_view()}</div>
+            <p class="mt-4 mb-0 text-right text-xs text-subtle">"Powered by KLIPY"</p>
+        </div>
     }.into_any()
 }
