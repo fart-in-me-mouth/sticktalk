@@ -1,3 +1,5 @@
+#[cfg(any(target_arch = "wasm32", test))]
+mod channel_order;
 #[cfg(any(feature = "mock", not(target_arch = "wasm32")))]
 mod components;
 #[cfg(any(target_arch = "wasm32", test))]

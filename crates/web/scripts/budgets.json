@@ -1,8 +1,8 @@
 {
-  "core": 463000,
-  "firstLoad": 608000,
+  "core": 466000,
+  "firstLoad": 612000,
   "largestSharedChunk": 35400,
-  "sharedChunks": 303300,
+  "sharedChunks": 306100,
   "firstScreenJs": 45500,
   "ceilings": {
     "//": "Task `headroom` (docs/features/perf.md): a budget plus every allowance must stay within its ceiling. The core's ceiling stays under the owner's 490,000 B line in tests/loading.mjs.",
@@ -32,6 +32,7 @@
     "compose_lazy": 8300,
     "content": 16200,
     "content_state": 10800,
+    "drop_channel": 1300,
     "dialog_data": 15800,
     "expand_shortcodes": 1200,
     "expression": 9900,
@@ -66,7 +67,7 @@
     "privacy_state": 16200,
     "profile_request": 1400,
     "profiles": 13500,
-    "response": 5200,
+    "response": 5900,
     "run_slash": 4400,
     "stage": 12900,
     "stage_state": 17400,

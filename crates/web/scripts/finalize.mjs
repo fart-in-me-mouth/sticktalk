@@ -244,6 +244,8 @@ const paths = sizes
       // Lazily imported: sign-in extras on the login page, account security,
       // call sounds and notification alerts, speech synthesis, the Stage audience list.
       !/\/(authsec|authsec-login|calls|alerts|speech|stage)\.js$/.test(p) &&
+      // Channel drag and drop: when someone who manages channels presses a row.
+      !p.includes("/channel-drag.js") &&
       // Install-time only (the 192 px icon is also the page's logo).
       !/\/icons\/(icon-512|maskable-512|apple-touch-icon)\.png$/.test(p) &&
       // Only for code; the browser fetches it when a code block is shown.

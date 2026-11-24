@@ -1814,6 +1814,289 @@ async fn moving_channels_keeps_subtrees_rejects_loops_and_delete_moves_children_
     assert_eq!(moved.summary.position, 1);
 }
 
+async fn reorder_as(
+    app: &App,
+    core: &mut Core,
+    user: u64,
+    nonce: u64,
+    placements: Vec<ChannelPlacement>,
+) -> CommandOutcome {
+    command(
+        app,
+        core,
+        user,
+        nonce,
+        Command::ReorderChannels {
+            guild_id: Id(10),
+            placements,
+        },
+    )
+    .await
+}
+/// The checks a dragged channel's `ReorderChannels` meets (task `chandrag`):
+/// the server-wide permission, every channel being this server's, each moved
+/// channel and both ends of its move manageable through channel overwrites,
+/// and no loop.
+#[tokio::test]
+async fn reordering_checks_membership_overwrites_servers_and_loops() {
+    let (_dir, app) = fixture().await;
+    seed_roles(&app).await;
+    let mut core = app.0.core.lock().await;
+    let general = Id(11);
+    let a = nest(&app, &mut core, 1, ChannelKind::Category, "a", None).await;
+    let b = nest(&app, &mut core, 2, ChannelKind::Text, "b", Some(a)).await;
+    let v = nest(&app, &mut core, 3, ChannelKind::Voice, "v", None).await;
+    let start = [(general, None), (a, None), (b, Some(a)), (v, None)];
+    assert_eq!(tree(&app, 1).await, start);
+    let swap = move || {
+        vec![
+            place(v, None, 0),
+            place(general, None, 1),
+            place(a, None, 2),
+            place(b, Some(a), 0),
+        ]
+    };
+    // A member without Manage Channels cannot reorder at all.
+    denied(reorder_as(&app, &mut core, 2, 10, swap()).await);
+    assert_eq!(tree(&app, 1).await, start);
+    // With it (a role), they can.
+    sqlx::query("UPDATE roles SET permissions=permissions|? WHERE id=30")
+        .bind(Permissions::MANAGE_CHANNELS.bits() as i64)
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    core.invalidate(&[Id(2)]);
+    ok(reorder_as(&app, &mut core, 2, 11, swap()).await);
+    assert_eq!(
+        tree(&app, 1).await,
+        [(v, None), (general, None), (a, None), (b, Some(a))]
+    );
+    // A channel of another server, or a parent from there, is refused.
+    sqlx::raw_sql("INSERT INTO guilds VALUES(20,1,'other',NULL,0); INSERT INTO guild_members VALUES(20,1,'owner',0); INSERT INTO channels(id,kind,guild_id,name,position,created_at) VALUES(21,'text',20,'elsewhere',0,0),(22,'category',20,'away',1,0);").execute(&app.0.pool).await.unwrap();
+    for (n, placements) in [
+        (
+            12,
+            vec![
+                place(general, None, 0),
+                place(v, None, 1),
+                place(a, None, 2),
+                place(Id(21), None, 3),
+            ],
+        ),
+        (
+            13,
+            vec![
+                place(general, Some(Id(22)), 0),
+                place(v, None, 0),
+                place(a, None, 1),
+                place(b, Some(a), 0),
+            ],
+        ),
+    ] {
+        denied(reorder(&app, &mut core, n, placements).await);
+    }
+    // A loop through two channels is refused.
+    denied(
+        reorder(
+            &app,
+            &mut core,
+            14,
+            vec![
+                place(v, Some(b), 0),
+                place(general, None, 0),
+                place(a, Some(v), 0),
+                place(b, Some(a), 0),
+            ],
+        )
+        .await,
+    );
+    assert_eq!(
+        tree(&app, 1).await,
+        [(v, None), (general, None), (a, None), (b, Some(a))]
+    );
+    // A channel locked for this manager by an overwrite cannot be moved, nor can
+    // anything be put into it, but the rest of the list can still be arranged.
+    let deny = |target| {
+        vec![overwrite(
+            target,
+            OverwriteKind::Member,
+            Permissions::empty(),
+            Permissions::MANAGE_CHANNELS,
+        )]
+    };
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        15,
+        LaunchCommand::SetOverwrites {
+            channel_id: general,
+            overwrites: deny(2),
+        },
+    )
+    .await);
+    denied(
+        reorder_as(
+            &app,
+            &mut core,
+            2,
+            16,
+            vec![
+                place(general, None, 0),
+                place(v, None, 1),
+                place(a, None, 2),
+                place(b, Some(a), 0),
+            ],
+        )
+        .await,
+    );
+    denied(
+        reorder_as(
+            &app,
+            &mut core,
+            2,
+            17,
+            vec![
+                place(v, None, 0),
+                place(general, None, 1),
+                place(a, None, 2),
+                place(b, Some(general), 0),
+            ],
+        )
+        .await,
+    );
+    // b moves into v; general stays where it is.
+    ok(reorder_as(
+        &app,
+        &mut core,
+        2,
+        18,
+        vec![
+            place(v, None, 0),
+            place(general, None, 1),
+            place(a, None, 2),
+            place(b, Some(v), 0),
+        ],
+    )
+    .await);
+    assert_eq!(
+        tree(&app, 1).await,
+        [(v, None), (b, Some(v)), (general, None), (a, None)]
+    );
+    // Taking a channel out of one the manager may not manage is refused, even
+    // when the channel itself allows it.
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        19,
+        LaunchCommand::SetOverwrites {
+            channel_id: v,
+            overwrites: deny(2),
+        },
+    )
+    .await);
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        20,
+        LaunchCommand::SetOverwrites {
+            channel_id: b,
+            overwrites: vec![overwrite(
+                2,
+                OverwriteKind::Member,
+                Permissions::MANAGE_CHANNELS,
+                Permissions::empty(),
+            )],
+        },
+    )
+    .await);
+    denied(
+        reorder_as(
+            &app,
+            &mut core,
+            2,
+            21,
+            vec![
+                place(v, None, 0),
+                place(general, None, 1),
+                place(a, None, 2),
+                place(b, None, 3),
+            ],
+        )
+        .await,
+    );
+    assert_eq!(
+        tree(&app, 1).await,
+        [(v, None), (b, Some(v)), (general, None), (a, None)]
+    );
+    // A channel shown at the top only because its real parent is hidden from
+    // the manager is not pulled out of that parent by renumbering the top.
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        22,
+        LaunchCommand::SetOverwrites {
+            channel_id: v,
+            overwrites: vec![overwrite(
+                2,
+                OverwriteKind::Member,
+                Permissions::empty(),
+                Permissions::VIEW_CHANNEL,
+            )],
+        },
+    )
+    .await);
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        23,
+        LaunchCommand::SetOverwrites {
+            channel_id: b,
+            overwrites: vec![overwrite(
+                2,
+                OverwriteKind::Member,
+                Permissions::VIEW_CHANNEL | Permissions::MANAGE_CHANNELS,
+                Permissions::empty(),
+            )],
+        },
+    )
+    .await);
+    ok(run(
+        &app,
+        &mut core,
+        1,
+        24,
+        LaunchCommand::SetOverwrites {
+            channel_id: general,
+            overwrites: vec![],
+        },
+    )
+    .await);
+    assert_eq!(tree(&app, 2).await, [(general, None), (a, None), (b, None)]);
+    denied(
+        reorder_as(
+            &app,
+            &mut core,
+            2,
+            25,
+            vec![
+                place(general, None, 0),
+                place(a, None, 1),
+                place(b, None, 2),
+            ],
+        )
+        .await,
+    );
+    assert_eq!(
+        tree(&app, 1).await,
+        [(v, None), (b, Some(v)), (general, None), (a, None)]
+    );
+}
+
 #[tokio::test]
 async fn nested_channel_migration_keeps_data_and_lets_categories_nest() {
     let mut c = sqlx::SqliteConnection::connect("sqlite::memory:")

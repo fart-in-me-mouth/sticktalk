@@ -573,6 +573,15 @@ pub(super) fn action(app: Shared, raw: &str) {
             a.dialog = format!("role:{arg}");
             a.touch();
         }
+        // Channel drag and drop (`channel_drag.rs`): loaded when a drag starts.
+        "chan-drag" => spawn_local(super::channel_drag::__preload_drop_channel()),
+        "chan-drop" => {
+            let epoch = app.borrow().epoch;
+            let arg = arg.to_owned();
+            spawn_local(async move {
+                super::channel_drag::drop_channel(app, arg, epoch).await;
+            });
+        }
         "role-move" => {
             let epoch = app.borrow().epoch;
             let arg = arg.to_owned();
@@ -1727,31 +1736,13 @@ fn submit(app: Shared, form: String, submission: Submission) {
             }
             // The server takes the whole list: the moved channel goes to the end of
             // where it lands, and the ones it leaves behind close the gap.
-            let mut sets: BTreeMap<Option<Id>, Vec<&ChannelSummary>> = BTreeMap::new();
-            for c in a
-                .model
-                .channels
-                .values()
-                .filter(|c| c.guild_id == Some(guild_id) && c.id != moving)
-            {
-                sets.entry(c.parent_id).or_default().push(c);
-            }
-            let mut placements = vec![];
-            for (parent, mut set) in sets {
-                set.sort_by_key(|c| (c.position, c.id));
-                let renumber = parent == from || parent == target;
-                placements.extend(set.iter().enumerate().map(|(i, c)| ChannelPlacement {
-                    channel_id: c.id,
-                    parent_id: parent,
-                    position: if renumber { i as u16 } else { c.position },
-                }));
-            }
-            let position = placements.iter().filter(|p| p.parent_id == target).count() as u16;
-            placements.push(ChannelPlacement {
-                channel_id: moving,
-                parent_id: target,
-                position,
-            });
+            let Some(placements) =
+                crate::channel_order::moved(&a.model.channels, guild_id, moving, target, None)
+            else {
+                a.error = "That channel can’t go there.".into();
+                a.touch();
+                return;
+            };
             Some(Command::ReorderChannels {
                 guild_id,
                 placements,
@@ -2207,6 +2198,11 @@ fn respond(
 ) -> Option<(Feature, Option<Command>, Reply)> {
     let mut a = app.borrow_mut();
     let pending = a.pending.remove(&response.nonce);
+    let moved = super::channel_drag::settled(
+        &mut a,
+        pending.as_ref().map(|(c, _)| c),
+        response.outcome.as_ref().err().map(|e| e.code),
+    );
     match response.outcome {
         Err(error) => {
             if let Some(draft) = super::content::draft_of(pending.as_ref().map(|(c, _)| c)) {
@@ -2273,6 +2269,9 @@ fn respond(
                     str::to_owned,
                 ),
                 (Some(Command::Apps(_)), _) => sticktalk_client_core::http::error_text(&error),
+                (Some(Command::ReorderChannels { .. }), _) => {
+                    moved.unwrap_or_else(|| sticktalk_client_core::http::error_text(&error))
+                }
                 (Some(Command::Appearance(c)), code) => super::themes::refused(c, code)
                     .map_or_else(
                         || sticktalk_client_core::http::error_text(&error),

@@ -118,3 +118,8 @@ Words (quoted phrases allowed), `from:<user>`, `mentions:<user>`, `in:<channel>`
   moves as a menu (Move Up/Down, Create Folder, Add to …, Remove from folder),
   plus folder name, color, collapse and ungroup. Folders show unread and
   mention badges.
+- Channel list: people who manage channels drag channels and categories to
+  reorder, nest or un-nest them, with the same look as the rail's drop marker.
+  See `docs/features/channel-drag.md`. Move Channel in a channel's options
+  menu (the "…", right-click, long-press, Shift+F10) is the keyboard and
+  touch path.

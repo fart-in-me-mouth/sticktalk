@@ -1767,10 +1767,6 @@ async fn core_mutate(
             let mut moved = vec![];
             let mut siblings: HashMap<Option<Id>, (bool, Vec<u16>)> = HashMap::new();
             for p in &placements {
-                access(c, u, p.channel_id, Permissions::MANAGE_CHANNELS).await?;
-                if let Some(parent) = p.parent_id {
-                    access(c, u, parent, Permissions::MANAGE_CHANNELS).await?;
-                }
                 let ch = list
                     .iter()
                     .find(|ch| ch.id == p.channel_id)
@@ -1780,6 +1776,27 @@ async fn core_mutate(
                 set.1.push(p.position);
                 if ch.position != p.position || ch.parent_id != p.parent_id {
                     set.0 = true;
+                    // Channel overwrites count: each channel that moves, where it
+                    // goes and what it leaves must all be ones the actor manages.
+                    // A channel that only stays put needs nothing, so one locked
+                    // channel does not stop the rest of the list being arranged.
+                    access(c, u, p.channel_id, Permissions::MANAGE_CHANNELS).await?;
+                    let real: Option<i64> =
+                        sqlx::query_scalar("SELECT parent_id FROM channels WHERE id=?")
+                            .bind(id(p.channel_id)?)
+                            .fetch_one(&mut *c)
+                            .await?;
+                    let real = real.map(|v| Id(v as u64));
+                    // Measured against where it really is: one shown outside a
+                    // parent the actor cannot see would otherwise leave it unseen.
+                    if real != p.parent_id {
+                        if let Some(parent) = p.parent_id {
+                            access(c, u, parent, Permissions::MANAGE_CHANNELS).await?;
+                        }
+                        if let Some(old) = real {
+                            access(c, u, old, Permissions::MANAGE_CHANNELS).await?;
+                        }
+                    }
                     moved.push(p);
                 }
             }

@@ -625,6 +625,7 @@ fn conv_menu(a: &App, arg: &str) -> AnyView {
         {button(if pinned{"Unpin"}else{"Pin to Top"},&format!("nav-pin:{}",c.id.0),"secondary")}
         {button(if favorite{"Remove from Favorites"}else{"Add to Favorites"},&format!("nav-fav:{}",c.id.0),"secondary")}
         {if unread{button("Mark as Read",&format!("nav-ack:{}",c.id.0),"secondary")}else{().into_any()}}
+        {if c.guild_id.is_some()&&c.guild_id==a.guild&&super::settings::can(a,Permissions::MANAGE_CHANNELS){button("Move Channel",&format!("dialog:channel-move:{}",c.id.0),"secondary")}else{().into_any()}}
         {if c.kind!=ChannelKind::Voice{button("Notification Settings",&match c.guild_id{Some(_)=>format!("dialog:target-notifications:channel:{}",c.id.0),None=>format!("dialog:target-notifications:channel:{}",c.id.0)},"link-button")}else{().into_any()}}
     </div>}.into_any()
 }

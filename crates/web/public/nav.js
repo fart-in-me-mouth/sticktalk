@@ -1,7 +1,8 @@
 // Navigation behavior that must not wait for a render: Ctrl/Cmd+K, Quick
 // Switcher filtering, search filter suggestions, rail drag and drop, and the
 // right-click / long-press / Shift+F10 menus for servers, folders and
-// conversations. It reads only what the page shows; no message data lives here.
+// conversations, and the start of a channel drag. It reads only what the page
+// shows; no message data lives here.
 const $ = (s) => document.querySelector(s);
 let emit = () => {};
 const FILTERS = [
@@ -184,6 +185,13 @@ function place(target, e) {
   return y < 0.3 ? 'before' : y > 0.7 ? 'after' : 'into';
 }
 
+// ----- Channel drag and drop ----------------------------------------------
+// Only for people who may manage channels (their rows carry `data-chan` and
+// `draggable`). The landing rules, the drop marker and the edge scrolling are
+// in `channel-drag.js`, loaded when such a row is first pressed.
+let chan = null, chanMod = null, chanLoad = null, touchRow = null;
+const chanModule = () => (chanLoad ??= import('/public/channel-drag.js').then((m) => (chanMod = m)));
+
 // ----- Menus ------------------------------------------------------------------
 function menuFor(element) {
   const rail = element.closest?.('[data-rail]');
@@ -282,16 +290,38 @@ export function installNav(send) {
     if (action) { e.preventDefault(); emit(action); }
   });
   document.addEventListener('pointerdown', (e) => {
+    const row = e.target.closest?.('[data-chan][draggable=true]');
+    if (row && e.pointerType !== 'touch') chanModule();
     if (e.pointerType !== 'touch') return;
+    // On a touch screen a long press opens the menu (Move Channel is there), so
+    // the press does not start a channel drag.
+    if ((touchRow = row)) row.draggable = false;
     const action = menuFor(e.target);
     if (!action || e.target.closest('.live-modal')) return;
     press = { x: e.clientX, y: e.clientY, timer: setTimeout(() => { press = null; pressed = performance.now(); emit(action); }, 500) };
   });
-  const cancel = () => { if (press) clearTimeout(press.timer); press = null; };
+  const cancel = () => {
+    if (press) clearTimeout(press.timer);
+    press = null;
+    if (touchRow) { touchRow.draggable = true; touchRow = null; }
+  };
   document.addEventListener('pointermove', (e) => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 12) cancel(); });
   document.addEventListener('pointerup', cancel);
   document.addEventListener('pointercancel', cancel);
   document.addEventListener('dragstart', (e) => {
+    const row = e.target.closest?.('[data-chan]');
+    if (row) {
+      if (!row.draggable) { e.preventDefault(); return; }
+      const [id, parent, kind] = row.dataset.chan.split(',');
+      chan = { id, parent, kind, cat: kind === 'c', depth: Number(row.dataset.depth) || 0, at: null };
+      chanModule();
+      e.dataTransfer.effectAllowed = 'move';
+      // Not text or files: a channel dropped on the message box or the
+      // conversation is neither typed nor uploaded.
+      e.dataTransfer.setData('application/x-sticktalk-channel', id);
+      emit('chan-drag');
+      return;
+    }
     const item = e.target.closest?.('[data-rail]');
     if (!item) return;
     dragging = item.dataset.rail;
@@ -299,6 +329,7 @@ export function installNav(send) {
     e.dataTransfer.setData('text/plain', dragging);
   });
   document.addEventListener('dragover', (e) => {
+    if (chan) { chanMod?.over(e, chan); return; }
     const target = dragging && e.target.closest?.('[data-rail]');
     if (!target) return;
     e.preventDefault();
@@ -309,11 +340,18 @@ export function installNav(send) {
     if (where) { target.dataset.drop = where; target.classList.add(...DROP[where].split(' ')); }
   });
   document.addEventListener('drop', (e) => {
+    if (chan) {
+      const { id, at } = chan;
+      chanMod?.end();
+      chan = null;
+      if (at) { e.preventDefault(); emit(`chan-drop:${id},${at.parent},${at.before}`); }
+      return;
+    }
     const target = dragging && e.target.closest?.('[data-rail]');
     const where = target?.dataset.drop;
     clearDrop();
     if (target && where) { e.preventDefault(); emit(`nav-rail-drop:${dragging},${target.dataset.rail},${where}`); }
     dragging = null;
   });
-  document.addEventListener('dragend', () => { clearDrop(); dragging = null; });
+  document.addEventListener('dragend', () => { clearDrop(); dragging = null; chanMod?.end(); chan = null; });
 }

@@ -118,6 +118,7 @@ Emoji: bundle a compact color emoji font or render twemoji-style images (CC-BY, 
 - Rail: DM/home button at top, 2px×32px divider, guild icons, "+" (create/join) and nothing else. Selected guild: 4px-wide **white** (text.primary) pill on the left edge, 40px tall; hover: 20px pill; unread: 8px dot. Tooltip with guild name on hover, shown to the right.
 - Sidebar header (48): guild name Semibold 15 + chevron → dropdown (invite, settings, create channel, leave).
 - Channel row: 32px tall, radius 4, 8px horizontal inner padding, Lucide `hash` icon 18px muted. Read = text.secondary; unread = text.primary Semibold + 8px white pill on the rail-side edge; selected = bg.selected + text.primary; mention badge = danger pill with count, right-aligned.
+- Dragging a channel or category (people who manage channels only): the drop marker is a 2px accent (`primary`) line with round ends, from the indentation of the level the channel will join to the right edge, on the top edge of the row it goes before or the bottom edge of the last row it goes after. "Inside" is a 2px inset accent ring plus the hover background on the row it goes into. The browser's own drag image follows the pointer; the row itself stays in place until the drop, and nothing animates.
 - User panel (52, bg slightly darker than sidebar #141417): 32px avatar with presence dot, display name 14 Semibold + status text 12 muted (ellipsized), icon buttons (settings) right-aligned.
 
 ## 3. Messages

@@ -3,6 +3,7 @@ mod activities;
 mod apps;
 mod authsec;
 mod calls;
+mod channel_drag;
 mod community;
 mod content;
 mod e2ee;
