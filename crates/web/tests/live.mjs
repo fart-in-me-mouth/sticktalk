@@ -231,6 +231,14 @@ try {
     document.querySelector(".markdown").textContent.includes("Hello Bob"),
   );
   checks.push("DM + markdown + cross-browser delivery");
+  // The conversation list shows who each conversation is with: their picture
+  // and presence, not a speech bubble.
+  await alice.waitForSelector(".channel-row .channel-main .avatar");
+  await alice.waitForSelector(".channel-row .channel-main .presence-dot");
+  assert.equal(await alice.locator(".channel-row .channel-main .avatar").count(), 1);
+  if (process.env.STICKTALK_DM_LIST_SHOT)
+    await alice.locator(".channel-sidebar").screenshot({ path: process.env.STICKTALK_DM_LIST_SHOT });
+  checks.push("direct message rows show the other person's avatar and presence");
   await form(alice, "create", "Browser Lab");
   await alice.waitForFunction(() => !document.querySelector(".live-modal"));
   const guild = await alice

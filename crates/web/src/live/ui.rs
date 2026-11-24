@@ -282,6 +282,23 @@ fn avatar_status(a: &App, u: &UserSummary) -> AnyView {
     };
     view!{<span class="relative flex flex-none">{avatar(u,"small")}{if dot.is_empty(){().into_any()}else{view!{<span class=format!("presence-dot absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-sidebar {dot}") aria-hidden="true"></span>}.into_any()}}</span>}.into_any()
 }
+/// What stands in front of a direct or group conversation in the list: the
+/// other person's avatar with their presence, or the group mark. `None` for
+/// server channels (and a person not loaded yet), which keep their glyph.
+fn dm_face(a: &App, c: &ChannelSummary) -> Option<AnyView> {
+    match c.kind {
+        ChannelKind::Direct => {
+            let me = a.model.me.as_ref().map(|m| m.user.id);
+            c.recipient_ids
+                .iter()
+                .find(|id| Some(**id) != me)
+                .and_then(|id| a.model.users.get(id))
+                .map(|u| avatar_status(a, u))
+        }
+        ChannelKind::GroupDm => Some(view!{<span class="grid size-8 flex-none place-items-center rounded-full bg-muted">{icon_with("users","icon text-muted-foreground")}</span>}.into_any()),
+        _ => None,
+    }
+}
 /// Who is in a voice channel, listed under it for everyone in the server.
 fn voice_occupants(a: &App, channel: Id, depth: usize) -> AnyView {
     let mut people = BTreeMap::new();
@@ -394,8 +411,12 @@ fn shell(a: &App) -> AnyView {
                 // A direct message is always for you; in a server only mentions are counted.
                 let count=read.map_or(0,|r|if c.guild_id.is_none()&&!muted{r.unread_count}else{r.mention_count});
                 let voice=c.kind==ChannelKind::Voice;
+                // A conversation is shown by who it is with: their picture and presence,
+                // or the group mark at the same size so the names line up.
+                let face=dm_face(a,c);
+                let pad=if face.is_some(){"px-2 py-1.5"}else{"p-2"};
                 let open=if c.kind==ChannelKind::Stage{format!("stage:open,{}",c.id.0)}else{format!("{}:{}",if voice{"voice"}else{"channel"},c.id.0)};
-                view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()>{profiles::dm_nameplate(a,c)}<button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 p-2 text-sm font-medium touch:min-h-11 phone:text-base {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=open>{icon_with(if voice{"volume-2"}else if let Some(glyph)=stage::kind_icon(c.kind){glyph}else if let Some(glyph)=threads::kind_icon(c.kind){glyph}else if c.kind==ChannelKind::GroupDm{"users"}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}<span class="truncate">{label.clone()}</span>{identity::dm_tag(a,c)}{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{call_views::row_chat(a,c)}{stage::row_chat(a,c)}{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}{navui::row_options(c)}</div>{stage::row_extra(a,c,depth)}{if voice||c.kind==ChannelKind::Stage{voice_occupants(a,c.id,depth)}else{().into_any()}}{threads::rows(a,c,depth)}}.into_any()
+                view!{<div class=format!("channel-row group flex min-h-[34px] items-center rounded-md {} {}",if selected{"selected bg-secondary"}else{"hover:bg-sidebar-accent"},if depth>0{"nested"}else{""}) style=indent(depth,12) data-depth=depth.to_string()>{profiles::dm_nameplate(a,c)}<button class=format!("channel-main flex min-w-0 flex-1 items-center gap-2 text-sm font-medium touch:min-h-11 phone:text-base {pad} {}",if selected||unread{"text-foreground"}else{"text-sidebar-foreground"}) title=label.clone() data-live=open>{match face{Some(face)=>face,None=>icon_with(if voice{"volume-2"}else if let Some(glyph)=stage::kind_icon(c.kind){glyph}else if let Some(glyph)=threads::kind_icon(c.kind){glyph}else if c.guild_id.is_none(){"message-circle"}else{"hash"},"icon text-muted-foreground")}}<span class="truncate">{label.clone()}</span>{identity::dm_tag(a,c)}{if count>0{view!{<span class="live-unread">{count.to_string()}</span>}.into_any()}else if unread{view!{<span class="live-unread quiet" aria-label="Unread messages"></span>}.into_any()}else{().into_any()}}</button>{call_views::row_chat(a,c)}{stage::row_chat(a,c)}{if manage_channels&&c.guild_id.is_some(){create_inside(c,&label,if selected{"channel-add mr-1 grid size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground"}else{"channel-add mr-1 hidden size-6 flex-none touch:size-11 place-items-center rounded-sm text-muted-foreground hover:text-foreground group-focus-within:grid group-hover:grid"})}else{().into_any()}}{navui::row_options(c)}</div>{stage::row_extra(a,c,depth)}{if voice||c.kind==ChannelKind::Stage{voice_occupants(a,c.id,depth)}else{().into_any()}}{threads::rows(a,c,depth)}}.into_any()
             }).collect_view()}
             </nav>
             <section id="live-connected" class="voice-connected border-t p-3 text-sm" hidden><div class="voice-connection-line flex min-w-0 flex-col"><strong class="text-primary">"Voice Connected"</strong><small class="truncate" title=call_name.clone()>{call_name.clone()}</small></div><div class="voice-tiles mt-2 flex gap-2 [&_.icon-button]:flex-1 [&_.icon-button]:bg-accent">{ib("video","Camera","media:camera")}{ib("monitor","Share Screen","media:share")}{ib("phone-off","Disconnect","media:leave")}</div></section>
