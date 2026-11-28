@@ -671,9 +671,13 @@ fn outage_started(app: &Shared, epoch: u64) {
 }
 async fn socket(app: Shared, epoch: u64) {
     let mut backoff = 500;
+    // Connections in a row that came up and dropped again within seconds.
+    let mut brief = 0u32;
     let mut first = true;
     app.borrow_mut().outage = 0;
     loop {
+        // When this connection became usable, if it did.
+        let mut ready_at: Option<u64> = None;
         if app.borrow().epoch != epoch {
             return;
         }
@@ -814,7 +818,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 resync = false;
                                 deadline = Browser.monotonic_ms() + heartbeat;
                                 ack = Browser.monotonic_ms();
-                                backoff = 500;
+                                ready_at = Some(Browser.monotonic_ms());
                                 if retry_pending(&app, &mut outgoing).await.is_err() {
                                     break;
                                 }
@@ -846,7 +850,7 @@ async fn socket(app: Shared, epoch: u64) {
                                 }
                                 deadline = Browser.monotonic_ms() + heartbeat;
                                 ack = Browser.monotonic_ms();
-                                backoff = 500;
+                                ready_at = Some(Browser.monotonic_ms());
                                 if retry_pending(&app, &mut outgoing).await.is_err() {
                                     break;
                                 }
@@ -1253,6 +1257,21 @@ async fn socket(app: Shared, epoch: u64) {
         if revoked {
             end_session(&app, "Your session ended. Please log in again.");
             return;
+        }
+        // A connection that came up is retried at once, as a short drop
+        // should be. Unless that keeps happening: the same session open in
+        // another tab takes the connection back each time, and a frame this
+        // app cannot read drops it each time, and either way the retries
+        // came twice a second without end (the live server, 2026-11-28:
+        // seventy in forty seconds from one person). After three in a row
+        // that lasted under ten seconds, each wait is twice the last, up to
+        // fifteen seconds.
+        if let Some(at) = ready_at {
+            let held = Browser.monotonic_ms().saturating_sub(at) >= 10_000;
+            brief = if held { 0 } else { brief + 1 };
+            if brief <= 3 {
+                backoff = 500;
+            }
         }
         Browser.sleep(backoff + nonce(&Browser) % 500).await;
         backoff = (backoff * 2).min(15_000);
