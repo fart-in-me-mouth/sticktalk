@@ -229,9 +229,10 @@ it. Whether a game allows an assistant to play is that game's rule to check.
   `screen_act` return an `image` content block (`image/jpeg`, base64) followed
   by the usual JSON text block, and `structuredContent` with
   `screenshot: {width, height}`. Their errors are `isError` results with codes
-  such as `not_in_call`, `not_sharing`, `cannot_control`, `declined`,
-  `no_answer`, `not_controlling`, `busy`, `no_picture` and
-  `screen_control_not_allowed`. One connection per person can hold control,
+  such as `not_in_call`, `not_sharing`, `cannot_control` (the screen is shared
+  from a browser, not the Windows app), `screen_busy` (someone else controls
+  it or has asked to), `declined`, `no_answer`, `not_controlling`, `busy`,
+  `no_picture` and `screen_control_not_allowed`. One connection per person can hold control,
   and its calls are answered one at a time. How it works on the wire is in
   [PROTOCOL.md](PROTOCOL.md), "Remote control by an AI agent".
 - **Storage:** see migration `202611140002_mcp_connector.sql`. Each connection is

@@ -1281,7 +1281,11 @@ fn an_agent_grant_ends_on_bad_input_withdrawal_and_leaving() {
     };
     // A question the agent withdraws is answered "no" for its person.
     n.sfu.agent_request(controller, sharer, n.now).unwrap();
-    assert!(n.sfu.agent_request(controller, sharer, n.now).is_err());
+    // While a question is open, another is refused, and told apart as that.
+    assert!(matches!(
+        n.sfu.agent_request(controller, sharer, n.now),
+        Err(sticktalk_sfu::Error::ControlBusy)
+    ));
     n.sfu.agent_revoke(controller, n.now).unwrap();
     n.collect_sfu();
     assert!(n
@@ -1315,4 +1319,26 @@ fn an_agent_grant_ends_on_bad_input_withdrawal_and_leaving() {
     assert!(n.peers[a]
         .control
         .contains(&ControlData::ReleaseAll { grant: id }));
+}
+
+#[test]
+fn an_agent_is_told_when_a_screen_is_shared_without_a_control_channel() {
+    let mut n = Network::new(40_000_000);
+    let a = n.add(true);
+    let b = n.add(false);
+    let (sharer, controller) = (n.peers[a].key, n.peers[b].key);
+    n.clear();
+    // A browser never opens the control channel. Here the app's is closed.
+    let channel = n.peers[a].channel;
+    n.peers[a].rtc.direct_api().close_data_channel(channel);
+    n.advance(Duration::from_millis(500));
+    assert!(matches!(
+        n.sfu.agent_request(controller, sharer, n.now),
+        Err(sticktalk_sfu::Error::Uncontrollable)
+    ));
+    // Someone who is not sharing at all is refused as before.
+    assert!(matches!(
+        n.sfu.agent_request(sharer, controller, n.now),
+        Err(sticktalk_sfu::Error::Forbidden)
+    ));
 }

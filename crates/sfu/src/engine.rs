@@ -140,12 +140,19 @@ pub enum Error {
     Version,
     #[error("output queue full: drain after each operation")]
     Backpressure,
+    /// An agent asked for a shared screen whose sharer has no control channel:
+    /// it is shared from a browser, which cannot be controlled.
+    #[error("that screen is not shared from an app that can be controlled")]
+    Uncontrollable,
+    /// An agent asked for a screen someone else controls or has asked for.
+    #[error("that screen is being controlled or asked for by someone else")]
+    ControlBusy,
 }
 impl Error {
     fn code(&self) -> ErrorCode {
         match self {
             Self::Forbidden => ErrorCode::Forbidden,
-            Self::Limit => ErrorCode::LimitExceeded,
+            Self::Limit | Self::ControlBusy => ErrorCode::LimitExceeded,
             Self::Version => ErrorCode::VersionMismatch,
             Self::Backpressure => ErrorCode::Unavailable,
             Self::PeerFailed | Self::PanicStrategy => ErrorCode::Unavailable,
@@ -2414,8 +2421,18 @@ impl Sfu {
     ) -> Result<(), Error> {
         self.now = self.now.max(now);
         self.authorized(requester)?;
-        if !self.peers.contains_key(&sharer) {
+        let Some(shared) = self.peers.get(&sharer) else {
             return Err(Error::Forbidden);
+        };
+        // The two refusals a person runs into are said apart, so the agent
+        // can tell them what to do instead of guessing.
+        if self.screen_active(sharer) {
+            if shared.control.is_none() {
+                return Err(Error::Uncontrollable);
+            }
+            if shared.grant.is_some() || shared.request.is_some() {
+                return Err(Error::ControlBusy);
+            }
         }
         self.request_control(requester, sharer, true)
     }

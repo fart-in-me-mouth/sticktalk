@@ -354,11 +354,21 @@ pub(crate) async fn request(
             },
         )
         .await;
-    if asked.is_err() {
-        return Err(refused(
-            "cannot_control",
-            "This screen can't be controlled right now. The person must be sharing a whole screen or a window from the StickTalk Windows app (not a browser), and nobody else may be controlling it or asking to.",
-        ));
+    if let Err(error) = asked {
+        return Err(match error {
+            sticktalk_sfu::Error::Uncontrollable => refused(
+                "cannot_control",
+                "This screen can't be controlled: it is shared from a web browser, not from the StickTalk Windows app. Only a screen or window shared from the Windows app can be controlled. Tell the user that the person has to stop sharing and share again from the StickTalk Windows app; asking again will not help until they do. (If they started sharing from the app only a moment ago, ask once more in a few seconds.)",
+            ),
+            sticktalk_sfu::Error::ControlBusy => refused(
+                "screen_busy",
+                "Someone else is controlling this screen, or has asked to and has not been answered yet. Only one person or agent can at a time, and an unanswered question stays open for up to 30 seconds. Try again after that, or tell the user that someone else has control.",
+            ),
+            _ => refused(
+                "cannot_control",
+                "This screen can't be controlled right now. The person must be sharing a whole screen or a window from the StickTalk Windows app (not a browser), and nobody else may be controlling it or asking to.",
+            ),
+        });
     }
     match tokio::time::timeout(ANSWER, answered).await {
         Ok(Ok(true)) => {
