@@ -383,6 +383,24 @@ try {
   await act(alice, "close");
   checks.push("Change Avatar works from the keyboard and keeps an unsaved name; leaving unsaved changes asks first");
 
+  // More conversation than fits, read to its end: the call must bring her back there.
+  const below = () => alice.evaluate(() => {
+    const list = document.querySelector("#live-messages");
+    return list.scrollHeight - list.scrollTop - list.clientHeight;
+  });
+  await alice.waitForSelector("#live-input");
+  await alice.locator("#live-input").fill(Array.from({ length: 40 }, (_, i) => `line ${i}`).join("\n"));
+  await alice.locator("#live-input").press("Enter");
+  await alice.waitForFunction(() => document.querySelector("#live-messages").textContent.includes("line 39") && !document.querySelector("#live-input").value);
+  // She scrolls down to the newest message herself.
+  await alice.evaluate(() => {
+    const list = document.querySelector("#live-messages");
+    list.scrollTop = list.scrollHeight;
+  });
+  await alice.waitForFunction(() => {
+    const list = document.querySelector("#live-messages");
+    return list.scrollHeight > list.clientHeight + 200 && list.scrollHeight - list.scrollTop - list.clientHeight < 8;
+  });
   // A call: Bob shares a screen with sound.
   await form(alice, "channel", "Call Voice", { "f-extra": "voice" });
   await alice.waitForFunction(() => !document.querySelector(".live-modal"));
@@ -535,6 +553,47 @@ try {
   assert.equal(await alice.locator(".participant-tile.is-controlling").count(), 0);
   checks.push("remote control: asked for, allowed by the sharer's app, pointer, clicks, keys and wheel delivered, then given back");
 
+  // Stop watching: neither the picture nor the sound is received any more,
+  // and the tile stays as the way back.
+  const videoBytes = async () => (await diagnostic(alice)).stats
+    .filter((r) => r.type === "inbound-rtp" && r.kind === "video").reduce((n, r) => n + (r.bytesReceived ?? 0), 0);
+  const watched = (await diagnostic(alice)).subscriptions;
+  await screenTile.hover();
+  await screenTile.locator(".tile-stop").click();
+  await alice.waitForSelector('.participant-tile.is-closed[data-kind="screen"] .tile-watch');
+  await alice.waitForFunction(() => !document.querySelector('.participant-tile[data-kind="system_audio"]'));
+  assert.equal((await diagnostic(alice)).subscriptions, watched - 2, "the picture and the sound are both given up");
+  assert.equal(await alice.locator(".participant-tile.is-focused").count(), 0, "a closed stream is not kept large");
+  assert.equal(await screenTile.locator("video").evaluate((v) => v.srcObject), null);
+  for (const part of [".tile-stop", ".tile-fullscreen", ".tile-control", ".tile-volume", ".tile-live", "video"])
+    assert.equal(await screenTile.locator(part).first().isVisible(), false, `${part} is not shown on a closed stream`);
+  assert.equal(await screenTile.getAttribute("aria-label"), "Watch bob_call's screen");
+  await wait(1500);
+  const before = await videoBytes();
+  await wait(2000);
+  assert((await videoBytes()) <= before, "no video arrives for a stream you are not watching");
+  assert.equal((await sound(alice, "audio")).paused, false, "the person's voice carries on");
+  // Bob, still sharing, sees nothing of this; his stream goes on.
+  assert.equal(await bob.locator('.participant-tile[data-kind="screen"][data-self]').count(), 1);
+  await screenTile.locator(".tile-watch").click();
+  await alice.waitForSelector('.participant-tile[data-kind="screen"]:not(.is-closed)');
+  assert(await flowing(["audio", "screen", "system_audio"]), `the stream did not come back: ${JSON.stringify((await diagnostic(alice)).tracks)}; ${errors}`);
+  assert.equal((await diagnostic(alice)).subscriptions, watched);
+  assert.deepEqual(await sound(alice, "system_audio"), { hidden: true, muted: false, volume: 0.3, paused: false }, "its volume is as you left it");
+  assert.equal(await alice.locator('.participant-tile.is-focused[data-kind="screen"]').count(), 1, "watched again, it opens large");
+  // Closed again, the whole tile is the way back.
+  await screenTile.hover();
+  await screenTile.locator(".tile-stop").click();
+  await alice.waitForSelector('.participant-tile.is-closed[data-kind="screen"]');
+  await screenTile.click({ position: { x: 20, y: 20 } });
+  await alice.waitForSelector('.participant-tile[data-kind="screen"]:not(.is-closed)');
+  assert(await flowing(["screen", "system_audio"]), "the stream plays after a click on its closed tile");
+  // Closed when the stream ends: the tile goes with it.
+  await screenTile.hover();
+  await screenTile.locator(".tile-stop").click();
+  await alice.waitForSelector('.participant-tile.is-closed[data-kind="screen"]');
+  checks.push("stop watching a stream: nothing of it is received, its tile is the way back, and watching again restores picture and sound");
+
   await act(bob, "media:share");
   await alice.waitForFunction(() => !document.querySelector('.participant-tile[data-kind="screen"],.participant-tile[data-kind="system_audio"]'), null, { timeout: 15000 });
   assert.equal((await sound(alice, "audio")).volume, 0.5);
@@ -542,7 +601,9 @@ try {
   await act(alice, "media:leave");
   await alice.waitForSelector("#live-input");
   assert.equal(await alice.locator(".voice-view").count(), 0);
-  checks.push("leaving a call returns to the conversation you were in");
+  await alice.waitForFunction(() => document.querySelectorAll("#live-messages [data-live-message]").length > 0);
+  assert((await below()) < 8, `back at the newest message, not ${await below()}px above it`);
+  checks.push("leaving a call returns to the conversation you were in, at the newest message if you had read to it");
   // Muting, deafening, sharing and volume were not arrivals; boosting has stopped.
   await chimed(alice, arrival[0], "suspended");
   await chimed(bob, arrival[1], arrival[1] ? "suspended" : "none");

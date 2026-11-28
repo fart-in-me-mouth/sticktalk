@@ -680,6 +680,30 @@
   .tile-fullscreen ~ .tile-popout {
     @apply right-12 touch:right-14;
   }
+  /* Stop watching someone's stream: beside the buttons above, whichever the tile has. */
+  .tile-stop {
+    @apply absolute top-2 right-2 z-[1] bg-rail/80;
+  }
+  .tile-fullscreen ~ .tile-stop,
+  .tile-popout ~ .tile-stop {
+    @apply right-12 touch:right-14;
+  }
+  .tile-fullscreen ~ .tile-popout ~ .tile-stop {
+    @apply right-22 touch:right-26;
+  }
+  /* A phone has no pop-out button to leave room for. */
+  @media (max-width: 767px) {
+    .tile-fullscreen ~ .tile-popout ~ .tile-stop {
+      right: calc(var(--spacing) * 14);
+    }
+  }
+  /* A stream you stopped watching: its name and the way back, nothing else. */
+  .participant-tile:not(.is-closed) .tile-watch {
+    @apply hidden;
+  }
+  .participant-tile.is-closed :is(.call-video, .tile-live, .tile-fullscreen, .tile-popout, .tile-stop, .tile-control, .tile-volume, .tile-quality, .tile-e2ee) {
+    @apply hidden!;
+  }
   /* A stream in its own window (media.js builds it): the video, with its name
      and the full screen button while the pointer moves. */
   .stream-window {
