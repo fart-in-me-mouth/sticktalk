@@ -102,7 +102,7 @@ background is only served through an invite.
 | AutoMod | the server's own enabled keyword rules that block, with no exemptions (only Manage Server holders set the tag, and they would otherwise be exempt) |
 | Badge | one of the 32 built-in glyphs; the two colors at least 3:1 apart (WCAG non-text contrast) |
 | Tag invite | an invite of this server that is usable when saved and when the card is read |
-| Role gradient | the role has a color; 2 or 3 stops; each at least 4.5:1 against `bg.selected` (`legible_name_color`, the profile name rule) |
+| Role gradient | the role has a color; 2 or 3 stops, any RGB |
 | Role icon picture | PNG or WebP, at most 256 KB and 1024x1024, decoded in full, stored as a 64x64 PNG rendition beside the original |
 | Role icon emoji | one Unicode emoji (1–10 characters, pictographic), or a custom emoji of this server |
 | Server images | avatar uploads: 10 MB, PNG/APNG/JPEG/WebP/GIF, every frame decoded and capped, still first-frame rendition (`docs/features/profiles.md`) |

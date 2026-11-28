@@ -289,16 +289,6 @@ pub(super) async fn set_role_style(
                         "A gradient starts at the role color: choose a color and a second color.",
                     ));
                 }
-                if [Some(role.color), s.color2, s.color3]
-                    .iter()
-                    .flatten()
-                    .any(|c| !legible_name_color(*c))
-                {
-                    return Err(invalid(
-                        "style",
-                        "One of those colors is too dark to read. Choose a lighter one.",
-                    ));
-                }
             }
             RolePaint::Holographic => {
                 require(

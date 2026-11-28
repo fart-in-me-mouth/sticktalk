@@ -511,7 +511,6 @@ fn look_fields(
             <label class="field mb-0 min-w-40 flex-1"><span>"Effect"</span><select id="pf-name-effect" data-saved=s.effect.name()>{NameEffect::ALL.iter().map(|f|view!{<option value=f.name() selected=*f==s.effect>{f.label()}</option>}).collect_view()}</select></label>
         </div>
         <div class="mt-4 flex flex-wrap gap-4">{color_field("pf-name-c1","Name Color",s.color)}{color_field("pf-name-c2","Second Color",s.color2.unwrap_or(0x3DDC97))}</div>
-        <p class="form-error mt-2 text-sm text-destructive" data-pv="name-warning" role="status" hidden>"That color is too dark to read. Choose a lighter one."</p>
         <h3 class="mt-8">"Profile Colors"</h3>
         {check("pf-colors-on",if server{"Use different profile colors in this server"}else{"Use profile colors"},primary.is_some()||accent.is_some(),"Tints your profile card. Text color adjusts so it stays readable.")}
         <div class="flex flex-wrap gap-4">{color_field("pf-primary","Primary",primary.unwrap_or(0x2B5B4E))}{color_field("pf-accent","Accent",accent.unwrap_or(0x17171A))}</div>

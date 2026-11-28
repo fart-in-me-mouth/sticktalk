@@ -121,15 +121,9 @@ async fn global_profile_is_validated_saved_and_announced() {
         color2: Some(0x3DDC97),
         effect: NameEffect::Gradient,
     };
-    // Illegible colors, unknown cosmetics, long text and bad colors are refused.
+    // A gradient with one color, unknown cosmetics, long text and bad colors
+    // are refused.
     for bad in [
-        ProfileEdit {
-            name: Some(NameStyle {
-                color: 0x101010,
-                ..gradient
-            }),
-            ..edit()
-        },
         ProfileEdit {
             name: Some(NameStyle {
                 color2: None,

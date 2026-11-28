@@ -84,13 +84,13 @@ try {
   await alice.locator('#pf-name-on').check();
   await alice.locator('#pf-name-font').selectOption('pixel');
   await alice.locator('#pf-name-effect').selectOption('gradient');
-  // A dark name color cannot be saved.
+  // Any name color can be saved, a dark one too: nothing warns or blocks.
   await alice.locator('#pf-name-c1').fill('#101012');
-  await alice.waitForSelector('[data-pv="name-warning"]:not([hidden])');
-  assert.equal(await alice.locator('.profile-save-bar [type=submit]').isDisabled(), true);
+  await alice.waitForSelector('.profile-save-bar:not([hidden])');
+  assert.equal(await alice.locator('.profile-save-bar [type=submit]').isDisabled(), false);
+  assert.equal(await alice.locator('[data-pv="name-warning"]').count(), 0);
   await alice.locator('#pf-name-c1').fill('#ffd37a');
   await alice.locator('#pf-name-c2').fill('#3ddc97');
-  await alice.waitForSelector('[data-pv="name-warning"][hidden]', {state: 'attached'});
   await alice.locator('#pf-colors-on').check();
   await alice.locator('#pf-primary').fill('#f4f1e8');
   await alice.locator('#pf-accent').fill('#ffd1e0');
@@ -109,7 +109,7 @@ try {
   // The pixel font is fetched now that a name uses it, and no other name font.
   await until(async () => (await fonts(alice)).length > 0);
   assert.ok((await fonts(alice)).every((f) => f.includes('press-start-2p')));
-  checks.push('profile editor: bio with Markdown and links, pronouns, colors with readable text, name style with legibility check, four cosmetic pickers, live preview, lazy name font');
+  checks.push('profile editor: bio with Markdown and links, pronouns, colors with readable text, name style in any color, four cosmetic pickers, live preview, lazy name font');
 
   // ---- Saving again: the bar goes away each time. A save changes only what the
   // fields call saved, and the bar used to stay up after every save but the first,

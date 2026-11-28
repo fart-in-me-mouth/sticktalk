@@ -590,7 +590,7 @@ fn role_controls(a: &App, r: &Role) -> AnyView {
             <label class="live-checkbox mb-0"><input id="id-role-c3-on" type="checkbox" checked=c3.is_some()/>"Third color"</label>
             <label class="field mb-0"><span>"Third color"</span><input id="id-role-c3" type="color" value=hex(c3.unwrap_or(0xF2B84B))/></label>
         </div>
-        <p class="mt-2 text-xs text-subtle">"A gradient starts at the role color above. Colors too dark to read on the chat background are refused."</p>
+        <p class="mt-2 text-xs text-subtle">"A gradient starts at the role color above."</p>
         <div class="mt-3">{button("Save Style",&format!("id:role-style,{}",r.id.0),"secondary")}</div>
         <div class="settings-divider"></div>
         <h2>"Role Icon"</h2>
