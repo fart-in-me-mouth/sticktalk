@@ -50,6 +50,17 @@ There are no intentional Phase 1 endpoint/command omissions.
   admitted after commit, before the initiating response. REST and Ready share
   that same gate/cursor boundary. Password hashing, image work, filesystem and
   network I/O do not run while holding the database mutation gate.
+- **Lock order: the gate (`core`), then a pooled database connection, never
+  the other way round.** Commands, new connections and housekeeping take the
+  gate and then a connection; the pool has four. A request that waits for the
+  gate with a connection in hand lets the two wait for each other, and the
+  whole server stands still for the pool's 30-second timeout (the live server
+  on 2026-11-28, whenever a screen of avatars loaded while a profile was
+  saved). Routes get the person, their budget and a connection from
+  `http::budgeted`, which gives the first connection back before the gate.
+  `lock_order_tests.rs` reads the sources and refuses a `core.lock()` after a
+  connection is bound; `audit_tests.rs` shows the pool stays free while
+  requests wait.
 - Each socket has a 128-item/2-MiB outbound budget. Immutable encoded event bytes
   are shared between matching session sequences. Replay is limited to 2,048
   events, 2 MiB and ten minutes per stream, with a 64-MiB global budget.

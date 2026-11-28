@@ -19,14 +19,7 @@ pub(crate) fn routes() -> axum::Router<App> {
 }
 
 async fn who(app: &App, h: &HeaderMap) -> Result<(sqlx::pool::PoolConnection<sqlx::Sqlite>, Id)> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = auth(&mut c, http::bearer(h)?).await?;
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("rest:{}", u.0), 120., 30.)?;
-    Ok((c, u))
+    http::budgeted(app, http::bearer(h)?, &[("rest", 120., 30.)]).await
 }
 
 async fn detail(

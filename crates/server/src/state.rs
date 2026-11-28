@@ -96,6 +96,8 @@ pub(crate) struct Inner {
     pub browser: crate::browser::Browser,
     pub push: crate::push::Push,
     pub pool: SqlitePool,
+    /// The gate. Take it before a connection from `pool`, never while holding
+    /// one (README, "Lock order"; `http::budgeted`).
     pub core: Mutex<Core>,
     pub passwords: Arc<Semaphore>,
     pub images: Arc<Semaphore>,

@@ -223,16 +223,10 @@ async fn preview(State(app): State<App>, Path(e): Path<u64>, h: HeaderMap) -> Re
     serve(app, Id(e), h, true).await
 }
 async fn serve(app: App, e: Id, h: HeaderMap, preview: bool) -> Result<Response> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = auth(&mut c, http::bearer(&h)?).await?;
     // The shared budget for pictures (security review F5). The global lock is
     // held for the budget only: the checks below just read, and a browser
     // that has the image asks with If-None-Match and gets a 304.
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("file:{}", u.0), 600., 120.)?;
+    let (mut c, u) = http::budgeted(&app, http::bearer(&h)?, &[("file", 600., 120.)]).await?;
     let r = sqlx::query("SELECT * FROM guild_emoji WHERE id=?")
         .bind(id(e)?)
         .fetch_optional(&mut *c)

@@ -431,15 +431,10 @@ async fn delete_sound(
 /// The clip itself: for members of its server, and for anyone in a call with a
 /// member of its server (who may have played it there).
 async fn clip(State(app): State<App>, Path(s): Path<u64>, h: HeaderMap) -> Result<Response> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = db::auth(&mut c, &token(&h)?).await?;
     // The shared picture and media budget; the global lock only for that and
-    // for who is in a call with you (task `qa2`, security review F5).
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("file:{}", u.0), 600., 120.)?;
+    // for who is in a call with you (task `qa2`, security review F5), and
+    // never waited for with a connection in hand (`http::budgeted`).
+    let (mut c, u) = http::budgeted(&app, &token(&h)?, &[("file", 600., 120.)]).await?;
     let r = sqlx::query("SELECT guild_id,format,data FROM soundboard_sounds WHERE id=?")
         .bind(id(Id(s))?)
         .fetch_optional(&mut *c)
@@ -448,9 +443,11 @@ async fn clip(State(app): State<App>, Path(s): Path<u64>, h: HeaderMap) -> Resul
     let g = Id(r.get::<i64, _>("guild_id") as u64);
     if db::role(&mut c, u, g).await.is_err() {
         let mut heard = false;
+        drop(c);
         let companions: Vec<Id> = voice::companions(&*app.0.core.lock().await, u)
             .into_iter()
             .collect();
+        c = app.0.pool.acquire().await?;
         for user in companions {
             if db::role(&mut c, user, g).await.is_ok() {
                 heard = true;

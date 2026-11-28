@@ -25,14 +25,7 @@ pub(crate) fn routes() -> axum::Router<App> {
 }
 
 async fn who(app: &App, h: &HeaderMap) -> Result<(sqlx::pool::PoolConnection<sqlx::Sqlite>, Id)> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = db::auth(&mut c, http::bearer(h)?).await?;
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("rest:{}", u.0), 120., 30.)?;
-    Ok((c, u))
+    http::budgeted(app, http::bearer(h)?, &[("rest", 120., 30.)]).await
 }
 
 async fn list(
@@ -348,12 +341,8 @@ async fn set_cover(
         .try_acquire_owned()
         .map_err(|_| Error::new(ErrorCode::Unavailable))?;
     let (s, u) = {
-        let (mut c, u) = who(&app, &h).await?;
-        app.0
-            .core
-            .lock()
-            .await
-            .rate(format!("event-cover:{}", u.0), 10., 3.)?;
+        let budgets = [("rest", 120., 30.), ("event-cover", 10., 3.)];
+        let (mut c, u) = http::budgeted(&app, http::bearer(&h)?, &budgets).await?;
         let s = load(&mut c, Id(e)).await?;
         manage(&mut c, u, &s).await?;
         (s, u)
@@ -402,8 +391,12 @@ async fn remove_cover(
     Path(e): Path<u64>,
     h: HeaderMap,
 ) -> Result<http::ApiResponse> {
-    let (mut c, u) = who(&app, &h).await?;
+    // The gate first, then the connection (`http::budgeted`): the one that
+    // identified the person is given back before the gate is waited for.
+    let (c, u) = who(&app, &h).await?;
+    drop(c);
     let mut core = app.0.core.lock().await;
+    let mut c = app.0.pool.acquire().await?;
     let s = load(&mut c, Id(e)).await?;
     manage(&mut c, u, &s).await?;
     sqlx::query("DELETE FROM event_covers WHERE event_id=?")

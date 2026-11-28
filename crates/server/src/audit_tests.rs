@@ -716,6 +716,64 @@ async fn rest_acl_matrix_and_authorization_before_304() {
     app.shutdown();
     task.await.unwrap();
 }
+/// Commands and new connections hold the global lock and then take a database
+/// connection. A request that waited for the lock with a connection in hand
+/// made the two wait for each other: with all four of the pool's connections
+/// held by picture requests, the server stood still for the pool's 30-second
+/// timeout (the live server, 2026-11-28, whenever a profile was saved).
+#[tokio::test]
+async fn requests_waiting_for_the_global_lock_hold_no_database_connection() {
+    let (_dir, app) = fixture().await;
+    let member = token();
+    sqlx::query("UPDATE sessions SET token_hash=? WHERE user_id=2")
+        .bind(hash(member.as_bytes()))
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO messages(id,channel_id,author_id,content,created_at) VALUES(12,11,1,'private',0)").execute(&app.0.pool).await.unwrap();
+    sqlx::query("INSERT INTO uploads(id,owner_id,purpose,channel_id,filename,content_type,byte_size,storage_key,thumbnail_key,thumbnail_width,thumbnail_height,thumbnail_size,thumbnail_type,created_at,expires_at) VALUES(30,1,'message',11,'file','application/octet-stream',7,'private.bin','private.jpg',1,1,3,'image/jpeg',0,NULL)").execute(&app.0.pool).await.unwrap();
+    sqlx::query("INSERT INTO message_attachments VALUES(12,30,0)")
+        .execute(&app.0.pool)
+        .await
+        .unwrap();
+    tokio::fs::write(app.0.config.data_dir.join("files/private.jpg"), b"jpg")
+        .await
+        .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let serving = app.clone();
+    let task = tokio::spawn(async move {
+        serving.serve(listener).await.unwrap();
+    });
+    let http = reqwest::Client::new();
+    // Someone holds the lock, as a command does while it runs...
+    let core = app.0.core.lock().await;
+    // ...and a screen of pictures is asked for: more requests than the pool
+    // has connections. Each waits for the lock (its budget is kept there).
+    let waiting: Vec<_> = (0..10)
+        .map(|_| {
+            let request = http
+                .get(format!("{url}/api/v1/files/30/thumbnail"))
+                .bearer_auth(&member);
+            tokio::spawn(async move { request.send().await.unwrap().status().as_u16() })
+        })
+        .collect();
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    assert!(waiting.iter().all(|w| !w.is_finished()), "they wait");
+    // The command can still have its connection: none of them is holding one.
+    let connection =
+        tokio::time::timeout(std::time::Duration::from_secs(3), app.0.pool.acquire()).await;
+    assert!(
+        connection.is_ok_and(|c| c.is_ok()),
+        "every pooled connection is held by a request that waits for the lock"
+    );
+    drop(core);
+    for w in waiting {
+        assert_eq!(w.await.unwrap(), 200);
+    }
+    app.shutdown();
+    task.await.unwrap();
+}
 #[tokio::test]
 async fn cross_channel_target_errors_do_not_leak_hidden_message_ids() {
     let (_dir, app) = fixture().await;

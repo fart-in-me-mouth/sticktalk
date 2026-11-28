@@ -442,24 +442,21 @@ pub async fn thumbnail(
     download(app, url_id(&s)?, headers, true).await
 }
 async fn download(app: App, a: Id, headers: HeaderMap, thumb: bool) -> Result<Response> {
-    let token = bearer(&headers)?;
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = auth(&mut c, token).await?;
     // Its own budget: a screen of avatars and pictures must not use up the
     // allowance for the rest of the API, nor the other way round. The global
     // lock is for the budget only; the checks below just read.
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("file:{}", u.0), 600., 120.)?;
+    let (mut c, u) =
+        crate::http::budgeted(&app, bearer(&headers)?, &[("file", 600., 120.)]).await?;
     let row = sqlx::query("SELECT * FROM uploads WHERE id=?")
         .bind(id(a)?)
         .fetch_optional(&mut *c)
         .await?
         .ok_or_else(|| Error::new(ErrorCode::NotFound))?;
-    // Activity sessions live in memory: the lock is held for this look only.
+    // Activity sessions live in memory: the lock is held for this look only,
+    // and never waited for with a connection in hand (`http::budgeted`).
+    drop(c);
     let in_activity = crate::activities::file_access(&*app.0.core.lock().await, u, a);
+    let mut c = app.0.pool.acquire().await?;
     if let Some(expires) = row.get::<Option<i64>, _>("expires_at") {
         require(
             expires > now() as i64 && row.get::<i64, _>("owner_id") == id(u)?,
