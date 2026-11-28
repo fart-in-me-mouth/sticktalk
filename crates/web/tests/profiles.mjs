@@ -122,6 +122,14 @@ try {
     await alice.waitForFunction(() => document.querySelector('[data-live-form="profiles-user"] .profile-save-bar').hidden);
   }
   checks.push('saving a second and third time hides the unsaved-changes bar again');
+  // ---- The sample message and member row: the decoration sits around the face.
+  const samples = await alice.evaluate(() => [...document.querySelectorAll('.name-preview .avatar-frame')].map((frame) => {
+    const a = frame.querySelector('.avatar').getBoundingClientRect(), d = frame.querySelector('.avatar-deco').getBoundingClientRect();
+    return [Math.abs((a.left + a.right) / 2 - (d.left + d.right) / 2), Math.abs((a.top + a.bottom) / 2 - (d.top + d.bottom) / 2), Math.abs(d.width - d.height)];
+  }));
+  assert.equal(samples.length, 2, 'a sample message and a sample member row');
+  for (const off of samples) assert.ok(off.every((n) => n < 1), `the decoration is round and centered on the sample's avatar: off by ${off}`);
+  checks.push('the sample message and member row show the decoration centered on the avatar');
   // ---- My Account: the decoration sits around the avatar it decorates.
   await act(alice, 'dialog:account');
   await alice.waitForSelector('.account-identity .avatar-frame .avatar-deco');

@@ -552,9 +552,12 @@ fn save_bar(form: &'static str, a: &App) -> AnyView {
 }
 /// Sample rows under the preview card: how the name reads in chat and in
 /// the member list (with the nameplate).
+/// The message row keeps its avatar at the top, at its own size (`items-start`):
+/// stretched to the height of the two lines of text beside it, the frame was
+/// taller than the face, and the decoration hung below it.
 fn samples(u: &UserSummary) -> AnyView {
     view!{<div class="mt-4 overflow-hidden rounded-xl border bg-background" aria-label="How your name looks">
-        <div class="message name-preview flex gap-3 px-3 py-2">{decorated(u,"small")}<div class="min-w-0"><strong class="block truncate text-[15px] font-semibold" data-pv="msg-name">{styled(&name(u),u.style.name.as_ref(),true)}</strong><span class="text-sm text-subtle">"Hey, how’s it going?"</span></div></div>
+        <div class="message name-preview flex items-start gap-3 px-3 py-2">{decorated(u,"small")}<div class="min-w-0"><strong class="block truncate text-[15px] font-semibold" data-pv="msg-name">{styled(&name(u),u.style.name.as_ref(),true)}</strong><span class="text-sm text-subtle">"Hey, how’s it going?"</span></div></div>
         <div class="member-row name-preview flex min-h-[42px] items-center gap-3 bg-sidebar px-3 py-1"><span class=format!("nameplate cosmetic plate-{} is-self",u.style.nameplate.as_deref().unwrap_or("none")) data-pv="plate" hidden=u.style.nameplate.is_none() aria-hidden="true"></span>{decorated(u,"small")}<span class="min-w-0 truncate text-[15px] font-medium" data-pv="row-name">{styled(&name(u),u.style.name.as_ref(),true)}</span></div>
     </div>}.into_any()
 }
