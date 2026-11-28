@@ -250,6 +250,34 @@ pub fn bearer(r: &axum::http::HeaderMap) -> Result<&str> {
         .and_then(|s| s.strip_prefix("Bearer "))
         .ok_or_else(|| Error::new(ErrorCode::Unauthenticated))
 }
+/// Who is asking, charged to their request budgets (`(name, per minute,
+/// burst)`, in order), with a database connection for the rest of the request.
+///
+/// Budgets are kept under the global lock, and **nothing may wait for that
+/// lock while it holds a pooled connection**. Commands and new connections
+/// hold the lock and then take a connection; with every connection of the
+/// pool held by requests waiting for the lock, neither side could go on and
+/// the whole server stood still until the pool's 30-second timeout. A screen
+/// of avatars loading while someone saved their profile did exactly that
+/// (2026-11-28). So the connection that identifies the person is given back
+/// before the lock is taken, and another is taken after it.
+pub(crate) async fn budgeted(
+    app: &App,
+    token: &str,
+    budgets: &[(&str, f64, f64)],
+) -> Result<(sqlx::pool::PoolConnection<sqlx::Sqlite>, Id)> {
+    let user = {
+        let mut c = app.0.pool.acquire().await?;
+        crate::db::auth(&mut c, token).await?.1
+    };
+    {
+        let mut core = app.0.core.lock().await;
+        for (name, per_minute, burst) in budgets {
+            core.rate(format!("{name}:{}", user.0), *per_minute, *burst)?;
+        }
+    }
+    Ok((app.0.pool.acquire().await?, user))
+}
 // Axum calls IntoResponse after the handler future returns. Keep owned snapshots
 // here so the mutation gate and SQLite connection are dropped before encoding.
 pub(crate) struct ApiResponse {

@@ -31,14 +31,7 @@ struct ChannelFilter {
 }
 
 async fn who(app: &App, h: &HeaderMap) -> Result<(sqlx::pool::PoolConnection<sqlx::Sqlite>, Id)> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = auth(&mut c, http::bearer(h)?).await?;
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("rest:{}", u.0), 120., 30.)?;
-    Ok((c, u))
+    http::budgeted(app, http::bearer(h)?, &[("rest", 120., 30.)]).await
 }
 
 async fn voters(
@@ -71,13 +64,7 @@ async fn embed_image(
     Path((ch, m, index)): Path<(u64, u64, u8)>,
     h: HeaderMap,
 ) -> Result<Response> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = auth(&mut c, http::bearer(&h)?).await?;
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("file:{}", u.0), 600., 120.)?;
+    let (mut c, u) = http::budgeted(&app, http::bearer(&h)?, &[("file", 600., 120.)]).await?;
     let (kind, bytes) = previews::image(&mut c, u, Id(ch), Id(m), index).await?;
     // A message's preview images change only when its text does (an edit
     // fetches them again); the hash of the bytes names this version.

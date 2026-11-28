@@ -75,7 +75,7 @@ REST bucket (120/min, burst 30).
 | Crop | zoom 100–400 %, focal point 0–100 % on each axis |
 | Shown badges | 6 |
 | Custom badges | 100; name 40 characters, description 120; icon 256 KB, fitted to 64x64 PNG |
-| Name colors | contrast at least 4.5:1 against `bg.selected` (#2E2E34), the lightest surface a name is drawn on in both the cozy and compact layouts; a gradient needs two colors |
+| Name colors | any RGB (the owner removed the readability rule on 2026-11-28: how a name reads on the chat is the person's choice); a gradient needs two colors |
 | Profile colors | any RGB; the card text and a black scrim are chosen so text reaches 7:1 on both colors (`card_theme`), so its 80 % secondary text still reads |
 | Cosmetic IDs | must be in the catalogs below |
 

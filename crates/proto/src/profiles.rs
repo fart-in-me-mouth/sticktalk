@@ -32,10 +32,9 @@ pub const SERVER_OWNER_BADGE_MEMBERS: u32 = 50;
 pub const DEFAULT_EARLY_MEMBER_CUTOFF: UnixMillis = 1_798_761_600_000;
 /// Account-age badge tiers, in years. The badge evolves through them.
 pub const MEMBER_YEAR_TIERS: [u32; 4] = [1, 2, 3, 5];
-/// Name colors must reach this contrast with the lightest surface a name is
-/// drawn on (`bg.selected`, also darker than a hovered or mentioned row).
+/// A styled name is drawn in its own colors on a tinted profile card only
+/// when they reach this contrast with the card (`name_reads_on_card`).
 pub const MIN_NAME_CONTRAST: f32 = 4.5;
-pub const NAME_SURFACE: u32 = 0x2E2E34;
 
 /// Which part of an image is shown: zoom in percent (100 to 400) and the
 /// point, in percent of the image, that stays fixed while zooming. Applied by
@@ -195,16 +194,14 @@ pub struct NameStyle {
     pub effect: NameEffect,
 }
 impl NameStyle {
-    /// Why this style cannot be saved, if it cannot.
+    /// Why this style cannot be saved, if it cannot. Any RGB color can be:
+    /// how readable a name is on the chat is the person's own choice.
     pub fn problem(&self) -> Option<&'static str> {
         if self.color > 0xFF_FFFF || self.color2.is_some_and(|c| c > 0xFF_FFFF) {
             return Some("Colors must be RGB.");
         }
         if self.effect == NameEffect::Gradient && self.color2.is_none() {
             return Some("A gradient needs two colors.");
-        }
-        if !legible_name_color(self.color) || self.color2.is_some_and(|c| !legible_name_color(c)) {
-            return Some("That color is too dark to read. Choose a lighter one.");
         }
         None
     }
@@ -525,11 +522,6 @@ pub fn contrast(a: u32, b: u32) -> f32 {
     let (a, b) = (luminance(a), luminance(b));
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
-/// A name color readable on every surface names are drawn on, in both the
-/// cozy and compact message layouts (they share their backgrounds).
-pub fn legible_name_color(rgb: u32) -> bool {
-    contrast(rgb, NAME_SURFACE) >= MIN_NAME_CONTRAST
-}
 /// Mix `rgb` toward black by `percent`.
 pub fn darken(rgb: u32, percent: u8) -> u32 {
     let k = 100 - u32::from(percent.min(100));
@@ -574,8 +566,8 @@ pub fn card_theme(primary: u32, accent: u32) -> CardTheme {
 /// Whether a name in `style` reads on a profile card tinted with `primary`
 /// and `accent`: every color the name is filled with reaches
 /// `MIN_NAME_CONTRAST` against both ends of the card's gradient, after its
-/// scrim. A style is checked against the dark chat surface when it is saved
-/// (`legible_name_color`); a card can be light, so it is checked again here.
+/// scrim. Any color can be saved as a name color, and a card can be light or
+/// dark, so this is checked where the card is drawn.
 pub fn name_reads_on_card(style: &NameStyle, primary: u32, accent: u32) -> bool {
     let t = card_theme(primary, accent);
     let ends = [darken(primary, t.scrim), darken(accent, t.scrim)];
@@ -603,7 +595,6 @@ mod tests {
             color2: None,
             effect: NameEffect::Solid,
         };
-        assert!(legible_name_color(pale.color), "fine on the dark chat");
         // A light card (dark text): a pale name is not readable there.
         assert!(!name_reads_on_card(&pale, 0xFDF6E3, 0xF5E6C8));
         // A dark card: it is.
@@ -657,11 +648,7 @@ mod tests {
         assert_eq!(back, styled);
     }
     #[test]
-    fn name_colors_must_be_readable() {
-        assert!(legible_name_color(0xFFFFFF));
-        assert!(legible_name_color(0x3DDC97));
-        assert!(!legible_name_color(0x000000));
-        assert!(!legible_name_color(0x5865F2 & 0x3f3f3f));
+    fn any_name_color_can_be_saved_and_a_gradient_needs_two() {
         let style = NameStyle {
             font: NameFont::Pixel,
             color: 0xFFFFFF,
@@ -669,18 +656,21 @@ mod tests {
             effect: NameEffect::Gradient,
         };
         assert!(style.problem().is_some());
+        // Dark, saturated or pale: the choice is the person's.
+        for color in [0x000000, 0x101010, 0xE8200F, 0xF2B84B, 0xFFFFFF] {
+            let two = NameStyle {
+                color,
+                color2: Some(color),
+                ..style
+            };
+            assert_eq!(two.problem(), None, "{color:06x}");
+        }
         assert!(NameStyle {
-            color2: Some(0x101010),
+            color: 0x1_000_000,
             ..style
         }
         .problem()
         .is_some());
-        assert!(NameStyle {
-            color2: Some(0xF2B84B),
-            ..style
-        }
-        .problem()
-        .is_none());
     }
     #[test]
     fn card_text_is_readable_on_any_two_colors() {

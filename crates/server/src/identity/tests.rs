@@ -606,12 +606,6 @@ async fn role_styles_need_manage_roles_rank_and_readable_colors() {
             .as_deref(),
         Some("style")
     );
-    assert_eq!(
-        err(&run(&app, 1, style(blue, gradient(0x101010))).await)
-            .field
-            .as_deref(),
-        Some("style")
-    );
     // @everyone has no style.
     assert_eq!(
         err(&run(&app, 1, style(Id(10), gradient(0xFFC0E0))).await).code,

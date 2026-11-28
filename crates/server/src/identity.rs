@@ -49,12 +49,10 @@ const MAX_COUNTS: usize = 256;
 
 /// How many of `g`'s members are online and not invisible: from a cache
 /// refreshed at most every 30 s per server. The member query runs outside the
-/// command gate; the gate is held only to read who is connected.
-pub(crate) async fn online_count(
-    app: &crate::state::App,
-    c: &mut SqliteConnection,
-    g: Id,
-) -> Result<u32> {
+/// command gate; the gate is held only to read who is connected. It takes its
+/// own connection for that query, so call it with none in hand: the gate is
+/// never waited for while a pooled connection is held (`http::budgeted`).
+pub(crate) async fn online_count(app: &crate::state::App, g: Id) -> Result<u32> {
     if let Some((at, n)) = app.0.core.lock().await.identity.counts.get(&g) {
         if now().saturating_sub(*at) < COUNT_TTL_MS {
             return Ok(*n);
@@ -62,7 +60,7 @@ pub(crate) async fn online_count(
     }
     let present: Vec<i64> = sqlx::query_scalar("SELECT m.user_id FROM guild_members m JOIN users u ON u.id=m.user_id WHERE m.guild_id=? AND u.desired_presence NOT IN('invisible','offline')")
         .bind(id(g)?)
-        .fetch_all(&mut *c)
+        .fetch_all(&mut *app.0.pool.acquire().await?)
         .await?;
     let mut core = app.0.core.lock().await;
     let connected: std::collections::HashSet<Id> = core

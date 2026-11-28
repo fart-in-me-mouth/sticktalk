@@ -511,7 +511,6 @@ fn look_fields(
             <label class="field mb-0 min-w-40 flex-1"><span>"Effect"</span><select id="pf-name-effect" data-saved=s.effect.name()>{NameEffect::ALL.iter().map(|f|view!{<option value=f.name() selected=*f==s.effect>{f.label()}</option>}).collect_view()}</select></label>
         </div>
         <div class="mt-4 flex flex-wrap gap-4">{color_field("pf-name-c1","Name Color",s.color)}{color_field("pf-name-c2","Second Color",s.color2.unwrap_or(0x3DDC97))}</div>
-        <p class="form-error mt-2 text-sm text-destructive" data-pv="name-warning" role="status" hidden>"That color is too dark to read. Choose a lighter one."</p>
         <h3 class="mt-8">"Profile Colors"</h3>
         {check("pf-colors-on",if server{"Use different profile colors in this server"}else{"Use profile colors"},primary.is_some()||accent.is_some(),"Tints your profile card. Text color adjusts so it stays readable.")}
         <div class="flex flex-wrap gap-4">{color_field("pf-primary","Primary",primary.unwrap_or(0x2B5B4E))}{color_field("pf-accent","Accent",accent.unwrap_or(0x17171A))}</div>
@@ -553,9 +552,12 @@ fn save_bar(form: &'static str, a: &App) -> AnyView {
 }
 /// Sample rows under the preview card: how the name reads in chat and in
 /// the member list (with the nameplate).
+/// The message row keeps its avatar at the top, at its own size (`items-start`):
+/// stretched to the height of the two lines of text beside it, the frame was
+/// taller than the face, and the decoration hung below it.
 fn samples(u: &UserSummary) -> AnyView {
     view!{<div class="mt-4 overflow-hidden rounded-xl border bg-background" aria-label="How your name looks">
-        <div class="message name-preview flex gap-3 px-3 py-2">{decorated(u,"small")}<div class="min-w-0"><strong class="block truncate text-[15px] font-semibold" data-pv="msg-name">{styled(&name(u),u.style.name.as_ref(),true)}</strong><span class="text-sm text-subtle">"Hey, how’s it going?"</span></div></div>
+        <div class="message name-preview flex items-start gap-3 px-3 py-2">{decorated(u,"small")}<div class="min-w-0"><strong class="block truncate text-[15px] font-semibold" data-pv="msg-name">{styled(&name(u),u.style.name.as_ref(),true)}</strong><span class="text-sm text-subtle">"Hey, how’s it going?"</span></div></div>
         <div class="member-row name-preview flex min-h-[42px] items-center gap-3 bg-sidebar px-3 py-1"><span class=format!("nameplate cosmetic plate-{} is-self",u.style.nameplate.as_deref().unwrap_or("none")) data-pv="plate" hidden=u.style.nameplate.is_none() aria-hidden="true"></span>{decorated(u,"small")}<span class="min-w-0 truncate text-[15px] font-medium" data-pv="row-name">{styled(&name(u),u.style.name.as_ref(),true)}</span></div>
     </div>}.into_any()
 }

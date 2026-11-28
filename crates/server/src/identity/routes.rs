@@ -26,22 +26,16 @@ pub(crate) fn routes() -> Router<App> {
 /// Every route here only reads: the command gate is taken just for the
 /// budget, never while the database is read.
 async fn rest(app: &App, h: &HeaderMap) -> Result<(sqlx::pool::PoolConnection<sqlx::Sqlite>, Id)> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = auth(&mut c, http::bearer(h)?).await?;
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("identity-rest:{}", u.0), 120., 30.)?;
-    Ok((c, u))
+    http::budgeted(app, http::bearer(h)?, &[("identity-rest", 120., 30.)]).await
 }
-/// Cards (a tag's, an invite's) answer anyone signed in: a tighter budget.
-async fn card_budget(app: &App, u: Id) -> Result<()> {
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("identity-card:{}", u.0), 30., 10.)
+/// Cards (a tag's, an invite's) answer anyone signed in: a tighter budget on
+/// top of the usual one.
+async fn card_rest(
+    app: &App,
+    h: &HeaderMap,
+) -> Result<(sqlx::pool::PoolConnection<sqlx::Sqlite>, Id)> {
+    let budgets = [("identity-rest", 120., 30.), ("identity-card", 30., 10.)];
+    http::budgeted(app, http::bearer(h)?, &budgets).await
 }
 
 async fn admin(
@@ -83,8 +77,7 @@ async fn tag_card(
     Path(g): Path<String>,
     h: HeaderMap,
 ) -> Result<Json<TagCard>> {
-    let (mut c, u) = rest(&app, &h).await?;
-    card_budget(&app, u).await?;
+    let (mut c, u) = card_rest(&app, &h).await?;
     Ok(Json(tags::card(&mut c, u, http::url_id(&g)?).await?))
 }
 async fn invite_card(
@@ -92,9 +85,13 @@ async fn invite_card(
     Path(code): Path<String>,
     h: HeaderMap,
 ) -> Result<Json<InviteCard>> {
-    let (mut c, u) = rest(&app, &h).await?;
-    card_budget(&app, u).await?;
-    Ok(Json(vanity::card(&app, &mut c, u, &code).await?))
+    let (mut c, u) = card_rest(&app, &h).await?;
+    let g = vanity::server(&mut c, &code).await?;
+    // Who is online is read under the gate: with no connection in hand.
+    drop(c);
+    let online = online_count(&app, g).await?;
+    let mut c = app.0.pool.acquire().await?;
+    Ok(Json(vanity::card(&mut c, u, &code, online).await?))
 }
 async fn directory_art(
     State(app): State<App>,

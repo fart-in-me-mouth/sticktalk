@@ -28,7 +28,7 @@ export function supported() {
 function source() {
   const own = host.publication('screen');
   if (own) return { track: own.track, who: host.self(), label: 'your stream', kind: 'screen' };
-  const screens = [...host.elements().values()].filter((e) => e.kind === 'screen' && e.tile.dataset.self !== 'true');
+  const screens = [...host.elements().values()].filter((e) => e.kind === 'screen' && e.tile.dataset.self !== 'true' && !e.tile.classList.contains('is-closed'));
   const watched = screens.find((e) => e.tile.classList.contains('is-focused')) ?? screens[0];
   const track = watched?.media.srcObject?.getVideoTracks()[0];
   if (!track || track.readyState !== 'live') return null;

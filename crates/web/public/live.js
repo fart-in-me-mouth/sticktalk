@@ -289,6 +289,7 @@ function checkGlyphs() {
   }, { timeout: 1000 });
 }
 let saved,
+  parked,
   installed = false,
   composing = false,
   observer,
@@ -461,12 +462,18 @@ export function beforeRender() {
     focus = document.activeElement;
   if (input && list) remember(lastChannel ?? list.dataset.channel, input.value);
   const anchor = list && [...list.querySelectorAll('[data-live-message]')].find(row => row.getBoundingClientRect().bottom > list.getBoundingClientRect().top);
-  saved = {
-    channel: list?.dataset.channel,
-    top: list?.scrollTop,
-    bottom: list && list.scrollHeight - list.scrollTop - list.clientHeight < 96,
+  // Where the conversation is scrolled to. While it is off screen (the call
+  // view, a page), the last place it was seen at is kept, so coming back to
+  // it returns there: at the newest message if that is where you were.
+  if (list) parked = {
+    channel: list.dataset.channel,
+    top: list.scrollTop,
+    bottom: list.scrollHeight - list.scrollTop - list.clientHeight < 96,
     anchor: anchor?.dataset.liveMessage,
     anchorOffset: anchor && anchor.getBoundingClientRect().top - list.getBoundingClientRect().top,
+  };
+  saved = {
+    ...parked,
     id: focus?.id,
     focused: focus,
     // A focused button has no id: it is found again by what it does.
@@ -625,6 +632,7 @@ export function mediaAction(action) {
     messageMenu?.closeMessageMenu();
     drafts.clear();
     lastChannel=undefined;
+    parked=undefined;
     pendingHistoryJump=undefined;
     clearTimeout(seekTimer);seekTimer=undefined;pendingSeek=undefined;
     // A reactive render snapshots the old DOM before replacing it. Wipe the

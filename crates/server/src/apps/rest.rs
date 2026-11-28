@@ -62,14 +62,7 @@ pub(super) fn routes() -> Router<App> {
 
 type Person<'a> = (sqlx::pool::PoolConnection<sqlx::Sqlite>, Id);
 async fn person<'a>(app: &'a App, h: &HeaderMap) -> Result<Person<'a>> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = auth(&mut c, http::bearer(h)?).await?;
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("rest:{}", u.0), 120., 30.)?;
-    Ok((c, u))
+    http::budgeted(app, http::bearer(h)?, &[("rest", 120., 30.)]).await
 }
 
 async fn developer(State(app): State<App>, h: HeaderMap) -> Result<ApiResponse> {
@@ -101,13 +94,7 @@ async fn image(
     Path((ch, m, slot)): Path<(u64, u64, i64)>,
     h: HeaderMap,
 ) -> Result<Response> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = auth(&mut c, http::bearer(&h)?).await?;
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("file:{}", u.0), 600., 120.)?;
+    let (mut c, u) = http::budgeted(&app, http::bearer(&h)?, &[("file", 600., 120.)]).await?;
     let (kind, bytes) = messages::image(&mut c, u, Id(ch), Id(m), slot).await?;
     Ok((
         [

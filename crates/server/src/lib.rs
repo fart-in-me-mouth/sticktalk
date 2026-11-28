@@ -32,6 +32,8 @@ mod http_io;
 mod identity;
 mod launch;
 mod legacy;
+#[cfg(test)]
+mod lock_order_tests;
 mod mcp;
 mod mentions;
 mod moderation;

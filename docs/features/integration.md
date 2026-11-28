@@ -513,8 +513,8 @@ in `permission_tests::late_bits_follow_owner_admin_timeout_and_screening_rules`.
   invite made a request that failed with 404 (`content.mjs`, `threads.mjs`).
 - **The profile editor follows `ProfileUpdated`**: About Me saved, then
   Profiles opened at once, showed the old bio (`polish.mjs`).
-- **Styled names on light profile cards**: a style is checked against the dark
-  chat when saved; a card tinted with the person's colors can be light. The
+- **Styled names on light profile cards**: any color can be saved as a name
+  color; a card tinted with the person's colors can be light or dark. The
   card now checks the name against both ends of its own gradient
   (`name_reads_on_card`) and, if it does not reach 4.5:1, draws it in the
   card's text color (font kept); the light-theme lightness clamp no longer

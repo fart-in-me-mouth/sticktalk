@@ -11,14 +11,13 @@ const channel = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055
 const lum = (rgb) => 0.2126 * channel((rgb >> 16) & 255) + 0.7152 * channel((rgb >> 8) & 255) + 0.0722 * channel(rgb & 255);
 export const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)]; return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 const darken = (rgb, p) => { const k = 100 - p; const c = (s) => Math.floor(((rgb >> s) & 255) * k / 100); return (c(16) << 16) | (c(8) << 8) | c(0); };
-const LIGHT = 0xE8EAED, DARK = 0x111113, NAME_SURFACE = 0x2E2E34;
+const LIGHT = 0xE8EAED, DARK = 0x111113;
 export function cardTheme(p, a) {
   const worst = (t, s) => Math.min(contrast(t, darken(p, s)), contrast(t, darken(a, s)));
   if (worst(DARK, 0) >= 7) return { text: DARK, scrim: 0 };
   for (let s = 0; s <= 90; s += 5) if (worst(LIGHT, s) >= 7) return { text: LIGHT, scrim: s };
   return { text: LIGHT, scrim: 90 };
 }
-export const legible = (rgb) => contrast(rgb, NAME_SURFACE) >= 4.5;
 const num = (hex) => parseInt(String(hex || '').replace('#', ''), 16) || 0;
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 
@@ -44,10 +43,10 @@ function nameStyle(form) {
     const effect = val(form, 'pf-name-effect');
     const two = ['gradient', 'shimmer', 'outline'].includes(effect);
     const c1 = val(form, 'pf-name-c1'), c2 = val(form, 'pf-name-c2');
-    return { cls: `styled-name name-font-${val(form, 'pf-name-font')} name-effect-${effect}`, vars: `--name-c1:${c1};${two ? `--name-c2:${c2}` : ''}`, colors: two ? [c1, c2] : [c1], two };
+    return { cls: `styled-name name-font-${val(form, 'pf-name-font')} name-effect-${effect}`, vars: `--name-c1:${c1};${two ? `--name-c2:${c2}` : ''}`, two };
   }
   const fallback = form.dataset.fallbackStyle;
-  if (fallback) { const [cls, vars] = fallback.split('|'); return { cls, vars, colors: [] }; }
+  if (fallback) { const [cls, vars] = fallback.split('|'); return { cls, vars }; }
   return null;
 }
 function paintName(el, value, style) {
@@ -127,7 +126,7 @@ export function sync(form) {
   paintCosmetic(root, 'plate', 'plate-', choice(form, 'pf-plate'));
   paintCosmetic(root, 'effect', 'effect-', choice(form, 'pf-effect'));
   paintCosmetic(root, 'frame', 'frame-', choice(form, 'pf-frame'));
-  // Name style: second color only where the effect uses it; readable colors only.
+  // Name style: second color only where the effect uses it.
   const styled = on(form, 'pf-name-on');
   for (const id of ['pf-name-font', 'pf-name-effect', 'pf-name-c1', 'pf-name-c2']) {
     const el = field(form, id);
@@ -135,11 +134,6 @@ export function sync(form) {
   }
   const c2 = field(form, 'pf-name-c2')?.closest('label');
   if (c2) c2.hidden = !(style?.two ?? false);
-  const warning = $('[data-pv="name-warning"]', form);
-  const bad = styled && style.colors.some((c) => !legible(num(c)));
-  if (warning) warning.hidden = !bad;
-  const submit = $('.profile-save-bar [type=submit]', form);
-  if (submit) submit.disabled = bad;
 }
 export function reset(form) {
   for (const el of form.elements) {

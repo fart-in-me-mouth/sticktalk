@@ -233,13 +233,18 @@ async fn usable(c: &mut SqliteConnection, code: &str) -> Result<(i64, Id)> {
     Ok((i, inv.guild_id))
 }
 
-/// An invite card (its online count is `online_count`'s, from its cache).
+/// The server an invite leads to, if the invite can be used.
+pub(super) async fn server(c: &mut SqliteConnection, code: &str) -> Result<Id> {
+    Ok(usable(c, code).await?.1)
+}
+/// An invite card. `online` is `online_count`'s answer for its server, which
+/// the caller reads first, with no database connection in hand.
 /// Reads only, outside the command gate.
 pub(super) async fn card(
-    app: &App,
     c: &mut SqliteConnection,
     u: Id,
     code: &str,
+    online: u32,
 ) -> Result<InviteCard> {
     let (i, g) = usable(c, code).await?;
     let r = sqlx::query("SELECT name,(SELECT description FROM guild_profiles WHERE guild_id=guilds.id) AS d,(SELECT COUNT(*) FROM guild_members WHERE guild_id=guilds.id) AS n,EXISTS(SELECT 1 FROM guild_members WHERE guild_id=guilds.id AND user_id=?) AS joined FROM guilds WHERE id=?")
@@ -247,7 +252,6 @@ pub(super) async fn card(
         .bind(id(g)?)
         .fetch_one(&mut *c)
         .await?;
-    let online = online_count(app, c, g).await?;
     let look = guild_look(c, g).await?;
     let vanity: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM vanity_codes WHERE invite_id=?)")
@@ -284,13 +288,7 @@ pub(super) async fn art(
 ) -> Result<Response> {
     let (key, mime, size) = {
         // The gate only for the budget; the reads run outside it.
-        let mut c = app.0.pool.acquire().await?;
-        let (_, u) = auth(&mut c, http::bearer(&h)?).await?;
-        app.0
-            .core
-            .lock()
-            .await
-            .rate(format!("file:{}", u.0), 600., 120.)?;
+        let (mut c, _) = http::budgeted(&app, http::bearer(&h)?, &[("file", 600., 120.)]).await?;
         let (_, g) = usable(&mut c, &code).await?;
         let meta = match slot.as_str() {
             "icon" => looks::icon(&mut c, g).await?,

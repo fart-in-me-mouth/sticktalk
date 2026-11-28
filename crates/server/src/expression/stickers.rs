@@ -471,13 +471,7 @@ pub(super) async fn still(
     serve(app, Id(s), h, true).await
 }
 async fn serve(app: App, s: Id, h: HeaderMap, still: bool) -> Result<Response> {
-    let mut c = app.0.pool.acquire().await?;
-    let (_, u) = auth(&mut c, http::bearer(&h)?).await?;
-    app.0
-        .core
-        .lock()
-        .await
-        .rate(format!("file:{}", u.0), 600., 120.)?;
+    let (mut c, u) = http::budgeted(&app, http::bearer(&h)?, &[("file", 600., 120.)]).await?;
     let r =
         sqlx::query("SELECT guild_id,format,animated,data,still FROM guild_stickers WHERE id=?")
             .bind(id(s)?)

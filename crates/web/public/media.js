@@ -24,6 +24,11 @@ let pc,
   deviceListener = false,
   joinSounds = true;
 let idleReceivers = [];
+// Other people's streams you chose to stop watching, by the sharer's session
+// key. Neither the picture nor its sound is received until you watch again.
+const closedStreams = new Set();
+const isStream = (kind) => kind === "screen" || kind === "system_audio";
+const isClosed = (entry) => entry.kind === "screen" && closedStreams.has(entry.tile.dataset.participant);
 // End-to-end encryption (e2ee.js): loaded when the server welcomes this device
 // into a call that can be encrypted; its events run in order.
 let e2ee = null, e2eeLoading = null, e2eeQueue = Promise.resolve(), e2eeReady = null;
@@ -651,6 +656,8 @@ function createTile(id, p, kind) {
   let zoomGestureUntil = 0;
   const focus = () => {
     if (performance.now() < zoomGestureUntil) return;
+    // A stream you stopped watching: the whole tile is the way back to it.
+    if (kind === "screen" && closedStreams.has(key(p.session))) return watchStream(key(p.session), true);
     focusedTile = focusedTile === id ? null : id;
     mount();
   };
@@ -721,6 +728,26 @@ function createTile(id, p, kind) {
     pop.onclick = () => popOut(id).catch(report);
     tile.append(pop);
   }
+  // Someone else's stream can be closed: nothing of it is received until you
+  // choose to watch it again.
+  if (kind === 'screen' && p.session.user_id !== self()) {
+    const quit = document.createElement('button');
+    quit.type = 'button';
+    quit.className = 'icon-button tile-stop';
+    quit.setAttribute('aria-label', 'Stop Watching');
+    quit.title = 'Stop Watching';
+    quit.append(glyph('eye-off'));
+    quit.onclick = () => watchStream(key(p.session), false);
+    const watch = document.createElement('button');
+    watch.type = 'button';
+    watch.className = 'button primary tile-watch';
+    watch.textContent = 'Watch Stream';
+    watch.onclick = () => watchStream(key(p.session), true);
+    for (const button of [quit, watch])
+      for (const type of ['click', 'keydown', 'pointerdown'])
+        button.addEventListener(type, (e) => e.stopPropagation());
+    tile.append(quit, watch);
+  }
   const entry = { tile, label, name, state, media, user: p.session.user_id, kind, volumeKey: volumeKey(p, kind) };
   if (kind === 'screen' && p.session.user_id !== self()) {
     entry.control = document.createElement('button');
@@ -754,7 +781,9 @@ function describe(entry) {
   if (entry.name.textContent !== text) entry.name.textContent = text;
   // The server tag the person wears (identity.css draws it after the name).
   if ((entry.name.dataset.tag ?? "") !== who.tag) entry.name.dataset.tag = who.tag;
-  entry.tile.setAttribute("aria-label", `Focus ${text}`);
+  const closed = isClosed(entry);
+  entry.tile.classList.toggle("is-closed", closed);
+  entry.tile.setAttribute("aria-label", `${closed ? "Watch" : "Focus"} ${text}`);
   const avatar = entry.tile.querySelector(".call-avatar");
   if (avatar && who.avatar) {
     let img = avatar.querySelector("img");
@@ -823,29 +852,59 @@ export function bindScreenZoom(tile, video, onGesture = () => {}) {
   for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) video.addEventListener(event, release);
   tile.resetZoom = () => { points.clear(); start = undefined; scale = 1; x = y = 0; video.style.transform = ''; delete video.dataset.zoom; };
 }
+// Stop or start receiving someone's stream: its picture and its sound.
+function watchStream(sharer, watch) {
+  if (watch) closedStreams.delete(sharer);
+  else closedStreams.add(sharer);
+  const participant = participants.get(sharer);
+  if (participant) enqueue(() => updateParticipant(participant));
+}
+// A stream's tile once you stopped watching: it stays, showing nothing, as the
+// way back. It gives up the window, the full screen and the control it had.
+function closeTile(id) {
+  const entry = elements.get(id);
+  if (!entry) return;
+  if (popout?.id === id) closePopout();
+  if (entry.media === pip) leavePip();
+  if (document.fullscreenElement === entry.tile) document.exitFullscreen().catch(() => {});
+  if (controlling?.tile === entry) stopControl();
+  if (focusedTile === id) focusedTile = null;
+  entry.tile.resetZoom?.();
+  entry.media.srcObject = null;
+}
 async function updateParticipant(participant) {
   if (!pc || participant.session.user_id === self()) return;
+  const sharer = key(participant.session);
   // Not for the people who were already here when you joined.
-  if (!participants.has(key(participant.session))) joinSound();
-  participants.set(key(participant.session), participant);
+  if (!participants.has(sharer)) joinSound();
+  participants.set(sharer, participant);
   const active = new Set(
-    participant.tracks.map((t) => `${key(participant.session)}:${t.mid}`),
+    participant.tracks.map((t) => `${sharer}:${t.mid}`),
   );
+  // A stream that ended is no longer one you stopped watching: the next one opens.
+  if (!participant.tracks.some((t) => t.kind === "screen")) closedStreams.delete(sharer);
+  const closed = closedStreams.has(sharer);
   for (const [id, s] of subscriptions) {
-    if (
-      key(s.participant.session) === key(participant.session) &&
-      !active.has(id)
-    ) {
-      signal("unsubscribe", { receiver_mid: s.transceiver.mid });
-      if (!listenOnly) s.transceiver.direction = "inactive";
-      idleReceivers.push(s.transceiver);
-      subscriptions.delete(id);
-      discard(id);
-    }
+    if (key(s.participant.session) !== sharer) continue;
+    const ended = !active.has(id);
+    if (!ended && !(closed && isStream(s.kind))) continue;
+    signal("unsubscribe", { receiver_mid: s.transceiver.mid });
+    if (!listenOnly) s.transceiver.direction = "inactive";
+    idleReceivers.push(s.transceiver);
+    subscriptions.delete(id);
+    if (ended || s.kind !== "screen") discard(id);
+    else closeTile(id);
   }
+  // The tile of a stream you were not watching goes when the stream does.
+  for (const [id, e] of [...elements])
+    if (e.tile.dataset.participant === sharer && !active.has(id)) discard(id);
   const added = [];
   for (const track of participant.tracks) {
-    const id = `${key(participant.session)}:${track.mid}`;
+    const id = `${sharer}:${track.mid}`;
+    if (closed && isStream(track.kind)) {
+      if (track.kind === "screen" && !elements.has(id)) elements.set(id, createTile(id, participant, "screen"));
+      continue;
+    }
     if (subscriptions.has(id)) continue;
     if (subscriptions.size >= 28) break;
     const kind =
@@ -932,6 +991,10 @@ export function event(event) {
           subscriptions.delete(id);
           discard(id);
         }
+      // And the tile of a stream of theirs you were not watching.
+      closedStreams.delete(prefix);
+      for (const [id, e] of [...elements])
+        if (e.tile.dataset.participant === prefix) discard(id);
       mount();
       break;
     }
@@ -1621,7 +1684,7 @@ const canPopOut = () => !globalThis.__sticktalkHost || !!streamHost();
 // What is shown away from the call view: the tile you focused, else a shared
 // screen, else a camera. Never your own picture.
 function featured() {
-  const videos = [...elements].filter(([, e]) => e.media.tagName === "VIDEO" && !e.tile.dataset.self);
+  const videos = [...elements].filter(([, e]) => e.media.tagName === "VIDEO" && !e.tile.dataset.self && !isClosed(e));
   return (videos.find(([id]) => id === focusedTile) ?? videos.find(([, e]) => e.kind === "screen") ?? videos[0])?.[0] ?? null;
 }
 function leavePip() {
@@ -1875,6 +1938,7 @@ function stop(notify, keepEncryption = false) {
   status = "Disconnected";
   participants.clear();
   subscriptions.clear();
+  closedStreams.clear();
   for (const e of elements.values()) {
     boost(e, 0);
     e.media.srcObject = null;

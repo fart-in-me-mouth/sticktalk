@@ -77,7 +77,13 @@ is a native window that loads this same app from the server.
   Out" (on a tile, or in the call bar) instead opens the stream in a
   `window.open("")` window built from this page, which can be resized and go full
   screen (button, double-click or F). No extra connection or decode either way:
-  both show the same MediaStream.
+  both show the same MediaStream. "Stop Watching" on someone else's stream
+  unsubscribes from its picture and its sound, so nothing of it is received or
+  decoded; its tile stays, with "Watch Stream" (or a click anywhere on it) as the
+  way back. The choice lasts until that stream ends or you leave the call.
+- `public/live.js` keeps a conversation's scroll position while it is off screen
+  (the call view, a page): coming back to the same conversation returns to where
+  it was, at the newest message if you had read to it.
 - `public/push.js` is also lazy. Permission is requested only from the explainer's
   button handler. The generated service worker caches only an app-shell allowlist,
   never API/account content; its push handler uses generic lock-screen text and
